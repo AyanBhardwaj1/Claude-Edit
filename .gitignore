@@ -1,0 +1,10 @@
+projects/*
+!projects/.gitkeep
+__pycache__/
+*.pyc
+.pytest_cache/
+assets/fonts/*.ttf
+assets/fonts/*.otf
+assets/fonts/OFL.txt
+motion/node_modules/
+.DS_Store
