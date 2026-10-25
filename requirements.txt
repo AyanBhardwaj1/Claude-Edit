@@ -4,6 +4,9 @@ opencv-python-headless>=4.8,<5
 numpy>=1.24
 pillow>=10
 yt-dlp>=2025.1.1
+requests>=2.31          # ElevenLabs Scribe engine
+# offline speech recognition (setup.sh installs it: its `srt` dependency is pure Python)
+vosk>=0.3.45
 # b-roll capture (then: python3 -m playwright install chromium)
 playwright>=1.45
 # optional, best word alignment (pulls in torch): pip install whisperx

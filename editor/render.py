@@ -41,6 +41,11 @@ GRADES = {
     "cinematic": (["colorbalance=rs=-0.04:bs=0.05:rh=0.05:bh=-0.04", "curves=master='0/0.03 0.3/0.27 0.7/0.73 1/0.97'"],
                   "eq=contrast=1.05:saturation=0.95"),
     "bw": ([], "hue=s=0,eq=contrast=1.12"),
+    # from video-use's grade.py: minimal corrective, and its opt-in retro/cinematic look
+    "neutral_punch": (["curves=master='0/0 0.25/0.23 0.75/0.77 1/1'"], "eq=contrast=1.06"),
+    "warm_cinematic": (["colorbalance=rs=0.02:gs=0.0:bs=-0.03:rm=0.04:gm=0.01:bm=-0.02:rh=0.08:gh=0.02:bh=-0.05",
+                        "curves=master='0/0 0.25/0.22 0.75/0.78 1/1'"],
+                       "eq=contrast=1.12:brightness=-0.02:saturation=0.88"),
 }
 FACE_Y = 0.38          # where the face sits vertically in a zoomed/vertical crop
 SMOOTH_SECONDS = 0.6   # gaussian sigma for camera motion inside a segment
@@ -51,7 +56,7 @@ def render(cut_dir: str | Path, out: str | Path, preset: str = "reels", audio: s
            captions: str | None = None, track: str | None = None, zooms: list[dict] | None = None,
            punch_in: float | None = None, grade: str = "natural", lut: str | None = None,
            sharpen: float = 0.35, fit: str = "crop", broll: list[dict] | None = None, crf: int | None = None,
-           fps_cap: float = 60.0) -> Path:
+           fps_cap: float = 60.0, auto_color: float = 0.5, sfx: bool = True) -> Path:
     cut_dir = Path(cut_dir)
     meta = load_json(cut_dir / "cut_meta.json")
     src = cut_dir / "cut.mkv"
@@ -90,8 +95,12 @@ def render(cut_dir: str | Path, out: str | Path, preset: str = "reels", audio: s
         ["ffmpeg", "-hide_banner", "-loglevel", "error", "-i", str(src), "-vf",
          f"scale={dec_w}:{dec_h}:flags=lanczos:in_color_matrix=bt709:in_range=tv",
          "-f", "rawvideo", "-pix_fmt", "bgr24", "-"], stdout=subprocess.PIPE)
+    from .sfx import plan_events
+    sfx_events = plan_events(edl, meta["duration"]) if sfx else []
+    progress = edl.get("progress_bar")
+    luts = _color_luts(src, timeline, auto_color) if auto_color > 0 else None
     enc_cmd, enc_log = _encoder_cmd(out, out_w, out_h, fps_str, cut_dir, audio, captions, grade, lut, sharpen,
-                                    broll or [], crf or p["crf"], p)
+                                    broll or [], crf or p["crf"], p, sfx_events, progress, meta["duration"])
     encoder = subprocess.Popen(enc_cmd, stdin=subprocess.PIPE, stderr=enc_log)
 
     frame_bytes = dec_w * dec_h * 3
@@ -105,6 +114,8 @@ def render(cut_dir: str | Path, out: str | Path, preset: str = "reels", audio: s
                 break
             frame = np.frombuffer(buf, np.uint8).reshape(dec_h, dec_w, 3)
             k = min(i, n_frames - 1)
+            if luts is not None:
+                frame = cv2.LUT(frame, luts[seg_of_frame[k]])
             if fit == "blur":
                 img = _blur_fit(cv2, frame, out_w, out_h, zoom[k])
             else:
@@ -141,7 +152,33 @@ def render(cut_dir: str | Path, out: str | Path, preset: str = "reels", audio: s
     return Path(out)
 
 
-def _encoder_cmd(out, w, h, fps_str, cut_dir, audio, captions, grade, lut, sharpen, broll, crf, p):
+def still(cut_dir: str | Path, t: float, preset: str = "reels", track: str | Path | None = None) -> np.ndarray:
+    """One clean frame of the cut, reframed exactly like the render (no captions or overlays)."""
+    import cv2
+    cut_dir = Path(cut_dir)
+    meta = load_json(cut_dir / "cut_meta.json")
+    out_w, out_h = PRESETS[preset]["size"]
+    fps, n = meta["fps"], int(round(meta["duration"] * meta["fps"]))
+    src_w, src_h = meta["width"], meta["height"]
+    ar = out_w / out_h
+    base_w, base_h = (src_h * ar, src_h) if src_w / src_h > ar else (src_w, src_w / ar)
+    track = track or (cut_dir / "track.json")
+    fx, fy, has = _face_path(track if Path(track).exists() else None, meta["timeline"], n, fps)
+    k = min(int(round(t * fps)), n - 1)
+    raw = subprocess.run(["ffmpeg", "-v", "error", "-ss", f"{t:.3f}", "-i", str(cut_dir / "cut.mkv"), "-frames:v", "1",
+                          "-vf", "scale=in_color_matrix=bt709:in_range=tv", "-f", "rawvideo", "-pix_fmt", "bgr24", "-"],
+                         capture_output=True).stdout
+    frame = np.frombuffer(raw[:src_w * src_h * 3], np.uint8).reshape(src_h, src_w, 3)
+    x0 = fx[k] * src_w - base_w / 2 if has[k] else (src_w - base_w) / 2
+    y0 = fy[k] * src_h - FACE_Y * base_h if has[k] else (src_h - base_h) / 2
+    x0 = int(round(min(max(x0, 0), src_w - base_w)))
+    y0 = int(round(min(max(y0, 0), src_h - base_h)))
+    crop = frame[y0:y0 + int(base_h), x0:x0 + int(base_w)]
+    return cv2.resize(crop, (out_w, out_h), interpolation=cv2.INTER_AREA if crop.shape[1] > out_w else cv2.INTER_LANCZOS4)
+
+
+def _encoder_cmd(out, w, h, fps_str, cut_dir, audio, captions, grade, lut, sharpen, broll, crf, p,
+                 sfx_events=(), progress=None, duration=0.0):
     cmd = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
            "-f", "rawvideo", "-pix_fmt", "bgr24", "-s", f"{w}x{h}", "-r", fps_str, "-i", "-"]
     cmd += ["-i", str(audio) if audio else str(cut_dir / "cut.mkv")]
@@ -170,23 +207,35 @@ def _encoder_cmd(out, w, h, fps_str, cut_dir, audio, captions, grade, lut, sharp
         to_yuv = "scale=out_color_matrix=bt709:out_range=tv,format=yuv444p"
         end_t = start + dur
         enable = f"enable='between(t,{start:.3f},{end_t:.3f})'"
-        if mode == "card":         # floating rounded card over the speaker, with shadow, fade + slide-in
-            cw, ch, cy, mask, shadow, spad = _card_assets(path, w, h, b, cut_dir / "cards", n)
-            m_idx, s_idx, next_idx = next_idx, next_idx + 1, next_idx + 2
-            cmd += ["-loop", "1", "-t", f"{dur:.3f}", "-i", str(mask), "-loop", "1", "-t", f"{dur:.3f}", "-i", str(shadow)]
+        if mode == "card":         # floating rounded card (or phone) over the speaker: shadow, fade + slide-in
+            a = _card_assets(path, w, h, b, cut_dir / "cards", n)
+            extra = [a["mask"], a["shadow"]] + ([a["bezel"]] if "bezel" in a else [])
+            m_idx, s_idx = next_idx, next_idx + 1
+            z_idx = next_idx + 2 if "bezel" in a else None
+            next_idx += len(extra)
+            for img in extra:
+                cmd += ["-loop", "1", "-t", f"{dur:.3f}", "-i", str(img)]
             fades = (f"fade=t=in:st={start:.3f}:d=0.15:alpha=1,"
                      f"fade=t=out:st={max(end_t - 0.15, start):.3f}:d=0.15:alpha=1")
             shift = f"setpts=PTS-STARTPTS+{start:.3f}/TB"
+            cw, ch = a["cw"], a["ch"]
             graph.append(f"[{idx}:v]scale={cw}:{ch}:flags=lanczos,setsar=1,{to_yuv},format=yuva444p[c{n}];"
                          f"[{m_idx}:v]scale={cw}:{ch},format=gray[m{n}];[c{n}][m{n}]alphamerge,fps={fps_str},"
                          f"{shift},{fades}[cm{n}];"
                          f"[{s_idx}:v]format=yuva444p,fps={fps_str},{shift},{fades}[sh{n}]")
             slide = f"40*max(0,1-(t-{start:.3f})/0.2)"
-            y0 = cy - ch / 2
-            graph.append(f"[{label}][sh{n}]overlay=x=(W-w)/2:y='{y0 - spad + h * 0.012:.1f}+{slide}':eval=frame:"
+            oy = a["cy"] - a["oh"] / 2
+            ox = a["cx"] - a["ow"] / 2
+            graph.append(f"[{label}][sh{n}]overlay=x={ox - a['spad']:.1f}:y='{oy - a['spad'] + h * 0.012:.1f}+{slide}':eval=frame:"
                          f"eof_action=pass:{enable}[shd{n}];"
-                         f"[shd{n}][cm{n}]overlay=x=(W-w)/2:y='{y0:.1f}+{slide}':eval=frame:eof_action=pass:"
-                         f"{enable}[base{n + 1}]")
+                         f"[shd{n}][cm{n}]overlay=x={ox + a['bez']:.1f}:y='{oy + a['bez']:.1f}+{slide}':eval=frame:"
+                         f"eof_action=pass:{enable}[cmp{n}]")
+            if z_idx is not None:
+                graph.append(f"[{z_idx}:v]format=yuva444p,fps={fps_str},{shift},{fades}[bz{n}];"
+                             f"[cmp{n}][bz{n}]overlay=x={ox:.1f}:y='{oy:.1f}+{slide}':eval=frame:eof_action=pass:"
+                             f"{enable}[base{n + 1}]")
+            else:
+                graph[-1] = graph[-1].replace(f"[cmp{n}]", f"[base{n + 1}]")
             label = f"base{n + 1}"
             continue
         if mode == "overlay":      # transparent graphics (Remotion ProRes 4444 / WebM alpha) at output size
@@ -204,6 +253,12 @@ def _encoder_cmd(out, w, h, fps_str, cut_dir, audio, captions, grade, lut, sharp
         graph.append(f"[{label}][b{n}]overlay=eof_action=pass:{enable}[base{n + 1}]")
         label = f"base{n + 1}"
     tail = []
+    if progress:  # thin progress bar along the top: a retention cue on short-form
+        pc = progress if isinstance(progress, dict) else {}
+        color = pc.get("color", "white").lstrip("#")
+        color = f"0x{color}" if all(ch in "0123456789abcdefABCDEF" for ch in color) and len(color) == 6 else color
+        tail.append(f"drawbox=x=0:y=0:w='max(1,iw*t/{duration:.3f})':h={int(pc.get('height', 10))}:"
+                    f"color={color}@{pc.get('opacity', 0.9)}:t=fill")
     if captions:
         fonts = Path(__file__).resolve().parent.parent / "assets" / "fonts"
         opt = f":fontsdir='{_esc(str(fonts))}'" if fonts.exists() else ""
@@ -211,7 +266,21 @@ def _encoder_cmd(out, w, h, fps_str, cut_dir, audio, captions, grade, lut, sharp
     tail.append("format=yuv420p")
     graph.append(f"[{label}]{','.join(tail)}[vout]")
     gop = str(round(float(Fraction(fps_str)) * 2))
-    cmd += ["-filter_complex", ";".join(graph), "-map", "[vout]", "-map", "1:a:0",
+    audio_map = "1:a:0"
+    if sfx_events:
+        parts = ["[1:a:0]aresample=48000,aformat=channel_layouts=stereo[a0]"]
+        for k, e in enumerate(sfx_events):
+            cmd += ["-i", e["file"]]
+            ms = int(round(e["start"] * 1000))
+            parts.append(f"[{next_idx}:a]aresample=48000,volume={e['db']}dB,adelay={ms}|{ms}[x{k}]")
+            next_idx += 1
+        labels = "".join(f"[x{k}]" for k in range(len(sfx_events)))
+        # mix under the voice, then a true-peak-safe limiter (the voice was already loudness-normalised)
+        parts.append(f"[a0]{labels}amix=inputs={len(sfx_events) + 1}:duration=first:normalize=0,"
+                     f"alimiter=limit=0.89:level=false[aout]")
+        graph += parts
+        audio_map = "[aout]"
+    cmd += ["-filter_complex", ";".join(graph), "-map", "[vout]", "-map", audio_map,
             "-c:v", "libx264", "-preset", "slow", "-crf", str(crf), "-profile:v", "high", "-level:v", "4.2",
             "-maxrate", p["maxrate"], "-bufsize", p["bufsize"], "-g", gop, "-bf", "2",
             "-x264-params", "aq-mode=3:deblock=-1,-1", "-pix_fmt", "yuv420p",
@@ -220,35 +289,94 @@ def _encoder_cmd(out, w, h, fps_str, cut_dir, audio, captions, grade, lut, sharp
     return cmd, tempfile.TemporaryFile()
 
 
+def _color_luts(src, timeline, strength):
+    """Per-segment correction LUTs so takes shot at different times match: partial grey-world
+    white balance and exposure pulled toward mid-grey, both limited (a nudge, not a regrade)."""
+    luts = {}
+    for seg in timeline:
+        t = (seg["start"] + seg["end"]) / 2
+        proc = subprocess.run(["ffmpeg", "-v", "error", "-ss", f"{t:.3f}", "-i", str(src), "-frames:v", "1",
+                               "-vf", "scale=160:-2:in_color_matrix=bt709:in_range=tv", "-f", "rawvideo",
+                               "-pix_fmt", "bgr24", "-"], capture_output=True)
+        px = np.frombuffer(proc.stdout, np.uint8).reshape(-1, 3).astype(np.float32) / 255 if proc.stdout else None
+        lut = np.arange(256, dtype=np.float32)[:, None].repeat(3, axis=1) / 255
+        if px is not None and len(px):
+            mid = px[(px.max(axis=1) < 0.95) & (px.min(axis=1) > 0.05)]  # ignore clipped pixels
+            mid = mid if len(mid) > 100 else px
+            means = mid.mean(axis=0) + 1e-4
+            gains = np.clip((means.mean() / means) ** (0.6 * strength), 0.93, 1.07)
+            luma = float((mid @ np.array([0.0722, 0.7152, 0.2126], np.float32)).mean())
+            gamma = 1.0
+            if abs(np.log2(max(luma, 1e-3) / 0.45)) > 0.35:
+                gamma = float(np.clip((np.log(0.45) / np.log(max(min(luma, 0.95), 0.02))) ** strength, 0.82, 1.2))
+            lut = np.clip((lut * gains) ** gamma, 0, 1)
+        luts[seg["index"]] = (lut * 255 + 0.5).astype(np.uint8).reshape(256, 1, 3)
+    return luts
+
+
+def _rounded_mask(cv2, w, h, r):
+    mask = np.zeros((h, w), np.uint8)
+    r = max(1, min(r, w // 2, h // 2))
+    cv2.rectangle(mask, (r, 0), (w - r, h), 255, -1)
+    cv2.rectangle(mask, (0, r), (w, h - r), 255, -1)
+    for cx_, cy_ in ((r, r), (w - r - 1, r), (r, h - r - 1), (w - r - 1, h - r - 1)):
+        cv2.circle(mask, (cx_, cy_), r, 255, -1, lineType=cv2.LINE_AA)
+    return mask
+
+
 def _card_assets(path, w, h, b, out_dir, n):
-    """Size a floating card and draw its rounded-corner mask and soft shadow (PNG)."""
+    """Size a floating card and draw its masks, soft shadow and (for "frame": "phone") a phone bezel.
+
+    The phone frame is the no-simulator way to show an app: any screen recording or screenshot
+    (iPhone/Android built-in screen recording, a Playwright capture) becomes a phone on screen.
+    """
     import cv2
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     v = probe(path)["video"]
     sw, sh = v["width"], v["height"]
-    cw = float(b.get("width", 0.84)) * w
+    phone = b.get("frame") == "phone"
+    cw = float(b.get("width", 0.5 if phone else 0.84)) * w
     ch = cw * sh / sw
-    max_h = float(b.get("max_height", 0.32)) * h
+    max_h = float(b.get("max_height", 0.42 if phone else 0.32)) * h
     if ch > max_h:
         ch, cw = max_h, max_h * sw / sh
     cw, ch = int(cw // 2 * 2), int(ch // 2 * 2)
-    cy = float(b.get("y", 0.53)) * h  # below the face, above the captions
-    r = int(min(cw, ch) * 0.06)
-    mask = np.zeros((ch, cw), np.uint8)
-    cv2.rectangle(mask, (r, 0), (cw - r, ch), 255, -1)
-    cv2.rectangle(mask, (0, r), (cw, ch - r), 255, -1)
-    for cx_, cy_ in ((r, r), (cw - r - 1, r), (r, ch - r - 1), (cw - r - 1, ch - r - 1)):
-        cv2.circle(mask, (cx_, cy_), r, 255, -1, lineType=cv2.LINE_AA)
-    spad = int(cw * 0.06)
-    alpha = np.zeros((ch + 2 * spad, cw + 2 * spad), np.uint8)
-    alpha[spad:spad + ch, spad:spad + cw] = (mask * 0.55).astype(np.uint8)
+    bez = int(round(cw * 0.045)) if phone else 0          # bezel thickness around the screen
+    ow, oh = cw + 2 * bez, ch + 2 * bez                    # outer (device or card) size
+    cy = float(b.get("y", 0.6 if phone else 0.53)) * h     # below the face, above the captions
+    cx = float(b.get("x", 0.73 if phone else 0.5)) * w     # phones sit beside the face by default
+    cx = min(max(cx, ow / 2 + w * 0.02), w - ow / 2 - w * 0.02)
+    screen_r = int(cw * 0.11) if phone else int(min(cw, ch) * 0.06)
+    mask = _rounded_mask(cv2, cw, ch, screen_r)
+    outer = _rounded_mask(cv2, ow, oh, screen_r + bez)
+    spad = int(ow * 0.06)
+    alpha = np.zeros((oh + 2 * spad, ow + 2 * spad), np.uint8)
+    alpha[spad:spad + oh, spad:spad + ow] = (outer * 0.55).astype(np.uint8)
     alpha = cv2.GaussianBlur(alpha, (0, 0), spad / 2.5)
     shadow = np.dstack([np.zeros_like(alpha)] * 3 + [alpha])
-    mask_p, shadow_p = out_dir / f"card{n}_mask.png", out_dir / f"card{n}_shadow.png"
-    cv2.imwrite(str(mask_p), mask)
-    cv2.imwrite(str(shadow_p), shadow)
-    return cw, ch, cy, mask_p, shadow_p, spad
+    paths = {"mask": out_dir / f"card{n}_mask.png", "shadow": out_dir / f"card{n}_shadow.png"}
+    cv2.imwrite(str(paths["mask"]), mask)
+    cv2.imwrite(str(paths["shadow"]), shadow)
+    if phone:
+        body = np.zeros((oh, ow, 4), np.uint8)
+        body[..., :3] = (18, 18, 20)
+        hole = np.zeros((oh, ow), np.uint8)
+        hole[bez:bez + ch, bez:bez + cw] = mask
+        body[..., 3] = np.where(hole > 0, 0, outer)
+        # subtle edge highlight + dynamic island
+        ring = cv2.subtract(outer, cv2.erode(outer, np.ones((5, 5), np.uint8)))
+        body[ring > 0, :3] = (70, 70, 76)
+        iw, ih = int(cw * 0.3), int(cw * 0.085)
+        ix, iy = (ow - iw) // 2, bez + int(cw * 0.035)
+        pill = np.zeros((oh, ow), np.uint8)
+        cv2.rectangle(pill, (ix + ih // 2, iy), (ix + iw - ih // 2, iy + ih), 255, -1)
+        cv2.circle(pill, (ix + ih // 2, iy + ih // 2), ih // 2, 255, -1, lineType=cv2.LINE_AA)
+        cv2.circle(pill, (ix + iw - ih // 2, iy + ih // 2), ih // 2, 255, -1, lineType=cv2.LINE_AA)
+        body[pill > 0] = (0, 0, 0, 255)
+        paths["bezel"] = out_dir / f"card{n}_bezel.png"
+        cv2.imwrite(str(paths["bezel"]), body)
+    return {"cw": cw, "ch": ch, "ow": ow, "oh": oh, "bez": bez, "cx": cx, "cy": cy, "spad": spad, **paths}
 
 
 def _esc(path: str) -> str:

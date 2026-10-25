@@ -1,0 +1,4 @@
+# Names, brands and jargon to spell right in transcripts (one per line).
+# Used as a Whisper prompt hint; fix the rest with `editor retext`.
+Claude Code
+WhisperX

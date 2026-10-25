@@ -1,89 +1,75 @@
 # Claude-Edit
 
-Claude Code edits your reels. Paste a link or drop raw footage, and you get a
-finished, captioned, platform-ready Reel / TikTok / Short / YouTube video.
-Claude makes the editorial calls; ffmpeg, WhisperX, OpenCV, yt-dlp and
-Playwright do the media work locally. No editing app needed.
+Claude Code edits your reels. Paste a link or drop raw footage, and you get a finished,
+captioned, sound-designed, platform-ready Reel / TikTok / Short / YouTube video, plus a cover.
+Claude makes the editorial calls and checks its own work from real frames. ffmpeg, Whisper
+(or offline Vosk), OpenCV and Pillow do the media work locally. Works in the **Claude desktop
+app** and in Claude Code on the web or CLI.
 
-## The workflow
-| step | what happens | tools |
-|---|---|---|
-| **0. Footage in** | paste a link (`editor fetch`) or drop clips in `raw/`; every clip is triaged: founder-to-camera, reusable B-roll, or one-off | yt-dlp, OpenCV |
-| **1. The hook** | Claude reads the transcript, picks a template from a 265-hook library, and adapts it to this video | `library/hooks.md` |
-| **2. Rough cut** | word-level timestamps; every pause, filler word and repeated line is cut, and of two takes the better one is kept; Claude then cuts tangents and moves the hook first; a before/after card shows what was cut | WhisperX / faster-whisper |
-| **3. Subtitles** | word-synced captions (`white` creator look, `bold` Hormozi pop, `beast`, `clean`, `minimal`), hook title, black step pills ("1: The hook") | libass |
-| **4. Music** | a shared library grouped by mood (Hype, Uplifting, Emotional, Tense/Dark, Cool/Fun) with tags, stars and BPM; Claude picks by topic; ducked under the voice | yt-dlp, ffmpeg |
-| **5. B-roll** | a shared, organized B-roll library; auto-captured screenshots and scroll videos of websites, recordings of your iPhone/Android app; floating rounded "cards" over the speaker, or full cutaways | Playwright, simctl, adb |
-| **Final pass** | face-follow 9:16 reframe, punch-in zooms, grade, -14 LUFS voice master, one high-quality encode, spec/loudness check, and Claude reads the frames before handing it over | OpenCV, x264 |
+## What's inside
+| | |
+|---|---|
+| **edit-reel** (main skill) | hook → rough cut → subtitles → music → B-roll → graphics and sound → self-review → cover |
+| **video-use** (vendored, browser-use) | conversation-driven editing for long-form, multi-take, interviews, launch videos |
+| **claude-video-studio** (vendored, Claude Video 2.0) | studio motion graphics in HyperFrames, 21 looks with a live gallery |
+| **manim-video** (vendored) | 3Blue1Brown-style technical and maths animations |
+| supporting skills | hooks (265 templates), rough-cut, captions, music-library, broll-library, broll-motion, audio-polish, export-qa, reel-script |
+
+## The pipeline
+| step | what happens |
+|---|---|
+| **Footage in** | local files (desktop app), `editor fetch <link>` (yt-dlp), or committed to the repo (cloud); clips triaged into founder-to-camera, reusable B-roll or one-off |
+| **Transcribe** | WhisperX → faster-whisper → ElevenLabs Scribe → **Vosk offline**: falls back automatically and caches per source; `retext` fixes punctuation, names or a script while keeping word timings |
+| **Plan → confirm** | Claude proposes the hook, shape, cuts and look in plain English and waits for your yes |
+| **Rough cut** | pauses, fillers, false starts and repeated takes cut (the better take kept); 30 ms fades at every cut; a before/after card |
+| **Look** | face-follow 9:16 reframe, punch-ins, emphasis zooms, per-take color matching, grades (incl. video-use's `neutral_punch` / `warm_cinematic`) |
+| **Text** | word-synced captions (`white`, `bold`, `beast`, `clean`, `minimal`), hook title, step pills, optional progress bar |
+| **B-roll and graphics** | library clips, web captures (Playwright), app screens as **phone mockups** (no simulator needed), built-in animated counter / lower third / checklist / kinetic title / CTA, or HyperFrames / Manim overlays |
+| **Sound** | voice mastering to -14 LUFS, ducked music from a mood library, synthesized SFX on visible events only |
+| **Self-review** | spec and loudness check; every cut checked for clicks, flash frames and mid-word cuts; every overlay checked for **covering the face**; review sheets Claude reads; a critic sub-agent for anything published |
+| **Deliver** | MP4 per platform, `.srt`, cover plus 4:5 grid crop, a `project.md` session memory |
 
 ## Setup
 ```bash
-./setup.sh                  # ffmpeg, Python deps, Playwright Chromium, caption fonts, Whisper model
-WHISPERX=1 ./setup.sh       # also install WhisperX (best word alignment; large, pulls in torch)
-python3 -m editor doctor    # everything should say ok
+./setup.sh                  # ffmpeg, Python deps, offline speech model, Playwright, fonts, Whisper model
+WHISPERX=1 ./setup.sh       # also WhisperX (best word alignment; large)
+python3 -m editor doctor
 ```
-Python 3.10+, ffmpeg with libass/libx264/zimg (the Homebrew and apt builds have them).
-iPhone Simulator capture needs macOS with Xcode. A CUDA GPU is used automatically if present.
+Optional: `ELEVENLABS_API_KEY=...` in `.env` (hosted Scribe: speakers, laughs, verbatim fillers),
+Node 22+ (HyperFrames graphics), macOS + Xcode (iPhone Simulator capture).
 
-## Use it with Claude Code
-```bash
-claude
-> /edit-reel https://www.instagram.com/reel/XXXX/      # or: /edit-reel projects/myreel
-```
-Or `python3 -m editor new myreel`, copy clips into `projects/myreel/raw/`, and say
-"edit projects/myreel into a reel". Claude walks the five steps, shows you the hook it
-picked and what it cut, and delivers `projects/myreel/out/myreel_reels.mp4`.
+## Use it
+Open this folder in the Claude desktop app (or run `claude` here) and say:
+> edit https://www.instagram.com/reel/XXXX/ into a reel
 
-Build up the libraries as you go:
-```bash
-python3 -m editor music add "<song link or file>" --mood cool-fun --tags bouncy playful --star
-python3 -m editor broll add drone.mp4 --category campus --tags drone aerial --desc "drone pass over the tower"
-python3 -m editor capture web "https://github.com/m-bain/whisperX" -o projects/myreel/broll/whisperx.png
-python3 -m editor capture sim -o projects/myreel/broll/app.mov --seconds 8     # booted iPhone Simulator
-```
+or `python3 -m editor new myreel`, drop clips in `projects/myreel/raw/`, and say "edit projects/myreel".
+Also: "make me a motion graphic" (claude-video-studio), "animate this concept" (manim-video),
+"edit these interview takes into a 3-minute video" (video-use), `/reel-script` to plan a video first.
 
-Other things to ask for:
-- `/reel-script` "a 30 s reel about ..." gives hooks, a script, a B-roll list and recording tips
-- "give me 5 hook options", "make it under 40 seconds", "use the first take of the intro"
-- "put the GitHub page on screen when I say WhisperX", "add step pills"
-- "find music that fits", "beast captions", "cinematic grade"
-- "also export a YouTube version and a 4:5 feed version"
-
-## Use it without Claude
-```bash
-python3 -m editor auto projects/myreel                    # whole pipeline, defaults
-python3 -m editor auto projects/myreel --to plan          # stop to edit work/edl.json by hand
-python3 -m editor auto projects/myreel --from cut --style white --grade warm
-python3 -m editor --help                                  # every stage is its own command
-```
+Without Claude: `python3 -m editor auto projects/myreel` runs everything; `python3 -m editor --help` lists
+every stage (`transcribe`, `retext`, `plan`, `cut`, `audio`, `track`, `captions`, `graphic`, `render`,
+`check`, `review`, `inspect`, `cover`, `fetch`, `triage`, `music`, `broll`, `capture`, `models`, ...).
 
 ## The EDL (`work/edl.json`)
-The single source of truth for an edit. Segment times are source seconds. Zoom,
-B-roll and chapter times are output seconds (`python3 -m editor timeline projects/<name>/work`).
+Segment times are source seconds; everything else is output seconds (`editor timeline`).
 ```jsonc
 {
   "speed": 1.1,
-  "segments": [{"src": 0, "start": 6.78, "end": 9.69, "text": "..."}],     // play order
-  "title": "Claude Code edits my reels",                                    // hook text
-  "chapters": [{"start": 2.7, "text": "1: The hook"}],                      // step pills
+  "segments": [{"src": 0, "start": 6.78, "end": 9.69}],
+  "title": "Claude Code edits my reels",
+  "chapters": [{"start": 2.7, "text": "1: The hook"}],
   "emphasis": ["whisperx", "free"],
-  "music": {"track": "pixel-bounce", "db": -20, "start": 0},               // library id or file
-  "auto_punch_in": 1.12,
+  "music": {"track": "pixel-bounce", "db": -20},
   "zooms": [{"start": 3.2, "end": 4.6, "scale": 1.25, "ease": 0}],
-  "broll": [{"path": "work/rough_cut_viz.png", "start": 5.6, "dur": 2.2, "mode": "card"},
-            {"path": "campus-drone", "start": 8.0, "dur": 1.6}]
+  "broll": [{"path": "broll/dau.mov", "start": 0.4, "dur": 2.2, "mode": "overlay"},
+            {"path": "broll/app.mp4", "start": 5.6, "dur": 2.0, "mode": "card", "frame": "phone"}],
+  "sfx": "auto",
+  "progress_bar": true
 }
 ```
 
 ## Tests
-```bash
-python3 -m pytest -q                                   # unit tests + an end-to-end render
-python3 tests/make_fixture.py projects/demo --face     # synthetic project: TTS speech, a moving face
-python3 -m editor auto projects/demo --from plan
-```
+`python3 -m pytest -q` runs unit tests, real offline speech recognition on TTS speech, and an end-to-end
+render. `python3 tests/make_fixture.py projects/demo --face` builds a test project.
 
-## Layout
-`editor/` Python package · `library/` hooks, music, B-roll shared across reels ·
-`.claude/skills/` the workflow Claude follows (edit-reel, hooks, rough-cut, captions,
-music-library, broll-library, broll-motion, audio-polish, export-qa, reel-script) ·
-`CLAUDE.md` project rules · `projects/` your footage (git-ignored).
+Third-party skills and models: see [THIRD_PARTY.md](THIRD_PARTY.md).

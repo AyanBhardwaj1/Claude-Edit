@@ -12,6 +12,12 @@ Claude makes the editorial calls and checks the result visually.
   4 music → `music-library` · 5 B-roll → `broll-library` + `broll-motion` ·
   final pass → `export-qa` (+ `audio-polish` for sound problems).
   `reel-script` is for planning a video before it's recorded.
+- Vendored skills (MIT, see THIRD_PARTY.md): **video-use** (long-form, multi-take, interviews, launch
+  videos; its rules are built into edit-reel), **claude-video-studio** (studio motion graphics with
+  HyperFrames, 21 looks), **manim-video** (technical/maths animations). Their outputs come into a reel as
+  `"mode": "overlay"` b-roll.
+- Works the same in the Claude desktop app (local files, links, browser gallery) and in cloud sessions
+  (footage via the repo; transcription falls back to offline Vosk; graphics via `editor graphic`).
 - Every command: `python3 -m editor <cmd> --help`. One-shot: `python3 -m editor auto projects/<name>`.
   Stop and resume with `--from/--to <stage>` (transcribe, plan, cut, audio, track, captions, render, check).
 - First run on a machine: `./setup.sh`, then `python3 -m editor doctor`.
@@ -26,6 +32,8 @@ Claude makes the editorial calls and checks the result visually.
 - `edl.json` is the single source of truth. Change it, then re-run from the earliest affected stage.
 - Segment times in the EDL are **source** seconds; `zooms`, `broll` and `chapters` are
   **output** seconds (`python3 -m editor timeline projects/<name>/work`).
+- Process: inventory → propose a plain-English plan → wait for a yes (unless told "just do it") → execute →
+  `review` (cap 3 fix passes) → deliver → append to `projects/<name>/project.md`.
 - Only use music/B-roll the user provides, owns or has licensed. Blur other people's personal
   data in app/web captures.
 
@@ -34,7 +42,10 @@ Claude makes the editorial calls and checks the result visually.
 editor/            python package (python3 -m editor)
   fetch.py         yt-dlp: links -> raw/, music, reference footage (+ post caption metadata)
   triage.py        raw clips -> a-roll / reusable b-roll / one-off b-roll (work/triage.json)
-  transcribe.py    WhisperX (aligned) or faster-whisper word timestamps -> work/transcript.json/.txt
+  transcribe.py    engines with fallback: WhisperX -> faster-whisper -> ElevenLabs Scribe -> Vosk (offline);
+                   cached per source in work/transcripts/ -> work/transcript.json/.txt
+  models.py        offline Vosk models (official host, or the npm copy) -> library/models/
+  retext.py        re-time corrected text / a script onto the timed words
   plan.py          silences / fillers / retakes (keeps the better take) -> work/edl.json
   viz.py           before/after rough-cut card -> work/rough_cut_viz.png
   cut.py           EDL -> work/cut.mkv (frame-accurate, cached per segment, HDR->SDR) + cut_words.json
@@ -44,8 +55,12 @@ editor/            python package (python3 -m editor)
   render.py        reframe, zooms, grade, b-roll (full/contain/card/overlay), captions, final x264 encode
   library.py       shared music (by mood) and b-roll (by category) libraries
   capture.py       b-roll makers: Playwright web, iOS Simulator, Android
+  graphics.py      built-in motion graphics (counter, lower-third, checklist, title, cta) -> ProRes 4444 alpha
+  sfx.py           synthesized SFX placed on visible events (mixed at render)
+  review.py        inspect (video-use timeline view) + review of every cut and covered faces
+  cover.py         cover/thumbnail from a clean reframed frame
   qa.py            spec/loudness check, contact sheet, frame grabs
-library/           hooks.md (265 hook templates), music/, broll/  (media git-ignored)
+library/           hooks.md (265 hook templates), glossary.txt, music/, broll/, models/, sfx/ (media git-ignored)
 .claude/skills/    the workflow Claude follows
 projects/<name>/   raw/ broll/ music/ work/ out/   (git-ignored)
 tests/             pytest suite + make_fixture.py (synthetic test project, no Whisper needed)

@@ -36,8 +36,9 @@ fades/slides in:
 ```jsonc
 {"path": "broll/whisperx.png", "start": 9.0, "dur": 2.5, "mode": "card"},            // defaults: width 0.84, y 0.53
 {"path": "app-demo-signup", "start": 14.2, "dur": 3.0, "mode": "card", "max_height": 0.4}  // library id
+{"path": "broll/app.mp4", "start": 4.0, "dur": 2.0, "mode": "card", "frame": "phone"}   // phone mockup, beside the face (x 0.73)
 ```
-`y` is the card centre (fraction of height): lower it if it covers the face, and check a frame.
+`x`/`y` are the card centre (fractions of width/height): move it if it covers the face; `review` checks.
 Paths are relative to the project folder; library clips can be referenced by id. The voice keeps playing; captions
 stay on top. Modes: `full` (default for video), `contain` (default for images), `card` (floating
 rounded card), `overlay` (alpha graphics rendered at output size).
@@ -45,7 +46,25 @@ rounded card), `overlay` (alpha graphics rendered at output size).
 - No B-roll available? Ask the user for screenshots/screen recordings, or make
   motion graphics instead (below). Don't invent footage.
 
-## Motion graphics with Remotion (optional)
+## Motion graphics, three engines (pick per animation)
+1. **Built in, no setup** (`editor/graphics.py`, Pillow → transparent ProRes 4444):
+   ```bash
+   python3 -m editor graphic counter     -o projects/<n>/broll/dau.mov --to 3000 --label "daily active users" --y 0.56
+   python3 -m editor graphic lower-third -o projects/<n>/broll/name.mov --name "Aiden" --title "Founder, Curate"
+   python3 -m editor graphic checklist   -o projects/<n>/broll/steps.mov --title "The workflow" --items Hook "Rough cut" Music --at 0.3 2.0 3.6
+   python3 -m editor graphic title       -o projects/<n>/broll/hook.mov --text "Claude Code edits my reels" --highlight claude code
+   python3 -m editor graphic cta         -o projects/<n>/broll/cta.mov --text "Comment GUIDE" --sub "(nothing will happen)"
+   ```
+   Add as `{"path": "broll/dau.mov", "start": S, "dur": D, "mode": "overlay"}`. Time the reveal so it
+   *lands* on the spoken payoff word (start = word time - reveal time).
+2. **claude-video-studio skill** (HyperFrames + GSAP, 21 studio looks): render with a transparent
+   background (`--format mov`), lay it out for 1080x1920, then add it as an `overlay`. Needs Node 22+.
+3. **manim-video skill**: diagrams, equations, data stories, rendered and added the same way.
+Spawn one sub-agent per animation, in parallel (video-use rule); each brief is self-contained: output path,
+size/fps, palette, font, frame-by-frame timeline, "do not ask questions".
+Placement: never over the face. `review` flags overlays that hide it. Chest height (y 0.45-0.65) is the safe band.
+
+## Remotion (optional)
 Use for animated hook titles, lower thirds, number counters, checklists, callouts.
 1. Scaffold once (needs Node 18+):
    ```bash

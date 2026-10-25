@@ -75,7 +75,7 @@ def plan(transcript_path: str | Path, out: str | Path, max_gap: float = 0.30, pa
 
     drop: dict[int, str] = {}
     for i, w in enumerate(words):
-        if norm(w["text"]) in filler_set:
+        if norm(w["text"]) in filler_set and not w.get("event"):
             drop[i] = "filler"
 
     if retakes:

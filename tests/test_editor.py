@@ -16,7 +16,7 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from editor import captions, library, plan, render, transcribe  # noqa: E402
+from editor import captions, graphics, library, plan, render, retext, sfx, transcribe  # noqa: E402
 from editor.util import normalize_fps  # noqa: E402
 
 
@@ -176,6 +176,61 @@ def test_music_library_roundtrip(tmp_path, monkeypatch):
     t = library.music_add(str(track), "cool-fun", tags=["bouncy"], title="Bouncy Test", starred=True)
     assert library.music_path(t["id"]).exists()
     assert "★ **Bouncy Test**" in library.music_list("cool-fun")
+
+
+def test_retext_fixes_words_and_keeps_timing():
+    old = [W(0, 0.0, 0.3, "glug"), W(0, 0.3, 0.6, "code"), W(0, 0.7, 1.0, "edits"), W(0, 1.0, 1.2, "for"),
+           W(0, 1.2, 1.5, "you")]
+    new = retext.align(old, "Claude Code edits for you.".split())
+    assert [w["text"] for w in new] == ["Claude", "Code", "edits", "for", "you."]
+    assert new[2]["start"] == 0.7 and new[-1]["end"] == 1.5          # matched words keep their times
+    assert new[0]["start"] == 0.0 and new[1]["end"] == pytest.approx(0.6)  # replaced run keeps its span
+
+
+def test_retext_parses_transcript_lines(tmp_path):
+    by_src = retext._parse("## source 0: a.mp4\n  [0] 00:01.00-00:02.00 S1: Hello there.\n  [1] 00:00.10-00:01.00 Bye.")
+    assert by_src == {0: ["Hello", "there."], 1: ["Bye."]}
+
+
+def test_sfx_transient_lands_on_attack_and_density_cap():
+    y = sfx.synth("whoosh")
+    assert abs(np.argmax(np.abs(y)) / sfx.SR - sfx.TYPES["whoosh"][0]) < 0.06
+    edl = {"broll": [{"start": 2.0}, {"start": 3.0}, {"start": 8.0}], "chapters": [{"start": 12.0, "text": "x"}]}
+    ev = sfx.plan_events(edl, 20.0)
+    assert [e["at"] for e in ev] == [2.0, 8.0, 12.0]       # 3.0 dropped: within 3 s of the last effect
+    assert ev[0]["start"] == pytest.approx(2.0 - sfx.TYPES["whoosh"][0])
+    assert sfx.plan_events({"sfx": "none", "broll": [{"start": 1}]}, 10) == []
+
+
+def test_graphic_has_alpha(tmp_path):
+    out = graphics.make("cta", tmp_path / "cta", w=360, h=640, fps=10, dur=0.6, text="Follow")
+    info = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v", "-show_entries", "stream=pix_fmt",
+                           "-of", "csv=p=0", str(out)], capture_output=True, text=True).stdout
+    assert "yuva" in info
+
+
+def test_phone_card_assets(tmp_path):
+    img = tmp_path / "s.png"
+    subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "color=c=red:s=590x1278", "-frames:v", "1",
+                    str(img)], check=True)
+    a = render._card_assets(str(img), 1080, 1920, {"frame": "phone"}, tmp_path, 0)
+    assert a["bez"] > 0 and a["ow"] == a["cw"] + 2 * a["bez"] and a["bezel"].exists()
+    assert a["cx"] + a["ow"] / 2 <= 1080 and a["cx"] > 540      # beside the face, inside the frame
+
+
+def test_vosk_engine_transcribes_tts(tmp_path):
+    pytest.importorskip("vosk")
+    from editor import models
+    try:
+        models.vosk_model()
+    except Exception:
+        pytest.skip("no Vosk model available offline")
+    wav = tmp_path / "s.wav"
+    subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "flite=text='the first one is claude code':voice=slt",
+                    "-ar", "48000", str(wav)], check=True)
+    words, _ = transcribe._vosk()(str(wav))
+    assert {"first", "one", "is"} <= {w["text"] for w in words}
+    assert all(w["end"] > w["start"] for w in words)
 
 
 @pytest.mark.slow

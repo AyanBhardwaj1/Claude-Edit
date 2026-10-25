@@ -22,7 +22,21 @@ ffmpeg -hide_banner -version | head -1
 
 say "Python packages"
 PY=${PYTHON:-python3}
-"$PY" -m pip install -r requirements.txt
+"$PY" -m pip install -r requirements.txt || {
+  # vosk's `srt` dependency is a single pure-Python file; some distro setuptools can't build it
+  "$PY" -m pip install --no-deps vosk && "$PY" -m pip install srt || true
+  grep -v '^vosk' requirements.txt > /tmp/claude-edit-req.txt && "$PY" -m pip install -r /tmp/claude-edit-req.txt
+}
+
+say "Offline speech model (Vosk, used when Whisper models or an API key aren't available)"
+"$PY" -m editor models vosk || echo "  skipped; run: python3 -m editor models vosk"
+
+say "Node (only for HyperFrames / Remotion motion graphics)"
+if command -v node >/dev/null && [ "$(node -p 'process.versions.node.split(".")[0]')" -ge 22 ]; then
+  echo "node $(node -v) ok"
+else
+  echo "  Node 22+ not found: built-in graphics still work; for claude-video-studio install it from https://nodejs.org"
+fi
 
 say "Playwright Chromium (for web b-roll capture)"
 "$PY" -m playwright install chromium || echo "  skipped; web capture will need it later"
@@ -48,6 +62,8 @@ if [[ "${SKIP_MODEL:-0}" != "1" ]]; then
   "$PY" -c "from faster_whisper import WhisperModel; WhisperModel('${WHISPER_MODEL:-small}', device='cpu', compute_type='int8')" \
     || echo "  model download failed; it will retry on first transcribe"
 fi
+
+echo "Optional: ELEVENLABS_API_KEY=... in .env enables hosted Scribe transcription (speakers, laughs, verbatim fillers)."
 
 say "Doctor"
 "$PY" -m editor doctor

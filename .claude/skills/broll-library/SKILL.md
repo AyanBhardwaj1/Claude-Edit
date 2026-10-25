@@ -46,6 +46,10 @@ Reference library clips in the EDL by id: `{"path": "<id>", "start": 6.1, "dur":
   ```
   Deep links (`--url`) let you open specific screens without tapping. For scripted taps,
   install `idb` and drive it with `idb ui tap X Y` between captures.
+- **No Mac / no simulator / cloud session**: ask the user for a screen recording from their phone
+  (iOS Control Centre → Screen Recording, or Android's built-in recorder) or screenshots, or capture the
+  web/PWA version with `capture web`. Then show it as a phone: `{"mode": "card", "frame": "phone"}` draws
+  the device bezel, rounded screen and dynamic island, so it looks like a simulator recording.
 - **Android app**: `python3 -m editor capture android -o projects/<n>/broll/app.mp4 --seconds 8`.
 - Blur or crop personal data (other people's names, photos, emails) before using a capture.
   Ask the user when in doubt.

@@ -1,108 +1,102 @@
 ---
 name: edit-reel
-description: Edit raw talking-head / creator footage (files or a pasted link) into a finished, high-quality Instagram Reel, TikTok, YouTube Short or YouTube video, the "Claude Code edits my reels" way. Five steps (hook, rough cut, subtitles, music, B-roll) then a final pass. Use whenever the user drops footage in projects/, pastes a video link, says "edit this", "make a reel", "cut this video", or types /edit-reel, even if they only name a file.
+description: Edit raw talking-head / creator footage (files, a folder, or a pasted link) into a finished, production-quality Instagram Reel, TikTok, YouTube Short or YouTube video. Five steps (hook, rough cut, subtitles, music, B-roll), then motion graphics, sound design, a self-review of every cut, and a cover. Use whenever the user drops footage in projects/, pastes a video link, says "edit this", "make a reel", "cut this video", or types /edit-reel, even if they only name a file.
 ---
 
 # Edit a reel end to end
 
-You are the editor. The scripts in `editor/` do the deterministic work
-(`python3 -m editor <cmd>`); you make the editorial decisions between them,
-and you **look** at the result before calling it done. Never modify files in
-`raw/`. Shared assets live in `library/` (hooks, music, B-roll) and get better
-with every reel. Use them, and add to them.
+You are the editor. `python3 -m editor <cmd>` does the deterministic work; you make the
+editorial decisions between steps and you **look** at the result before calling it done.
+Never modify files in `raw/`. Shared assets in `library/` (hooks, music, B-roll, models,
+SFX) get better with every reel.
 
-Arguments: a project folder (`projects/<name>`), loose files, or a **link**.
-Default platform `reels` (1080x1920). Ask only what you can't infer.
+Process (from video-use): **inventory → propose a plan → confirm → execute → self-review → iterate → remember.**
+Rules that are correctness, not taste: never cut inside a word; 30 ms fades at every cut (built in);
+subtitles last, over every overlay (built in); never cover a face; cached transcripts are never redone.
 
-## 0. Get the footage
+## 0. Footage in, and memory
+- **Desktop app (local):** the user's folder or files: `python3 -m editor new <name>` and copy clips into `raw/`.
+- **A link:** `python3 -m editor fetch "<url>" --project projects/<name>` (yt-dlp; Instagram/TikTok may need
+  `--cookies-from-browser chrome`). Direct file links work too.
+- **Cloud session:** footage must arrive in the repo (committed to the branch, under 100 MB per file) or
+  from an allowed host. The Google Drive connector returns base64 text, so only small assets
+  (screenshots, logos, short audio) go that way. If footage can't reach you, say so and suggest the desktop app.
+- Read `projects/<name>/project.md` if it exists and sum up the last session in one line before continuing.
 ```bash
-python3 -m editor new <name>                                  # projects/<name>/{raw,broll,music,work,out}
-python3 -m editor fetch "<url>" --project projects/<name>     # link → raw/ (yt-dlp, best quality)
-#   Instagram/TikTok may need: --cookies-from-browser chrome
-python3 -m editor doctor                                      # first run on a machine
-python3 -m editor triage projects/<name>                      # role of every raw clip
+python3 -m editor doctor                      # first run on a machine
+python3 -m editor triage projects/<name>      # a-roll vs reusable / one-off b-roll (broll-library skill)
 ```
-Read each sheet in `work/triage/` and confirm or fix `role` in `work/triage.json`
-(**broll-library** skill): `a-roll` = founder-to-camera (gets transcribed and cut),
-`broll-reusable` → `python3 -m editor broll add ...` into the library,
-`broll-oneoff` → copy into the project's `broll/`.
 
-## Step 1: the hook  (**hooks** skill)
+## 1. Transcribe and inventory
 ```bash
-python3 -m editor auto projects/<name> --to transcribe      # WhisperX if installed, else faster-whisper
+python3 -m editor auto projects/<name> --to transcribe
 ```
-Read `work/transcript.txt` in full. Then open `library/hooks.md`, shortlist 3-5
-templates from different categories, adapt them with this video's specifics, and
-pick one. It becomes the EDL `"title"` (on-screen hook text, max 6 words). If a
-spoken line already works as a hook, open the edit on it (step 2). Tell the
-user which hook you chose and the runner-up.
+Engines fall back automatically: WhisperX → faster-whisper → ElevenLabs Scribe (if `ELEVENLABS_API_KEY`;
+verbatim fillers, speakers, `(laughs)`) → Vosk (offline, always available via `python3 -m editor models vosk`).
+Put names and brand terms in `library/glossary.txt` (one per line) so they're spelled right.
+Read `work/transcript.txt` in full. If the engine was **vosk** (no punctuation or casing), or a name came
+out wrong, write a corrected copy of transcript.txt (keep the `[src] mm:ss-mm:ss` prefixes) and run
+`python3 -m editor retext projects/<name>/work corrected.txt`. If the user gave a script, retext it.
 
-## Step 2: rough cut  (**rough-cut** skill)
+## 2. Propose the plan, and wait for a yes
+In 4-8 plain sentences: the hook (from the **hooks** skill, using `library/hooks.md`), the shape
+(e.g. HOOK → PROBLEM → 3 STEPS → CTA), which takes and what gets cut, length, caption style, music mood,
+B-roll and graphics ideas, grade. Ask only what the material can't answer. **Don't cut until the user says
+yes**, unless they told you to just do it.
+
+## 3. Rough cut  (rough-cut skill)
 ```bash
 python3 -m editor auto projects/<name> --from plan --to plan [--speed 1.1]
 ```
-This writes `work/edl.json` and `work/rough_cut_viz.png`. **Read the PNG**: red
-blocks are cuts (pauses, fillers, repeated lines; of two takes it keeps the
-better one). Audit `removed`, move the hook line first, delete tangents, set
-`"emphasis"`. For multi-step videos add `"chapters"` (the black step pills),
-e.g. `[{"start": 2.7, "text": "1: The hook"}]`; get their times in step 5
-from `timeline`. Report old → new runtime and the biggest cuts.
+Read `work/rough_cut_viz.png` and `work/edl.json`: audit `removed`, move the hook first, cut tangents,
+set `"title"`, `"emphasis"` and `"chapters"`. Use `python3 -m editor inspect <raw clip> <start> <end> -o x.png
+--transcript projects/<name>/work/transcript.json` at ambiguous cut points. Many takes of the same beat:
+brief a sub-agent with video-use's editor brief (`.claude/skills/video-use/SKILL.md`, "Editor sub-agent brief").
 ```bash
-python3 -m editor auto projects/<name> --from cut --to cut
+python3 -m editor auto projects/<name> --from cut --to track
 ```
 
-## Step 3: subtitles  (**captions** skill)
-Word-synced from the transcript timings. Default `--style white` (bold white,
-2-3 words, the creator look); `bold` for Hormozi-style yellow pop; `clean`
-for educational. Built in step 6.
+## 4. Subtitles, music  (captions, music-library skills)
+Default `--style white` (creator look) or `bold` (Hormozi pop). Pick a library track by mood and put it in
+`"music"`. No good fit → no music.
 
-## Step 4: music  (**music-library** skill)
+## 5. B-roll, graphics, sound  (broll-library, broll-motion skills)
 ```bash
-python3 -m editor music list
+python3 -m editor timeline projects/<name>/work          # output-timeline times for everything below
 ```
-Pick a track whose mood and energy fit the topic (Hype, Uplifting, Emotional,
-Tense/Dark, Cool/Fun) and set it in the EDL:
-`"music": {"track": "<id>", "db": -20, "start": 0}`. If the user pasted a song
-link, add it first with `music add "<url>" --mood ... --tags ...` (only music they
-have rights to). No fitting track → no music, and say so.
+- B-roll: library clips by id, `broll/` files, or captures (`capture web`, `capture sim|android`).
+- App screens with no simulator: any screen recording or screenshot as `"mode": "card", "frame": "phone"`.
+- Motion graphics, fastest: `python3 -m editor graphic counter|lower-third|checklist|title|cta ...` →
+  `"mode": "overlay"`. Richer: the **claude-video-studio** skill (21 HyperFrames looks) or **manim-video**
+  (diagrams). Spawn one sub-agent per animation, in parallel.
+- Sound: `"sfx": "auto"` (default) puts a whoosh/pop/click on visible events only, capped. Set `"none"` for calm pieces.
+- Optional `"progress_bar": true` for long tips reels.
 
-## Step 5: B-roll  (**broll-library** + **broll-motion** skills)
+## 6. Render, then self-review (cap: 3 passes)
 ```bash
-python3 -m editor auto projects/<name> --from audio --to track
-python3 -m editor timeline projects/<name>/work             # output-timeline times
-python3 -m editor broll list                                # shared library
+python3 -m editor auto projects/<name> --from captions --to check --style white
 ```
-For each line that names something showable, place B-roll in the EDL `"broll"`:
-library clips by id, project `broll/` files, or captures you make now:
-- websites / tweets / docs: `python3 -m editor capture web "<url>" -o projects/<name>/broll/x.png` (or `--video 6`)
-- the user's app: `capture sim` (iPhone Simulator, macOS) or `capture android`
-- the rough-cut card itself: `work/rough_cut_viz.png`
-Use `"mode": "card"` for screen recordings, code and screenshots (they float over the
-chest, face stays visible) and `full` for cutaway footage. Add 1 emphasis zoom
-every 4-8 s (`"zooms"`).
+`check` (spec + loudness) and `review` (every cut: clicks, flash frames, mid-word cuts, **faces covered by
+cards/overlays/pills**) run automatically, then a cover is made. Read `out/contact_sheet.png`, every
+`out/review/review_*.png`, and `out/cover.jpg`. Spot-check frames at each card and graphic. Fix in the EDL and
+re-run from the earliest stage. After 3 passes, report what's left instead of looping. You can't hear: report
+LUFS/peak numbers, never "it sounds good".
+For anything that will be published, spawn one **critic sub-agent** with the render path, the EDL and the
+sheets: "roast it, don't praise it: a verdict, ranked problems with timecodes, the 5 fixes to do first."
 
-## Step 6: render, then the final pass  (**export-qa** skill)
-```bash
-python3 -m editor auto projects/<name> --from captions --to check --style white --grade natural
+## 7. Deliver and remember
+Report the path, runtime, hook, cuts, music, B-roll, graphics, check and review results, and the cover.
+Offer other formats (`--preset youtube|feed|square|tiktok|shorts`) and the `.srt`. Append to
+`projects/<name>/project.md`:
 ```
-`check` must be all PASS. Then **Read `out/contact_sheet.png`**, plus frames at
-every card, chapter and zoom (`python3 -m editor frames <out.mp4> -o out/frames --at ...`):
-- hard cuts land on word boundaries, with no half words and no flash frames;
-- face always visible (cards below it, captions below the cards);
-- step pills match what's being said; B-roll lands on the right words;
-- hook title readable in the first second.
-Fix in `edl.json` and re-run from the earliest affected stage (table below).
-You can't hear the result, so say that audio was checked by numbers (LUFS/peak) only.
+## Session N, YYYY-MM-DD
+Strategy: ... / Decisions: ... / Reasoning: ... / Outstanding: ...
+```
 
-## 7. Deliver
-Report the output path, runtime, the hook used, what was cut, music and B-roll
-choices, and QA results. Offer other formats (`--preset youtube|feed|square|tiktok|shorts`),
-the `.srt`, and adding any new reusable B-roll or a winning hook to `library/`.
-
-## Stage map
-| change you made | re-run from |
+| change | re-run from |
 |---|---|
+| transcript text (retext) | `--from plan` |
 | segments, speed | `--from cut` |
-| music track / level | `--from audio` |
-| captions style, title, emphasis, chapters | `--from captions` |
-| zooms, b-roll, grade, preset | `--from render` |
+| music | `--from audio` |
+| captions, title, emphasis, chapters | `--from captions` |
+| zooms, b-roll, graphics, sfx, grade, progress bar | `--from render` |

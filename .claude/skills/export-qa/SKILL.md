@@ -32,8 +32,12 @@ python3 -m editor render projects/<n>/work -o projects/<n>/out/<n>_youtube.mp4 -
 2. `python3 -m editor sheet <file> -o <dir>/contact_sheet.png` and **Read the PNG**.
    Look for: face cut off, captions over the mouth or off-screen, black/frozen
    frames, B-roll on the wrong word, colour too saturated or skin too orange.
-3. Spot-check exact moments with `python3 -m editor frames <file> -o <dir> --at <t> ...`.
-4. Report what you checked. If something can't be verified (e.g. how it sounds),
+3. `python3 -m editor review <file> projects/<n>/work` checks every cut (audio click, flash frame,
+   mid-word cut) and every card/overlay/pill (face covered), and writes `review/review_*.png`. Read them.
+4. `python3 -m editor cover <file> -o out/cover.jpg --title "..." --work projects/<n>/work` makes the cover
+   from a clean frame (no captions/overlays), plus `cover_grid.jpg`, the 4:5 crop the profile grid shows.
+5. Spot-check exact moments with `python3 -m editor frames <file> -o <dir> --at <t> ...`.
+6. Report what you checked. If something can't be verified (e.g. how it sounds),
    say so plainly instead of implying it was checked.
 
 ## Common upload problems

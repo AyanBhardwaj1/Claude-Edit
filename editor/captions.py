@@ -40,6 +40,7 @@ STYLES = {
                     upper=False, lower=True, max_words=4, max_chars=26, primary="#FFFFFF", active=None,
                     emph="#FFFFFF", outline=0.0, shadow=0.003, pop=1.0, width_k=0.52),
 }
+MIN_CUE = 0.35  # seconds; a caption cue shorter than this reads as a flicker
 POSITIONS = {"low": (0.73, 0.86), "middle": (0.50, 0.50), "high": (0.30, 0.16)}  # (vertical, landscape)
 
 
@@ -83,7 +84,9 @@ def _groups(words: list[dict], max_words: int, max_chars: int) -> list[list[dict
             gap = w["start"] - g[-1]["end"]
             boundary = (g[-1]["text"].rstrip().endswith((".", "?", "!", ",", ":", ";")) or gap > 0.45
                         or (w.get("segment") != g[-1].get("segment") and gap > 0.15))
-            if len(g) < max_words and chars <= max_chars and not boundary:
+            short = w["start"] - g[0]["start"] < MIN_CUE and gap < 0.3  # would flash: let it grow
+            if (len(g) < max_words or (short and len(g) <= max_words)) and chars <= max_chars + 4 * short \
+                    and not boundary:
                 g.append(w)
                 continue
         groups.append([w])

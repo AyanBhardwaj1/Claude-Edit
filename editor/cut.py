@@ -20,7 +20,7 @@ from .util import EditorError, load_json, log, normalize_fps, probe, run, save_j
 
 TONEMAP = ("zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709,tonemap=tonemap=hable:desat=0,"
            "zscale=t=bt709:m=bt709:r=tv,format=yuv420p")
-FADE = 0.012  # seconds of audio fade at every cut, kills clicks without audible dips
+FADE = 0.03  # 30 ms audio fade at every cut: no pops (video-use hard rule), no audible dip
 
 
 def cut(edl_path: str | Path, out_dir: str | Path, transcript: str | Path | None = None) -> Path:

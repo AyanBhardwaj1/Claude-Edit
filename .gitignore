@@ -12,3 +12,8 @@ assets/fonts/*.otf
 assets/fonts/OFL.txt
 motion/node_modules/
 .DS_Store
+library/models/
+library/sfx/
+.env
+.env.*
+.claude/skills/claude-video-studio/gallery/videos/

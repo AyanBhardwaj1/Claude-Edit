@@ -27,7 +27,19 @@ def main(argv=None):
     p.add_argument("-o", "--out-dir", required=True)
     p.add_argument("--model", default="small", help="tiny|base|small|medium|large-v3|distil-large-v3")
     p.add_argument("--language")
-    p.add_argument("--engine", choices=["auto", "whisperx", "faster-whisper"], default="auto")
+    p.add_argument("--engine", choices=["auto", "whisperx", "faster-whisper", "scribe", "vosk"], default="auto",
+                   help="auto tries whisperx, faster-whisper, scribe (ELEVENLABS_API_KEY), vosk (offline)")
+
+    for sp in (sub.choices["transcribe"],):
+        sp.add_argument("--glossary", nargs="*", default=[], help="names/terms to spell right (also library/glossary.txt)")
+        sp.add_argument("--num-speakers", type=int)
+
+    p = sub.add_parser("retext", help="re-time corrected text (edited transcript.txt or a script) onto the words")
+    p.add_argument("work_dir")
+    p.add_argument("text", help="edited copy of transcript.txt, or plain text / script")
+
+    p = sub.add_parser("models", help="offline speech models (no huggingface needed)")
+    p.add_argument("which", choices=["vosk", "vosk-large"])
 
     p = sub.add_parser("plan", help="auto rough cut: transcript.json -> edl.json")
     p.add_argument("transcript")
@@ -156,6 +168,49 @@ def main(argv=None):
     p.add_argument("-o", "--out")
     p.add_argument("--title")
 
+    p = sub.add_parser("graphic", help="built-in motion graphics -> transparent ProRes 4444 overlay (.mov)")
+    p.add_argument("kind", choices=["counter", "lower-third", "checklist", "title", "cta"])
+    p.add_argument("-o", "--out", required=True)
+    p.add_argument("--preset", default="reels")
+    p.add_argument("--fps", type=int, default=30)
+    p.add_argument("--dur", type=float)
+    p.add_argument("--accent", help="hex colour, e.g. #FF5A00")
+    p.add_argument("--y", type=float, help="vertical position (fraction of height)")
+    p.add_argument("--text", help="title / cta text")
+    p.add_argument("--sub", help="cta sub-line")
+    p.add_argument("--highlight", nargs="*", help="title words in the accent colour")
+    p.add_argument("--start", type=float, help="counter start value")
+    p.add_argument("--to", type=float, help="counter end value")
+    p.add_argument("--prefix", help="counter prefix, e.g. $")
+    p.add_argument("--suffix", help="counter suffix, e.g. %%")
+    p.add_argument("--label", help="counter label")
+    p.add_argument("--name", help="lower-third name")
+    p.add_argument("--title", dest="lt_title", help="lower-third title / checklist heading")
+    p.add_argument("--items", nargs="*", help="checklist items")
+    p.add_argument("--at", type=float, nargs="*", help="checklist item times")
+
+    p = sub.add_parser("inspect", help="filmstrip + waveform + words for a time range (video-use timeline_view)")
+    p.add_argument("video")
+    p.add_argument("start", type=float)
+    p.add_argument("end", type=float)
+    p.add_argument("-o", "--out", required=True)
+    p.add_argument("--transcript", help="words json (cut_words.json for renders, transcript.json for sources)")
+    p.add_argument("--n-frames", type=int, default=10)
+
+    p = sub.add_parser("review", help="self-review every cut of a render: clicks, flash frames, mid-word cuts")
+    p.add_argument("video")
+    p.add_argument("work_dir")
+    p.add_argument("-o", "--out-dir")
+
+    p = sub.add_parser("cover", help="cover/thumbnail: best frame + title")
+    p.add_argument("video")
+    p.add_argument("-o", "--out", required=True)
+    p.add_argument("--title", default="")
+    p.add_argument("--at", type=float, help="use this time instead of auto-picking")
+    p.add_argument("--highlight", nargs="*")
+    p.add_argument("--work", help="work dir: take frames from the clean cut (no captions/overlays)")
+    p.add_argument("--preset", default="reels")
+
     p = sub.add_parser("timeline", help="print the cut's words on the OUTPUT timeline (for placing zooms/b-roll)")
     p.add_argument("work_dir")
 
@@ -165,7 +220,8 @@ def main(argv=None):
     p.add_argument("--to", dest="to_stage", choices=STAGES, default="check")
     p.add_argument("--model", default="small")
     p.add_argument("--language")
-    p.add_argument("--engine", choices=["auto", "whisperx", "faster-whisper"], default="auto")
+    p.add_argument("--engine", choices=["auto", "whisperx", "faster-whisper", "scribe", "vosk"], default="auto",
+                   help="auto tries whisperx, faster-whisper, scribe (ELEVENLABS_API_KEY), vosk (offline)")
     p.add_argument("--fillers", choices=["none", "standard", "aggressive"], default="standard")
     p.add_argument("--max-gap", type=float, default=0.30)
     p.add_argument("--speed", type=float, default=1.0)
@@ -191,7 +247,10 @@ def _render_args(p):
     p.add_argument("--captions", help="captions .ass (default: work/captions.ass if present)")
     p.add_argument("--no-captions", action="store_true")
     p.add_argument("--track", help="track.json (default: work/track.json if present)")
-    p.add_argument("--grade", choices=["none", "natural", "punchy", "warm", "cinematic", "bw"], default="natural")
+    p.add_argument("--grade", choices=["none", "natural", "punchy", "warm", "cinematic", "bw", "neutral_punch",
+                                       "warm_cinematic"], default="natural")
+    p.add_argument("--auto-color", type=float, default=0.5, help="match takes: per-segment WB/exposure nudge (0 = off)")
+    p.add_argument("--no-sfx", action="store_true", help="skip sound effects (EDL \"sfx\")")
     p.add_argument("--lut", help=".cube LUT applied before the grade's YUV stage")
     p.add_argument("--sharpen", type=float, default=0.35, help="0 disables contrast-adaptive sharpening")
     p.add_argument("--fit", choices=["crop", "blur"], default="crop",
@@ -235,6 +294,17 @@ def cmd_doctor(_):
         except ImportError:
             print(f"optional python {mod}: {why}")
     print(f"{'ok ' if shutil.which('xcrun') else 'optional'} xcrun (iPhone Simulator capture, macOS)")
+    try:
+        import vosk  # noqa: F401
+        from .models import MODELS_DIR
+        have = any(MODELS_DIR.glob("vosk-model-*"))
+        print(f"{'ok ' if have else 'optional'} vosk offline ASR{'' if have else ' (model: python3 -m editor models vosk)'}")
+    except ImportError:
+        print("optional vosk offline ASR: pip install vosk")
+    from .transcribe import _api_key
+    print(f"{'ok ' if _api_key('ELEVENLABS_API_KEY') else 'optional'} ElevenLabs Scribe key (hosted ASR)")
+    node = shutil.which("node")
+    print(f"{'ok ' if node else 'optional'} node (HyperFrames / Remotion graphics)")
     from .captions import STYLES, resolve_font
     print(f"ok  caption font (bold): {resolve_font(STYLES['bold']['fonts'])}")
     try:
@@ -255,7 +325,8 @@ def cmd_new(args):
 
 def cmd_transcribe(args):
     from .transcribe import transcribe
-    transcribe(args.inputs, args.out_dir, model=args.model, language=args.language, engine=args.engine)
+    transcribe(args.inputs, args.out_dir, model=args.model, language=args.language, engine=args.engine,
+               glossary=_glossary(args.glossary), num_speakers=args.num_speakers)
 
 
 def cmd_plan(args):
@@ -312,7 +383,8 @@ def cmd_render(args):
     captions = None if args.no_captions else default(args.captions, "captions.ass")
     render(work, args.out, preset=args.preset, audio=default(args.audio, "voice.wav"), captions=captions,
            track=default(args.track, "track.json"), punch_in=args.punch_in, grade=args.grade, lut=args.lut,
-           sharpen=args.sharpen, fit=args.fit, broll=broll, crf=args.crf)
+           sharpen=args.sharpen, fit=args.fit, broll=broll, crf=args.crf, auto_color=args.auto_color,
+           sfx=not args.no_sfx)
 
 
 def cmd_check(args):
@@ -386,6 +458,61 @@ def cmd_viz(args):
     render_viz(args.work_dir, args.out, title=args.title)
 
 
+def _glossary(extra: list[str]) -> list[str]:
+    path = ROOT / "library" / "glossary.txt"
+    words = [ln.strip() for ln in path.read_text().splitlines() if ln.strip() and not ln.startswith("#")] \
+        if path.exists() else []
+    return words + list(extra)
+
+
+def cmd_retext(args):
+    from .retext import retext
+    retext(args.work_dir, args.text)
+
+
+def cmd_models(args):
+    from .models import vosk_model
+    print(vosk_model("vosk-model-en-us-0.22-lgraph" if args.which == "vosk-large" else "vosk-model-small-en-us-0.15"))
+
+
+def cmd_graphic(args):
+    from .graphics import make
+    from .render import PRESETS
+    w, h = PRESETS[args.preset]["size"]
+    kw = dict(w=w, h=h, fps=args.fps, dur=args.dur, accent=args.accent, y=args.y)
+    if args.kind == "counter":
+        kw.update(start=args.start, to=args.to, prefix=args.prefix, suffix=args.suffix, label=args.label)
+    elif args.kind == "lower-third":
+        kw.update(name=args.name, title=args.lt_title)
+    elif args.kind == "checklist":
+        if not args.items:
+            raise EditorError("--items is required for a checklist")
+        kw.update(items=args.items, title=args.lt_title, at=args.at)
+    elif args.kind == "title":
+        if not args.text:
+            raise EditorError("--text is required for a title")
+        kw.update(text=args.text, highlight=args.highlight)
+    elif args.kind == "cta":
+        kw.update(text=args.text, sub=args.sub)
+    print(make(args.kind, args.out, **kw))
+
+
+def cmd_inspect(args):
+    from .review import inspect
+    inspect(args.video, args.start, args.end, args.out, transcript=args.transcript, n_frames=args.n_frames)
+
+
+def cmd_review(args):
+    from .review import review
+    return 0 if review(args.video, args.work_dir, args.out_dir)["passed"] else 2
+
+
+def cmd_cover(args):
+    from .cover import cover
+    cover(args.video, args.out, title=args.title, at=args.at, highlight=args.highlight, work=args.work,
+          preset=args.preset)
+
+
 def cmd_timeline(args):
     from .captions import _groups
     from .util import fmt_ts
@@ -426,7 +553,8 @@ def cmd_auto(args):
             if not inputs:
                 raise EditorError(f"no a-roll video files in {raw}")
             from .transcribe import transcribe
-            transcribe(inputs, work, model=args.model, language=args.language, engine=args.engine)
+            transcribe(inputs, work, model=args.model, language=args.language, engine=args.engine,
+                       glossary=_glossary([]))
         elif stage == "plan":
             from .plan import plan
             plan(work / "transcript.json", work / "edl.json", max_gap=args.max_gap, fillers=args.fillers,
@@ -469,6 +597,12 @@ def cmd_auto(args):
             from .qa import check, sheet, write_report
             write_report(check(out_file, preset=args.preset), out_dir / "qa.json")
             sheet(out_file, out_dir / "contact_sheet.png")
+            from .review import review
+            review(out_file, work, out_dir / "review")
+            from .cover import cover
+            edl = load_json(work / "edl.json")
+            cover(out_file, out_dir / "cover.jpg", title=args.title or edl.get("title", ""),
+                  highlight=edl.get("emphasis"), work=work, preset=args.preset)
     log(f"done: {', '.join(stages)}" + (f" -> {out_file}" if "render" in stages else ""))
 
 
