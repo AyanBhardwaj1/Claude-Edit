@@ -233,6 +233,30 @@ def test_vosk_engine_transcribes_tts(tmp_path):
     assert all(w["end"] > w["start"] for w in words)
 
 
+LAUNCH = ROOT / ".claude" / "skills" / "launch-video"
+
+
+def test_launch_video_draft_voice_without_say(tmp_path):
+    sys.path.insert(0, str(LAUNCH))
+    import vo
+    out = tmp_path / "line.wav"
+    vo._draft_voice("Meet launch video.", 185, str(out))
+    assert out.exists() and out.stat().st_size > 10000
+
+
+@pytest.mark.slow
+def test_launch_video_board(tmp_path):
+    if not (LAUNCH / "engine" / "node_modules" / "playwright-core").exists():
+        pytest.skip("launch-video engine not installed (npm ci)")
+    proj = tmp_path / "launch-skill"
+    import shutil
+    shutil.copytree(LAUNCH / "examples" / "launch-skill", proj)
+    res = subprocess.run(["node", str(LAUNCH / "engine" / "render.mjs"), str(proj), "--board"],
+                         capture_output=True, text=True, timeout=240)
+    assert res.returncode == 0, res.stderr[-1500:]
+    assert (proj / "out" / "board.jpg").exists()
+
+
 @pytest.mark.slow
 def test_end_to_end_pipeline(tmp_path):
     project = tmp_path / "demo"

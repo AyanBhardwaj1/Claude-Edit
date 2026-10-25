@@ -15,7 +15,9 @@ Claude makes the editorial calls and checks the result visually.
 - Vendored skills (MIT, see THIRD_PARTY.md): **video-use** (long-form, multi-take, interviews, launch
   videos; its rules are built into edit-reel), **claude-video-studio** (studio motion graphics with
   HyperFrames, 21 looks), **manim-video** (technical/maths animations). Their outputs come into a reel as
-  `"mode": "overlay"` b-roll.
+  `"mode": "overlay"` b-roll. **launch-video** (Keeran's) makes SaaS / app launch videos from a script,
+  screenshots and a voiceover (kinetic word-synced type, pills, logo reveal, UI camera moves, 3D phone ads);
+  projects in `launches/<name>/`.
 - Works the same in the Claude desktop app (local files, links, browser gallery) and in cloud sessions
   (footage via the repo; transcription falls back to offline Vosk; graphics via `editor graphic`).
 - Every command: `python3 -m editor <cmd> --help`. One-shot: `python3 -m editor auto projects/<name>`.

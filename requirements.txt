@@ -3,6 +3,7 @@ faster-whisper>=1.0
 opencv-python-headless>=4.8,<5
 numpy>=1.24
 pillow>=10
+scipy>=1.10             # launch-video audio mixing
 yt-dlp>=2025.1.1
 requests>=2.31          # ElevenLabs Scribe engine
 # offline speech recognition (setup.sh installs it: its `srt` dependency is pure Python)

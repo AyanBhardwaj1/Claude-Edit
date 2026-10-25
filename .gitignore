@@ -17,3 +17,6 @@ library/sfx/
 .env
 .env.*
 .claude/skills/claude-video-studio/gallery/videos/
+launches/*
+.claude/skills/launch-video/engine/node_modules/
+.claude/skills/launch-video/.env

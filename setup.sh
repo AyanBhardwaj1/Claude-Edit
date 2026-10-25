@@ -28,12 +28,17 @@ PY=${PYTHON:-python3}
   grep -v '^vosk' requirements.txt > /tmp/claude-edit-req.txt && "$PY" -m pip install -r /tmp/claude-edit-req.txt
 }
 
+# microphone recording for launch-video's teleprompter (desktop only; needs PortAudio on Linux)
+"$PY" -m pip install sounddevice >/dev/null 2>&1 || echo "  sounddevice not installed: launch-video recording unavailable"
+
 say "Offline speech model (Vosk, used when Whisper models or an API key aren't available)"
 "$PY" -m editor models vosk || echo "  skipped; run: python3 -m editor models vosk"
 
 say "Node (only for HyperFrames / Remotion motion graphics)"
 if command -v node >/dev/null && [ "$(node -p 'process.versions.node.split(".")[0]')" -ge 22 ]; then
   echo "node $(node -v) ok"
+  (cd .claude/skills/launch-video/engine && npm ci --ignore-scripts --no-audit --no-fund) \
+    || echo "  launch-video engine install failed; run: cd .claude/skills/launch-video/engine && npm ci"
 else
   echo "  Node 22+ not found: built-in graphics still work; for claude-video-studio install it from https://nodejs.org"
 fi

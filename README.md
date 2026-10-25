@@ -13,6 +13,7 @@ app** and in Claude Code on the web or CLI.
 | **video-use** (vendored, browser-use) | conversation-driven editing for long-form, multi-take, interviews, launch videos |
 | **claude-video-studio** (vendored, Claude Video 2.0) | studio motion graphics in HyperFrames, 21 looks with a live gallery |
 | **manim-video** (vendored) | 3Blue1Brown-style technical and maths animations |
+| **launch-video** (vendored, Keeran) | SaaS / app launch videos in code: every word lands on the voice, keyword pills, counters, glowing logo reveal, product UI with camera moves and cursor, 3D-phone app ads; your voice (line-by-line takes), Fish Audio or ElevenLabs; brand from a link via context.dev |
 | supporting skills | hooks (265 templates), rough-cut, captions, music-library, broll-library, broll-motion, audio-polish, export-qa, reel-script |
 
 ## The pipeline
@@ -43,7 +44,7 @@ Open this folder in the Claude desktop app (or run `claude` here) and say:
 > edit https://www.instagram.com/reel/XXXX/ into a reel
 
 or `python3 -m editor new myreel`, drop clips in `projects/myreel/raw/`, and say "edit projects/myreel".
-Also: "make me a motion graphic" (claude-video-studio), "animate this concept" (manim-video),
+Also: "make a launch video for <product>" (launch-video), "make me a motion graphic" (claude-video-studio), "animate this concept" (manim-video),
 "edit these interview takes into a 3-minute video" (video-use), `/reel-script` to plan a video first.
 
 Without Claude: `python3 -m editor auto projects/myreel` runs everything; `python3 -m editor --help` lists
