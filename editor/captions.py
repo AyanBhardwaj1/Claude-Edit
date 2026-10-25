@@ -5,7 +5,10 @@ Styles
            active word turns yellow and pops. Default for reels.
   beast    2 huge words, active word green, punchier pop.
   clean    sentence case, up to ~6 words, soft shadow, subtle active colour.
+  white    bold white 2-3 word groups, no highlight colour: the classic creator look.
   minimal  lowercase, small, no highlight. For aesthetic / vlog content.
+
+Chapters ("1: The hook") render as black rounded pills at the top of frame.
 
 Words flagged `emph` in cut_words.json (or listed in the EDL "emphasis" array)
 always render in the emphasis colour and slightly larger.
@@ -30,11 +33,14 @@ STYLES = {
     "clean": dict(fonts=["Montserrat Bold", "Inter SemiBold", "Inter", "Helvetica Neue", "Arial"], size=0.058,
                   upper=False, max_words=6, max_chars=30, primary="#FFFFFF", active="#FFF2A8", emph="#FFD60A",
                   outline=0.0025, shadow=0.004, pop=1.0, width_k=0.55),
+    "white": dict(fonts=["Montserrat ExtraBold", "Inter ExtraBold", "Inter Black", "Arial Black"], size=0.07,
+                  upper=False, max_words=3, max_chars=18, primary="#FFFFFF", active=None, emph="#FFFFFF",
+                  outline=0.0035, shadow=0.004, pop=1.0, width_k=0.60),
     "minimal": dict(fonts=["Inter Medium", "Montserrat Medium", "Helvetica Neue", "Arial"], size=0.048,
                     upper=False, lower=True, max_words=4, max_chars=26, primary="#FFFFFF", active=None,
                     emph="#FFFFFF", outline=0.0, shadow=0.003, pop=1.0, width_k=0.52),
 }
-POSITIONS = {"low": (0.70, 0.86), "middle": (0.50, 0.50), "high": (0.30, 0.16)}  # (vertical, landscape)
+POSITIONS = {"low": (0.73, 0.86), "middle": (0.50, 0.50), "high": (0.30, 0.16)}  # (vertical, landscape)
 
 
 def ass_color(hex_color: str, alpha: int = 0) -> str:
@@ -86,7 +92,8 @@ def _groups(words: list[dict], max_words: int, max_chars: int) -> list[list[dict
 
 def build(words_path: str | Path, out: str | Path, width: int = 1080, height: int = 1920, style: str = "bold",
           position: str = "low", title: str | None = None, title_dur: float = 3.0,
-          emphasis: list[str] | None = None, srt: bool = True) -> Path:
+          emphasis: list[str] | None = None, srt: bool = True, chapters: list[dict] | None = None,
+          duration: float | None = None) -> Path:
     st = STYLES[style]
     words = [dict(w) for w in load_json(words_path)["words"]]
     extra = {e.lower() for e in (emphasis or [])}
@@ -120,6 +127,7 @@ YCbCr Matrix: TV.709
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
 Style: Cap,{font},{fs},{ass_color(st['primary'])},{ass_color(st['primary'])},{ass_color('#000000')},{ass_color('#000000', 0x80)},-1,0,0,0,100,100,0,0,1,{outline},{shadow},5,40,40,40,1
+Style: Chap,{title_font},{round(0.044 * base)},{ass_color('#FFFFFF')},{ass_color('#FFFFFF')},{ass_color('#000000')},{ass_color('#000000')},-1,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1
 Style: Title,{title_font},{round(0.06 * base)},{ass_color('#111111')},{ass_color('#111111')},{ass_color('#FFFFFF')},{ass_color('#000000', 0x60)},-1,0,0,0,100,100,0,0,3,{round(0.018 * base)},0,8,60,60,40,1
 
 [Events]
@@ -169,12 +177,40 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         events.append(f"Dialogue: 2,{ass_time(0)},{ass_time(title_dur)},Title,,0,0,0,,"
                       f"{{\\an8\\pos({x:.0f},{ty:.0f})\\fad(120,200)}}{_escape(title)}")
 
+    if chapters:
+        end_of_video = duration or (max(w["end"] for w in words) + 0.5 if words else 0)
+        cfs = round(0.044 * base)
+        cy = (0.085 if vertical else 0.07) * height
+        ordered = sorted(chapters, key=lambda c: float(c["start"]))
+        for k, ch in enumerate(ordered):
+            c_start = float(ch["start"])
+            c_end = float(ch.get("end") or (ordered[k + 1]["start"] if k + 1 < len(ordered) else end_of_video))
+            if c_end <= c_start:
+                continue
+            ph = round(cfs * 1.9)
+            pw = round(len(ch["text"]) * cfs * 0.58 + cfs * 1.6)
+            events.append(f"Dialogue: 3,{ass_time(c_start)},{ass_time(c_end)},Chap,,0,0,0,,"
+                          f"{{\\an7\\pos({x - pw / 2:.0f},{cy - ph / 2:.0f})\\p1\\1c&H000000&\\1a&H08&\\bord0\\shad0"
+                          f"\\fad(120,120)}}{_pill(pw, ph)}{{\\p0}}")
+            events.append(f"Dialogue: 4,{ass_time(c_start)},{ass_time(c_end)},Chap,,0,0,0,,"
+                          f"{{\\an5\\pos({x:.0f},{cy:.0f})\\fad(120,120)}}{_escape(ch['text'])}")
+
     out = Path(out)
     out.write_text(header + "\n".join(events) + "\n", encoding="utf-8")
     if srt:
         _write_srt(groups, out.with_suffix(".srt"))
     log(f"captions: {len(groups)} groups, style={style}, font={font} -> {out}")
     return out
+
+
+def _pill(w: float, h: float) -> str:
+    """ASS vector drawing of a fully rounded rectangle (pill) w x h, origin top-left."""
+    r = h / 2
+    k = r * 0.448  # bezier handle length for a quarter circle
+    pts = (f"m {r:.0f} 0 l {w - r:.0f} 0 b {w - r + k:.0f} 0 {w:.0f} {r - k:.0f} {w:.0f} {r:.0f} "
+           f"b {w:.0f} {r + k:.0f} {w - r + k:.0f} {h:.0f} {w - r:.0f} {h:.0f} l {r:.0f} {h:.0f} "
+           f"b {r - k:.0f} {h:.0f} 0 {r + k:.0f} 0 {r:.0f} b 0 {r - k:.0f} {r - k:.0f} 0 {r:.0f} 0")
+    return pts
 
 
 def _break_index(group: list[dict], char_w: float, max_w: float) -> int | None:

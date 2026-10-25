@@ -24,6 +24,16 @@ say "Python packages"
 PY=${PYTHON:-python3}
 "$PY" -m pip install -r requirements.txt
 
+say "Playwright Chromium (for web b-roll capture)"
+"$PY" -m playwright install chromium || echo "  skipped; web capture will need it later"
+
+if [[ "${WHISPERX:-0}" == "1" ]]; then
+  say "WhisperX (word-level forced alignment)"
+  "$PY" -m pip install whisperx
+else
+  echo "Tip: WHISPERX=1 ./setup.sh installs WhisperX for the tightest word timestamps (large, pulls in torch)."
+fi
+
 say "Caption fonts (Montserrat, SIL Open Font License)"
 mkdir -p assets/fonts
 base="https://github.com/JulietaUla/Montserrat/raw/master"

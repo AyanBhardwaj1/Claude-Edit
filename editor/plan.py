@@ -45,6 +45,27 @@ def _is_retake(earlier: list[str], later: list[str]) -> bool:
     return SequenceMatcher(None, earlier[:n], later[:n]).ratio() >= 0.75
 
 
+def _worse_take(i: int, j: int, phrases, texts, words, drop) -> tuple[int, int, str]:
+    """Pick which of two takes of the same line to drop. Returns (loser, winner, reason)."""
+    ni, nj = len(texts[i]), len(texts[j])
+    if ni < 0.7 * nj:
+        return i, j, "earlier was a false start"
+    if nj < 0.7 * ni:
+        return j, i, "later was a false start"
+
+    def quality(p):
+        idx = phrases[p]
+        conf = sum(words[k].get("prob", 0.9) for k in idx) / len(idx)
+        fillers = sum(1 for k in idx if drop.get(k) == "filler")
+        complete = words[idx[-1]]["text"].rstrip().endswith((".", "?", "!"))
+        return conf - 0.15 * fillers + (0.05 if complete else 0.0)
+
+    qi, qj = quality(i), quality(j)
+    if qi > qj + 0.05:
+        return j, i, "earlier take was cleaner"
+    return i, j, "cleaner or equal, later takes usually land better"
+
+
 def plan(transcript_path: str | Path, out: str | Path, max_gap: float = 0.30, pad_before: float = 0.06,
          pad_after: float = 0.10, fillers: str = "standard", retakes: bool = True, speed: float = 1.0,
          lookback: int = 3) -> Path:
@@ -62,9 +83,13 @@ def plan(transcript_path: str | Path, out: str | Path, max_gap: float = 0.30, pa
         texts = [[norm(words[i]["text"]) for i in p if i not in drop] for p in phrases]
         for j in range(len(phrases)):
             for i in range(max(0, j - lookback), j):
-                if _is_retake(texts[i], texts[j]) and not all(k in drop for k in phrases[i]):
-                    for k in phrases[i]:
-                        drop.setdefault(k, f"retake (kept later take at {fmt_ts(words[phrases[j][0]]['start'])})")
+                if all(k in drop for k in phrases[i]) or all(k in drop for k in phrases[j]):
+                    continue
+                if _is_retake(texts[i], texts[j]):
+                    loser, winner, why = _worse_take(i, j, phrases, texts, words, drop)
+                    when = fmt_ts(words[phrases[winner][0]]["start"])
+                    for k in phrases[loser]:
+                        drop.setdefault(k, f"retake (kept {'later' if winner == j else 'earlier'} take at {when}: {why})")
 
     segments, removed = [], []
     current: list[int] = []

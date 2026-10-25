@@ -16,7 +16,9 @@ from pathlib import Path
 
 import numpy as np
 
-from .util import EditorError, load_json, log
+from .util import EditorError, load_json, log, probe
+
+IMAGE_EXT = (".png", ".jpg", ".jpeg", ".webp")
 
 PRESETS = {
     "reels": dict(size=(1080, 1920), crf=17, maxrate="20M", bufsize="40M", max_seconds=180),
@@ -154,17 +156,39 @@ def _encoder_cmd(out, w, h, fps_str, cut_dir, audio, captions, grade, lut, sharp
         chain.append(f"cas=strength={sharpen}")
     graph = [f"[0:v]{','.join(chain)}[base0]"]
     label = "base0"
+    next_idx = 2
     for n, b in enumerate(broll):
-        idx = 2 + n
+        idx, next_idx = next_idx, next_idx + 1
         path = str(b["path"])
         start, dur = float(b["start"]), float(b["dur"])
-        if Path(path).suffix.lower() in (".png", ".jpg", ".jpeg", ".webp"):
+        is_image = Path(path).suffix.lower() in IMAGE_EXT
+        if is_image:
             cmd += ["-loop", "1", "-t", f"{dur:.3f}", "-i", path]
         else:
             cmd += ["-ss", f"{float(b.get('src_start', 0)):.3f}", "-t", f"{dur:.3f}", "-i", path]
-        is_image = Path(path).suffix.lower() in (".png", ".jpg", ".jpeg", ".webp")
         mode = b.get("mode", "contain" if is_image else "full")
         to_yuv = "scale=out_color_matrix=bt709:out_range=tv,format=yuv444p"
+        end_t = start + dur
+        enable = f"enable='between(t,{start:.3f},{end_t:.3f})'"
+        if mode == "card":         # floating rounded card over the speaker, with shadow, fade + slide-in
+            cw, ch, cy, mask, shadow, spad = _card_assets(path, w, h, b, cut_dir / "cards", n)
+            m_idx, s_idx, next_idx = next_idx, next_idx + 1, next_idx + 2
+            cmd += ["-loop", "1", "-t", f"{dur:.3f}", "-i", str(mask), "-loop", "1", "-t", f"{dur:.3f}", "-i", str(shadow)]
+            fades = (f"fade=t=in:st={start:.3f}:d=0.15:alpha=1,"
+                     f"fade=t=out:st={max(end_t - 0.15, start):.3f}:d=0.15:alpha=1")
+            shift = f"setpts=PTS-STARTPTS+{start:.3f}/TB"
+            graph.append(f"[{idx}:v]scale={cw}:{ch}:flags=lanczos,setsar=1,{to_yuv},format=yuva444p[c{n}];"
+                         f"[{m_idx}:v]scale={cw}:{ch},format=gray[m{n}];[c{n}][m{n}]alphamerge,fps={fps_str},"
+                         f"{shift},{fades}[cm{n}];"
+                         f"[{s_idx}:v]format=yuva444p,fps={fps_str},{shift},{fades}[sh{n}]")
+            slide = f"40*max(0,1-(t-{start:.3f})/0.2)"
+            y0 = cy - ch / 2
+            graph.append(f"[{label}][sh{n}]overlay=x=(W-w)/2:y='{y0 - spad + h * 0.012:.1f}+{slide}':eval=frame:"
+                         f"eof_action=pass:{enable}[shd{n}];"
+                         f"[shd{n}][cm{n}]overlay=x=(W-w)/2:y='{y0:.1f}+{slide}':eval=frame:eof_action=pass:"
+                         f"{enable}[base{n + 1}]")
+            label = f"base{n + 1}"
+            continue
         if mode == "overlay":      # transparent graphics (Remotion ProRes 4444 / WebM alpha) at output size
             graph.append(f"[{idx}:v]scale={w}:{h},format=yuva444p[p{n}]")
         elif mode == "contain":    # screenshots: whole image visible over a blurred fill of itself
@@ -177,8 +201,7 @@ def _encoder_cmd(out, w, h, fps_str, cut_dir, audio, captions, grade, lut, sharp
             graph.append(f"[{idx}:v]scale={w}:{h}:force_original_aspect_ratio=increase:flags=lanczos,"
                          f"crop={w}:{h},setsar=1,{to_yuv}[p{n}]")
         graph.append(f"[p{n}]fps={fps_str},setpts=PTS-STARTPTS+{start:.3f}/TB[b{n}]")
-        graph.append(f"[{label}][b{n}]overlay=eof_action=pass:enable='between(t,{start:.3f},{start + dur:.3f})'"
-                     f"[base{n + 1}]")
+        graph.append(f"[{label}][b{n}]overlay=eof_action=pass:{enable}[base{n + 1}]")
         label = f"base{n + 1}"
     tail = []
     if captions:
@@ -195,6 +218,37 @@ def _encoder_cmd(out, w, h, fps_str, cut_dir, audio, captions, grade, lut, sharp
             "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709", "-color_range", "tv",
             "-c:a", "aac", "-b:a", "256k", "-ar", "48000", "-movflags", "+faststart", "-shortest", str(out)]
     return cmd, tempfile.TemporaryFile()
+
+
+def _card_assets(path, w, h, b, out_dir, n):
+    """Size a floating card and draw its rounded-corner mask and soft shadow (PNG)."""
+    import cv2
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    v = probe(path)["video"]
+    sw, sh = v["width"], v["height"]
+    cw = float(b.get("width", 0.84)) * w
+    ch = cw * sh / sw
+    max_h = float(b.get("max_height", 0.32)) * h
+    if ch > max_h:
+        ch, cw = max_h, max_h * sw / sh
+    cw, ch = int(cw // 2 * 2), int(ch // 2 * 2)
+    cy = float(b.get("y", 0.53)) * h  # below the face, above the captions
+    r = int(min(cw, ch) * 0.06)
+    mask = np.zeros((ch, cw), np.uint8)
+    cv2.rectangle(mask, (r, 0), (cw - r, ch), 255, -1)
+    cv2.rectangle(mask, (0, r), (cw, ch - r), 255, -1)
+    for cx_, cy_ in ((r, r), (cw - r - 1, r), (r, ch - r - 1), (cw - r - 1, ch - r - 1)):
+        cv2.circle(mask, (cx_, cy_), r, 255, -1, lineType=cv2.LINE_AA)
+    spad = int(cw * 0.06)
+    alpha = np.zeros((ch + 2 * spad, cw + 2 * spad), np.uint8)
+    alpha[spad:spad + ch, spad:spad + cw] = (mask * 0.55).astype(np.uint8)
+    alpha = cv2.GaussianBlur(alpha, (0, 0), spad / 2.5)
+    shadow = np.dstack([np.zeros_like(alpha)] * 3 + [alpha])
+    mask_p, shadow_p = out_dir / f"card{n}_mask.png", out_dir / f"card{n}_shadow.png"
+    cv2.imwrite(str(mask_p), mask)
+    cv2.imwrite(str(shadow_p), shadow)
+    return cw, ch, cy, mask_p, shadow_p, spad
 
 
 def _esc(path: str) -> str:

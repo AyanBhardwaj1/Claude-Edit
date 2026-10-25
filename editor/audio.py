@@ -29,7 +29,7 @@ PRESETS = {
 
 def master(src: str | Path, out: str | Path, preset: str = "phone", target_lufs: float = -14.0,
            true_peak: float = -1.0, music: str | None = None, music_db: float = -20.0,
-           duck: bool = True, rnnoise_model: str | None = None) -> Path:
+           duck: bool = True, rnnoise_model: str | None = None, music_start: float = 0.0) -> Path:
     info = probe(src)
     if not info["has_audio"]:
         raise EditorError(f"{src} has no audio")
@@ -39,7 +39,7 @@ def master(src: str | Path, out: str | Path, preset: str = "phone", target_lufs:
     duration = info["duration"]
     inputs = ["-i", str(src)]
     if music:
-        inputs += ["-stream_loop", "-1", "-i", str(music)]
+        inputs += ["-stream_loop", "-1", "-ss", f"{music_start:.3f}", "-i", str(music)]
         fade_st = max(duration - 1.5, 0)
         graph = (f"[0:a]aresample=48000,{','.join(chain)},asplit=2[voice][key];"
                  f"[1:a]aresample=48000,aformat=channel_layouts=stereo,atrim=0:{duration:.3f},"

@@ -27,6 +27,7 @@ def main(argv=None):
     p.add_argument("-o", "--out-dir", required=True)
     p.add_argument("--model", default="small", help="tiny|base|small|medium|large-v3|distil-large-v3")
     p.add_argument("--language")
+    p.add_argument("--engine", choices=["auto", "whisperx", "faster-whisper"], default="auto")
 
     p = sub.add_parser("plan", help="auto rough cut: transcript.json -> edl.json")
     p.add_argument("transcript")
@@ -52,6 +53,7 @@ def main(argv=None):
     p.add_argument("--music-db", type=float, default=-20.0)
     p.add_argument("--no-duck", action="store_true")
     p.add_argument("--rnnoise-model", help="path to an RNNoise .rnnn model for arnndn")
+    p.add_argument("--music-start", type=float, default=0.0, help="start the track N s in (skip a slow intro)")
 
     p = sub.add_parser("track", help="face tracking for smart reframing")
     p.add_argument("input")
@@ -62,7 +64,7 @@ def main(argv=None):
     p.add_argument("words")
     p.add_argument("-o", "--out", required=True)
     p.add_argument("--preset", default="reels", help="output preset (sets caption canvas size)")
-    p.add_argument("--style", choices=["bold", "beast", "clean", "minimal"], default="bold")
+    p.add_argument("--style", choices=["bold", "beast", "clean", "white", "minimal"], default="bold")
     p.add_argument("--position", choices=["low", "middle", "high"], default="low")
     p.add_argument("--title", help="hook text shown at the top for the first seconds")
     p.add_argument("--title-dur", type=float, default=3.0)
@@ -88,6 +90,72 @@ def main(argv=None):
     p.add_argument("-o", "--out-dir", required=True)
     p.add_argument("--at", type=float, nargs="+", required=True)
 
+    p = sub.add_parser("fetch", help="download a video/audio link (Instagram, TikTok, YouTube, Drive...) with yt-dlp")
+    p.add_argument("url")
+    p.add_argument("--project", help="projects/<name>: saves into its raw/ (or --dest)")
+    p.add_argument("--dest", default="raw", help="raw | broll | music | any folder path")
+    p.add_argument("--audio-only", action="store_true")
+    p.add_argument("--cookies-from-browser", help="chrome | safari | firefox (for Instagram/TikTok logins)")
+
+    p = sub.add_parser("music", help="mood-tagged music library shared by every reel")
+    msub = p.add_subparsers(dest="music_cmd", required=True)
+    q = msub.add_parser("add", help="add a file or a link (audio is extracted)")
+    q.add_argument("source")
+    q.add_argument("--mood", required=True, choices=["hype", "uplifting", "emotional", "tense-dark", "cool-fun"])
+    q.add_argument("--tags", nargs="*", default=[])
+    q.add_argument("--title")
+    q.add_argument("--star", action="store_true")
+    q.add_argument("--notes", default="")
+    q.add_argument("--cookies-from-browser")
+    q = msub.add_parser("list", help="print the library grouped by mood")
+    q.add_argument("--mood")
+    q = msub.add_parser("tag", help="change mood / tags / star / notes of a track")
+    q.add_argument("id")
+    q.add_argument("--mood")
+    q.add_argument("--tags", nargs="*")
+    q.add_argument("--star", action="store_true", default=None)
+    q.add_argument("--unstar", action="store_true")
+    q.add_argument("--notes")
+
+    p = sub.add_parser("broll", help="reusable b-roll library shared by every reel")
+    bsub = p.add_subparsers(dest="broll_cmd", required=True)
+    q = bsub.add_parser("add", help="copy clips/images into the library")
+    q.add_argument("files", nargs="+")
+    q.add_argument("--category", required=True, help="e.g. campus, app-demo, workspace, screenshots")
+    q.add_argument("--tags", nargs="*", default=[])
+    q.add_argument("--desc", default="", help="what is on screen; Claude matches b-roll to script lines with this")
+    q = bsub.add_parser("list", help="list clips, optionally filtered")
+    q.add_argument("query", nargs="?")
+
+    p = sub.add_parser("triage", help="classify raw/ clips: a-roll (founder-to-camera) vs reusable / one-off b-roll")
+    p.add_argument("project")
+
+    p = sub.add_parser("capture", help="make b-roll: web page screenshots/scrolls, iPhone Simulator, Android")
+    csub = p.add_subparsers(dest="capture_cmd", required=True)
+    q = csub.add_parser("web", help="Playwright screenshot or scroll recording of a URL")
+    q.add_argument("url")
+    q.add_argument("-o", "--out", required=True)
+    q.add_argument("--desktop", action="store_true", help="desktop viewport instead of iPhone")
+    q.add_argument("--full-page", action="store_true")
+    q.add_argument("--video", type=float, default=0.0, help="record N seconds (smooth scroll) instead of a screenshot")
+    q.add_argument("--no-scroll", action="store_true")
+    q.add_argument("--dark", action="store_true")
+    q = csub.add_parser("sim", help="record or screenshot the booted iOS Simulator (macOS + Xcode)")
+    q.add_argument("-o", "--out", required=True)
+    q.add_argument("--seconds", type=float, default=8.0)
+    q.add_argument("--url", help="deep link or URL to open first")
+    q.add_argument("--device", default="booted")
+    q.add_argument("--screenshot", action="store_true")
+    q = csub.add_parser("android", help="record or screenshot an Android device/emulator via adb")
+    q.add_argument("-o", "--out", required=True)
+    q.add_argument("--seconds", type=float, default=8.0)
+    q.add_argument("--screenshot", action="store_true")
+
+    p = sub.add_parser("viz", help="before/after rough-cut card (PNG): raw take vs cut, silence stats")
+    p.add_argument("work_dir")
+    p.add_argument("-o", "--out")
+    p.add_argument("--title")
+
     p = sub.add_parser("timeline", help="print the cut's words on the OUTPUT timeline (for placing zooms/b-roll)")
     p.add_argument("work_dir")
 
@@ -97,13 +165,14 @@ def main(argv=None):
     p.add_argument("--to", dest="to_stage", choices=STAGES, default="check")
     p.add_argument("--model", default="small")
     p.add_argument("--language")
+    p.add_argument("--engine", choices=["auto", "whisperx", "faster-whisper"], default="auto")
     p.add_argument("--fillers", choices=["none", "standard", "aggressive"], default="standard")
     p.add_argument("--max-gap", type=float, default=0.30)
     p.add_argument("--speed", type=float, default=1.0)
     p.add_argument("--audio-preset", choices=["clean", "phone", "noisy"], default="phone")
-    p.add_argument("--music", help="music file (default: first file in <project>/music/ if any)")
+    p.add_argument("--music", help="music file or library id (default: EDL \"music\", else <project>/music/)")
     p.add_argument("--music-db", type=float, default=-20.0)
-    p.add_argument("--style", choices=["bold", "beast", "clean", "minimal", "none"], default="bold")
+    p.add_argument("--style", choices=["bold", "beast", "clean", "white", "minimal", "none"], default="bold")
     p.add_argument("--position", choices=["low", "middle", "high"], default="low")
     p.add_argument("--title")
     _render_args(p)
@@ -151,13 +220,21 @@ def cmd_doctor(_):
         found = "libx264" in encoders
         print(f"{'ok ' if found else 'MISSING'} encoder libx264")
         ok &= found
-    for mod in ("faster_whisper", "cv2", "numpy"):
+    for mod in ("faster_whisper", "cv2", "numpy", "PIL", "yt_dlp"):
         try:
             __import__(mod)
             print(f"ok  python {mod}")
         except ImportError:
             print(f"MISSING python {mod}  (pip install -r requirements.txt)")
             ok = False
+    for mod, why in (("whisperx", "tighter word timestamps (WHISPERX=1 ./setup.sh)"),
+                     ("playwright", "web b-roll capture")):
+        try:
+            __import__(mod)
+            print(f"ok  python {mod}")
+        except ImportError:
+            print(f"optional python {mod}: {why}")
+    print(f"{'ok ' if shutil.which('xcrun') else 'optional'} xcrun (iPhone Simulator capture, macOS)")
     from .captions import STYLES, resolve_font
     print(f"ok  caption font (bold): {resolve_font(STYLES['bold']['fonts'])}")
     try:
@@ -178,7 +255,7 @@ def cmd_new(args):
 
 def cmd_transcribe(args):
     from .transcribe import transcribe
-    transcribe(args.inputs, args.out_dir, model=args.model, language=args.language)
+    transcribe(args.inputs, args.out_dir, model=args.model, language=args.language, engine=args.engine)
 
 
 def cmd_plan(args):
@@ -194,8 +271,10 @@ def cmd_cut(args):
 
 def cmd_audio(args):
     from .audio import master
-    master(args.input, args.out, preset=args.preset, target_lufs=args.lufs, music=args.music,
-           music_db=args.music_db, duck=not args.no_duck, rnnoise_model=args.rnnoise_model)
+    from .library import music_path
+    master(args.input, args.out, preset=args.preset, target_lufs=args.lufs,
+           music=str(music_path(args.music)) if args.music else None, music_db=args.music_db,
+           duck=not args.no_duck, rnnoise_model=args.rnnoise_model, music_start=args.music_start)
 
 
 def cmd_track(args):
@@ -207,8 +286,13 @@ def cmd_captions(args):
     from .captions import build
     from .render import PRESETS
     w, h = PRESETS[args.preset]["size"]
-    build(args.words, args.out, width=w, height=h, style=args.style, position=args.position, title=args.title,
-          title_dur=args.title_dur, emphasis=args.emphasis)
+    work = Path(args.words).parent  # title / emphasis / chapters default to the EDL next to the words
+    edl = load_json(work / "edl.json") if (work / "edl.json").exists() else {}
+    meta = load_json(work / "cut_meta.json") if (work / "cut_meta.json").exists() else {}
+    build(args.words, args.out, width=w, height=h, style=args.style, position=args.position,
+          title=args.title or edl.get("title"), title_dur=args.title_dur,
+          emphasis=args.emphasis or edl.get("emphasis", []), chapters=edl.get("chapters"),
+          duration=meta.get("duration"))
 
 
 def cmd_render(args):
@@ -246,6 +330,62 @@ def cmd_frames(args):
     frames(args.input, args.out_dir, args.at)
 
 
+def cmd_fetch(args):
+    from .fetch import fetch
+    if args.dest in ("raw", "broll", "music"):
+        if not args.project:
+            raise EditorError("--project is required with --dest raw|broll|music")
+        dest = Path(args.project) / args.dest
+    else:
+        dest = Path(args.dest)
+    for path in fetch(args.url, dest, audio_only=args.audio_only or args.dest == "music",
+                      cookies_from_browser=args.cookies_from_browser):
+        print(path)
+
+
+def cmd_music(args):
+    from . import library
+    if args.music_cmd == "add":
+        library.music_add(args.source, args.mood, tags=args.tags, title=args.title, starred=args.star,
+                          notes=args.notes, cookies_from_browser=args.cookies_from_browser)
+    elif args.music_cmd == "list":
+        print(library.music_list(args.mood))
+    elif args.music_cmd == "tag":
+        star = False if args.unstar else args.star
+        print(library.music_tag(args.id, mood=args.mood, tags=args.tags, star=star, notes=args.notes))
+
+
+def cmd_broll(args):
+    from . import library
+    if args.broll_cmd == "add":
+        library.broll_add(args.files, args.category, tags=args.tags, description=args.desc)
+    else:
+        for c in library.broll_list(args.query):
+            print(f"{c['id']:<28} {c['category']:<14} {c['duration']:>6}s {c.get('width')}x{c.get('height')}  "
+                  f"{', '.join(c['tags'])}  {c['description']}")
+
+
+def cmd_triage(args):
+    from .triage import triage
+    triage(args.project)
+
+
+def cmd_capture(args):
+    from . import capture
+    if args.capture_cmd == "web":
+        capture.web(args.url, args.out, mobile=not args.desktop, full_page=args.full_page, video=args.video,
+                    scroll=not args.no_scroll, dark=args.dark)
+    elif args.capture_cmd == "sim":
+        capture.sim(args.out, seconds=args.seconds, url=args.url, device=args.device, screenshot=args.screenshot)
+    else:
+        capture.android(args.out, seconds=args.seconds, screenshot=args.screenshot)
+
+
+def cmd_viz(args):
+    from .viz import render_viz
+    render_viz(args.work_dir, args.out, title=args.title)
+
+
 def cmd_timeline(args):
     from .captions import _groups
     from .util import fmt_ts
@@ -276,22 +416,35 @@ def cmd_auto(args):
     for stage in stages:
         log(f"=== {stage} ===")
         if stage == "transcribe":
-            inputs = sorted(str(p) for p in raw.iterdir() if p.suffix.lower() in VIDEO_EXT) if raw.exists() else []
+            from .triage import a_roll
+            triaged = a_roll(project)
+            if triaged is not None:
+                inputs = [str(p) for p in triaged]
+                log(f"using {len(inputs)} a-roll clip(s) from work/triage.json")
+            else:
+                inputs = sorted(str(p) for p in raw.iterdir() if p.suffix.lower() in VIDEO_EXT) if raw.exists() else []
             if not inputs:
-                raise EditorError(f"no video files in {raw}")
+                raise EditorError(f"no a-roll video files in {raw}")
             from .transcribe import transcribe
-            transcribe(inputs, work, model=args.model, language=args.language)
+            transcribe(inputs, work, model=args.model, language=args.language, engine=args.engine)
         elif stage == "plan":
             from .plan import plan
             plan(work / "transcript.json", work / "edl.json", max_gap=args.max_gap, fillers=args.fillers,
                  speed=args.speed)
+            from .viz import render_viz
+            render_viz(work)
         elif stage == "cut":
             from .cut import cut
             cut(work / "edl.json", work)
         elif stage == "audio":
             from .audio import master
-            master(work / "cut.mkv", work / "voice.wav", preset=args.audio_preset, music=music,
-                   music_db=args.music_db)
+            from .library import music_path
+            edl_music = load_json(work / "edl.json").get("music") or {}
+            track = args.music or edl_music.get("track") or music
+            master(work / "cut.mkv", work / "voice.wav", preset=args.audio_preset,
+                   music=str(music_path(track)) if track else None,
+                   music_db=args.music_db if args.music else float(edl_music.get("db", args.music_db)),
+                   music_start=float(edl_music.get("start", 0.0)))
         elif stage == "track":
             if args.fit == "crop":
                 from .track import track
@@ -306,7 +459,8 @@ def cmd_auto(args):
                 w, h = PRESETS[args.preset]["size"]
                 build(work / "cut_words.json", work / "captions.ass", width=w, height=h, style=args.style,
                       position=args.position, title=args.title or edl.get("title"),
-                      emphasis=edl.get("emphasis", []))
+                      emphasis=edl.get("emphasis", []), chapters=edl.get("chapters"),
+                      duration=load_json(work / "cut_meta.json")["duration"])
         elif stage == "render":
             ns = argparse.Namespace(**vars(args), work_dir=str(work), out=str(out_file))
             ns.no_captions = args.style == "none"
@@ -328,9 +482,10 @@ def _parse_broll(spec: str) -> dict:
 
 
 def _resolve_broll(b: dict, edl_path: Path) -> dict:
+    from .library import broll_path
     b = dict(b)
     p = Path(b["path"])
-    for cand in (p, edl_path.parent / p, edl_path.parent.parent / p):
+    for cand in (p, edl_path.parent / p, edl_path.parent.parent / p, broll_path(b["path"])):
         if cand.exists():
             b["path"] = str(cand)
             return b

@@ -30,9 +30,17 @@ python3 -m editor timeline projects/<n>/work
   {"path": "broll/title.mov",    "start": 0.0, "dur": 2.5, "mode": "overlay"}  // transparent graphic on top
 ]
 ```
-Paths are relative to the project folder. The voice keeps playing; captions
-stay on top. Modes: `full` (default for video), `contain` (default for images),
-`overlay` (alpha graphics rendered at output size).
+Floating cards (screen recordings, code, GitHub pages, app screens, the rough-cut viz) keep
+the speaker visible. The card floats over the chest with rounded corners and a shadow, and
+fades/slides in:
+```jsonc
+{"path": "broll/whisperx.png", "start": 9.0, "dur": 2.5, "mode": "card"},            // defaults: width 0.84, y 0.53
+{"path": "app-demo-signup", "start": 14.2, "dur": 3.0, "mode": "card", "max_height": 0.4}  // library id
+```
+`y` is the card centre (fraction of height): lower it if it covers the face, and check a frame.
+Paths are relative to the project folder; library clips can be referenced by id. The voice keeps playing; captions
+stay on top. Modes: `full` (default for video), `contain` (default for images), `card` (floating
+rounded card), `overlay` (alpha graphics rendered at output size).
 - Cut B-roll in when the speaker *names* the thing, hold 1-3 s, never over the hook's first second.
 - No B-roll available? Ask the user for screenshots/screen recordings, or make
   motion graphics instead (below). Don't invent footage.

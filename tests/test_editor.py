@@ -16,7 +16,7 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from editor import captions, plan, render  # noqa: E402
+from editor import captions, library, plan, render, transcribe  # noqa: E402
 from editor.util import normalize_fps  # noqa: E402
 
 
@@ -130,13 +130,70 @@ def test_normalize_fps():
     assert float(normalize_fps(120)) == 60
 
 
+def test_better_take_beats_later_flubbed_take(tmp_path):
+    words = [W(0, 0.0, 0.3, "This"), W(0, 0.3, 0.6, "is"), W(0, 0.6, 0.9, "the"), W(0, 0.9, 1.3, "one."),
+             W(0, 2.0, 2.3, "This"), W(0, 2.3, 2.6, "is"), W(0, 2.6, 2.9, "the"), W(0, 2.9, 3.3, "one")]
+    for w in words[4:]:
+        w["prob"] = 0.5  # mumbled second take
+    edl = run_plan(tmp_path, words)
+    assert [s["text"] for s in edl["segments"]] == ["This is the one."]
+    assert "earlier take was cleaner" in edl["removed"][0]["reason"]
+
+
+def test_whisperx_missing_times_are_interpolated():
+    ws = [{"start": 1.0, "end": 1.2, "text": "I"}, {"start": None, "end": None, "text": "2026"},
+          {"start": None, "end": None, "text": "$5"}, {"start": 2.0, "end": 2.4, "text": "won"}]
+    out = transcribe.fill_missing_times(ws, 0.8, 2.6)
+    assert out[1]["start"] == pytest.approx(1.2) and out[2]["end"] == pytest.approx(2.0)
+    assert all(a["end"] <= b["start"] + 1e-9 for a, b in zip(out, out[1:]))
+
+
+def test_bpm_estimate_on_click_track():
+    sr, bpm = 11025, 120
+    x = np.zeros(sr * 20, np.float32)
+    for k in range(int(20 * bpm / 60)):
+        i = int(k * sr * 60 / bpm)
+        x[i:i + 200] = np.hanning(200)
+    assert abs(library._estimate_bpm(x, sr) - bpm) <= 3
+
+
+def test_chapter_pills_and_white_style(tmp_path):
+    words = [{"start": 0.0, "end": 0.4, "text": "Step", "segment": 0},
+             {"start": 0.4, "end": 0.8, "text": "one", "segment": 0}]
+    wp = tmp_path / "w.json"
+    wp.write_text(json.dumps({"words": words}))
+    text = captions.build(wp, tmp_path / "c.ass", style="white",
+                          chapters=[{"start": 0.0, "text": "1: The hook"}], duration=5.0).read_text()
+    pill = [line for line in text.splitlines() if line.startswith("Dialogue: 3")]
+    assert pill and "\\p1" in pill[0] and pill[0].split(",")[2] == "0:00:05.00"
+    assert "1: The hook" in text and "Step one" in text
+
+
+def test_music_library_roundtrip(tmp_path, monkeypatch):
+    monkeypatch.setattr(library, "ROOT", tmp_path)
+    track = tmp_path / "t.wav"
+    subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "sine=f=440:d=6", str(track)], check=True)
+    t = library.music_add(str(track), "cool-fun", tags=["bouncy"], title="Bouncy Test", starred=True)
+    assert library.music_path(t["id"]).exists()
+    assert "★ **Bouncy Test**" in library.music_list("cool-fun")
+
+
 @pytest.mark.slow
 def test_end_to_end_pipeline(tmp_path):
     project = tmp_path / "demo"
     subprocess.run([sys.executable, str(ROOT / "tests" / "make_fixture.py"), str(project)], check=True,
                    capture_output=True)
-    res = subprocess.run([sys.executable, "-m", "editor", "auto", str(project), "--from", "plan",
-                          "--title", "Test hook"], cwd=ROOT, capture_output=True, text=True)
+    res = subprocess.run([sys.executable, "-m", "editor", "auto", str(project), "--from", "plan", "--to", "plan"],
+                         cwd=ROOT, capture_output=True, text=True)
+    assert res.returncode == 0, res.stderr[-2000:]
+    assert (project / "work" / "rough_cut_viz.png").exists()
+    edl_path = project / "work" / "edl.json"
+    edl = json.loads(edl_path.read_text())
+    edl["chapters"] = [{"start": 3.0, "text": "1: The hook"}]
+    edl["broll"] = [{"path": "work/rough_cut_viz.png", "start": 4.0, "dur": 1.5, "mode": "card"}]
+    edl_path.write_text(json.dumps(edl))
+    res = subprocess.run([sys.executable, "-m", "editor", "auto", str(project), "--from", "cut",
+                          "--title", "Test hook", "--style", "white"], cwd=ROOT, capture_output=True, text=True)
     assert res.returncode == 0, res.stderr[-2000:]
     report = json.loads((project / "out" / "qa.json").read_text())
     assert report["passed"], report
