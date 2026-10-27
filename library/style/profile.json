@@ -1,0 +1,443 @@
+{
+  "version": 1,
+  "prefs": {
+    "brand:youbank": {
+      "launch.format": {
+        "type": "cat",
+        "votes": {
+          "16:9": 0.5
+        },
+        "weight": 0.5,
+        "evidence": [
+          {
+            "date": "2026-10-27",
+            "value": "16:9",
+            "signal": "keep",
+            "source": "youbank"
+          }
+        ]
+      },
+      "launch.style": {
+        "type": "cat",
+        "votes": {
+          "kinetic": 0.5
+        },
+        "weight": 0.5,
+        "evidence": [
+          {
+            "date": "2026-10-27",
+            "value": "kinetic",
+            "signal": "keep",
+            "source": "youbank"
+          }
+        ]
+      },
+      "launch.look": {
+        "type": "cat",
+        "votes": {
+          "default": 0.5
+        },
+        "weight": 0.5,
+        "evidence": [
+          {
+            "date": "2026-10-27",
+            "value": "default",
+            "signal": "keep",
+            "source": "youbank"
+          }
+        ]
+      },
+      "launch.voice": {
+        "type": "cat",
+        "votes": {
+          "none": 0.5
+        },
+        "weight": 0.5,
+        "evidence": [
+          {
+            "date": "2026-10-27",
+            "value": "none",
+            "signal": "keep",
+            "source": "youbank"
+          }
+        ]
+      },
+      "launch.theme.dark": {
+        "type": "cat",
+        "votes": {
+          "#07080a": 0.5
+        },
+        "weight": 0.5,
+        "evidence": [
+          {
+            "date": "2026-10-27",
+            "value": "#07080a",
+            "signal": "keep",
+            "source": "youbank"
+          }
+        ]
+      },
+      "launch.theme.accent_use": {
+        "type": "cat",
+        "votes": {
+          "sparing": 0.5
+        },
+        "weight": 0.5,
+        "evidence": [
+          {
+            "date": "2026-10-27",
+            "value": "sparing",
+            "signal": "keep",
+            "source": "youbank"
+          }
+        ]
+      },
+      "launch.serif_accents": {
+        "type": "bool",
+        "votes": {
+          "true": 0.5
+        },
+        "weight": 0.5,
+        "evidence": [
+          {
+            "date": "2026-10-27",
+            "value": true,
+            "signal": "keep",
+            "source": "youbank"
+          }
+        ]
+      },
+      "launch.music.bpm": {
+        "type": "num",
+        "mean": 96.0,
+        "weight": 0.5,
+        "evidence": [
+          {
+            "date": "2026-10-27",
+            "value": 96.0,
+            "signal": "keep",
+            "source": "youbank"
+          }
+        ]
+      },
+      "launch.music.key": {
+        "type": "num",
+        "mean": -2.0,
+        "weight": 0.5,
+        "evidence": [
+          {
+            "date": "2026-10-27",
+            "value": -2.0,
+            "signal": "keep",
+            "source": "youbank"
+          }
+        ]
+      },
+      "launch.music.gain": {
+        "type": "num",
+        "mean": 0.6,
+        "weight": 0.5,
+        "evidence": [
+          {
+            "date": "2026-10-27",
+            "value": 0.6,
+            "signal": "keep",
+            "source": "youbank"
+          }
+        ]
+      },
+      "launch.mix.sfx": {
+        "type": "num",
+        "mean": 0.8,
+        "weight": 0.5,
+        "evidence": [
+          {
+            "date": "2026-10-27",
+            "value": 0.8,
+            "signal": "keep",
+            "source": "youbank"
+          }
+        ]
+      },
+      "launch.text_dur": {
+        "type": "num",
+        "mean": 2.37,
+        "weight": 0.5,
+        "evidence": [
+          {
+            "date": "2026-10-27",
+            "value": 2.37,
+            "signal": "keep",
+            "source": "youbank"
+          }
+        ]
+      },
+      "launch.length": {
+        "type": "num",
+        "mean": 45.2,
+        "weight": 0.5,
+        "evidence": [
+          {
+            "date": "2026-10-27",
+            "value": 45.2,
+            "signal": "keep",
+            "source": "youbank"
+          }
+        ]
+      }
+    },
+    "kind:launch": {
+      "launch.format": {
+        "type": "cat",
+        "votes": {
+          "16:9": 3.45
+        },
+        "weight": 3.45,
+        "evidence": [
+          {
+            "date": "2026-10-27",
+            "value": "16:9",
+            "signal": "keep",
+            "source": "youbank"
+          },
+          {
+            "date": "2026-10-27",
+            "value": "16:9",
+            "signal": "note",
+            "source": "note"
+          }
+        ]
+      },
+      "launch.style": {
+        "type": "cat",
+        "votes": {
+          "kinetic": 0.5
+        },
+        "weight": 0.5,
+        "evidence": [
+          {
+            "date": "2026-10-27",
+            "value": "kinetic",
+            "signal": "keep",
+            "source": "youbank"
+          }
+        ]
+      },
+      "launch.look": {
+        "type": "cat",
+        "votes": {
+          "default": 0.5
+        },
+        "weight": 0.5,
+        "evidence": [
+          {
+            "date": "2026-10-27",
+            "value": "default",
+            "signal": "keep",
+            "source": "youbank"
+          }
+        ]
+      },
+      "launch.voice": {
+        "type": "cat",
+        "votes": {
+          "none": 3.45
+        },
+        "weight": 3.45,
+        "evidence": [
+          {
+            "date": "2026-10-27",
+            "value": "none",
+            "signal": "keep",
+            "source": "youbank"
+          },
+          {
+            "date": "2026-10-27",
+            "value": "none",
+            "signal": "note",
+            "source": "note"
+          }
+        ]
+      },
+      "launch.theme.accent_use": {
+        "type": "cat",
+        "votes": {
+          "sparing": 3.45
+        },
+        "weight": 3.45,
+        "evidence": [
+          {
+            "date": "2026-10-27",
+            "value": "sparing",
+            "signal": "keep",
+            "source": "youbank"
+          },
+          {
+            "date": "2026-10-27",
+            "value": "sparing",
+            "signal": "note",
+            "source": "note"
+          }
+        ]
+      },
+      "launch.serif_accents": {
+        "type": "bool",
+        "votes": {
+          "true": 3.45
+        },
+        "weight": 3.45,
+        "evidence": [
+          {
+            "date": "2026-10-27",
+            "value": true,
+            "signal": "keep",
+            "source": "youbank"
+          },
+          {
+            "date": "2026-10-27",
+            "value": true,
+            "signal": "note",
+            "source": "note"
+          }
+        ]
+      },
+      "launch.music.bpm": {
+        "type": "num",
+        "mean": 96.0,
+        "weight": 0.5,
+        "evidence": [
+          {
+            "date": "2026-10-27",
+            "value": 96.0,
+            "signal": "keep",
+            "source": "youbank"
+          }
+        ]
+      },
+      "launch.music.key": {
+        "type": "num",
+        "mean": -2.0,
+        "weight": 0.5,
+        "evidence": [
+          {
+            "date": "2026-10-27",
+            "value": -2.0,
+            "signal": "keep",
+            "source": "youbank"
+          }
+        ]
+      },
+      "launch.music.gain": {
+        "type": "num",
+        "mean": 0.6,
+        "weight": 0.5,
+        "evidence": [
+          {
+            "date": "2026-10-27",
+            "value": 0.6,
+            "signal": "keep",
+            "source": "youbank"
+          }
+        ]
+      },
+      "launch.mix.sfx": {
+        "type": "num",
+        "mean": 0.8,
+        "weight": 0.5,
+        "evidence": [
+          {
+            "date": "2026-10-27",
+            "value": 0.8,
+            "signal": "keep",
+            "source": "youbank"
+          }
+        ]
+      },
+      "launch.text_dur": {
+        "type": "num",
+        "mean": 2.37,
+        "weight": 0.5,
+        "evidence": [
+          {
+            "date": "2026-10-27",
+            "value": 2.37,
+            "signal": "keep",
+            "source": "youbank"
+          }
+        ]
+      },
+      "launch.length": {
+        "type": "num",
+        "mean": 45.2,
+        "weight": 0.5,
+        "evidence": [
+          {
+            "date": "2026-10-27",
+            "value": 45.2,
+            "signal": "keep",
+            "source": "youbank"
+          }
+        ]
+      },
+      "launch.variants": {
+        "type": "cat",
+        "votes": {
+          "one": 3.0
+        },
+        "weight": 3.0,
+        "evidence": [
+          {
+            "date": "2026-10-27",
+            "value": "one",
+            "signal": "note",
+            "source": "note"
+          }
+        ]
+      }
+    }
+  },
+  "notes": [
+    {
+      "id": "074328e8",
+      "text": "One 16:9 video only; don't make a vertical version unless asked",
+      "scope": "kind:launch",
+      "date": "2026-10-27",
+      "source": ""
+    },
+    {
+      "id": "414f8f4d",
+      "text": "No voiceover: music and sound effects only, mixed at full quality (AAC 320k, about -14 LUFS)",
+      "scope": "kind:launch",
+      "date": "2026-10-27",
+      "source": ""
+    },
+    {
+      "id": "f3cee412",
+      "text": "Premium, professional feel: near-black backgrounds, accent colour used sparingly, serif-italic accent words",
+      "scope": "kind:launch",
+      "date": "2026-10-27",
+      "source": ""
+    },
+    {
+      "id": "653924f7",
+      "text": "Show the real product UI and only true, sourced claims (cite the source on screen for any price or statistic); paint out dev artifacts like debug badges and personal emails",
+      "scope": "kind:launch",
+      "date": "2026-10-27",
+      "source": ""
+    },
+    {
+      "id": "76c6e66b",
+      "text": "Audience: small hedge funds; position YouBank as a cheaper alternative to a Bloomberg terminal, with a non-affiliation line",
+      "scope": "brand:youbank",
+      "date": "2026-10-27",
+      "source": ""
+    },
+    {
+      "id": "4ee0214e",
+      "text": "Never ask the user to paste API keys into chat; keys go in .env",
+      "scope": "global",
+      "date": "2026-10-27",
+      "source": ""
+    }
+  ]
+}

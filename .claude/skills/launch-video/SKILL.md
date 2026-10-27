@@ -15,6 +15,10 @@ description: Make a product launch video, animated in code and rendered to MP4, 
 > (or `reels` for 9:16) and Read `python3 -m editor sheet <out.mp4> -o <dir>/sheet.png`. A finished launch
 > video can open a reel: add it to an edit-reel EDL as `{"path": ".../out/<name>.mp4", "mode": "full"}` b-roll
 > or render it in 9:16 and post it as is. Brand pull: context.dev API key, or its MCP connector if connected.
+>
+> **Style memory** (style-memory skill): read `library/style/STYLE.md` before the brief and skip questions it
+> already answers (format, voice, style); after writing `plan.json` run `python3 -m editor style apply` and
+> `style check` on it; `style snapshot` it at the first render; `style learn` it when the user approves.
 
 You write the script, design every scene as JSON, voice it, and render it. The engine is a deterministic HTML
 motion-graphics player rendered frame by frame in headless Chrome, so it looks the same every render and a 40 s

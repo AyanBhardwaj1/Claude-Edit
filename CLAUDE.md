@@ -12,6 +12,9 @@ Claude makes the editorial calls and checks the result visually.
   4 music → `music-library` · 5 B-roll → `broll-library` + `broll-motion` ·
   final pass → `export-qa` (+ `audio-polish` for sound problems).
   `reel-script` is for planning a video before it's recorded.
+- **style-memory** learns the user's editing taste over time (`library/style/`, `editor style`): read
+  `library/style/STYLE.md` before every first draft, record each preference the user voices with `style note`,
+  and `style learn` the EDL / plan when they approve. `editor auto` applies the confident defaults itself.
 - Vendored skills (MIT, see THIRD_PARTY.md): **video-use** (long-form, multi-take, interviews, launch
   videos; its rules are built into edit-reel), **claude-video-studio** (studio motion graphics with
   HyperFrames, 21 looks), **manim-video** (technical/maths animations). Their outputs come into a reel as
@@ -62,7 +65,8 @@ editor/            python package (python3 -m editor)
   review.py        inspect (video-use timeline view) + review of every cut and covered faces
   cover.py         cover/thumbnail from a clean reframed frame
   qa.py            spec/loudness check, contact sheet, frame grabs
-library/           hooks.md (265 hook templates), glossary.txt, music/, broll/, models/, sfx/ (media git-ignored)
+  style.py         style memory: learned editing preferences (notes, draft -> approved changes) -> first drafts
+library/           hooks.md (265 hook templates), glossary.txt, style/ (learned style), music/, broll/, models/, sfx/ (media git-ignored)
 .claude/skills/    the workflow Claude follows
 projects/<name>/   raw/ broll/ music/ work/ out/   (git-ignored)
 tests/             pytest suite + make_fixture.py (synthetic test project, no Whisper needed)

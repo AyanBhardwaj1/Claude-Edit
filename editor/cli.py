@@ -211,6 +211,31 @@ def main(argv=None):
     p.add_argument("--work", help="work dir: take frames from the clean cut (no captions/overlays)")
     p.add_argument("--preset", default="reels")
 
+    p = sub.add_parser("style", help="learned editing style: what this user likes, applied to first drafts")
+    ssub = p.add_subparsers(dest="style_cmd", required=True)
+    q = ssub.add_parser("show", help="the preferences that apply")
+    q.add_argument("--kind", help="reel | launch")
+    q.add_argument("--brand")
+    q = ssub.add_parser("note", help="record what the user said (plus any key=value it implies)")
+    q.add_argument("text")
+    q.add_argument("--kind")
+    q.add_argument("--brand")
+    q.add_argument("--set", dest="sets", nargs="*", default=[], metavar="KEY=VALUE")
+    q = ssub.add_parser("snapshot", help="save the first draft (edl.json or plan.json) to compare later")
+    q.add_argument("file")
+    q = ssub.add_parser("learn", help="fold the approved version's settings (and changes from the draft) in")
+    q.add_argument("file")
+    q.add_argument("--brand")
+    q = ssub.add_parser("apply", help="fill a new draft's unset settings with confident learned values")
+    q.add_argument("file")
+    q.add_argument("--brand")
+    q = ssub.add_parser("check", help="list where a draft differs from the learned preferences")
+    q.add_argument("file")
+    q.add_argument("--brand")
+    q = ssub.add_parser("forget", help="drop a note id or a learned key")
+    q.add_argument("target")
+    ssub.add_parser("keys", help="every key the style memory tracks")
+
     p = sub.add_parser("timeline", help="print the cut's words on the OUTPUT timeline (for placing zooms/b-roll)")
     p.add_argument("work_dir")
 
@@ -222,16 +247,19 @@ def main(argv=None):
     p.add_argument("--language")
     p.add_argument("--engine", choices=["auto", "whisperx", "faster-whisper", "scribe", "vosk"], default="auto",
                    help="auto tries whisperx, faster-whisper, scribe (ELEVENLABS_API_KEY), vosk (offline)")
-    p.add_argument("--fillers", choices=["none", "standard", "aggressive"], default="standard")
-    p.add_argument("--max-gap", type=float, default=0.30)
-    p.add_argument("--speed", type=float, default=1.0)
-    p.add_argument("--audio-preset", choices=["clean", "phone", "noisy"], default="phone")
+    # flags left unset fall back to the learned style (editor style show --kind reel), then built-in defaults
+    p.add_argument("--fillers", choices=["none", "standard", "aggressive"])
+    p.add_argument("--max-gap", type=float)
+    p.add_argument("--speed", type=float)
+    p.add_argument("--audio-preset", choices=["clean", "phone", "noisy"])
     p.add_argument("--music", help="music file or library id (default: EDL \"music\", else <project>/music/)")
-    p.add_argument("--music-db", type=float, default=-20.0)
-    p.add_argument("--style", choices=["bold", "beast", "clean", "white", "minimal", "none"], default="bold")
-    p.add_argument("--position", choices=["low", "middle", "high"], default="low")
+    p.add_argument("--music-db", type=float)
+    p.add_argument("--style", choices=["bold", "beast", "clean", "white", "minimal", "none"])
+    p.add_argument("--position", choices=["low", "middle", "high"])
     p.add_argument("--title")
-    _render_args(p)
+    p.add_argument("--brand", help="brand scope for learned style (default: EDL \"brand\")")
+    p.add_argument("--no-learned-style", action="store_true", help="ignore library/style for this run")
+    _render_args(p, auto=True)
 
     args = ap.parse_args(argv)
     try:
@@ -241,14 +269,14 @@ def main(argv=None):
         return 1
 
 
-def _render_args(p):
-    p.add_argument("--preset", default="reels", help="reels|tiktok|shorts|feed|square|youtube|youtube4k")
+def _render_args(p, auto=False):
+    p.add_argument("--preset", default=None if auto else "reels", help="reels|tiktok|shorts|feed|square|youtube|youtube4k")
     p.add_argument("--audio", help="mastered audio (default: work/voice.wav if present)")
     p.add_argument("--captions", help="captions .ass (default: work/captions.ass if present)")
     p.add_argument("--no-captions", action="store_true")
     p.add_argument("--track", help="track.json (default: work/track.json if present)")
     p.add_argument("--grade", choices=["none", "natural", "punchy", "warm", "cinematic", "bw", "neutral_punch",
-                                       "warm_cinematic"], default="natural")
+                                       "warm_cinematic"], default=None if auto else "natural")
     p.add_argument("--auto-color", type=float, default=0.5, help="match takes: per-segment WB/exposure nudge (0 = off)")
     p.add_argument("--no-sfx", action="store_true", help="skip sound effects (EDL \"sfx\")")
     p.add_argument("--lut", help=".cube LUT applied before the grade's YUV stage")
@@ -513,6 +541,76 @@ def cmd_cover(args):
           preset=args.preset)
 
 
+def cmd_style(args):
+    from . import style
+    c = args.style_cmd
+    if c == "show":
+        print(style.show(args.kind, args.brand))
+    elif c == "note":
+        e = style.note(args.text, kind=args.kind, brand=args.brand, sets=args.sets)
+        print(f"noted [{e['scope']}] {e['text']}  ({e['id']})")
+    elif c == "snapshot":
+        style.snapshot(args.file)
+    elif c == "learn":
+        style.learn(args.file, brand=args.brand)
+    elif c == "apply":
+        style.apply(args.file, brand=args.brand)
+    elif c == "check":
+        style.check(args.file, brand=args.brand)
+    elif c == "forget":
+        print(f"removed {style.forget(args.target)}")
+    elif c == "keys":
+        for k, (t, d) in sorted(style.KEYS.items()):
+            print(f"{k:<28} {t:<5} {d}")
+
+
+AUTO_STYLE = {  # auto flag -> (style key, built-in default)
+    "speed": ("reel.speed", 1.0), "max_gap": ("reel.max_gap", 0.30), "fillers": ("reel.fillers", "standard"),
+    "style": ("reel.captions.style", "bold"), "position": ("reel.captions.position", "low"),
+    "audio_preset": ("reel.audio_preset", "phone"), "music_db": ("reel.music.db", -20.0),
+    "preset": ("reel.preset", "reels"), "grade": ("reel.grade", "natural"),
+}
+
+
+def _resolve_style(args, work: Path) -> tuple[str | None, dict]:
+    """Explicit flag > this project's EDL "settings" > learned style (brand > reel > global) > built-in default.
+    Returns (brand, settings)."""
+    from . import style
+    edl = load_json(work / "edl.json") if (work / "edl.json").exists() else {}
+    brand = args.brand or (edl.get("brand") if isinstance(edl.get("brand"), str) else None)
+    profile = None if args.no_learned_style else style.load()
+    project = edl.get("settings") or {}
+    settings, used = {}, []
+    for attr, (key, builtin) in AUTO_STYLE.items():
+        val = getattr(args, attr)
+        if val is None and key[len("reel."):] in project:
+            val = project[key[len("reel."):]]
+            setattr(args, attr, val)
+        if val is None:
+            learned = style.resolve(key, "reel", brand, profile) if profile else None
+            if learned is not None:
+                val = float(learned) if isinstance(builtin, float) else learned
+                used.append(f"{key}={val}")
+            else:
+                val = builtin
+            setattr(args, attr, val)
+        settings[key[len("reel."):]] = val
+    if used:
+        log(f"style: using your learned defaults: {', '.join(used)}")
+    return brand, settings
+
+
+def _record_settings(work: Path, brand: str | None, settings: dict) -> None:
+    p = work / "edl.json"
+    if not p.exists():
+        return
+    edl = load_json(p)
+    edl.setdefault("settings", {}).update(settings)
+    if brand:
+        edl["brand"] = brand
+    save_json(p, edl)
+
+
 def cmd_timeline(args):
     from .captions import _groups
     from .util import fmt_ts
@@ -534,6 +632,8 @@ def cmd_auto(args):
     work.mkdir(parents=True, exist_ok=True)
     out_dir.mkdir(parents=True, exist_ok=True)
     stages = STAGES[STAGES.index(args.from_stage):STAGES.index(args.to_stage) + 1]
+    brand, settings = _resolve_style(args, work)
+    _record_settings(work, brand, settings)
     out_file = out_dir / f"{project.name}_{args.preset}.mp4"
     music = args.music
     if not music and (project / "music").exists():
@@ -559,6 +659,17 @@ def cmd_auto(args):
             from .plan import plan
             plan(work / "transcript.json", work / "edl.json", max_gap=args.max_gap, fillers=args.fillers,
                  speed=args.speed)
+            _record_settings(work, brand, settings)
+            if not args.no_learned_style:   # EDL-level habits: punch-ins, sfx, progress bar
+                from . import style
+                edl = load_json(work / "edl.json")
+                for key, field in (("reel.punch_in", "auto_punch_in"), ("reel.sfx", "sfx"),
+                                   ("reel.progress_bar", "progress_bar")):
+                    v = style.resolve(key, "reel", brand)
+                    if v is not None and (field != "auto_punch_in" or args.punch_in is None):
+                        edl[field] = v
+                        log(f"style: {field} = {v} (learned)")
+                save_json(work / "edl.json", edl)
             from .viz import render_viz
             render_viz(work)
         elif stage == "cut":
@@ -593,6 +704,10 @@ def cmd_auto(args):
             ns = argparse.Namespace(**vars(args), work_dir=str(work), out=str(out_file))
             ns.no_captions = args.style == "none"
             cmd_render(ns)
+            from . import style
+            snap = style._snap_path(work / "edl.json")
+            if not snap.exists():          # the first render of a project is its first draft
+                style.snapshot(work / "edl.json")
         elif stage == "check":
             from .qa import check, sheet, write_report
             write_report(check(out_file, preset=args.preset), out_dir / "qa.json")
