@@ -6,6 +6,7 @@ The end-to-end test uses tests/make_fixture.py (flite TTS speech, no Whisper mod
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -262,8 +263,9 @@ def test_end_to_end_pipeline(tmp_path):
     project = tmp_path / "demo"
     subprocess.run([sys.executable, str(ROOT / "tests" / "make_fixture.py"), str(project)], check=True,
                    capture_output=True)
+    env = {**os.environ, "CLAUDE_EDIT_STYLE": str(tmp_path / "style")}   # an empty style memory
     res = subprocess.run([sys.executable, "-m", "editor", "auto", str(project), "--from", "plan", "--to", "plan"],
-                         cwd=ROOT, capture_output=True, text=True)
+                         cwd=ROOT, capture_output=True, text=True, env=env)
     assert res.returncode == 0, res.stderr[-2000:]
     assert (project / "work" / "rough_cut_viz.png").exists()
     edl_path = project / "work" / "edl.json"
@@ -272,11 +274,14 @@ def test_end_to_end_pipeline(tmp_path):
     edl["broll"] = [{"path": "work/rough_cut_viz.png", "start": 4.0, "dur": 1.5, "mode": "card"}]
     edl_path.write_text(json.dumps(edl))
     res = subprocess.run([sys.executable, "-m", "editor", "auto", str(project), "--from", "cut",
-                          "--title", "Test hook", "--style", "white"], cwd=ROOT, capture_output=True, text=True)
+                          "--title", "Test hook", "--style", "white"], cwd=ROOT, capture_output=True, text=True,
+                         env=env)
     assert res.returncode == 0, res.stderr[-2000:]
     report = json.loads((project / "out" / "qa.json").read_text())
     assert report["passed"], report
     edl = json.loads((project / "work" / "edl.json").read_text())
     reasons = {r["reason"].split(" ")[0] for r in edl["removed"]}
     assert {"filler", "retake"} <= reasons
+    assert edl["settings"]["captions.style"] == "white" and edl["settings"]["speed"] == 1.0
+    assert list((project / "work" / ".style").glob("edl.*.draft.json"))     # first draft snapshotted
     assert (project / "out" / "contact_sheet.png").exists()

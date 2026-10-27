@@ -14,6 +14,7 @@ app** and in Claude Code on the web or CLI.
 | **claude-video-studio** (vendored, Claude Video 2.0) | studio motion graphics in HyperFrames, 21 looks with a live gallery |
 | **manim-video** (vendored) | 3Blue1Brown-style technical and maths animations |
 | **launch-video** (vendored, Keeran) | SaaS / app launch videos in code: every word lands on the voice, keyword pills, counters, glowing logo reveal, product UI with camera moves and cursor, 3D-phone app ads; your voice (line-by-line takes), Fish Audio or ElevenLabs; brand from a link via context.dev |
+| **style-memory** | learns how you like videos edited (your feedback, and what you change before approving a draft) and applies it to every first draft |
 | supporting skills | hooks (265 templates), rough-cut, captions, music-library, broll-library, broll-motion, audio-polish, export-qa, reel-script |
 
 ## The pipeline
@@ -49,7 +50,20 @@ Also: "make a launch video for <product>" (launch-video), "make me a motion grap
 
 Without Claude: `python3 -m editor auto projects/myreel` runs everything; `python3 -m editor --help` lists
 every stage (`transcribe`, `retext`, `plan`, `cut`, `audio`, `track`, `captions`, `graphic`, `render`,
-`check`, `review`, `inspect`, `cover`, `fetch`, `triage`, `music`, `broll`, `capture`, `models`, ...).
+`check`, `review`, `inspect`, `cover`, `fetch`, `triage`, `music`, `broll`, `capture`, `models`, `style`, ...).
+
+## It learns your style
+Every video teaches the next first draft. What you say ("captions smaller", "always 16:9", "no voiceover") is
+recorded as a note; what you change in a draft before approving it counts as a strong signal; what you leave alone
+counts a little. Old evidence fades, so it follows your taste as it moves. Confident preferences are applied
+automatically (`editor auto` uses them for any flag you don't pass; `editor style apply` fills a launch plan),
+per brand when a brand has its own look. It lives in `library/style/` (`STYLE.md` is readable).
+```bash
+python3 -m editor style show                     # what it has learned
+python3 -m editor style note "music quieter" --kind reel --set reel.music.db=-24
+python3 -m editor style learn projects/myreel/work/edl.json   # after you approve
+python3 -m editor style forget <id|key>
+```
 
 ## The EDL (`work/edl.json`)
 Segment times are source seconds; everything else is output seconds (`editor timeline`).

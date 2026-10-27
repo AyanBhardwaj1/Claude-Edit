@@ -22,6 +22,8 @@ subtitles last, over every overlay (built in); never cover a face; cached transc
   from an allowed host. The Google Drive connector returns base64 text, so only small assets
   (screenshots, logos, short audio) go that way. If footage can't reach you, say so and suggest the desktop app.
 - Read `projects/<name>/project.md` if it exists and sum up the last session in one line before continuing.
+- Read `library/style/STYLE.md` (**style-memory** skill): the user's learned editing style. `editor auto` applies
+  its confident defaults to any flag you don't pass; follow its notes, and name the defaults you used in the plan.
 ```bash
 python3 -m editor doctor                      # first run on a machine
 python3 -m editor triage projects/<name>      # a-roll vs reusable / one-off b-roll (broll-library skill)
@@ -86,6 +88,8 @@ sheets: "roast it, don't praise it: a verdict, ranked problems with timecodes, t
 
 ## 7. Deliver and remember
 Report the path, runtime, hook, cuts, music, B-roll, graphics, check and review results, and the cover.
+Record every preference the user voiced while editing (`editor style note`), and when they approve,
+`python3 -m editor style learn projects/<name>/work/edl.json` (style-memory skill).
 Offer other formats (`--preset youtube|feed|square|tiktok|shorts`) and the `.srt`. Append to
 `projects/<name>/project.md`:
 ```
