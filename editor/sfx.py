@@ -1,6 +1,9 @@
-"""Sound design: synthesized effects placed on visible events.
+"""Sound design: effects placed on visible events.
 
-Every effect is generated here (numpy), so there is nothing to license. Rules from
+Real recordings win: drop your own (or licensed, or `editor gen sfx`-generated) files into
+library/sfx/<type>/ (e.g. library/sfx/whoosh/air-01.wav) and they are used, rotating between
+variants so no two hits sound identical, with each file's transient found automatically. Without
+them every effect is synthesized here (numpy), so there is nothing to license. Rules from
 video-use's launch edits:
   * every effect is tied to something visible (a card landing, a step pill, a snap zoom);
   * fewer is better: auto mode caps density (default one every 3 s);
@@ -8,9 +11,11 @@ video-use's launch edits:
     transient lands exactly on the visible frame;
   * effects sit well under the voice (-18 to -26 dB relative) and are mixed before the limiter.
 EDL: "sfx": "auto" (default) | "none" | [{"type": "whoosh", "at": 5.6, "db": -20}, ...]
+Auto also scores transitions: whips and zooms get a whoosh, glitches a glitch, shakes an impact.
 """
 from __future__ import annotations
 
+import subprocess
 import wave
 from pathlib import Path
 
@@ -22,7 +27,9 @@ SR = 48000
 CACHE = Path(__file__).resolve().parent.parent / "library" / "sfx"
 # type: (attack seconds = time from file start to the transient, default level dB)
 TYPES = {"whoosh": (0.22, -22.0), "pop": (0.0, -20.0), "click": (0.0, -24.0), "riser": (1.1, -24.0),
-         "impact": (0.0, -18.0), "ding": (0.0, -22.0)}
+         "impact": (0.0, -18.0), "ding": (0.0, -22.0), "whip": (0.12, -21.0), "glitch": (0.0, -24.0)}
+AUDIO_EXT = {".wav", ".mp3", ".flac", ".ogg", ".m4a", ".aif", ".aiff"}
+TRANSITION_SFX = {"whip": "whip", "zoom": "whoosh", "glitch": "glitch", "shake": "impact"}
 
 
 def _env(n, attack, decay):
@@ -79,6 +86,18 @@ def synth(kind: str) -> np.ndarray:
         t = np.arange(n) / SR
         boom = np.sin(2 * np.pi * np.cumsum(90 * np.exp(-t * 6) + 40) / SR) * _env(n, 0.002, 0.25)
         y = boom + 0.25 * _bandpass_sweep(_noise(n, 5), 2500, 800) * _env(n, 0.001, 0.05)
+    elif kind == "whip":
+        n = int(0.26 * SR)
+        x = _bandpass_sweep(_noise(n, 6), 700, 7000)
+        t = np.arange(n) / SR
+        y = x * np.where(t < 0.12, (t / 0.12) ** 3, np.exp(-(t - 0.12) / 0.04))
+    elif kind == "glitch":
+        n = int(0.22 * SR)
+        t = np.arange(n) / SR
+        gate = (np.floor(t * 60) % 2 == 0).astype(float)
+        crush = np.round(_noise(n, 7) * 3) / 3
+        buzz = np.sign(np.sin(2 * np.pi * 180 * t))
+        y = (0.6 * crush * gate + 0.4 * buzz * (1 - gate)) * _env(n, 0.001, 0.12)
     elif kind == "ding":
         n = int(0.9 * SR)
         t = np.arange(n) / SR
@@ -88,7 +107,34 @@ def synth(kind: str) -> np.ndarray:
     return (y / (np.max(np.abs(y)) + 1e-9) * 0.89).astype(np.float32)
 
 
-def path_for(kind: str) -> Path:
+def variants(kind: str) -> list[Path]:
+    d = CACHE / kind
+    return sorted(p for p in d.iterdir() if p.suffix.lower() in AUDIO_EXT) if d.is_dir() else []
+
+
+_ATTACK: dict[str, float] = {}
+
+
+def attack_of(path: Path) -> float:
+    """Seconds from the file start to its loudest moment (where the hit lands)."""
+    key = str(path)
+    if key not in _ATTACK:
+        raw = subprocess.run(["ffmpeg", "-v", "error", "-i", key, "-ac", "1", "-ar", "8000", "-f", "f32le", "-"],
+                             capture_output=True).stdout
+        x = np.abs(np.frombuffer(raw, np.float32))
+        if len(x) < 80:
+            _ATTACK[key] = 0.0
+        else:
+            env = np.convolve(x, np.ones(80) / 80, mode="same")  # 10 ms envelope
+            _ATTACK[key] = round(float(np.argmax(env)) / 8000, 3)
+    return _ATTACK[key]
+
+
+def path_for(kind: str, k: int = 0) -> Path:
+    """A real recording from library/sfx/<kind>/ (variant k, rotating) if there is one, else the synth."""
+    real = variants(kind)
+    if real:
+        return real[k % len(real)]
     CACHE.mkdir(parents=True, exist_ok=True)
     p = CACHE / f"{kind}.wav"
     if not p.exists():
@@ -102,7 +148,8 @@ def path_for(kind: str) -> Path:
     return p
 
 
-def plan_events(edl: dict, duration: float, min_spacing: float = 3.0) -> list[dict]:
+def plan_events(edl: dict, duration: float, min_spacing: float = 3.0, transitions: list[dict] | None = None
+                ) -> list[dict]:
     spec = edl.get("sfx", "auto")
     if spec == "none" or not spec:
         return []
@@ -117,6 +164,10 @@ def plan_events(edl: dict, duration: float, min_spacing: float = 3.0) -> list[di
         for z in edl.get("zooms", []):
             if float(z.get("ease", 0.18)) == 0:
                 events.append({"type": "click", "at": float(z["start"]), "why": "snap zoom"})
+        for tr in transitions or []:
+            kind = TRANSITION_SFX.get(tr["kind"])
+            if kind and tr.get("why") == "edl":
+                events.append({"type": kind, "at": float(tr["at"]), "why": f"{tr['type']} transition"})
         events.sort(key=lambda e: e["at"])
         kept, last = [], -1e9
         for e in events:  # density cap: fewer effects reads as designed, not stock
@@ -125,13 +176,15 @@ def plan_events(edl: dict, duration: float, min_spacing: float = 3.0) -> list[di
                 last = e["at"]
         events = kept
     out = []
-    for e in events:
+    for k, e in enumerate(events):
         attack, db = TYPES[e["type"]]
+        f = Path(e["file"]) if e.get("file") else path_for(e["type"], k)
+        if f.parent != CACHE or e.get("file"):   # a real recording: find where its hit is
+            attack = attack_of(f)
         start = float(e["at"]) - attack
         if start < 0 or e["at"] > duration:
             continue
-        out.append({**e, "file": str(path_for(e["type"])), "start": round(start, 3),
-                    "db": float(e.get("db", db))})
+        out.append({**e, "file": str(f), "start": round(start, 3), "db": float(e.get("db", db))})
     if out:
         log(f"sfx: {len(out)} effects ({', '.join(sorted({e['type'] for e in out}))})")
     return out

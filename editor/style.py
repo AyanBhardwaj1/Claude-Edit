@@ -46,6 +46,8 @@ KEYS = {
     "reel.fillers": ("cat", "filler cutting: none, standard, aggressive"),
     "reel.captions.style": ("cat", "caption style"),
     "reel.captions.position": ("cat", "caption position"),
+    "reel.captions.font": ("cat", "caption font (editor fonts list)"),
+    "reel.transition": ("cat", "favourite transition at chapter breaks (none = straight cuts)"),
     "reel.punch_in": ("num", "jump-cut punch-in scale (1.0 = off)"),
     "reel.zooms_per_min": ("num", "emphasis zooms per minute"),
     "reel.grade": ("cat", "colour grade"),
@@ -217,6 +219,10 @@ def _reel_settings(edl: dict) -> dict:
     if dur:
         s["reel.zooms_per_min"] = round(len(edl.get("zooms", [])) / (dur / 60), 2)
     s["reel.sfx"] = "none" if edl.get("sfx") == "none" else "auto"
+    if isinstance(edl.get("captions"), dict) and edl["captions"].get("font"):
+        s["reel.captions.font"] = edl["captions"]["font"]
+    types = [t["type"] for t in edl.get("transitions") or [] if isinstance(t, dict) and t.get("type")]
+    s["reel.transition"] = max(set(types), key=types.count) if types else "none"
     s["reel.progress_bar"] = bool(edl.get("progress_bar"))
     s["reel.hook_title"] = bool(edl.get("title"))
     s["reel.chapters"] = bool(edl.get("chapters"))
@@ -359,7 +365,8 @@ def apply(path: str | Path, brand: str | None = None) -> list[str]:
         st = doc.setdefault("settings", {})
         for key, (val, scope) in prefs.items():
             short = key[len("reel."):]
-            if short in ("speed", "punch_in", "sfx", "progress_bar", "zooms_per_min", "hook_title", "chapters"):
+            if short in ("speed", "punch_in", "sfx", "progress_bar", "zooms_per_min", "hook_title", "chapters",
+                         "transition"):
                 field = {"speed": "speed", "punch_in": "auto_punch_in", "sfx": "sfx", "progress_bar": "progress_bar"}.get(short)
                 if field and field not in doc:
                     doc[field] = val

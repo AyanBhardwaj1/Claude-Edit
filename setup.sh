@@ -61,6 +61,10 @@ for w in Black ExtraBold Bold Medium; do
   [[ -s "$f" ]] || curl -fsSL -o "$f" "$base/fonts/ttf/Montserrat-$w.ttf" || echo "  (could not fetch $w; Inter/Arial fallback will be used)"
 done
 [[ -s assets/fonts/OFL.txt ]] || curl -fsSL -o assets/fonts/OFL.txt "$base/OFL.txt" || true
+python3 -m editor fonts sync || echo "  (could not fetch the extra Google caption fonts; editor fonts sync later)"
+
+say "Neural speech denoise model (RNNoise)"
+python3 -m editor models rnnoise || echo "  (could not fetch it; spectral denoise is used instead)"
 
 if [[ "${SKIP_MODEL:-0}" != "1" ]]; then
   say "Whisper model warm-up (${WHISPER_MODEL:-small}; set SKIP_MODEL=1 to skip)"

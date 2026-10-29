@@ -12,6 +12,11 @@ Claude makes the editorial calls and checks the result visually.
   4 music → `music-library` · 5 B-roll → `broll-library` + `broll-motion` ·
   final pass → `export-qa` (+ `audio-polish` for sound problems).
   `reel-script` is for planning a video before it's recorded.
+- On request: **ai-generate** (realistic AI b-roll video/images, SFX, music, voice via the user's own
+  fal / Replicate / Gemini Veo / OpenAI / ElevenLabs keys in `.env`; dry-run and a yes first, AI labelled),
+  transitions (`"transitions"` in the EDL, b-roll `"in"`/`"out"`: broll-motion), custom caption fonts
+  (`editor fonts add`, EDL `"captions"`: captions), pro sound (room tone, RNNoise, `studio`/`podcast`,
+  b-roll `"nat"`, real SFX in `library/sfx/<type>/`: audio-polish).
 - **style-memory** learns the user's editing taste over time (`library/style/`, `editor style`): read
   `library/style/STYLE.md` before every first draft, record each preference the user voices with `style note`,
   and `style learn` the EDL / plan when they approve. `editor auto` applies the confident defaults itself.
@@ -41,6 +46,8 @@ Claude makes the editorial calls and checks the result visually.
   `review` (cap 3 fix passes) → deliver → append to `projects/<name>/project.md`.
 - Only use music/B-roll the user provides, owns or has licensed. Blur other people's personal
   data in app/web captures.
+- AI generation only when the user asks; `--dry-run` and their yes before spending; no realistic fakes of real
+  people or events; list AI shots at delivery so they can switch on the platform's AI label.
 
 ## Layout
 ```
@@ -58,6 +65,9 @@ editor/            python package (python3 -m editor)
   track.py         face tracking -> work/track.json
   captions.py      word-synced ASS captions, hook title, chapter pills, SRT
   render.py        reframe, zooms, grade, b-roll (full/contain/card/overlay), captions, final x264 encode
+  transitions.py   whip / zoom / flash / dip / blur / leak / glitch / shake at cuts, b-roll in/out motion
+  fonts.py         caption fonts: Google Fonts by name or own files -> assets/fonts (+ fonts.json manifest)
+  genai.py         AI generation on request: video, image, sfx, music, voice (+ .gen.json provenance)
   library.py       shared music (by mood) and b-roll (by category) libraries
   capture.py       b-roll makers: Playwright web, iOS Simulator, Android
   graphics.py      built-in motion graphics (counter, lower-third, checklist, title, cta) -> ProRes 4444 alpha
@@ -70,7 +80,7 @@ library/           hooks.md (265 hook templates), glossary.txt, style/ (learned 
 .claude/skills/    the workflow Claude follows
 projects/<name>/   raw/ broll/ music/ work/ out/   (git-ignored)
 tests/             pytest suite + make_fixture.py (synthetic test project, no Whisper needed)
-assets/fonts/      caption fonts (Montserrat via ./setup.sh)
+assets/fonts/      caption fonts (Montserrat via ./setup.sh, more via editor fonts add; fonts.json committed)
 ```
 
 ## Dev

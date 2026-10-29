@@ -74,6 +74,15 @@ python3 -m editor timeline projects/<name>/work          # output-timeline times
 - Sound: `"sfx": "auto"` (default) puts a whoosh/pop/click on visible events only, capped. Set `"none"` for calm pieces.
 - Optional `"progress_bar": true` for long tips reels.
 
+## Going further (when the user asks for it)
+| ask | how | skill |
+|---|---|---|
+| "generate a shot of...", AI b-roll, AI music / SFX / voice | `editor gen video/image/sfx/music/voice` (dry-run, a yes, then generate; labelled AI) | ai-generate |
+| smoother / pro transitions | EDL `"transitions"` (whip, zoom, flash, dip, blur, leak, glitch, shake) and b-roll `"in"`/`"out"` | broll-motion |
+| a specific or brand subtitle font, boxed captions | `editor fonts add "<Google font>"` or a .ttf, EDL `"captions": {"font": ...}` | captions |
+| more realistic / pro sound | `studio`/`podcast` presets, room tone (default), RNNoise, b-roll `"nat"`, real SFX in `library/sfx/<type>/` | audio-polish |
+| a film look | `"grain"` on the EDL or a b-roll entry, `--grade warm_cinematic` / `--lut` | broll-motion |
+
 ## 6. Render, then self-review (cap: 3 passes)
 ```bash
 python3 -m editor auto projects/<name> --from captions --to check --style white
