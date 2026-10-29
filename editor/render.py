@@ -72,7 +72,9 @@ def render(cut_dir: str | Path, out: str | Path, preset: str = "reels", audio: s
         zooms = edl.get("zooms", [])
     if punch_in is None:
         punch_in = float(edl.get("auto_punch_in", 1.0))
-    max_zoom = max([punch_in] + [z.get("scale", 1.0) * punch_in for z in zooms] + [1.0])
+    from . import transitions as tx
+    trans = tx.expand({**edl, "broll": broll or []}, meta["duration"], timeline)
+    max_zoom = max([punch_in] + [z.get("scale", 1.0) * punch_in for z in zooms] + [1.0]) * tx.max_boost(trans)
 
     src_w, src_h = meta["width"], meta["height"]
     target_ar = out_w / out_h
@@ -88,7 +90,8 @@ def render(cut_dir: str | Path, out: str | Path, preset: str = "reels", audio: s
 
     seg_of_frame = _segment_index(timeline, n_frames, fps)
     face_x, face_y, has_face = _face_path(track, timeline, n_frames, fps)
-    zoom = _zoom_curve(seg_of_frame, zooms, punch_in, n_frames, fps)
+    zoom = _zoom_curve(seg_of_frame, zooms, punch_in, n_frames, fps) * tx.zoom_boost(trans, n_frames, fps)
+    fx = tx.frame_fx(trans, fps)
 
     import cv2
     decoder = subprocess.Popen(
@@ -96,16 +99,17 @@ def render(cut_dir: str | Path, out: str | Path, preset: str = "reels", audio: s
          f"scale={dec_w}:{dec_h}:flags=lanczos:in_color_matrix=bt709:in_range=tv",
          "-f", "rawvideo", "-pix_fmt", "bgr24", "-"], stdout=subprocess.PIPE)
     from .sfx import plan_events
-    sfx_events = plan_events(edl, meta["duration"]) if sfx else []
+    sfx_events = plan_events(edl, meta["duration"], transitions=trans) if sfx else []
     progress = edl.get("progress_bar")
     luts = _color_luts(src, timeline, auto_color) if auto_color > 0 else None
     enc_cmd, enc_log = _encoder_cmd(out, out_w, out_h, fps_str, cut_dir, audio, captions, grade, lut, sharpen,
-                                    broll or [], crf or p["crf"], p, sfx_events, progress, meta["duration"])
+                                    broll or [], crf or p["crf"], p, sfx_events, progress, meta["duration"],
+                                    tx.eq_filter(trans), edl.get("grain", 0))
     encoder = subprocess.Popen(enc_cmd, stdin=subprocess.PIPE, stderr=enc_log)
 
     frame_bytes = dec_w * dec_h * 3
     log(f"render: {preset} {out_w}x{out_h} @ {fps_str}, {n_frames} frames, fit={fit}, grade={grade}, "
-        f"punch_in={punch_in}, zooms={len(zooms)}, broll={len(broll or [])}")
+        f"punch_in={punch_in}, zooms={len(zooms)}, broll={len(broll or [])}, transitions={len(trans)}")
     i = 0
     try:
         while True:
@@ -130,6 +134,8 @@ def render(cut_dir: str | Path, out: str | Path, preset: str = "reels", audio: s
                 crop = frame[y0:y0 + int(round(ch)), x0:x0 + int(round(cw))]
                 interp = cv2.INTER_AREA if crop.shape[1] > out_w else cv2.INTER_LANCZOS4
                 img = cv2.resize(crop, (out_w, out_h), interpolation=interp)
+            if fx is not None:
+                img = fx(img, i)
             encoder.stdin.write(np.ascontiguousarray(img).tobytes())
             i += 1
             if n_frames and i % max(1, n_frames // 10) == 0:
@@ -149,6 +155,10 @@ def render(cut_dir: str | Path, out: str | Path, preset: str = "reels", audio: s
         enc_log.seek(0)
         raise EditorError("encoder failed:\n" + enc_log.read().decode(errors="replace")[-3000:])
     log(f"wrote {out}")
+    from .genai import provenance
+    ai = [Path(b["path"]).name for b in broll or [] if provenance(b["path"])]
+    if ai:
+        log(f"AI-generated in this edit: {', '.join(ai)}. Turn on the platform's AI label if it's realistic.")
     return Path(out)
 
 
@@ -178,7 +188,8 @@ def still(cut_dir: str | Path, t: float, preset: str = "reels", track: str | Pat
 
 
 def _encoder_cmd(out, w, h, fps_str, cut_dir, audio, captions, grade, lut, sharpen, broll, crf, p,
-                 sfx_events=(), progress=None, duration=0.0):
+                 sfx_events=(), progress=None, duration=0.0, eq=None, grain=0):
+    from .transitions import overlay_motion
     cmd = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
            "-f", "rawvideo", "-pix_fmt", "bgr24", "-s", f"{w}x{h}", "-r", fps_str, "-i", "-"]
     cmd += ["-i", str(audio) if audio else str(cut_dir / "cut.mkv")]
@@ -194,6 +205,7 @@ def _encoder_cmd(out, w, h, fps_str, cut_dir, audio, captions, grade, lut, sharp
     graph = [f"[0:v]{','.join(chain)}[base0]"]
     label = "base0"
     next_idx = 2
+    nats = []          # b-roll natural sound under the voice: (input index, start, dur, dB)
     for n, b in enumerate(broll):
         idx, next_idx = next_idx, next_idx + 1
         path = str(b["path"])
@@ -204,6 +216,8 @@ def _encoder_cmd(out, w, h, fps_str, cut_dir, audio, captions, grade, lut, sharp
         else:
             cmd += ["-ss", f"{float(b.get('src_start', 0)):.3f}", "-t", f"{dur:.3f}", "-i", path]
         mode = b.get("mode", "contain" if is_image else "full")
+        if b.get("nat") is not None and not is_image and probe(path)["has_audio"]:
+            nats.append((idx, start, dur, float(b["nat"])))
         to_yuv = "scale=out_color_matrix=bt709:out_range=tv,format=yuv444p"
         end_t = start + dur
         enable = f"enable='between(t,{start:.3f},{end_t:.3f})'"
@@ -249,10 +263,22 @@ def _encoder_cmd(out, w, h, fps_str, cut_dir, audio, captions, grade, lut, sharp
         else:                      # full-frame cutaway, cover-cropped
             graph.append(f"[{idx}:v]scale={w}:{h}:force_original_aspect_ratio=increase:flags=lanczos,"
                          f"crop={w}:{h},setsar=1,{to_yuv}[p{n}]")
-        graph.append(f"[p{n}]fps={fps_str},setpts=PTS-STARTPTS+{start:.3f}/TB[b{n}]")
-        graph.append(f"[{label}][b{n}]overlay=eof_action=pass:{enable}[base{n + 1}]")
+        fades = ""
+        if b.get("in") == "fade":
+            fades += f",fade=t=in:st={start:.3f}:d=0.3:alpha=1"
+        if b.get("out") == "fade":
+            fades += f",fade=t=out:st={max(end_t - 0.3, start):.3f}:d=0.3:alpha=1"
+        if fades:
+            fades = ",format=yuva444p" + fades
+        grain = f"noise=alls={int(b['grain'])}:allf=t+u," if b.get("grain") else ""   # match AI/clean b-roll to phone footage
+        graph.append(f"[p{n}]{grain}fps={fps_str},setpts=PTS-STARTPTS+{start:.3f}/TB{fades}[b{n}]")
+        ox, oy = overlay_motion(b, w, h)
+        pos = f"x='{ox}':y='{oy}':eval=frame:" if (ox, oy) != ("0", "0") else ""
+        graph.append(f"[{label}][b{n}]overlay={pos}eof_action=pass:{enable}[base{n + 1}]")
         label = f"base{n + 1}"
-    tail = []
+    tail = [eq] if eq else []      # flash / dip transitions on the composite
+    if grain:                      # film grain over the whole picture, under the captions
+        tail.append(f"noise=alls={int(grain)}:allf=t+u")
     if progress:  # thin progress bar along the top: a retention cue on short-form
         pc = progress if isinstance(progress, dict) else {}
         color = pc.get("color", "white").lstrip("#")
@@ -267,16 +293,20 @@ def _encoder_cmd(out, w, h, fps_str, cut_dir, audio, captions, grade, lut, sharp
     graph.append(f"[{label}]{','.join(tail)}[vout]")
     gop = str(round(float(Fraction(fps_str)) * 2))
     audio_map = "1:a:0"
-    if sfx_events:
+    if sfx_events or nats:
         parts = ["[1:a:0]aresample=48000,aformat=channel_layouts=stereo[a0]"]
+        for k, (idx, start, dur, db) in enumerate(nats):
+            ms = int(round(start * 1000))
+            parts.append(f"[{idx}:a:0]aresample=48000,aformat=channel_layouts=stereo,volume={db}dB,"
+                         f"afade=t=in:d=0.15,afade=t=out:st={max(dur - 0.3, 0):.3f}:d=0.3,adelay={ms}|{ms}[n{k}]")
         for k, e in enumerate(sfx_events):
             cmd += ["-i", e["file"]]
             ms = int(round(e["start"] * 1000))
             parts.append(f"[{next_idx}:a]aresample=48000,volume={e['db']}dB,adelay={ms}|{ms}[x{k}]")
             next_idx += 1
-        labels = "".join(f"[x{k}]" for k in range(len(sfx_events)))
+        labels = "".join(f"[n{k}]" for k in range(len(nats))) + "".join(f"[x{k}]" for k in range(len(sfx_events)))
         # mix under the voice, then a true-peak-safe limiter (the voice was already loudness-normalised)
-        parts.append(f"[a0]{labels}amix=inputs={len(sfx_events) + 1}:duration=first:normalize=0,"
+        parts.append(f"[a0]{labels}amix=inputs={len(sfx_events) + len(nats) + 1}:duration=first:normalize=0,"
                      f"alimiter=limit=0.89:level=false[aout]")
         graph += parts
         audio_map = "[aout]"
@@ -285,7 +315,7 @@ def _encoder_cmd(out, w, h, fps_str, cut_dir, audio, captions, grade, lut, sharp
             "-maxrate", p["maxrate"], "-bufsize", p["bufsize"], "-g", gop, "-bf", "2",
             "-x264-params", "aq-mode=3:deblock=-1,-1", "-pix_fmt", "yuv420p",
             "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709", "-color_range", "tv",
-            "-c:a", "aac", "-b:a", "256k", "-ar", "48000", "-movflags", "+faststart", "-shortest", str(out)]
+            "-c:a", "aac", "-b:a", "320k", "-ar", "48000", "-movflags", "+faststart", "-shortest", str(out)]
     return cmd, tempfile.TemporaryFile()
 
 

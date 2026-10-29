@@ -46,6 +46,39 @@ rounded card), `overlay` (alpha graphics rendered at output size).
 - No B-roll available? Ask the user for screenshots/screen recordings, or make
   motion graphics instead (below). Don't invent footage.
 
+## Transitions (when asked, or at chapter breaks)
+Straight cuts are the default and usually right. Use transitions as punctuation: chapter/step changes, a
+time jump, a reveal. One every 10-20 s at most, the same family throughout a video. They never move the
+timeline, so captions and word timing stay put.
+```jsonc
+"transitions": [
+  {"at": "chapters", "type": "whip-left"},     // every chapter start
+  {"at": 14.20, "type": "zoom"},               // output seconds, put it ON a cut (editor timeline)
+  {"at": 31.00, "type": "dip", "dur": 0.6},     // optional dur / strength (0-1)
+  {"at": "cuts", "type": "blur"}                // every cut: rarely a good idea
+]
+```
+| type | feel | use for |
+|---|---|---|
+| `whip-left/right/up/down` | fast pan with motion blur (+ whip sfx) | energetic step changes, "next" |
+| `zoom` | punch through the cut, radial blur (+ whoosh) | reveals, "here's the trick" |
+| `flash` | white flash | beat drops, before/after |
+| `dip` | dip to black | time jump, serious beat, end of a section |
+| `blur` | defocus out and in | dreamy, memory, softer change |
+| `leak` | warm film light leak sweeping across | lifestyle, travel, warm stories |
+| `glitch` | RGB split + slices (+ glitch sfx) | tech, AI, "error" jokes |
+| `shake` | impact camera shake after the hit (+ impact) | punchlines, bold claims |
+
+B-roll entrances and exits: `"in"` / `"out"` on a b-roll entry: `fade`, `slide-left/right/up/down`
+(eased 0.35 s), `whip-left/...` (0.18 s, the speaker blurs the same way), `flash`, `dip`:
+```jsonc
+{"path": "broll/app.mp4", "start": 5.6, "dur": 2.0, "in": "whip-right", "out": "fade", "nat": -18}
+```
+`"grain": 4-10` on a b-roll entry adds film grain to that clip (blends clean or AI footage into phone footage);
+EDL-level `"grain": 3-6` gives the whole video a subtle film texture under the captions.
+`review` knows these are designed, so it doesn't flag their luma jumps as flash frames. Check a frame at the
+peak of each (`editor frames out.mp4 --at <t>`). Record a favourite: `editor style note ... --set reel.transition=whip-left`.
+
 ## Motion graphics, three engines (pick per animation)
 1. **Built in, no setup** (`editor/graphics.py`, Pillow → transparent ProRes 4444):
    ```bash

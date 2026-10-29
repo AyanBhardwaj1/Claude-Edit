@@ -12,6 +12,12 @@ Chapters ("1: The hook") render as black rounded pills at the top of frame.
 
 Words flagged `emph` in cut_words.json (or listed in the EDL "emphasis" array)
 always render in the emphasis colour and slightly larger.
+
+Custom look on top of any style: EDL "captions": {"font": "Bebas Neue", "size": 1.15, "color": "#FFFFFF",
+"active": "#00E5FF", "emph": "#FF3B30", "outline": 1.4, "shadow": 1.0, "case": "upper|lower|as-is",
+"max_words": 2, "box": "#000000", "box_opacity": 1.0 (lower overlaps per word), "spacing": 2, "pop": 1.1, "title_font": "Anton"}.
+size / outline / shadow are multipliers on the style's own; "active": "none" turns the highlight off;
+fonts come from assets/fonts (`editor fonts add "<Google font>"` or your own .ttf/.otf) or the system.
 """
 from __future__ import annotations
 
@@ -59,7 +65,9 @@ def ass_time(t: float) -> str:
 
 
 def resolve_font(candidates: list[str]) -> str:
+    from .fonts import installed
     bundled = {p.stem.replace("-", " ") for p in FONTS_DIR.glob("*.[ot]tf")} if FONTS_DIR.exists() else set()
+    bundled |= set(installed())
     if shutil.which("fc-list"):
         listing = subprocess.run(["fc-list", ":", "family", "fullname"], capture_output=True, text=True).stdout
         available = {n.strip() for line in listing.splitlines() for part in line.split(":") for n in part.split(",")}
@@ -96,8 +104,8 @@ def _groups(words: list[dict], max_words: int, max_chars: int) -> list[list[dict
 def build(words_path: str | Path, out: str | Path, width: int = 1080, height: int = 1920, style: str = "bold",
           position: str = "low", title: str | None = None, title_dur: float = 3.0,
           emphasis: list[str] | None = None, srt: bool = True, chapters: list[dict] | None = None,
-          duration: float | None = None) -> Path:
-    st = STYLES[style]
+          duration: float | None = None, look: dict | None = None) -> Path:
+    st, look = _with_look(STYLES[style], look or {})
     words = [dict(w) for w in load_json(words_path)["words"]]
     extra = {e.lower() for e in (emphasis or [])}
     for w in words:
@@ -114,8 +122,16 @@ def build(words_path: str | Path, out: str | Path, width: int = 1080, height: in
     fs = round(st["size"] * base)
     outline = round(st["outline"] * base, 1)
     shadow = round(st["shadow"] * base, 1)
-    font = resolve_font(st["fonts"])
-    title_font = resolve_font(STYLES["bold"]["fonts"])
+    from .fonts import resolve
+    font = resolve(look["font"]) if look.get("font") else resolve_font(st["fonts"])
+    title_font = resolve(look["title_font"]) if look.get("title_font") else resolve_font(STYLES["bold"]["fonts"])
+    border, outline_col = 1, ass_color("#000000")
+    if look.get("box"):   # opaque box behind each line (BorderStyle 3: the outline colour fills the box)
+        border = 3
+        box = look["box"] if isinstance(look["box"], str) else "#000000"
+        outline_col = ass_color(box, int(round(255 * (1 - float(look.get("box_opacity", 1.0))))))
+        outline = round(max(outline, 0.012 * base), 1)
+        shadow = 0
     y = POSITIONS[position][0 if vertical else 1] * height
     x = width / 2
 
@@ -129,7 +145,7 @@ YCbCr Matrix: TV.709
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Cap,{font},{fs},{ass_color(st['primary'])},{ass_color(st['primary'])},{ass_color('#000000')},{ass_color('#000000', 0x80)},-1,0,0,0,100,100,0,0,1,{outline},{shadow},5,40,40,40,1
+Style: Cap,{font},{fs},{ass_color(st['primary'])},{ass_color(st['primary'])},{outline_col},{ass_color('#000000', 0x80)},-1,0,0,0,100,100,{st.get('spacing', 0)},0,{border},{outline},{shadow},5,40,40,40,1
 Style: Chap,{title_font},{round(0.044 * base)},{ass_color('#FFFFFF')},{ass_color('#FFFFFF')},{ass_color('#000000')},{ass_color('#000000')},-1,0,0,0,100,100,0,0,1,0,0,5,0,0,0,1
 Style: Title,{title_font},{round(0.06 * base)},{ass_color('#111111')},{ass_color('#111111')},{ass_color('#FFFFFF')},{ass_color('#000000', 0x60)},-1,0,0,0,100,100,0,0,3,{round(0.018 * base)},0,8,60,60,40,1
 
@@ -202,8 +218,31 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     out.write_text(header + "\n".join(events) + "\n", encoding="utf-8")
     if srt:
         _write_srt(groups, out.with_suffix(".srt"))
-    log(f"captions: {len(groups)} groups, style={style}, font={font} -> {out}")
+    log(f"captions: {len(groups)} groups, style={style}, font={font}{' (custom look)' if look else ''} -> {out}")
     return out
+
+
+def _with_look(st: dict, look: dict) -> tuple[dict, dict]:
+    """The style with the user's custom look applied (see the module docstring)."""
+    st = dict(st)
+    for k in ("size", "outline", "shadow"):
+        if look.get(k) is not None:
+            st[k] = st[k] * float(look[k])
+    if look.get("color"):
+        st["primary"] = look["color"]
+    if "active" in look:
+        st["active"] = None if look["active"] in (None, "none", False) else look["active"]
+    if look.get("emph"):
+        st["emph"] = look["emph"]
+    case = look.get("case")
+    if case:
+        st["upper"], st["lower"] = case == "upper", case == "lower"
+    for k in ("max_words", "pop", "spacing"):
+        if look.get(k) is not None:
+            st[k] = type(st.get(k, 0))(look[k]) if k != "pop" else float(look[k])
+    if look.get("max_words"):
+        st["max_chars"] = max(st["max_chars"], 6 * int(look["max_words"]))
+    return st, look
 
 
 def _pill(w: float, h: float) -> str:

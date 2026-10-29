@@ -39,7 +39,7 @@ def main(argv=None):
     p.add_argument("text", help="edited copy of transcript.txt, or plain text / script")
 
     p = sub.add_parser("models", help="offline speech models (no huggingface needed)")
-    p.add_argument("which", choices=["vosk", "vosk-large"])
+    p.add_argument("which", choices=["vosk", "vosk-large", "rnnoise"], help="rnnoise: neural speech denoiser")
 
     p = sub.add_parser("plan", help="auto rough cut: transcript.json -> edl.json")
     p.add_argument("transcript")
@@ -59,13 +59,15 @@ def main(argv=None):
     p = sub.add_parser("audio", help="master voice (+ optional ducked music) to platform loudness")
     p.add_argument("input")
     p.add_argument("-o", "--out", required=True)
-    p.add_argument("--preset", choices=["clean", "phone", "noisy"], default="phone")
+    p.add_argument("--preset", choices=["clean", "phone", "noisy", "studio", "podcast"], default="phone")
     p.add_argument("--lufs", type=float, default=-14.0)
     p.add_argument("--music")
     p.add_argument("--music-db", type=float, default=-20.0)
     p.add_argument("--no-duck", action="store_true")
     p.add_argument("--rnnoise-model", help="path to an RNNoise .rnnn model for arnndn")
     p.add_argument("--music-start", type=float, default=0.0, help="start the track N s in (skip a slow intro)")
+    p.add_argument("--room-tone", action="store_true",
+                   help="lay room tone from the takes under every cut (input must be work/cut.mkv)")
 
     p = sub.add_parser("track", help="face tracking for smart reframing")
     p.add_argument("input")
@@ -81,6 +83,53 @@ def main(argv=None):
     p.add_argument("--title", help="hook text shown at the top for the first seconds")
     p.add_argument("--title-dur", type=float, default=3.0)
     p.add_argument("--emphasis", nargs="*", default=[], help="words to colour as emphasis")
+    p.add_argument("--font", help="caption font by name (editor fonts list); overrides EDL captions.font")
+
+    p = sub.add_parser("fonts", help="caption fonts: add a Google Font by name or your own .ttf/.otf")
+    fsub = p.add_subparsers(dest="fonts_cmd", required=True)
+    q = fsub.add_parser("add", help='a Google Fonts family ("Bebas Neue") or a font file')
+    q.add_argument("source")
+    q.add_argument("--weights", type=int, nargs="*", help="Google weights, e.g. 700 900 (default 400 700 800 900)")
+    fsub.add_parser("list", help="fonts you can use for captions")
+    fsub.add_parser("sync", help="re-download the Google fonts in assets/fonts/fonts.json")
+
+    p = sub.add_parser("gen", help="AI-generated b-roll, images, sfx, music, voice (only when asked: costs money)")
+    gsub = p.add_subparsers(dest="gen_cmd", required=True)
+    for kind in ("video", "image"):
+        q = gsub.add_parser(kind, help=f"realistic {kind} from a prompt (fal, replicate, " +
+                            ("gemini Veo)" if kind == "video" else "openai)"))
+        q.add_argument("prompt")
+        q.add_argument("-o", "--out", required=True)
+        q.add_argument("--aspect", default="9:16", help="9:16 | 16:9 | 1:1 | 4:5")
+        q.add_argument("--provider", choices=["fal", "replicate", "gemini", "openai"])
+        q.add_argument("--model", help="alias (editor gen models) or provider:model-id")
+        q.add_argument("--param", nargs="*", default=[], metavar="KEY=VALUE", help="extra/override model inputs")
+        q.add_argument("--library", metavar="CATEGORY", help="also add it to the b-roll library")
+        q.add_argument("--dry-run", action="store_true", help="print the request, spend nothing")
+        if kind == "video":
+            q.add_argument("--dur", type=float, default=5.0)
+            q.add_argument("--image", help="first frame (image-to-video: a real frame keeps it consistent)")
+            q.add_argument("--no-audio", action="store_true", help="no generated sound (models that make it)")
+    q = gsub.add_parser("sfx", help="a realistic sound effect (ElevenLabs)")
+    q.add_argument("prompt")
+    q.add_argument("-o", "--out", help="default with --type: library/sfx/<type>/<prompt>.mp3")
+    q.add_argument("--type", help="file it as this sfx type so auto sound design uses it (whoosh, impact, ...)")
+    q.add_argument("--dur", type=float)
+    q.add_argument("--dry-run", action="store_true")
+    q = gsub.add_parser("music", help="an original music bed (ElevenLabs Music)")
+    q.add_argument("prompt")
+    q.add_argument("-o", "--out", required=True)
+    q.add_argument("--dur", type=float, default=30.0)
+    q.add_argument("--mood", choices=["hype", "uplifting", "emotional", "tense-dark", "cool-fun"],
+                   help="also add it to the music library")
+    q.add_argument("--dry-run", action="store_true")
+    q = gsub.add_parser("voice", help="voiceover from text (ElevenLabs; the user's own or a licensed voice)")
+    q.add_argument("text")
+    q.add_argument("-o", "--out", required=True)
+    q.add_argument("--voice", required=True, help="ElevenLabs voice id")
+    q.add_argument("--model", default="eleven_multilingual_v2")
+    q.add_argument("--dry-run", action="store_true")
+    gsub.add_parser("models", help="providers, which keys are set, model aliases")
 
     p = sub.add_parser("render", help="final render from a work dir")
     p.add_argument("work_dir")
@@ -251,7 +300,9 @@ def main(argv=None):
     p.add_argument("--fillers", choices=["none", "standard", "aggressive"])
     p.add_argument("--max-gap", type=float)
     p.add_argument("--speed", type=float)
-    p.add_argument("--audio-preset", choices=["clean", "phone", "noisy"])
+    p.add_argument("--audio-preset", choices=["clean", "phone", "noisy", "studio", "podcast"])
+    p.add_argument("--no-room-tone", action="store_true", help="don't lay room tone under the cuts")
+    p.add_argument("--font", help="caption font by name (editor fonts list)")
     p.add_argument("--music", help="music file or library id (default: EDL \"music\", else <project>/music/)")
     p.add_argument("--music-db", type=float)
     p.add_argument("--style", choices=["bold", "beast", "clean", "white", "minimal", "none"])
@@ -335,6 +386,14 @@ def cmd_doctor(_):
     print(f"{'ok ' if node else 'optional'} node (HyperFrames / Remotion graphics)")
     from .captions import STYLES, resolve_font
     print(f"ok  caption font (bold): {resolve_font(STYLES['bold']['fonts'])}")
+    from .fonts import installed
+    print(f"ok  custom caption fonts: {len(installed())} names in assets/fonts (editor fonts add/list/sync)")
+    from .models import rnnoise_model
+    have = rnnoise_model(download=False)
+    print(f"{'ok ' if have else 'optional'} RNNoise neural denoise{'' if have else ' (python3 -m editor models rnnoise)'}")
+    from .genai import KEYS, key_for
+    keys = [p for p in KEYS if key_for(p)]
+    print(f"{'ok ' if keys else 'optional'} AI generation keys: {', '.join(keys) or 'none'} (editor gen models)")
     try:
         import ctranslate2
         print(f"ok  CUDA GPUs for whisper: {ctranslate2.get_cuda_device_count()}")
@@ -371,9 +430,13 @@ def cmd_cut(args):
 def cmd_audio(args):
     from .audio import master
     from .library import music_path
+    fill = None
+    if args.room_tone:
+        from .audio import room_tone_fill
+        fill = room_tone_fill(Path(args.input).parent)
     master(args.input, args.out, preset=args.preset, target_lufs=args.lufs,
            music=str(music_path(args.music)) if args.music else None, music_db=args.music_db,
-           duck=not args.no_duck, rnnoise_model=args.rnnoise_model, music_start=args.music_start)
+           duck=not args.no_duck, rnnoise_model=args.rnnoise_model, music_start=args.music_start, fill=fill)
 
 
 def cmd_track(args):
@@ -391,7 +454,61 @@ def cmd_captions(args):
     build(args.words, args.out, width=w, height=h, style=args.style, position=args.position,
           title=args.title or edl.get("title"), title_dur=args.title_dur,
           emphasis=args.emphasis or edl.get("emphasis", []), chapters=edl.get("chapters"),
-          duration=meta.get("duration"))
+          duration=meta.get("duration"), look=_caption_look(edl, args.font))
+
+
+def _caption_look(edl: dict, font: str | None) -> dict:
+    look = dict(edl.get("captions") or {})
+    if font:
+        look["font"] = font
+    return look
+
+
+def cmd_fonts(args):
+    from . import fonts
+    if args.fonts_cmd == "add":
+        for n in fonts.add(args.source, args.weights):
+            print(n)
+    elif args.fonts_cmd == "list":
+        print(fonts.listing())
+    else:
+        fonts.sync()
+
+
+def cmd_gen(args):
+    from . import genai
+    c = args.gen_cmd
+    if c == "models":
+        print(genai.models())
+        return
+    if c in ("video", "image"):
+        kw = dict(aspect=args.aspect, provider=args.provider, model=args.model, params=args.param,
+                  dry_run=args.dry_run)
+        if c == "video":
+            kw.update(dur=args.dur, image=args.image, audio=not args.no_audio)
+        out = getattr(genai, c)(args.prompt, args.out, **kw)
+        if args.library and not args.dry_run:
+            from .library import broll_add
+            broll_add([str(out)], args.library, tags=["ai-generated"], description=args.prompt,
+                      source=f"ai:{genai.provenance(out)['model']}")
+    elif c == "sfx":
+        out = args.out
+        if not out:
+            if not args.type:
+                raise EditorError("give -o, or --type to file it in library/sfx/<type>/")
+            from .library import _slug
+            from .sfx import CACHE
+            out = CACHE / args.type / f"{_slug(args.prompt)[:40]}.mp3"
+        out = genai.sfx(args.prompt, out, dur=args.dur, dry_run=args.dry_run)
+    elif c == "music":
+        out = genai.music(args.prompt, args.out, dur=args.dur, dry_run=args.dry_run)
+        if args.mood and not args.dry_run:
+            from .library import music_add
+            music_add(str(out), args.mood, tags=["ai-generated"], notes=args.prompt)
+    else:
+        out = genai.voice(args.text, args.out, args.voice, model=args.model, dry_run=args.dry_run)
+    if not args.dry_run:
+        print(out)
 
 
 def cmd_render(args):
@@ -499,7 +616,10 @@ def cmd_retext(args):
 
 
 def cmd_models(args):
-    from .models import vosk_model
+    from .models import rnnoise_model, vosk_model
+    if args.which == "rnnoise":
+        print(rnnoise_model())
+        return
     print(vosk_model("vosk-model-en-us-0.22-lgraph" if args.which == "vosk-large" else "vosk-model-small-en-us-0.15"))
 
 
@@ -569,6 +689,7 @@ AUTO_STYLE = {  # auto flag -> (style key, built-in default)
     "style": ("reel.captions.style", "bold"), "position": ("reel.captions.position", "low"),
     "audio_preset": ("reel.audio_preset", "phone"), "music_db": ("reel.music.db", -20.0),
     "preset": ("reel.preset", "reels"), "grade": ("reel.grade", "natural"),
+    "font": ("reel.captions.font", None),
 }
 
 
@@ -594,7 +715,8 @@ def _resolve_style(args, work: Path) -> tuple[str | None, dict]:
             else:
                 val = builtin
             setattr(args, attr, val)
-        settings[key[len("reel."):]] = val
+        if val is not None:
+            settings[key[len("reel."):]] = val
     if used:
         log(f"style: using your learned defaults: {', '.join(used)}")
     return brand, settings
@@ -680,7 +802,11 @@ def cmd_auto(args):
             from .library import music_path
             edl_music = load_json(work / "edl.json").get("music") or {}
             track = args.music or edl_music.get("track") or music
-            master(work / "cut.mkv", work / "voice.wav", preset=args.audio_preset,
+            fill = None
+            if not args.no_room_tone:
+                from .audio import room_tone_fill
+                fill = room_tone_fill(work)
+            master(work / "cut.mkv", work / "voice.wav", preset=args.audio_preset, fill=fill,
                    music=str(music_path(track)) if track else None,
                    music_db=args.music_db if args.music else float(edl_music.get("db", args.music_db)),
                    music_start=float(edl_music.get("start", 0.0)))
@@ -699,7 +825,7 @@ def cmd_auto(args):
                 build(work / "cut_words.json", work / "captions.ass", width=w, height=h, style=args.style,
                       position=args.position, title=args.title or edl.get("title"),
                       emphasis=edl.get("emphasis", []), chapters=edl.get("chapters"),
-                      duration=load_json(work / "cut_meta.json")["duration"])
+                      duration=load_json(work / "cut_meta.json")["duration"], look=_caption_look(edl, args.font))
         elif stage == "render":
             ns = argparse.Namespace(**vars(args), work_dir=str(work), out=str(out_file))
             ns.no_captions = args.style == "none"

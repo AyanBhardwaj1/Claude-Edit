@@ -88,3 +88,24 @@ def download_vosk(name: str) -> Path:
                     return dest
     raise EditorError(f"could not get Vosk model {name}. Download {url} and unzip it into {MODELS_DIR}/, "
                       f"or set VOSK_MODEL to a model folder.")
+
+
+# RNNoise models for ffmpeg's arnndn (neural speech denoise). Not copyrightable per their README
+# (github.com/GregorR/rnnoise-models). "somnolent-hogwash" = speech in recorded noise.
+RNNOISE_URL = "https://raw.githubusercontent.com/GregorR/rnnoise-models/master/somnolent-hogwash-2018-09-01/sh.rnnn"
+
+
+def rnnoise_model(download: bool = True) -> str | None:
+    dest = MODELS_DIR / "rnnoise" / "sh.rnnn"
+    if dest.exists() and dest.stat().st_size > 1000:
+        return str(dest)
+    if not download:
+        return None
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    log("downloading the RNNoise speech model (about 0.3 MB)")
+    try:
+        with urllib.request.urlopen(RNNOISE_URL, timeout=60) as r:
+            dest.write_bytes(r.read())
+    except Exception as e:
+        raise EditorError(f"could not download {RNNOISE_URL}: {e}") from e
+    return str(dest)

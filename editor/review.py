@@ -103,6 +103,14 @@ def review(video: str | Path, work_dir: str | Path, out_dir: str | Path | None =
     luma = _luma_series(video, fps)
     words = load_json(work / "cut_words.json")["words"] if (work / "cut_words.json").exists() else []
     issues, rows = [], []
+    from .transitions import expand
+    edl = load_json(meta["edl"]) if Path(meta["edl"]).exists() else {}
+    designed = [(tr["at"] - tr["dur"] / 2 - 0.05, tr["at"] + tr["dur"] / 2 + 0.05)
+                for tr in expand(edl, meta["duration"], meta["timeline"])]
+    for b in edl.get("broll", []):     # b-roll that whips or slides in/out jumps on purpose
+        for side, at in (("in", float(b["start"])), ("out", float(b["start"]) + float(b["dur"]))):
+            if b.get(side):
+                designed.append((at - 0.25, at + 0.4))
     for t in cuts:
         i = int(t * sr)
         win = audio[max(0, i - int(0.02 * sr)):i + int(0.02 * sr)]
@@ -115,7 +123,7 @@ def review(video: str | Path, work_dir: str | Path, out_dir: str | Path | None =
         for k in (f - 1, f, f + 1):
             if 1 <= k < len(luma) - 1:
                 d = min(abs(luma[k] - luma[k - 1]), abs(luma[k] - luma[k + 1]))
-                if d > 40:
+                if d > 40 and not any(lo <= k / fps <= hi for lo, hi in designed):
                     issues.append({"t": round(k / fps, 3), "kind": "flash-frame", "detail": f"luma jump {d:.0f}"})
         inside = [w for w in words if w["start"] + 0.04 < t < w["end"] - 0.04]
         if inside:

@@ -271,7 +271,11 @@ def test_end_to_end_pipeline(tmp_path):
     edl_path = project / "work" / "edl.json"
     edl = json.loads(edl_path.read_text())
     edl["chapters"] = [{"start": 3.0, "text": "1: The hook"}]
-    edl["broll"] = [{"path": "work/rough_cut_viz.png", "start": 4.0, "dur": 1.5, "mode": "card"}]
+    edl["broll"] = [{"path": "work/rough_cut_viz.png", "start": 4.0, "dur": 1.5, "mode": "card"},
+                    {"path": "work/rough_cut_viz.png", "start": 7.0, "dur": 1.2, "in": "slide-up", "out": "fade"}]
+    edl["transitions"] = [{"at": "cuts", "type": "whip-left"}, {"at": 1.0, "type": "flash"},
+                          {"at": 6.0, "type": "leak"}]
+    edl["captions"] = {"font": "DejaVu Sans", "box": "#000000", "size": 0.9}
     edl_path.write_text(json.dumps(edl))
     res = subprocess.run([sys.executable, "-m", "editor", "auto", str(project), "--from", "cut",
                           "--title", "Test hook", "--style", "white"], cwd=ROOT, capture_output=True, text=True,
@@ -284,4 +288,7 @@ def test_end_to_end_pipeline(tmp_path):
     assert {"filler", "retake"} <= reasons
     assert edl["settings"]["captions.style"] == "white" and edl["settings"]["speed"] == 1.0
     assert list((project / "work" / ".style").glob("edl.*.draft.json"))     # first draft snapshotted
+    assert (project / "work" / "roomtone.wav").exists()                     # room tone under the cuts
+    assert "DejaVu Sans" in (project / "work" / "captions.ass").read_text()
+    assert "transitions=" in res.stderr
     assert (project / "out" / "contact_sheet.png").exists()

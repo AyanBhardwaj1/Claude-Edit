@@ -25,9 +25,11 @@ app** and in Claude Code on the web or CLI.
 | **Plan → confirm** | Claude proposes the hook, shape, cuts and look in plain English and waits for your yes |
 | **Rough cut** | pauses, fillers, false starts and repeated takes cut (the better take kept); 30 ms fades at every cut; a before/after card |
 | **Look** | face-follow 9:16 reframe, punch-ins, emphasis zooms, per-take color matching, grades (incl. video-use's `neutral_punch` / `warm_cinematic`) |
-| **Text** | word-synced captions (`white`, `bold`, `beast`, `clean`, `minimal`), hook title, step pills, optional progress bar |
+| **Text** | word-synced captions (`white`, `bold`, `beast`, `clean`, `minimal`) in any Google Font or your own (`editor fonts add`), custom colours / size / boxes, hook title, step pills, optional progress bar |
+| **Transitions** | whip pans, zoom-through, flash, dip to black, defocus, light leaks, glitch, impact shake on cuts; b-roll fades, slides and whips in and out; film grain |
 | **B-roll and graphics** | library clips, web captures (Playwright), app screens as **phone mockups** (no simulator needed), built-in animated counter / lower third / checklist / kinetic title / CTA, or HyperFrames / Manim overlays |
-| **Sound** | voice mastering to -14 LUFS, ducked music from a mood library, synthesized SFX on visible events only |
+| **Sound** | voice mastering to -14 LUFS (`studio`/`podcast`/`phone`/`noisy`), RNNoise neural denoise, room tone under every cut, b-roll natural sound, ducked music from a mood library, SFX on visible events (your real recordings first, synthesized otherwise) |
+| **AI content (on request)** | realistic b-roll video (Veo, Kling, ...), images, SFX, music and voice through your own fal / Replicate / Gemini / OpenAI / ElevenLabs keys; dry-run first, matched to the footage, labelled as AI |
 | **Self-review** | spec and loudness check; every cut checked for clicks, flash frames and mid-word cuts; every overlay checked for **covering the face**; review sheets Claude reads; a critic sub-agent for anything published |
 | **Deliver** | MP4 per platform, `.srt`, cover plus 4:5 grid crop, a `project.md` session memory |
 
@@ -37,7 +39,8 @@ app** and in Claude Code on the web or CLI.
 WHISPERX=1 ./setup.sh       # also WhisperX (best word alignment; large)
 python3 -m editor doctor
 ```
-Optional: `ELEVENLABS_API_KEY=...` in `.env` (hosted Scribe: speakers, laughs, verbatim fillers),
+Optional: `ELEVENLABS_API_KEY=...` in `.env` (hosted Scribe: speakers, laughs, verbatim fillers; also AI SFX,
+music and voice), `FAL_KEY` / `REPLICATE_API_TOKEN` / `GEMINI_API_KEY` / `OPENAI_API_KEY` (AI video and images),
 Node 22+ (HyperFrames graphics), macOS + Xcode (iPhone Simulator capture).
 
 ## Use it
@@ -50,7 +53,7 @@ Also: "make a launch video for <product>" (launch-video), "make me a motion grap
 
 Without Claude: `python3 -m editor auto projects/myreel` runs everything; `python3 -m editor --help` lists
 every stage (`transcribe`, `retext`, `plan`, `cut`, `audio`, `track`, `captions`, `graphic`, `render`,
-`check`, `review`, `inspect`, `cover`, `fetch`, `triage`, `music`, `broll`, `capture`, `models`, `style`, ...).
+`check`, `review`, `inspect`, `cover`, `fetch`, `triage`, `music`, `broll`, `capture`, `models`, `style`, `fonts`, `gen`, ...).
 
 ## It learns your style
 Every video teaches the next first draft. What you say ("captions smaller", "always 16:9", "no voiceover") is
@@ -78,6 +81,9 @@ Segment times are source seconds; everything else is output seconds (`editor tim
   "zooms": [{"start": 3.2, "end": 4.6, "scale": 1.25, "ease": 0}],
   "broll": [{"path": "broll/dau.mov", "start": 0.4, "dur": 2.2, "mode": "overlay"},
             {"path": "broll/app.mp4", "start": 5.6, "dur": 2.0, "mode": "card", "frame": "phone"}],
+  "transitions": [{"at": "chapters", "type": "whip-left"}, {"at": 14.2, "type": "zoom"}],
+  "captions": {"font": "Bebas Neue", "size": 1.2, "case": "upper"},
+  "grain": 4,
   "sfx": "auto",
   "progress_bar": true
 }
