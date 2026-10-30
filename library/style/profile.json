@@ -445,6 +445,13 @@
       "scope": "brand:youbank",
       "date": "2026-10-30",
       "source": ""
+    },
+    {
+      "id": "b42fab30",
+      "text": "YouBank videos: show the app in its Lavender UI style (light, violet accent #7c3aed) with a matching lavender-light video look and violet logo; not the amber-on-black Terminal style",
+      "scope": "brand:youbank",
+      "date": "2026-10-30",
+      "source": ""
     }
   ]
 }
