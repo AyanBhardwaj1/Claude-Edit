@@ -39,6 +39,9 @@ def check(path: str | Path, preset: str = "reels", target_lufs: float = -14.0) -
         i, tp = float(loud["input_i"]), float(loud["input_tp"])
         add("loudness", abs(i - target_lufs) <= 1.0, f"{i:.1f} LUFS (target {target_lufs})")
         add("true_peak", tp <= -0.5, f"{tp:.1f} dBTP")
+    black = _black_runs(path, dur)
+    add("black_frames", not any(b - a >= 0.5 for a, b in black),
+        ", ".join(f"{a:.1f}-{b:.1f}s" for a, b in black) or "none")
     # informational only: CRF encoding spends bits by complexity, so simple shots are legitimately low
     add("bitrate", True, f"{v.get('bit_rate', 0) / 1e6:.1f} Mb/s (CRF {'quality-based' if v.get('bit_rate') else ''})")
 
@@ -98,3 +101,12 @@ def frames(path: str | Path, out_dir: str | Path, times: list[float]) -> list[Pa
 
 def write_report(report: dict, out: str | Path) -> Path:
     return save_json(out, report)
+
+
+def _black_runs(path, duration: float) -> list[tuple[float, float]]:
+    """Black stretches of 0.25 s or more (a fade-out in the last half second is fine)."""
+    import re
+    err = run(["ffmpeg", "-hide_banner", "-i", str(path), "-vf", "blackdetect=d=0.25:pic_th=0.98:pix_th=0.10",
+               "-an", "-f", "null", "-"], quiet=False).stderr
+    runs = [(float(a), float(b)) for a, b in re.findall(r"black_start:([\d.]+) black_end:([\d.]+)", err)]
+    return [(a, b) for a, b in runs if a < duration - 0.5]

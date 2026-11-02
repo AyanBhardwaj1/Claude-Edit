@@ -78,7 +78,7 @@ def main(argv=None):
     p.add_argument("words")
     p.add_argument("-o", "--out", required=True)
     p.add_argument("--preset", default="reels", help="output preset (sets caption canvas size)")
-    p.add_argument("--style", choices=["bold", "beast", "clean", "white", "minimal"], default="bold")
+    p.add_argument("--style", choices=["bold", "beast", "clean", "white", "studio", "minimal"], default="bold")
     p.add_argument("--position", choices=["low", "middle", "high"], default="low")
     p.add_argument("--title", help="hook text shown at the top for the first seconds")
     p.add_argument("--title-dur", type=float, default=3.0)
@@ -188,6 +188,45 @@ def main(argv=None):
     q = bsub.add_parser("list", help="list clips, optionally filtered")
     q.add_argument("query", nargs="?")
 
+    p = sub.add_parser("attach", help="a picture, GIF or clip from a note -> <project>/broll/attached/ (GIF -> clip)")
+    p.add_argument("file")
+    p.add_argument("--project", required=True)
+    p.add_argument("--name")
+
+    p = sub.add_parser("pacing", help="draft checks: bare face > 4.5 s, zooms only > 10 s, flashes, names not shown")
+    p.add_argument("work_dir")
+
+    p = sub.add_parser("version", help="save the current render as vN with the note that made it; list; restore")
+    p.add_argument("project")
+    p.add_argument("--note", default="")
+    p.add_argument("--list", action="store_true")
+    p.add_argument("--restore", type=int)
+
+    p = sub.add_parser("post", help="the post caption (hook line, context, one ask) + exactly 5 hashtags -> out/post.txt")
+    p.add_argument("project")
+    p.add_argument("--caption", required=True)
+    p.add_argument("--hashtags", nargs=5, required=True)
+    p.add_argument("--keywords", nargs="*", default=[])
+
+    p = sub.add_parser("export", help="out/export/<Title> - Version N.mp4 + cover + caption.txt")
+    p.add_argument("project")
+    p.add_argument("--version", type=int)
+
+    p = sub.add_parser("share", help="send a video to your phone: QR code for a private 15-minute link on your Wi-Fi")
+    p.add_argument("video")
+    p.add_argument("--caption", help="a post.txt to show with a Copy button")
+
+    p = sub.add_parser("images", help="free licensed pictures: brand logos (Simple Icons) and photos (Openverse, Wikimedia)")
+    isub = p.add_subparsers(dest="images_cmd", required=True)
+    q = isub.add_parser("search", help="numbered results with licence and source")
+    q.add_argument("query")
+    q.add_argument("--logo", action="store_true", help="a brand's logo (Simple Icons, CC0)")
+    q.add_argument("-n", type=int, default=8)
+    q = isub.add_parser("fetch", help="download a result number (or an image link) into <project>/broll/web/")
+    q.add_argument("which", help="result number from the last search, or an image URL")
+    q.add_argument("--project", required=True)
+    q.add_argument("--name")
+
     p = sub.add_parser("triage", help="classify raw/ clips: a-roll (founder-to-camera) vs reusable / one-off b-roll")
     p.add_argument("project")
 
@@ -218,7 +257,8 @@ def main(argv=None):
     p.add_argument("--title")
 
     p = sub.add_parser("graphic", help="built-in motion graphics -> transparent ProRes 4444 overlay (.mov)")
-    p.add_argument("kind", choices=["counter", "lower-third", "checklist", "title", "cta"])
+    p.add_argument("kind", choices=["counter", "lower-third", "checklist", "title", "cta", "quote", "logo-pop",
+                                    "price-tag", "typing"])
     p.add_argument("-o", "--out", required=True)
     p.add_argument("--preset", default="reels")
     p.add_argument("--fps", type=int, default=30)
@@ -236,7 +276,13 @@ def main(argv=None):
     p.add_argument("--name", help="lower-third name")
     p.add_argument("--title", dest="lt_title", help="lower-third title / checklist heading")
     p.add_argument("--items", nargs="*", help="checklist items")
-    p.add_argument("--at", type=float, nargs="*", help="checklist item times")
+    p.add_argument("--at", type=float, nargs="*", help="checklist item / quote word times (seconds into the graphic)")
+    p.add_argument("--image", help="logo-pop: the logo file")
+    p.add_argument("--value", help="price-tag: the price as said, e.g. $20")
+    p.add_argument("--old", help="price-tag: an old price to strike through")
+    p.add_argument("--author", help="quote: who said it")
+    p.add_argument("--response", help="typing: the reply shown after the typed text")
+    p.add_argument("--chat", action="store_true", help="typing: a chat bubble instead of a terminal")
 
     p = sub.add_parser("inspect", help="filmstrip + waveform + words for a time range (video-use timeline_view)")
     p.add_argument("video")
@@ -258,6 +304,7 @@ def main(argv=None):
     p.add_argument("--at", type=float, help="use this time instead of auto-picking")
     p.add_argument("--highlight", nargs="*")
     p.add_argument("--work", help="work dir: take frames from the clean cut (no captions/overlays)")
+    p.add_argument("--candidates", type=float, nargs="*", help="output times to compare: the best frame near each, on one sheet")
     p.add_argument("--preset", default="reels")
 
     p = sub.add_parser("style", help="learned editing style: what this user likes, applied to first drafts")
@@ -285,6 +332,11 @@ def main(argv=None):
     q.add_argument("target")
     ssub.add_parser("keys", help="every key the style memory tracks")
 
+    p = sub.add_parser("words", help="the kept words with ids (w12) and output times, for word-anchored EDL entries")
+    p.add_argument("work_dir")
+    p.add_argument("--find", help="where a phrase is said: its word ids and times")
+    p.add_argument("--unsure", type=float, default=0.5, help="mark words the recogniser was less sure of with (?)")
+
     p = sub.add_parser("timeline", help="print the cut's words on the OUTPUT timeline (for placing zooms/b-roll)")
     p.add_argument("work_dir")
 
@@ -305,7 +357,7 @@ def main(argv=None):
     p.add_argument("--font", help="caption font by name (editor fonts list)")
     p.add_argument("--music", help="music file or library id (default: EDL \"music\", else <project>/music/)")
     p.add_argument("--music-db", type=float)
-    p.add_argument("--style", choices=["bold", "beast", "clean", "white", "minimal", "none"])
+    p.add_argument("--style", choices=["bold", "beast", "clean", "white", "studio", "minimal", "none"])
     p.add_argument("--position", choices=["low", "middle", "high"])
     p.add_argument("--title")
     p.add_argument("--brand", help="brand scope for learned style (default: EDL \"brand\")")
@@ -338,6 +390,7 @@ def _render_args(p, auto=False):
     p.add_argument("--broll", nargs="*", default=[], metavar="PATH@START:DUR",
                    help="cutaway clips/images, e.g. broll/app.mp4@4.2:2.5 (appended to EDL broll)")
     p.add_argument("--crf", type=int)
+    p.add_argument("--draft", action="store_true", help="fast half-size preview (check the edit, then render for real)")
 
 
 def cmd_doctor(_):
@@ -450,11 +503,19 @@ def cmd_captions(args):
     w, h = PRESETS[args.preset]["size"]
     work = Path(args.words).parent  # title / emphasis / chapters default to the EDL next to the words
     edl = load_json(work / "edl.json") if (work / "edl.json").exists() else {}
+    from .anchors import resolve_work
+    edl = resolve_work(edl, work)
     meta = load_json(work / "cut_meta.json") if (work / "cut_meta.json").exists() else {}
     build(args.words, args.out, width=w, height=h, style=args.style, position=args.position,
           title=args.title or edl.get("title"), title_dur=args.title_dur,
           emphasis=args.emphasis or edl.get("emphasis", []), chapters=edl.get("chapters"),
           duration=meta.get("duration"), look=_caption_look(edl, args.font))
+
+
+def _first_word(work: Path) -> float:
+    p = work / "cut_words.json"
+    words = load_json(p)["words"] if p.exists() else []
+    return float(words[0]["start"]) if words else 0.0
 
 
 def _caption_look(edl: dict, font: str | None) -> dict:
@@ -517,6 +578,8 @@ def cmd_render(args):
     meta = load_json(work / "cut_meta.json")
     edl_path = Path(meta["edl"])
     edl = load_json(edl_path) if edl_path.exists() else {}
+    from .anchors import resolve_work
+    edl = resolve_work(edl, work)
     broll = [_resolve_broll(b, edl_path) for b in edl.get("broll", [])]
     broll += [_parse_broll(s) for s in args.broll]
 
@@ -528,7 +591,7 @@ def cmd_render(args):
     captions = None if args.no_captions else default(args.captions, "captions.ass")
     render(work, args.out, preset=args.preset, audio=default(args.audio, "voice.wav"), captions=captions,
            track=default(args.track, "track.json"), punch_in=args.punch_in, grade=args.grade, lut=args.lut,
-           sharpen=args.sharpen, fit=args.fit, broll=broll, crf=args.crf, auto_color=args.auto_color,
+           sharpen=args.sharpen, fit=args.fit, broll=broll, crf=args.crf, auto_color=args.auto_color, draft=args.draft,
            sfx=not args.no_sfx)
 
 
@@ -580,6 +643,60 @@ def cmd_broll(args):
         for c in library.broll_list(args.query):
             print(f"{c['id']:<28} {c['category']:<14} {c['duration']:>6}s {c.get('width')}x{c.get('height')}  "
                   f"{', '.join(c['tags'])}  {c['description']}")
+
+
+def cmd_attach(args):
+    from .attach import attach
+    print(attach(args.file, args.project, args.name)["path"])
+
+
+def cmd_pacing(args):
+    from .anchors import load_words, resolve_work
+    from .review import pacing
+    work = Path(args.work_dir)
+    meta = load_json(work / "cut_meta.json")
+    edl = resolve_work(load_json(meta["edl"]), work)
+    rep = pacing(edl, load_words(work), meta["duration"])
+    for k, v in rep.items():
+        print(f"{'!!' if v else 'ok'}  {k}: {v if v else '-'}")
+
+
+def cmd_version(args):
+    from . import versions
+    if args.restore:
+        versions.restore(args.project, args.restore)
+    elif args.list:
+        for v in versions.versions(args.project):
+            print(f"v{v['n']}  {v['note'].splitlines()[0] if v['note'] else ''}")
+    else:
+        print(versions.save_version(args.project, args.note))
+
+
+def cmd_post(args):
+    from .versions import write_post
+    print(write_post(args.project, args.caption, args.hashtags, args.keywords))
+
+
+def cmd_export(args):
+    from .versions import export
+    print(export(args.project, args.version))
+
+
+def cmd_share(args):
+    from .share import serve
+    caption = Path(args.caption).read_text() if args.caption else ""
+    serve(args.video, caption)
+
+
+def cmd_images(args):
+    from . import images
+    if args.images_cmd == "search":
+        for r in images.search(args.query, want_logo=args.logo, n=args.n):
+            size = f"{r.get('w')}x{r.get('h')}" if r.get("w") else ""
+            print(f"{r['n']:>2}. [{r['kind']}] {r['title'][:70]}  {size}  {r['license']}"
+                  f"{' by ' + r['creator'][:40] if r.get('creator') else ''}  ({r['source']})")
+    else:
+        print(images.fetch(args.which, args.project, args.name)["path"])
 
 
 def cmd_triage(args):
@@ -642,6 +759,23 @@ def cmd_graphic(args):
         kw.update(text=args.text, highlight=args.highlight)
     elif args.kind == "cta":
         kw.update(text=args.text, sub=args.sub)
+    elif args.kind == "quote":
+        kw.pop("y") if args.y is None else None
+        kw.update(text=args.text, at=args.at, highlight=args.highlight, author=args.author)
+    elif args.kind == "logo-pop":
+        if not args.image:
+            raise EditorError("--image is required for logo-pop")
+        kw.pop("accent")
+        kw.update(image=args.image, label=args.label or args.text)
+    elif args.kind == "price-tag":
+        if not args.value:
+            raise EditorError("--value is required for price-tag")
+        kw.update(value=args.value, old=args.old, label=args.label or args.text)
+    elif args.kind == "typing":
+        kw.pop("accent")
+        kw.update(text=args.text, response=args.response, style="chat" if args.chat else "terminal")
+    if args.kind in ("quote", "typing") and not args.text:
+        raise EditorError(f"--text is required for {args.kind}")
     print(make(args.kind, args.out, **kw))
 
 
@@ -658,7 +792,7 @@ def cmd_review(args):
 def cmd_cover(args):
     from .cover import cover
     cover(args.video, args.out, title=args.title, at=args.at, highlight=args.highlight, work=args.work,
-          preset=args.preset)
+          preset=args.preset, near=args.candidates)
 
 
 def cmd_style(args):
@@ -733,6 +867,11 @@ def _record_settings(work: Path, brand: str | None, settings: dict) -> None:
     save_json(p, edl)
 
 
+def cmd_words(args):
+    from .anchors import listing
+    print(listing(args.work_dir, find_phrase=args.find, unsure=args.unsure))
+
+
 def cmd_timeline(args):
     from .captions import _groups
     from .util import fmt_ts
@@ -754,15 +893,20 @@ def cmd_auto(args):
     work.mkdir(parents=True, exist_ok=True)
     out_dir.mkdir(parents=True, exist_ok=True)
     stages = STAGES[STAGES.index(args.from_stage):STAGES.index(args.to_stage) + 1]
+    given_db = args.music_db is not None
     brand, settings = _resolve_style(args, work)
     _record_settings(work, brand, settings)
-    out_file = out_dir / f"{project.name}_{args.preset}.mp4"
+    args.music_db_given = given_db or args.music_db != AUTO_STYLE["music_db"][1]   # explicit or learned level wins
+    out_file = out_dir / f"{project.name}_{args.preset}{'_draft' if args.draft else ''}.mp4"
     music = args.music
     if not music and (project / "music").exists():
         music = next((str(p) for p in sorted((project / "music").iterdir()) if p.is_file()), None)
 
     from .render import PRESETS
     for stage in stages:
+        if stage == "check" and args.draft:
+            log("=== check === skipped for a draft (render without --draft to deliver)")
+            continue
         log(f"=== {stage} ===")
         if stage == "transcribe":
             from .triage import a_roll
@@ -800,7 +944,8 @@ def cmd_auto(args):
         elif stage == "audio":
             from .audio import master
             from .library import music_path
-            edl_music = load_json(work / "edl.json").get("music") or {}
+            from .anchors import resolve_work
+            edl_music = resolve_work(load_json(work / "edl.json"), work).get("music") or {}
             track = args.music or edl_music.get("track") or music
             fill = None
             if not args.no_room_tone:
@@ -809,7 +954,10 @@ def cmd_auto(args):
             master(work / "cut.mkv", work / "voice.wav", preset=args.audio_preset, fill=fill,
                    music=str(music_path(track)) if track else None,
                    music_db=args.music_db if args.music else float(edl_music.get("db", args.music_db)),
-                   music_start=float(edl_music.get("start", 0.0)))
+                   music_start=edl_music.get("start", "auto"), automation=edl_music.get("automation"),
+                   fade_out=float(edl_music.get("fade_out", 0.6)),
+                   level=None if (args.music_db_given or "db" in edl_music) else edl_music.get("level", "under-voice"),
+                   first_word=_first_word(work))
         elif stage == "track":
             if args.fit == "crop":
                 from .track import track
@@ -819,8 +967,9 @@ def cmd_auto(args):
                     log(f"track skipped, reframing will centre-crop: {e}")
         elif stage == "captions":
             if args.style != "none" and (work / "cut_words.json").exists():
+                from .anchors import resolve_work
                 from .captions import build
-                edl = load_json(work / "edl.json")
+                edl = resolve_work(load_json(work / "edl.json"), work)
                 w, h = PRESETS[args.preset]["size"]
                 build(work / "cut_words.json", work / "captions.ass", width=w, height=h, style=args.style,
                       position=args.position, title=args.title or edl.get("title"),
@@ -858,13 +1007,23 @@ def _parse_broll(spec: str) -> dict:
 
 def _resolve_broll(b: dict, edl_path: Path) -> dict:
     from .library import broll_path
+
+    def find(path: str) -> str:
+        p = Path(path)
+        for cand in (p, edl_path.parent / p, edl_path.parent.parent / p, broll_path(path)):
+            if cand.exists():
+                return str(cand)
+        raise EditorError(f"b-roll not found: {path}")
+
     b = dict(b)
-    p = Path(b["path"])
-    for cand in (p, edl_path.parent / p, edl_path.parent.parent / p, broll_path(b["path"])):
-        if cand.exists():
-            b["path"] = str(cand)
-            return b
-    raise EditorError(f"b-roll not found: {b['path']}")
+    if b.get("path"):
+        b["path"] = find(b["path"])
+    if b.get("items"):                       # walls: a list of pictures
+        b["items"] = [find(i) for i in b["items"]]
+        b.setdefault("path", b["items"][0])
+    if not b.get("path") and b.get("treatment") != "text-pop":
+        raise EditorError(f"b-roll entry needs a path: {b}")
+    return b
 
 
 COMMANDS = {name[4:]: fn for name, fn in globals().items() if name.startswith("cmd_")}

@@ -11,7 +11,11 @@ Claude makes the editorial calls and checks the result visually.
   1 hook → `hooks` · 2 rough cut → `rough-cut` · 3 subtitles → `captions` ·
   4 music → `music-library` · 5 B-roll → `broll-library` + `broll-motion` ·
   final pass → `export-qa` (+ `audio-polish` for sound problems).
-  `reel-script` is for planning a video before it's recorded.
+  `reel-script` is for planning a video before it's recorded. **Read `.claude/skills/edit-reel/doctrine.md`**
+  before every first draft and every note (cut, hook title, b-roll cadence, music, cover, post kit, notes loop).
+- Anchor everything on words (`"on": "twenty bucks"` / `"words": "w44-w49"`, `editor words <work>`), name a
+  treatment for face-aware b-roll (card-above-head, side-card, phone-card, split-top, full-frame, text-pop,
+  post-wall, icon-wall), draft with `--draft`, check `editor pacing`, save each note as `editor version --note`.
 - On request: **ai-generate** (realistic AI b-roll video/images, SFX, music, voice via the user's own
   fal / Replicate / Gemini Veo / OpenAI / ElevenLabs keys in `.env`; dry-run and a yes first, AI labelled),
   transitions (`"transitions"` in the EDL, b-roll `"in"`/`"out"`: broll-motion), custom caption fonts
@@ -68,6 +72,14 @@ editor/            python package (python3 -m editor)
   transitions.py   whip / zoom / flash / dip / blur / leak / glitch / shake at cuts, b-roll in/out motion
   fonts.py         caption fonts: Google Fonts by name or own files -> assets/fonts (+ fonts.json manifest)
   genai.py         AI generation on request: video, image, sfx, music, voice (+ .gen.json provenance)
+  anchors.py       word anchors: EDL entries placed on words ("on"/"words"), resolved to output times at render
+  wordfix.py       caption corrections, numbers as digits, hidden caption ranges
+  placement.py     face-aware placement: eyes-to-chin protected zone, readable card sizes, fallbacks
+  treatments.py    Reel Studio treatments -> card / split / overlay (text-pop, post-wall, icon-wall PNGs)
+  images.py        licensed pictures: Simple Icons logos, Openverse + Wikimedia photos, credits
+  attach.py        a user's picture / GIF / clip from a note -> broll/attached/ (GIF -> looped clip)
+  versions.py      versions/vN per note, post kit (exactly 5 hashtags + credits), export
+  share.py         send to phone: QR code for a private 15-minute link on the home Wi-Fi
   library.py       shared music (by mood) and b-roll (by category) libraries
   capture.py       b-roll makers: Playwright web, iOS Simulator, Android
   graphics.py      built-in motion graphics (counter, lower-third, checklist, title, cta) -> ProRes 4444 alpha

@@ -22,6 +22,16 @@ python3 -m editor captions projects/<n>/work/cut_words.json -o projects/<n>/work
 | `beast` | 2 huge words, active word green, bigger pop | hype, challenges, fast edits |
 | `clean` | sentence case, up to ~6 words, soft shadow | educational, B2B, YouTube |
 | `minimal` | lowercase, small, no highlight | aesthetic, vlog, voiceover |
+| `studio` | Montserrat SemiBold, 3 words, UPPER, white with a solid black outline, no highlight, under the chin | Reel Studio's proven default: clean, readable, works for anything |
+
+Text fixes (EDL `"captions"`, applied to the timed words, captions and SRT alike):
+```jsonc
+"captions": {"corrections": [{"from": "pay pal", "to": "PayPal"}],   // a whole misheard phrase, longest first
+             "hidden": [{"on": "my home address"}],                 // no captions on these words
+             "digits": true}                                        // "twenty five percent" -> 25% (default on)
+```
+Proofread before rendering: `python3 -m editor words projects/<n>/work --unsure 0.6` marks unsure words (?). Fix a
+sound-alike only when the topic makes it certain; slang, filler and names you don't recognise stay as said.
 
 ## Step pills (chapters)
 For numbered videos ("5 steps", "3 tools") add black rounded title pills at the top of frame:

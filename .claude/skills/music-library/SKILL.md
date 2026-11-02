@@ -22,11 +22,14 @@ can't listen.
    - **Emotional**: personal stories, setbacks, gratitude
    - **Tense/Dark**: warnings, mistakes, "nobody tells you", reveals
    - **Cool/Fun**: tech demos, behind-the-scenes, lighthearted, self-deprecating humour
-3. Within the mood prefer ★ tracks, then tags that match the vibe, then BPM:
-   ~120-150 for fast-cut talking heads, 80-110 for stories.
-4. Write it to the EDL: `"music": {"track": "<id>", "db": -20, "start": 0}`.
-   `start` skips a slow intro (seconds into the track). `db` from -18 (energetic)
-   to -24 (dense talking). The voice is ducked over automatically.
+3. Within the mood prefer ★ tracks, then the **measured feel** in `editor music list` ("sounds driving, bright
+   (energy 0.72)": measured by listening, never from the file name), then tags, then BPM. Heartfelt: gentle.
+   Comedy: upbeat, light. Explainer or day story: upbeat, steady. Rant, hot take, hype: driving, hype.
+4. Write it to the EDL: `"music": {"track": "<id>", "level": "under-voice"}`. Levels are measured against the
+   voice: `under-voice` (19 dB under, default), `quiet` (24 dB, intimate talk), `loud-intro` (the song carries the
+   opening, then drops under the first word). Leave `start` out: the song enters a bar before its first big hit.
+   Lifts and dips on words: `"automation": [{"on": "and that's when it worked", "db": 3}, {"words": "w0-w12", "db": -6}]`.
+   The song ends with the last word (`"fade_out": 0.6` by default). An explicit `"db"` overrides the level.
 5. Tell the user which track and why. If nothing fits, say so and suggest a mood to add.
 
 ## Adding music

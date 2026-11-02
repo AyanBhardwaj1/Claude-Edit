@@ -31,6 +31,25 @@ python3 -m editor broll list [query]
 ```
 Reference library clips in the EDL by id: `{"path": "<id>", "start": 6.1, "dur": 2.0}`.
 
+## Real pictures of named things (free, licensed)
+```bash
+python3 -m editor images search "spotify" --logo                 # Simple Icons, CC0 brand logos
+python3 -m editor images search "golden gate bridge photo"       # Openverse + Wikimedia Commons
+python3 -m editor images fetch 2 --project projects/<n>          # -> broll/web/<name>.png, credit in credits.json
+```
+Only CC0, public domain, CC BY and CC BY-SA come back (no NC/ND/fair use). **Look at every picture before
+placing it**: a matching title can carry another building, dish or a diagram. CC BY credits are added to the post
+caption by `editor post`. Search by kind: a brand, app or tool: its name with `--logo` (and its real screen via
+`capture web` for an app or site); a place, object, food or event: the specific noun plus "photo". Shows, films and
+memes are rarely there: use a text pop with the name. Never a stranger standing in for a specific real person.
+
+## Files the user hands over in a note
+```bash
+python3 -m editor attach ~/Downloads/meme.gif --project projects/<n>     # -> broll/attached/meme.mp4
+```
+JPG/PNG copied; HEIC, still GIF/WebP, BMP -> PNG; animated GIF/WebP -> a silent clip looped to >= 3 s; clips up to
+60 s / 200 MB. Place it on the words the note names (doctrine.md, "Notes").
+
 ## Making B-roll automatically
 - **Websites, tweets, docs, GitHub repos** (Playwright, phone viewport by default):
   ```bash

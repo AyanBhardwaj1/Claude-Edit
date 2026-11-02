@@ -37,8 +37,23 @@ python3 -m editor render projects/<n>/work -o projects/<n>/out/<n>_youtube.mp4 -
 4. `python3 -m editor cover <file> -o out/cover.jpg --title "..." --work projects/<n>/work` makes the cover
    from a clean frame (no captions/overlays), plus `cover_grid.jpg`, the 4:5 crop the profile grid shows.
 5. Spot-check exact moments with `python3 -m editor frames <file> -o <dir> --at <t> ...`.
+5b. `python3 -m editor pacing projects/<n>/work`: bare face over 4.5 s, over 10 s with zooms only, more than 10
+   zooms a minute, more than 2 big word cards, visuals under 1.2 s, names said but never shown, and too few b-roll
+   moments for the length. `check` also fails black stretches of 0.5 s or more.
 6. Report what you checked. If something can't be verified (e.g. how it sounds),
    say so plainly instead of implying it was checked.
+
+## Versions, post kit, export, phone
+```bash
+python3 -m editor version projects/<n> --note "music quieter"     # versions/vN: export.mp4, cover, edl.json, notes.md
+python3 -m editor version projects/<n> --list | --restore 2
+python3 -m editor post projects/<n> --caption "..." --hashtags a b c d e --keywords "..."   # exactly 5 hashtags
+python3 -m editor export projects/<n> [--version 2]   # out/export/<Title> - Version N.mp4 + cover + caption.txt
+python3 -m editor share "<exported mp4>" --caption projects/<n>/out/post.txt   # QR code, 15-minute link on the home Wi-Fi
+```
+`share` runs until the link expires (start it in the background) and saves the QR code as a PNG next to the video:
+show it to the user. Phone and computer must be on the same Wi-Fi (desktop app only); if their network blocks it,
+suggest AirDrop or iCloud/Google Drive. There is no direct posting: they upload from their phone.
 
 ## Common upload problems
 - **Washed out / grey on iPhone footage**: the source was HDR (HLG). The cut

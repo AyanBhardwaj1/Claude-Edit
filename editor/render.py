@@ -9,6 +9,7 @@ re-compress the upload.
 """
 from __future__ import annotations
 
+import math
 import subprocess
 import tempfile
 from fractions import Fraction
@@ -56,11 +57,14 @@ def render(cut_dir: str | Path, out: str | Path, preset: str = "reels", audio: s
            captions: str | None = None, track: str | None = None, zooms: list[dict] | None = None,
            punch_in: float | None = None, grade: str = "natural", lut: str | None = None,
            sharpen: float = 0.35, fit: str = "crop", broll: list[dict] | None = None, crf: int | None = None,
-           fps_cap: float = 60.0, auto_color: float = 0.5, sfx: bool = True) -> Path:
+           fps_cap: float = 60.0, auto_color: float = 0.5, sfx: bool = True, draft: bool = False) -> Path:
     cut_dir = Path(cut_dir)
     meta = load_json(cut_dir / "cut_meta.json")
     src = cut_dir / "cut.mkv"
-    p = PRESETS[preset]
+    p = dict(PRESETS[preset])
+    if draft:   # a fast look: half size, fastest encode, no sharpening (captions and layout are unchanged)
+        p.update(size=tuple(int(v // 4 * 2) for v in p["size"]), crf=26, speed="ultrafast")
+        sharpen, auto_color = 0, 0
     out_w, out_h = p["size"]
     fps_str, fps = meta["fps_str"], meta["fps"]
     if fps > fps_cap:
@@ -68,6 +72,8 @@ def render(cut_dir: str | Path, out: str | Path, preset: str = "reels", audio: s
     n_frames = int(round(meta["duration"] * fps))
     timeline = meta["timeline"]
     edl = load_json(meta["edl"]) if Path(meta["edl"]).exists() else {}
+    from .anchors import resolve_work
+    edl = resolve_work(edl, cut_dir)
     if zooms is None:
         zooms = edl.get("zooms", [])
     if punch_in is None:
@@ -75,6 +81,8 @@ def render(cut_dir: str | Path, out: str | Path, preset: str = "reels", audio: s
     from . import transitions as tx
     trans = tx.expand({**edl, "broll": broll or []}, meta["duration"], timeline)
     max_zoom = max([punch_in] + [z.get("scale", 1.0) * punch_in for z in zooms] + [1.0]) * tx.max_boost(trans)
+    from .treatments import expand
+    broll = expand(broll or [], cut_dir, out_w, out_h)
 
     src_w, src_h = meta["width"], meta["height"]
     target_ar = out_w / out_h
@@ -233,6 +241,9 @@ def _encoder_cmd(out, w, h, fps_str, cut_dir, audio, captions, grade, lut, sharp
                      f"fade=t=out:st={max(end_t - 0.15, start):.3f}:d=0.15:alpha=1")
             shift = f"setpts=PTS-STARTPTS+{start:.3f}/TB"
             cw, ch = a["cw"], a["ch"]
+            rad = math.radians(float(b.get("tilt", 0) or 0))
+            rot = f",rotate={rad:.5f}:c=none:ow=rotw({rad:.5f}):oh=roth({rad:.5f})" if rad else ""
+            fades += rot
             graph.append(f"[{idx}:v]scale={cw}:{ch}:flags=lanczos,setsar=1,{to_yuv},format=yuva444p[c{n}];"
                          f"[{m_idx}:v]scale={cw}:{ch},format=gray[m{n}];[c{n}][m{n}]alphamerge,fps={fps_str},"
                          f"{shift},{fades}[cm{n}];"
@@ -240,16 +251,30 @@ def _encoder_cmd(out, w, h, fps_str, cut_dir, audio, captions, grade, lut, sharp
             slide = f"40*max(0,1-(t-{start:.3f})/0.2)"
             oy = a["cy"] - a["oh"] / 2
             ox = a["cx"] - a["ow"] / 2
-            graph.append(f"[{label}][sh{n}]overlay=x={ox - a['spad']:.1f}:y='{oy - a['spad'] + h * 0.012:.1f}+{slide}':eval=frame:"
+            sw_, sh_ = a["ow"] + 2 * a["spad"], a["oh"] + 2 * a["spad"]     # rotation grows each layer: re-centre
+            graph.append(f"[{label}][sh{n}]overlay=x='{ox - a['spad']:.1f}-(w-{sw_})/2':"
+                         f"y='{oy - a['spad'] + h * 0.012:.1f}+{slide}-(h-{sh_})/2':eval=frame:"
                          f"eof_action=pass:{enable}[shd{n}];"
-                         f"[shd{n}][cm{n}]overlay=x={ox + a['bez']:.1f}:y='{oy + a['bez']:.1f}+{slide}':eval=frame:"
-                         f"eof_action=pass:{enable}[cmp{n}]")
+                         f"[shd{n}][cm{n}]overlay=x='{ox + a['bez']:.1f}-(w-{cw})/2':y='{oy + a['bez']:.1f}+{slide}-(h-{ch})/2':"
+                         f"eval=frame:eof_action=pass:{enable}[cmp{n}]")
             if z_idx is not None:
                 graph.append(f"[{z_idx}:v]format=yuva444p,fps={fps_str},{shift},{fades}[bz{n}];"
-                             f"[cmp{n}][bz{n}]overlay=x={ox:.1f}:y='{oy:.1f}+{slide}':eval=frame:eof_action=pass:"
-                             f"{enable}[base{n + 1}]")
+                             f"[cmp{n}][bz{n}]overlay=x='{ox:.1f}-(w-{a['ow']})/2':y='{oy:.1f}+{slide}-(h-{a['oh']})/2':"
+                             f"eval=frame:eof_action=pass:{enable}[base{n + 1}]")
             else:
                 graph[-1] = graph[-1].replace(f"[cmp{n}]", f"[base{n + 1}]")
+            label = f"base{n + 1}"
+            continue
+        if mode == "split":        # the asset on the top band, the speaker (from the hair line down) below it
+            top_h = int(h * float(b.get("split", 0.42)) // 2 * 2)
+            bot_h = h - top_h
+            yc = int(min(max(FACE_Y * h - 0.42 * bot_h, 0), h - bot_h))
+            shift = f"setpts=PTS-STARTPTS+{start:.3f}/TB"
+            graph.append(f"[{label}]split=2[sa{n}][sb{n}];[sb{n}]crop={w}:{bot_h}:0:{yc}[sp{n}];"
+                         f"[{idx}:v]scale={w}:{top_h}:force_original_aspect_ratio=decrease:flags=lanczos,setsar=1,"
+                         f"pad={w}:{top_h}:(ow-iw)/2:(oh-ih)/2:color=0xEDEBE7,{to_yuv},fps={fps_str},{shift}[tp{n}];"
+                         f"[sa{n}][sp{n}]overlay=0:{top_h}:{enable}[sx{n}];"
+                         f"[sx{n}][tp{n}]overlay=0:0:eof_action=pass:{enable}[base{n + 1}]")
             label = f"base{n + 1}"
             continue
         if mode == "overlay":      # transparent graphics (Remotion ProRes 4444 / WebM alpha) at output size
@@ -311,7 +336,7 @@ def _encoder_cmd(out, w, h, fps_str, cut_dir, audio, captions, grade, lut, sharp
         graph += parts
         audio_map = "[aout]"
     cmd += ["-filter_complex", ";".join(graph), "-map", "[vout]", "-map", audio_map,
-            "-c:v", "libx264", "-preset", "slow", "-crf", str(crf), "-profile:v", "high", "-level:v", "4.2",
+            "-c:v", "libx264", "-preset", p.get("speed", "slow"), "-crf", str(crf), "-profile:v", "high", "-level:v", "4.2",
             "-maxrate", p["maxrate"], "-bufsize", p["bufsize"], "-g", gop, "-bf", "2",
             "-x264-params", "aq-mode=3:deblock=-1,-1", "-pix_fmt", "yuv420p",
             "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709", "-color_range", "tv",

@@ -167,7 +167,7 @@ def test_chapter_pills_and_white_style(tmp_path):
                           chapters=[{"start": 0.0, "text": "1: The hook"}], duration=5.0).read_text()
     pill = [line for line in text.splitlines() if line.startswith("Dialogue: 3")]
     assert pill and "\\p1" in pill[0] and pill[0].split(",")[2] == "0:00:05.00"
-    assert "1: The hook" in text and "Step one" in text
+    assert "1: The hook" in text and "Step 1" in text          # spoken numbers show as digits
 
 
 def test_music_library_roundtrip(tmp_path, monkeypatch):
@@ -275,7 +275,10 @@ def test_end_to_end_pipeline(tmp_path):
                     {"path": "work/rough_cut_viz.png", "start": 7.0, "dur": 1.2, "in": "slide-up", "out": "fade"}]
     edl["transitions"] = [{"at": "cuts", "type": "whip-left"}, {"at": 1.0, "type": "flash"},
                           {"at": 6.0, "type": "leak"}]
-    edl["captions"] = {"font": "DejaVu Sans", "box": "#000000", "size": 0.9}
+    edl["captions"] = {"font": "DejaVu Sans", "box": "#000000", "size": 0.9,
+                       "corrections": [{"from": "Claude Code", "to": "ClaudeCode"}]}
+    edl["broll"].append({"treatment": "text-pop", "style": "label", "text": "3 tools", "words": "w0-w3"})
+    edl["zooms"] = [{"on": "captioning tool", "scale": 1.1}]
     edl_path.write_text(json.dumps(edl))
     res = subprocess.run([sys.executable, "-m", "editor", "auto", str(project), "--from", "cut",
                           "--title", "Test hook", "--style", "white"], cwd=ROOT, capture_output=True, text=True,
@@ -290,5 +293,8 @@ def test_end_to_end_pipeline(tmp_path):
     assert list((project / "work" / ".style").glob("edl.*.draft.json"))     # first draft snapshotted
     assert (project / "work" / "roomtone.wav").exists()                     # room tone under the cuts
     assert "DejaVu Sans" in (project / "work" / "captions.ass").read_text()
+    assert "ClaudeCode" in (project / "work" / "captions.ass").read_text()        # caption correction
+    assert (project / "work" / "treatments" / "textpop2.png").exists()           # word-anchored treatment
+    assert "pacing" in json.loads((project / "out" / "review" / "review.json").read_text())
     assert "transitions=" in res.stderr
     assert (project / "out" / "contact_sheet.png").exists()

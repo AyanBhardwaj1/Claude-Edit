@@ -51,8 +51,9 @@ PRESETS = {
 
 def master(src: str | Path, out: str | Path, preset: str = "phone", target_lufs: float = -14.0,
            true_peak: float = -1.0, music: str | None = None, music_db: float = -20.0,
-           duck: bool = True, rnnoise_model: str | None = None, music_start: float = 0.0,
-           fill: str | Path | None = None) -> Path:
+           duck: bool = True, rnnoise_model: str | None = None, music_start: float | str = 0.0,
+           fill: str | Path | None = None, automation: list[dict] | None = None, fade_out: float = 0.6,
+           level: str | None = None, first_word: float = 0.0) -> Path:
     info = probe(src)
     if not info["has_audio"]:
         raise EditorError(f"{src} has no audio")
@@ -66,13 +67,29 @@ def master(src: str | Path, out: str | Path, preset: str = "phone", target_lufs:
     inputs = ["-i", str(src)]
     voice_in = "[0:a]aresample=48000"
     if music:
-        inputs += ["-stream_loop", "-1", "-ss", f"{music_start:.3f}", "-i", str(music)]
-        fade_st = max(duration - 1.5, 0)
+        if music_start == "auto":
+            from .library import entry_point
+            music_start = entry_point(music)
+            log(f"music: entering at {music_start:.1f}s (a bar before the first big hit)")
+        inputs += ["-stream_loop", "-1", "-ss", f"{float(music_start):.3f}", "-i", str(music)]
+        duck_ratio = 8
+        if level:   # a measured gap under the (processed) voice instead of a fixed gain
+            gap = LEVELS[level]
+            voice_i = _integrated(["-i", str(src)], ",".join(chain))
+            music_i = _integrated(["-ss", f"{float(music_start):.3f}", "-t", "60", "-i", str(music)])
+            music_db = round(max(-40.0, min(6.0, voice_i - gap - music_i)), 1)
+            duck_ratio = 3        # the gap already does most of the work; just a gentle dip under words
+            if level == "loud-intro" and first_word > 1.0:   # music up front, then down to the bed at the first word
+                automation = [{"start": -1.0, "end": first_word + 0.25, "db": gap - 10.0}] + list(automation or [])
+            log(f"music: {level}, {gap:.0f} dB under the voice ({music_db:+.1f} dB on the track)")
+        fade_out = max(0.05, float(fade_out))
+        fade_st = max(duration - fade_out, 0)
         graph = (f"{voice_in},{','.join(chain)},asplit=2[voice][key];"
                  f"[1:a]aresample=48000,aformat=channel_layouts=stereo,atrim=0:{duration:.3f},"
-                 f"volume={music_db}dB,afade=t=in:d=0.5,afade=t=out:st={fade_st:.3f}:d=1.5[mus];")
+                 f"highpass=f=90,lowshelf=f=160:g=-6,volume={music_db}dB,{_automation(automation)}afade=t=in:d=0.5,"
+                 f"afade=t=out:st={fade_st:.3f}:d={fade_out:.2f}[mus];")
         if duck:
-            graph += ("[mus][key]sidechaincompress=threshold=0.04:ratio=8:attack=20:release=400:makeup=1[bed];"
+            graph += (f"[mus][key]sidechaincompress=threshold=0.04:ratio={duck_ratio}:attack=20:release=400:makeup=1[bed];"
                       "[voice][bed]amix=inputs=2:duration=first:normalize=0")
         else:
             graph += "[key]anullsink;[voice][mus]amix=inputs=2:duration=first:normalize=0"
@@ -101,6 +118,24 @@ def master(src: str | Path, out: str | Path, preset: str = "phone", target_lufs:
         f"{', +RNNoise' if rnnoise_model else ''}) "
         f"{m['input_i']} LUFS -> {target_lufs} LUFS: {out}")
     return out
+
+
+LEVELS = {"under-voice": 19.0, "quiet": 24.0, "loud-intro": 19.0}   # music this many dB under the voice
+
+
+def _integrated(inputs: list[str], af: str | None = None) -> float:
+    """Integrated loudness (LUFS) of an input, optionally after a filter chain."""
+    err = run(["ffmpeg", "-hide_banner", "-nostdin", *inputs, "-vn", "-af", f"{af},ebur128" if af else "ebur128",
+               "-f", "null", "-"], quiet=False).stderr
+    vals = re.findall(r"I:\s+(-?[\d.]+) LUFS", err)
+    return float(vals[-1]) if vals else -20.0
+
+
+def _automation(spans: list[dict] | None, ramp: float = 0.35) -> str:
+    """Music lifts and dips on words (EDL music.automation: start/end output seconds + db), eased in and out."""
+    terms = [f"{float(a['db']):.2f}*clip((t-{float(a['start']):.3f})/{ramp},0,1)*clip(({float(a['end']):.3f}-t)/{ramp},0,1)"
+             for a in spans or [] if "start" in a and "end" in a and a.get("db")]
+    return f"volume='pow(10,({'+'.join(terms)})/20)':eval=frame," if terms else ""
 
 
 def room_tone_fill(work: str | Path, out: str | Path | None = None, piece: float = 0.24) -> Path | None:
