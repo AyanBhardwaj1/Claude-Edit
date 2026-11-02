@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Claude-Edit: raw takes in, a finished reel out",
-  description: "Drop in your raw talking-head takes. The AI editor picks your best takes, cuts the pauses, adds subtitles, " +
+  title: "Cutmind: raw takes in, a finished reel out",
+  description: "Cutmind is an AI video editor. Drop in your raw talking-head takes: it picks your best takes, cuts the pauses, adds subtitles, " +
     "pictures and music, and writes your caption. Bring your own Anthropic or OpenAI key. Your videos never leave your browser.",
 };
 

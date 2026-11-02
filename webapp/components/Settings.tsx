@@ -35,7 +35,7 @@ export function Settings({ settings, onSave }: { settings: S; onSave: (s: S) => 
         <div className="row">
           {(["anthropic", "openai"] as const).map((p) => (
             <button key={p} className={s.provider === p ? "primary" : ""} onClick={() => set({ provider: p })}>
-              {p === "anthropic" ? "Claude (Anthropic)" : "ChatGPT (OpenAI)"}
+              {p === "anthropic" ? "Anthropic" : "OpenAI"}
             </button>
           ))}
         </div>
@@ -46,7 +46,7 @@ export function Settings({ settings, onSave }: { settings: S; onSave: (s: S) => 
             onChange={(e) => set({ anthropicKey: e.target.value.trim() })} style={{ width: "auto" }} />
           <button onClick={() => check("anthropic")}>Check</button>
         </div>
-        <label>Claude model</label>
+        <label>Anthropic model</label>
         {models.anthropic.length ? (
           <select value={s.anthropicModel} onChange={(e) => set({ anthropicModel: e.target.value })}>
             {models.anthropic.map((m) => <option key={m}>{m}</option>)}
@@ -71,12 +71,12 @@ export function Settings({ settings, onSave }: { settings: S; onSave: (s: S) => 
       <div className="card" style={{ marginTop: 14 }}>
         <h2>Listening (speech to text)</h2>
         <div className="row">
-          <button className={s.transcriber === "openai" ? "primary" : ""} onClick={() => set({ transcriber: "openai" })}>OpenAI Whisper</button>
-          <button className={s.transcriber === "browser" ? "primary" : ""} onClick={() => set({ transcriber: "browser" })}>In my browser</button>
+          <button className={s.transcriber === "openai" ? "primary" : ""} onClick={() => set({ transcriber: "openai" })}>OpenAI (fast)</button>
+          <button className={s.transcriber === "browser" ? "primary" : ""} onClick={() => set({ transcriber: "browser" })}>In my browser (free)</button>
         </div>
-        <p className="small muted">OpenAI Whisper is fast and accurate (needs the OpenAI key, about $0.006 a minute).
-          "In my browser" runs Whisper on your computer: free and private, one ~150 MB download, slower. Anthropic has no
-          speech-to-text, so with only a Claude key use "In my browser".</p>
+        <p className="small muted">OpenAI is fast and accurate (needs the OpenAI key, about $0.006 a minute).
+          &quot;In my browser&quot; listens on your computer: free and private, one ~150 MB download, slower. Anthropic keys
+          don&apos;t include speech-to-text, so with only an Anthropic key use &quot;In my browser&quot;.</p>
       </div>
 
       <div className="card" style={{ marginTop: 14 }}>

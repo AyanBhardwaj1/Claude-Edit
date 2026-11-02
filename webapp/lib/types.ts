@@ -1,4 +1,4 @@
-// The project model. Like Claude-Edit's EDL, every placement is anchored to word ids, never to seconds,
+// The project model. Like the editing toolkit's EDL, every placement is anchored to word ids, never to seconds,
 // so re-cutting never breaks a picture, a zoom or a music lift.
 
 export type Word = { id: string; src: number; s: number; e: number; w: string; p?: number };

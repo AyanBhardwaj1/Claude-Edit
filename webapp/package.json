@@ -1,8 +1,8 @@
 {
-  "name": "claude-edit-web",
+  "name": "cutmind",
   "version": "0.1.0",
   "private": true,
-  "description": "Claude-Edit in the browser: raw takes in, a finished reel out. Bring your own Anthropic or OpenAI key.",
+  "description": "Cutmind: an AI video editor in the browser. Raw takes in, a finished reel out. Bring your own Anthropic or OpenAI key.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

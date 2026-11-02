@@ -1,4 +1,4 @@
-// The editor's instructions. Adapted from Claude-Edit's edit-reel doctrine, itself adapted from Reel Studio's
+// The editor's instructions. Adapted from this repo's edit-reel doctrine, itself adapted from Reel Studio's
 // editor prompts (MIT, Copyright (c) 2026 Reel Studio contributors; cut method after Mino Lee's Minimum Viable
 // Editing Strategy). The AI returns ONE JSON edit; a deterministic renderer in the browser plays it.
 

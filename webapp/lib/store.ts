@@ -4,8 +4,8 @@
 import { createStore, del, get, keys, set } from "idb-keyval";
 import type { Project, Settings, StyleRule } from "./types";
 
-const media = () => createStore("claude-edit-media", "files");
-const projects = () => createStore("claude-edit-projects", "projects");
+const media = () => createStore("cutmind-media", "files");
+const projects = () => createStore("cutmind-projects", "projects");
 
 export async function putMedia(key: string, blob: Blob) { await set(key, blob, media()); }
 export async function getMedia(key: string): Promise<Blob | undefined> { return get(key, media()); }

@@ -1,4 +1,4 @@
-"""End-to-end: the whole workflow in a real browser, with OpenAI Whisper and Claude mocked at the network layer.
+"""Cutmind end-to-end: the whole workflow in a real browser, with the OpenAI and Anthropic APIs mocked.
 
   npm run build && npx next start -p 3200 &
   python3 tests/e2e.py <take.mp4> <transcript.json (Claude-Edit format)> <out_dir>

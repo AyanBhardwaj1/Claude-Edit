@@ -8,7 +8,7 @@ export const runtime = "nodejs";
 type Result = { url: string; title: string; creator: string; license: string; page: string; source: string; kind: "logo" | "photo";
   width?: number; height?: number };
 
-const UA = "Claude-Edit-Web/0.1 (https://github.com/AyanBhardwaj1/Claude-Edit)";
+const UA = "Cutmind/0.1 (video editor; image search)";
 const OK = new Set(["cc0", "pdm", "by", "by-sa"]);
 
 function lic(s: string): string {

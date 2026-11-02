@@ -21,14 +21,14 @@ export default function App() {
   return (
     <div className="shell">
       <aside className="side">
-        <div className="brand">Claude<span>-Edit</span></div>
+        <div className="brand">Cut<span>mind</span></div>
         {nav("home", "My videos")}
         {nav("new", "New video")}
         {nav("script", "Write a script")}
         {nav("style", "My style")}
         {nav("settings", "Settings")}
         <div className="foot"><span className={`dot ${key ? "on" : ""}`} />
-          {key ? `AI editor: ${settings.provider === "anthropic" ? "Claude" : "ChatGPT"}` : "No AI editor connected"}
+          {key ? "AI editor connected" : "No AI editor connected"}
           <br />Your videos stay in this browser.</div>
       </aside>
       <main>
