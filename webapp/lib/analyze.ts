@@ -1,6 +1,6 @@
 // Read the raw takes before anyone edits: phrases, pauses, retakes (lines said more than once),
 // fillers, meta-talk and stutters, and a deterministic default cut (the last complete take of each line).
-// The rules follow Reel Studio's engine (MIT) and Claude-Edit's plan.py.
+// The rules follow Reel Studio's engine (MIT) and this repo's editor/plan.py.
 
 import type { Analysis, Range, Word } from "./types";
 import { bare } from "./text";

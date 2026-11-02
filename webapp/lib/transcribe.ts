@@ -1,7 +1,7 @@
 // Word-timed transcripts. Two engines:
 //   openai   OpenAI's whisper-1 with word timestamps (the user's OpenAI key, called from the browser)
 //   browser  Whisper running in this tab (transformers.js, loaded from a CDN on first use, ~150 MB model, no key)
-// Anthropic has no speech-to-text API, so Claude-only users get the in-browser engine.
+// Anthropic has no speech-to-text API, so Anthropic-only users get the in-browser engine.
 
 import { decodeMono, wav } from "./media";
 import type { Word } from "./types";

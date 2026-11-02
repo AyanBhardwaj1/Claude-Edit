@@ -6,9 +6,9 @@ Claude makes the editorial calls and checks its own work from real frames. ffmpe
 (or offline Vosk), OpenCV and Pillow do the media work locally. Works in the **Claude desktop
 app** and in Claude Code on the web or CLI.
 
-**Web app:** [`webapp/`](webapp/) is the same workflow as a website anyone can use with their own Anthropic or
+**Web app: [Cutmind](webapp/)** is the same workflow as a website anyone can use with their own Anthropic or
 OpenAI key (videos stay in the browser).
-[Deploy it on Vercel](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FAyanBhardwaj1%2FClaude-Edit&root-directory=webapp&project-name=claude-edit-web).
+[Deploy it on Vercel](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FAyanBhardwaj1%2FClaude-Edit&root-directory=webapp&project-name=cutmind).
 
 ## What's inside
 | | |

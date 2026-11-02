@@ -1,5 +1,5 @@
 // Caption text: corrections for misheard phrases, spoken numbers as digits, and 2-3 word chunks.
-// Ported from Claude-Edit's editor/wordfix.py and captions.py.
+// Ported from this repo's editor/wordfix.py and captions.py.
 
 import type { OutWord } from "./timeline";
 

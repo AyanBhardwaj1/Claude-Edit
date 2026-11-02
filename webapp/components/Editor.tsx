@@ -6,15 +6,16 @@ import { loadRules, saveProject, saveRules } from "@/lib/store";
 import type { Edit, Project, Settings } from "@/lib/types";
 import { addToLibrary, applyUserNote, mediaUrls, saveManual } from "@/lib/workflow";
 import { Drawer } from "./Drawer";
+import { Icon } from "./Icons";
+import { clock } from "./Tiles";
 
 type Msg = { who: "you" | "ed"; text: string; rule?: string };
-
-const fmt = (t: number) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
 
 export function Editor({ project, settings, firstSummary, onBack }: { project: Project; settings: Settings; firstSummary?: string;
   onBack: () => void }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const player = useRef<Player | null>(null);
+  const chat = useRef<HTMLDivElement>(null);
   const [p, setP] = useState(project);
   const [t, setT] = useState(0);
   const [dur, setDur] = useState(0);
@@ -24,8 +25,9 @@ export function Editor({ project, settings, firstSummary, onBack }: { project: P
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState("");
   const [drawer, setDrawer] = useState(false);
-  const [exp, setExp] = useState<{ pct: number; video?: string; ext?: string; cover?: string } | null>(null);
+  const [exp, setExp] = useState<{ pct: number; video?: string; ext?: string; cover?: string; caption?: string } | null>(null);
   const [err, setErr] = useState("");
+  const [toast, setToast] = useState("");
   const version = p.versions.find((v) => v.n === p.current) ?? p.versions[p.versions.length - 1];
 
   const mount = useCallback(async (edit: Edit) => {
@@ -40,6 +42,15 @@ export function Editor({ project, settings, firstSummary, onBack }: { project: P
   }, [p]);
 
   useEffect(() => { if (version) void mount(version.edit); return () => player.current?.dispose(); }, [version, mount]);
+  useEffect(() => { chat.current?.scrollTo({ top: chat.current.scrollHeight, behavior: "smooth" }); }, [msgs, busy]);
+  useEffect(() => { if (!toast) return; const id = setTimeout(() => setToast(""), 2200); return () => clearTimeout(id); }, [toast]);
+  useEffect(() => {
+    const rec = !!exp && exp.pct < 100;
+    if (!rec && !busy) return;
+    const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [exp, busy]);
 
   async function toggle() {
     const pl = player.current;
@@ -49,7 +60,7 @@ export function Editor({ project, settings, firstSummary, onBack }: { project: P
 
   async function send() {
     const text = note.trim();
-    if (!text) return;
+    if (!text || busy) return;
     const hasKey = settings.provider === "anthropic" ? !!settings.anthropicKey : !!settings.openaiKey;
     setMsgs((m) => [...m, { who: "you", text }]);
     setNote("");
@@ -78,116 +89,134 @@ export function Editor({ project, settings, firstSummary, onBack }: { project: P
     try {
       const { blob, ext } = await pl.record((pct) => setExp((x) => ({ ...x!, pct })));
       const cover = await pl.cover();
-      setExp({ pct: 100, video: URL.createObjectURL(blob), ext, cover: URL.createObjectURL(cover) });
+      setExp({ pct: 100, video: URL.createObjectURL(blob), ext, cover: URL.createObjectURL(cover),
+        caption: URL.createObjectURL(new Blob([post], { type: "text/plain" })) });
     } catch (e) { setErr(String(e)); setExp(null); }
     setPlaying(false);
   }
 
+  const copy = async (text: string) => { try { await navigator.clipboard.writeText(text); setToast("Caption copied"); } catch { setToast("Couldn't copy: select the text instead"); } };
   const post = version ? postText(p, version.edit) : "";
   const e = version?.edit;
   const pics = e?.broll.filter((b) => b.treatment !== "text-pop").length ?? 0, cards = e ? e.broll.length - pics : 0;
   const song = e?.music.asset ? p.library.find((a) => a.key === e.music.asset) : undefined;
   const base = p.title.replace(/[\\/:*?"<>|]+/g, "").slice(0, 80) + ` - Version ${p.current}`;
+  const recording = !!exp && exp.pct < 100;
+  const did: [boolean, string][] = e ? [
+    [true, `Kept your best takes · ${clock(dur)} long`],
+    [e.captions.enabled, e.captions.enabled ? "Added subtitles" : "Subtitles off"],
+    [!!song, song ? `Added music: ${song.name}` : "No music (add a song below)"],
+    [pics + cards > 0, pics + cards ? `${pics} picture${pics === 1 ? "" : "s"} and ${cards} text card${cards === 1 ? "" : "s"}` : "No pictures yet"],
+    [e.zooms.length > 0, e.zooms.length ? `${e.zooms.length} zoom${e.zooms.length === 1 ? "" : "s"}` : "No zooms"],
+    [!!e.post.caption, e.post.caption ? "Wrote your post caption" : "No post caption yet"],
+  ] : [];
 
   return (
-    <div>
-      <div className="row" style={{ marginBottom: 14 }}>
-        <button className="ghost small" onClick={onBack}>← My videos</button>
-        <h1 className="grow" style={{ margin: 0 }}>{p.title}</h1>
-        <button onClick={() => setDrawer(!drawer)}>{drawer ? "Close the editor" : "Edit it myself"}</button>
-        <button className="primary" onClick={exportVideo} disabled={!!exp && exp.pct < 100}>Export</button>
+    <div className="page">
+      <div className="ed-head">
+        <button className="btn ghost sm" onClick={onBack}><Icon name="arrowLeft" />My videos</button>
+        <h1 className="grow trunc">{p.title}</h1>
+        <button className="btn" aria-pressed={drawer} onClick={() => setDrawer(!drawer)}><Icon name="scissors" />{drawer ? "Close the editor" : "Edit it myself"}</button>
+        <button className="btn primary" onClick={exportVideo} disabled={recording}><Icon name="download" />Export</button>
       </div>
-      <div className="editor">
-        <div>
-          <div className="phone"><canvas ref={canvas} /></div>
-          <input type="range" className="scrub" min={0} max={dur || 1} step={0.01} value={t}
-            onChange={(ev) => { const v = +ev.target.value; setT(v); void player.current?.seek(v); }} />
-          <div className="row">
-            <button onClick={toggle} disabled={!!exp && exp.pct < 100}>{playing ? "Pause" : "Play"}</button>
-            <span className="small muted">{fmt(t)} / {fmt(dur)}</span>
+
+      <div className="ed-grid">
+        <div className="preview">
+          <div className="phone"><canvas ref={canvas} aria-label={`Preview of ${p.title}, version ${p.current}`} role="img" /></div>
+          <div className="transport">
+            <button className="play" onClick={toggle} disabled={recording} aria-label={playing ? "Pause" : "Play"}><Icon name={playing ? "pause" : "play"} /></button>
+            <input type="range" className="scrub" min={0} max={dur || 1} step={0.01} value={t} aria-label="Position"
+              onChange={(ev) => { const v = +ev.target.value; setT(v); void player.current?.seek(v); }} />
+            <span className="time">{clock(t)} / {clock(dur)}</span>
           </div>
-          <div className="versions">
+          <div className="versions" role="group" aria-label="Versions">
             {p.versions.map((v) => (
-              <button key={v.n} title={v.note} className={`small ${v.n === p.current ? "primary" : ""}`}
+              <button key={v.n} title={v.note} className="chip" aria-pressed={v.n === p.current}
                 onClick={async () => { p.current = v.n; await saveProject(p); setP({ ...p }); }}>Version {v.n}</button>
             ))}
           </div>
         </div>
-        <div>
+
+        <div className="ed-col">
           {exp && (
-            <div className="card" style={{ marginBottom: 14 }}>
-              {exp.pct < 100 ? (<><b>Making the video</b><div className="bar"><div style={{ width: `${exp.pct}%` }} /></div>
+            <section className="panel" aria-live="polite">
+              {exp.pct < 100 ? (<>
+                <div className="panel-head"><h2>Making the video</h2><span className="small faint num">{Math.round(exp.pct)}%</span></div>
+                <div className="progress"><i style={{ transform: `scaleX(${exp.pct / 100})` }} /></div>
                 <p className="small muted">It plays through once in real time to record. Keep this tab open and in front.</p></>) : (
-                <>
-                  <b>Ready to post</b>
-                  <div className="row" style={{ margin: "10px 0" }}>
-                    <a className="btn primary" href={exp.video} download={`${base}.${exp.ext}`}>Download video (.{exp.ext})</a>
+                <div className="export-ready">
+                  <div className="panel-head" style={{ marginBottom: 0 }}><h2>Ready to post</h2>
+                    <button className="btn ghost icon sm" aria-label="Close" onClick={() => setExp(null)}>&times;</button></div>
+                  <div className="row">
+                    <a className="btn primary" href={exp.video} download={`${base}.${exp.ext}`}><Icon name="download" />Download video (.{exp.ext})</a>
                     <a className="btn" href={exp.cover} download={`${base} cover.jpg`}>Download cover</a>
-                    <a className="btn" href={URL.createObjectURL(new Blob([post], { type: "text/plain" }))} download={`${base} caption.txt`}>Caption .txt</a>
-                    <button onClick={() => navigator.clipboard.writeText(post)}>Copy caption</button>
+                    <a className="btn" href={exp.caption} download={`${base} caption.txt`}>Caption .txt</a>
+                    <button className="btn ghost" onClick={() => copy(post)}><Icon name="copy" />Copy caption</button>
                   </div>
                   {exp.ext === "webm" && <p className="small muted">Your browser recorded WebM. For Instagram, export from Chrome, Edge or Safari
                     to get MP4, or convert the file.</p>}
-                  <button className="small ghost" onClick={() => setExp(null)}>Close</button>
-                </>)}
-            </div>
+                </div>)}
+            </section>
           )}
-          <div className="card">
-            <h2>What I did</h2>
-            {e && <ul className="check">
-              <li>✓ Kept your best takes · {fmt(dur)} long</li>
-              <li>{e.captions.enabled ? "✓ Added subtitles" : "· Subtitles off"}</li>
-              <li>{song ? `✓ Added music: ${song.name}` : "· No music (add a song to your video's files)"}</li>
-              <li>{pics + cards ? `✓ ${pics} picture${pics === 1 ? "" : "s"} and ${cards} text card${cards === 1 ? "" : "s"}` : "· No pictures yet"}</li>
-              <li>{e.zooms.length ? `✓ ${e.zooms.length} zooms` : "· No zooms"}</li>
-              <li>{e.post.caption ? "✓ Wrote your post caption" : "· No post caption yet"}</li>
-            </ul>}
-          </div>
-          <div className="card" style={{ marginTop: 14 }}>
-            <h2>Notes for your editor</h2>
-            <div className="chat">
+
+          <section className="panel" aria-labelledby="did-h">
+            <div className="panel-head"><h2 id="did-h">What I did</h2><span className="badge good"><span className="dot" />Version {p.current}</span></div>
+            <ul className="did">
+              {did.map(([on, text]) => <li key={text} className={on ? "" : "off"}><Icon name={on ? "check" : "dot"} />{text}</li>)}
+            </ul>
+          </section>
+
+          <section className="panel" aria-labelledby="notes-h">
+            <div className="panel-head"><h2 id="notes-h">Notes for your editor</h2></div>
+            <div className="chat" ref={chat} aria-live="polite">
               {msgs.map((m, i) => (
-                <div key={i} className={`msg ${m.who === "you" ? "you" : "ed"}`}>
-                  {m.text}
+                <div key={i} className={`msg ${m.who}`}>
+                  <span className="who-said">{m.who === "you" ? "You" : "Your editor"}</span>
+                  <span>{m.text}</span>
                   {m.rule && (
-                    <div style={{ marginTop: 8 }}>
-                      <div className="small muted">Remember this for next time? &quot;{m.rule}&quot;</div>
-                      <div className="row" style={{ marginTop: 6 }}>
-                        <button className="small" onClick={() => { addRule(m.rule!); setMsgs((x) => x.map((y, k) => (k === i ? { ...y, rule: undefined, text: y.text + "\nSaved to My style." } : y))); }}>Yes, remember it</button>
-                        <button className="small ghost" onClick={() => setMsgs((x) => x.map((y, k) => (k === i ? { ...y, rule: undefined } : y)))}>No, just this video</button>
+                    <div className="ask">
+                      <div className="small">Remember this for next time? &ldquo;{m.rule}&rdquo;</div>
+                      <div className="row" style={{ marginTop: 8 }}>
+                        <button className="btn sm primary" onClick={() => { addRule(m.rule!); setMsgs((x) => x.map((y, k) => (k === i ? { ...y, rule: undefined, text: y.text + "\nSaved to My style." } : y))); }}>Yes, remember it</button>
+                        <button className="btn sm ghost" onClick={() => setMsgs((x) => x.map((y, k) => (k === i ? { ...y, rule: undefined } : y)))}>No, just this video</button>
                       </div>
                     </div>
                   )}
                 </div>
               ))}
-              {busy && <div className="msg ed muted">{busy}</div>}
+              {busy && <div className="msg ed busy"><span className="spin" aria-hidden="true" />{busy}</div>}
             </div>
-            {err && <div className="err">{err}</div>}
-            <div className="row" style={{ marginTop: 10 }}>
-              <textarea className="grow" rows={2} value={note} placeholder='Tell your editor what to change, e.g. "music too loud at the start"'
-                onChange={(ev) => setNote(ev.target.value)}
-                onKeyDown={(ev) => { if (ev.key === "Enter" && !ev.shiftKey) { ev.preventDefault(); void send(); } }} style={{ width: "auto" }} />
-              <button className="primary" onClick={send} disabled={!!busy || !note.trim()}>Send</button>
+            {err && <div className="alert err" role="alert" style={{ marginTop: 12 }}><Icon name="alert" /><span>{err}</span></div>}
+            <div className="composer">
+              <label className="sr-only" htmlFor="note">Note for your editor</label>
+              <textarea id="note" rows={1} value={note} placeholder="Tell your editor what to change, e.g. “music too loud at the start”…"
+                autoComplete="off" onChange={(ev) => setNote(ev.target.value)}
+                onKeyDown={(ev) => { if (ev.key === "Enter" && !ev.shiftKey && !ev.nativeEvent.isComposing) { ev.preventDefault(); void send(); } }} />
+              <button className="btn primary" onClick={send} disabled={!!busy || !note.trim()}><Icon name="send" />Send</button>
             </div>
-            <div className="row small muted" style={{ marginTop: 8 }}>
-              Add files the editor can use:
-              <input type="file" multiple accept="audio/*,image/*,video/*" style={{ width: "auto", padding: 4 }}
-                onChange={async (ev) => { if (!ev.target.files) return; const n = await addToLibrary(p, [...ev.target.files]); await saveProject(p); setP({ ...p });
+            <label className="attach">
+              <Icon name="paperclip" />Add a song, picture or clip your editor can use
+              <input type="file" multiple accept="audio/*,image/*,video/*"
+                onChange={async (ev) => { if (!ev.target.files?.length) return; const n = await addToLibrary(p, [...ev.target.files]); await saveProject(p); setP({ ...p });
+                  ev.target.value = "";
                   setMsgs((m) => [...m, { who: "ed", text: `Added ${n.join(", ")}. Tell me where to use ${n.length > 1 ? "them" : "it"}.` }]); }} />
-            </div>
-          </div>
+            </label>
+          </section>
+
           {drawer && version && (
-            <div className="card" style={{ marginTop: 14 }}>
+            <section className="panel" aria-label="Edit it myself">
               <Drawer project={p} edit={version.edit} onApply={async (edit, what) => { await saveManual(p, edit, what); setP({ ...p }); setMsgs((m) => [...m, { who: "ed", text: `Version ${p.current}: ${what}` }]); }} />
-            </div>
+            </section>
           )}
-          <div className="card" style={{ marginTop: 14 }}>
-            <h2>Post caption</h2>
-            <p style={{ whiteSpace: "pre-wrap" }} className="small">{post || "No caption yet."}</p>
-            {post && <button className="small" onClick={() => navigator.clipboard.writeText(post)}>Copy</button>}
-          </div>
+
+          <section className="panel" aria-labelledby="post-h">
+            <div className="panel-head"><h2 id="post-h">Post caption</h2>
+              {post && <button className="btn ghost sm" onClick={() => copy(post)}><Icon name="copy" />Copy</button>}</div>
+            <p className="caption-box">{post || "No caption yet."}</p>
+          </section>
         </div>
       </div>
+      {toast && <div className="toast" role="status">{toast}</div>}
     </div>
   );
 }

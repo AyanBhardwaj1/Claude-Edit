@@ -14,7 +14,7 @@ export async function GET(req: Request) {
   if (url.protocol !== "https:" || !HOSTS.has(url.hostname) || url.username || url.password) {
     return new Response("host not allowed", { status: 403 });
   }
-  let r = await fetch(url, { redirect: "manual", headers: { "User-Agent": "Claude-Edit-Web/0.1" }, signal: AbortSignal.timeout(15000) });
+  let r = await fetch(url, { redirect: "manual", headers: { "User-Agent": "Cutmind/0.1" }, signal: AbortSignal.timeout(15000) });
   for (let hop = 0; hop < 3 && r.status >= 300 && r.status < 400; hop++) {      // openverse thumbs redirect within the list
     const next = new URL(r.headers.get("location") ?? "", url);
     if (next.protocol !== "https:" || !HOSTS.has(next.hostname)) return new Response("redirect not allowed", { status: 403 });

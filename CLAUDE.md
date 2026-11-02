@@ -90,7 +90,7 @@ editor/            python package (python3 -m editor)
   style.py         style memory: learned editing preferences (notes, draft -> approved changes) -> first drafts
 library/           hooks.md (265 hook templates), glossary.txt, style/ (learned style), music/, broll/, models/, sfx/ (media git-ignored)
 .claude/skills/    the workflow Claude follows
-webapp/            the workflow as a Vercel web app (Next.js; media work in the browser; users' own Anthropic/OpenAI keys)
+webapp/            Cutmind: the workflow as a Vercel web app (Next.js; media work in the browser; users' own Anthropic/OpenAI keys)
 projects/<name>/   raw/ broll/ music/ work/ out/   (git-ignored)
 tests/             pytest suite + make_fixture.py (synthetic test project, no Whisper needed)
 assets/fonts/      caption fonts (Montserrat via ./setup.sh, more via editor fonts add; fonts.json committed)

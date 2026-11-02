@@ -1,14 +1,18 @@
 "use client";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { loadRules } from "@/lib/store";
 import type { Project, Settings } from "@/lib/types";
 import { createProject, kindOf, listen, makeFirstEdit } from "@/lib/workflow";
+import { Icon, type IconName } from "./Icons";
 
 const STAGES = ["Copying your video", "Listening to your video", "Finding your retakes", "Finding your face",
   "Picking your best takes and planning the edit", "Finding pictures online", "Ready"];
+const ICON: Record<string, IconName> = { video: "clip", music: "music", image: "image" };
+const size = (b: number) => new Intl.NumberFormat(undefined, { style: "unit", unit: b > 1e9 ? "gigabyte" : "megabyte", maximumFractionDigits: 1 })
+  .format(b > 1e9 ? b / 1e9 : b / 1e6);
 
-export function NewVideo({ settings, onDone, onSettings }: { settings: Settings; onDone: (p: Project, summary: string) => void;
-  onSettings: () => void }) {
+export function NewVideo({ settings, initial = [], onDone, onSettings }: { settings: Settings; initial?: File[];
+  onDone: (p: Project, summary: string) => void; onSettings: () => void }) {
   const [takes, setTakes] = useState<File[]>([]);
   const [extras, setExtras] = useState<File[]>([]);
   const [over, setOver] = useState(false);
@@ -20,16 +24,24 @@ export function NewVideo({ settings, onDone, onSettings }: { settings: Settings;
   const hasKey = settings.provider === "anthropic" ? !!settings.anthropicKey : !!settings.openaiKey;
   const canListen = settings.transcriber === "browser" || !!settings.openaiKey;
 
-  function take(files: FileList | File[]) {
+  function take(files: FileList | File[], fresh = false) {
     const fs = [...files];
     const vids = fs.filter((f) => kindOf(f) === "video");
     const rest = fs.filter((f) => kindOf(f) && kindOf(f) !== "video");
-    if (!takes.length) { setTakes(vids); } else setExtras((x) => [...x, ...vids]);
-    setExtras((x) => [...x, ...rest]);
+    if (fresh || !takes.length) { setTakes(vids); setExtras((x) => [...(fresh ? [] : x), ...rest]); }
+    else setExtras((x) => [...x, ...vids, ...rest]);
   }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { if (initial.length) take(initial, true); }, [initial]);
+  useEffect(() => {
+    if (!busy) return;
+    const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [busy]);
 
   async function go() {
-    setBusy(true); setErr("");
+    setBusy(true); setErr(""); setPct(0);
     const progress = (m: string, p?: number) => { setMsg(m); if (p !== undefined) setPct((x) => Math.max(x, p)); };
     try {
       const p = await createProject(takes, extras, progress);
@@ -39,54 +51,75 @@ export function NewVideo({ settings, onDone, onSettings }: { settings: Settings;
       onDone(p, summary);
     } catch (e) {
       setErr((e as { userMessage?: string }).userMessage ?? (e as Error).message ?? String(e));
-      setBusy(false);
     }
   }
 
   if (busy) {
     const at = STAGES.findIndex((s) => msg.startsWith(s.split(" ")[0]) && msg.includes(s.split(" ")[1] ?? ""));
     return (
-      <div style={{ maxWidth: 620 }}>
-        <h1>Making your reel</h1>
-        <div className="bar"><div style={{ width: `${Math.min(99, pct)}%` }} /></div>
-        <p>{msg}</p>
-        <ul className="check muted small">
-          {STAGES.slice(0, -1).map((s, i) => <li key={s}>{i < at ? "✓" : i === at ? "…" : "·"} {s}</li>)}
-        </ul>
-        <p className="small muted">Everything runs in this tab: keep it open. Your video isn&apos;t uploaded anywhere
-          {settings.transcriber === "openai" ? " (only its sound goes to OpenAI for the transcript)" : ""}.</p>
-        {err && <div className="err">{err}</div>}
+      <div className="page narrow">
+        <div className="page-head"><div><h1>Making your reel</h1><p>Everything runs in this tab, so keep it open. Your video isn&apos;t uploaded
+          anywhere{settings.transcriber === "openai" ? " (only its sound goes to OpenAI for the transcript)" : ""}.</p></div></div>
+        <section className="panel">
+          <p aria-live="polite"><b>{msg || "Starting…"}</b></p>
+          <div className="progress" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(pct)} aria-label="Progress">
+            <i style={{ transform: `scaleX(${Math.min(99, pct) / 100})` }} /></div>
+          <ol className="steps">
+            {STAGES.slice(0, -1).map((s, i) => (
+              <li key={s} className={i < at ? "done" : i === at ? "now" : ""}>
+                <span className="tick">{i < at ? <Icon name="check" /> : null}</span>{s}
+              </li>))}
+          </ol>
+          {err && <div className="stack" style={{ marginTop: 16 }}>
+            <div className="alert err" role="alert"><Icon name="alert" /><span>{err}</span></div>
+            <div className="row"><button className="btn primary" onClick={go}>Try again</button>
+              <button className="btn ghost" onClick={() => setBusy(false)}>Back to my files</button></div>
+          </div>}
+        </section>
       </div>
     );
   }
 
+  const files = [...takes.map((f) => ({ f, take: true })), ...extras.map((f) => ({ f, take: false }))];
   return (
-    <div style={{ maxWidth: 760 }}>
-      <h1>New video</h1>
-      <p className="muted">Retakes and fumbles are fine: the editor picks your best takes.</p>
-      {!hasKey && <div className="err">No AI editor yet: you&apos;ll get a simple cut with subtitles. <a href="#" onClick={onSettings}>Add your key</a> for
-        best-take picking, pictures, music choices and your post caption.</div>}
-      {!canListen && <div className="err">Listening needs an OpenAI key, or switch Listening to &quot;In my browser&quot; in <a href="#" onClick={onSettings}>Settings</a>.</div>}
-      <div className={`drop ${over ? "over" : ""}`} onDragOver={(e) => { e.preventDefault(); setOver(true); }} onDragLeave={() => setOver(false)}
-        onDrop={(e) => { e.preventDefault(); setOver(false); take(e.dataTransfer.files); }}>
-        <p style={{ fontSize: 17, margin: "0 0 6px" }}>Drop your video here</p>
-        <p className="small muted" style={{ margin: 0 }}>One or more takes (MP4, MOV, WebM). Add a song, pictures or clips too and the
-          editor can use them.</p>
-        <div className="row" style={{ justifyContent: "center", marginTop: 14 }}>
-          <button onClick={() => input.current?.click()}>Choose files</button>
+    <div className="page narrow">
+      <div className="page-head"><div><h1>New video</h1><p>Retakes and fumbles are fine: your editor keeps your best take of every line.</p></div></div>
+      <div className="stack">
+        {!hasKey && <div className="alert info"><Icon name="key" /><span>No AI editor yet, so you&apos;ll get a simple cut with subtitles.{" "}
+          <button className="link" onClick={onSettings}>Add your key</button> for best-take picking, pictures, music choices and your post caption.</span></div>}
+        {!canListen && <div className="alert err" role="alert"><Icon name="alert" /><span>Listening needs an OpenAI key, or switch Listening to
+          &ldquo;In my browser&rdquo; in <button className="link" onClick={onSettings}>Settings</button></span></div>}
+
+        <div className={`drop ${over ? "over" : ""}`} onDragOver={(e) => { e.preventDefault(); setOver(true); }} onDragLeave={() => setOver(false)}
+          onDrop={(e) => { e.preventDefault(); setOver(false); take(e.dataTransfer.files); }}>
+          <Icon name="upload" className="big" />
+          <h2>Drop your video here</h2>
+          <p className="muted small">One or more takes (MP4, MOV, WebM). Add a song, pictures or clips and the editor can use them.</p>
+          <button className="btn" onClick={() => input.current?.click()}>Choose files</button>
           <input ref={input} type="file" multiple hidden accept="video/*,audio/*,image/*" onChange={(e) => e.target.files && take(e.target.files)} />
         </div>
-        <div className="files">
-          {takes.map((f) => <span key={f.name} className="chip on">🎬 {f.name}</span>)}
-          {extras.map((f) => <span key={f.name} className="chip">{kindOf(f) === "music" ? "🎵" : kindOf(f) === "image" ? "🖼" : "🎞"} {f.name}</span>)}
+
+        {files.length > 0 && (
+          <div className="files" aria-label="Your files">
+            {files.map(({ f, take: t }, i) => (
+              <div key={`${f.name}-${i}`} className="file">
+                <span className={`ic ${t ? "take" : ""}`}><Icon name={t ? "film" : ICON[kindOf(f) ?? "video"] ?? "clip"} /></span>
+                <span className="grow"><b className="trunc">{f.name}</b>
+                  <span className="small faint">{t ? "Your take" : kindOf(f) === "music" ? "Song" : kindOf(f) === "image" ? "Picture" : "B-roll clip"} · {size(f.size)}</span></span>
+                <button className="btn ghost icon sm" aria-label={`Remove ${f.name}`}
+                  onClick={() => (t ? setTakes((x) => x.filter((y) => y !== f)) : setExtras((x) => x.filter((y) => y !== f)))}><Icon name="trash" /></button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="row">
+          <button className="btn primary lg" disabled={!takes.length || !canListen} onClick={go}><Icon name="wand" />Make my reel</button>
+          {files.length > 0 && <button className="btn ghost" onClick={() => { setTakes([]); setExtras([]); }}>Clear</button>}
         </div>
+        <p className="small faint">Videos in your first drop are your takes; videos you add after that become b-roll clips. Only use music and pictures you own or
+          are licensed to use.</p>
       </div>
-      <div className="row" style={{ marginTop: 16 }}>
-        <button className="primary" disabled={!takes.length || !canListen} onClick={go}>Make my reel</button>
-        {(takes.length > 0 || extras.length > 0) && <button className="ghost" onClick={() => { setTakes([]); setExtras([]); }}>Clear</button>}
-      </div>
-      <p className="small muted" style={{ marginTop: 14 }}>The first video file is your take; later video files become b-roll clips. Only use
-        music and pictures you own or are licensed to use.</p>
     </div>
   );
 }

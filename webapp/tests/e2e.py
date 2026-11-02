@@ -1,9 +1,9 @@
-"""End-to-end: the whole workflow in a real browser, with OpenAI Whisper and Claude mocked at the network layer.
+"""Cutmind end-to-end: the whole workflow in a real browser, with the OpenAI and Anthropic APIs mocked.
 
   npm run build && npx next start -p 3200 &
   python3 tests/e2e.py <take.mp4> <transcript.json (Claude-Edit format)> <out_dir>
 
-Checks: new video -> transcript -> first edit (hook, labels, zooms, music, post) -> live preview draws frames ->
+Checks: sign up (email + password) -> new video -> transcript -> first edit (hook, labels, zooms, music, post) -> live preview draws frames ->
 a note makes version 2 -> "Edit it myself" makes version 3 -> export records a playable video + cover + caption.
 """
 import json
@@ -91,7 +91,12 @@ with sync_playwright() as pw:
     page = ctx.new_page()
     errors = []
     page.on("pageerror", lambda e: errors.append(str(e)))
-    page.goto(URL)
+    page.goto(URL + "login?mode=signup")
+    page.get_by_label("Your name").fill("Test Creator")
+    page.get_by_label("Email").fill("test@example.com")
+    page.get_by_label("Password", exact=True).fill("cutmind-e2e-1")
+    page.get_by_role("button", name="Create my account").click()
+    page.wait_for_url("**/app**")
     page.get_by_role("button", name="New video").first.click()
     page.locator("input[type=file]").set_input_files([str(take), str(song), str(out / "pic.png")])
     page.get_by_role("button", name="Make my reel").click()
@@ -118,10 +123,11 @@ with sync_playwright() as pw:
     page.get_by_role("button", name="Send").click()
     page.get_by_text("Version 2: I turned the music down at the start.").wait_for(timeout=30000)
     page.get_by_role("button", name="Yes, remember it").click()
-    assert json.loads(page.evaluate("localStorage.getItem('ce.style')"))[0]["text"] == "Keep music quieter under talking."
+    style = page.evaluate("Object.keys(localStorage).filter(k => k.startsWith('ce.style.')).map(k => localStorage.getItem(k))")
+    assert len(style) == 1 and json.loads(style[0])[0]["text"] == "Keep music quieter under talking.", style
 
     page.get_by_role("button", name="Edit it myself").click()
-    page.get_by_role("button", name="Subtitles").click()
+    page.get_by_role("tab", name="Subtitles").click()
     page.get_by_role("button", name="Big").click()
     page.get_by_role("button", name="Make a new version").click()
     page.get_by_role("button", name="Version 3").wait_for(timeout=15000)
