@@ -1,0 +1,143 @@
+"use client";
+import { useEffect, useRef, useState } from "react";
+import type { User } from "@/lib/auth";
+import { listProjects, loadRules } from "@/lib/store";
+import { THEME_KEY, THEMES, type ThemeId } from "@/lib/theme";
+import type { Project, Settings, StyleRule } from "@/lib/types";
+import { kindOf } from "@/lib/workflow";
+import { Icon } from "./Icons";
+import { fmtDur, keptSeconds, rawSeconds, VideoTile } from "./Tiles";
+
+type Go = "videos" | "script" | "style" | "settings";
+
+function greeting(name: string) {
+  const h = new Date().getHours();
+  const part = h < 5 ? "Working late" : h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
+  return `${part}, ${name.split(/\s+/)[0]}`;
+}
+
+export function Dashboard({ user, settings, theme, onNew, onOpen, onGo }: { user: User; settings: Settings; theme: ThemeId;
+  onNew: (files?: File[]) => void; onOpen: (p: Project) => void; onGo: (s: Go) => void }) {
+  const [ps, setPs] = useState<Project[] | null>(null);
+  const [rules, setRules] = useState<StyleRule[]>([]);
+  const [over, setOver] = useState(false);
+  const [lookPicked, setLookPicked] = useState(false);
+  const input = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    void listProjects().then(setPs);
+    setRules(loadRules());
+    try { setLookPicked(!!localStorage.getItem(THEME_KEY)); } catch { /* storage blocked */ }
+  }, [theme]);
+
+  const ready = (ps ?? []).filter((p) => p.status === "edited" && p.versions.length);
+  const versions = ready.reduce((n, p) => n + p.versions.length, 0);
+  const cut = ready.reduce((s, p) => s + Math.max(0, rawSeconds(p) - keptSeconds(p)), 0);
+  const key = settings.provider === "anthropic" ? settings.anthropicKey : settings.openaiKey;
+  const steps = [
+    { what: "Connect an AI editor", done: !!key, act: () => onGo("settings"), label: "Add key" },
+    { what: "Choose how Cutmind listens", done: settings.transcriber === "browser" || !!settings.openaiKey, act: () => onGo("settings"), label: "Choose" },
+    { what: "Pick a look for the app", done: lookPicked, act: () => onGo("settings"), label: "Pick" },
+    { what: "Make your first reel", done: ready.length > 0, act: () => onNew(), label: "Start" },
+  ];
+  const doneCount = steps.filter((s) => s.done).length;
+  const drop = (files: FileList | null) => {
+    const fs = [...(files ?? [])].filter((f) => kindOf(f));
+    if (fs.length) onNew(fs);
+  };
+  const today = new Intl.DateTimeFormat(undefined, { weekday: "long", day: "numeric", month: "long" }).format(new Date());
+  const themeName = THEMES.find((t) => t.id === theme)?.name;
+
+  return (
+    <div className="page">
+      <div className="page-head hello">
+        <div><p className="faint small" style={{ marginTop: 0 }}>{today}</p><h1>{greeting(user.name)}</h1></div>
+        <div className="row">
+          <button className="btn" onClick={() => onGo("script")}><Icon name="pen" />Write a script</button>
+          <button className="btn primary" onClick={() => onNew()}><Icon name="plus" />New video</button>
+        </div>
+      </div>
+
+      <div className="dash">
+        <div className="stack">
+          <section className="panel start" aria-label="Start a reel">
+            <div className={`drop-in ${over ? "over" : ""}`} role="button" tabIndex={0} aria-label="Drop takes here or choose files"
+              onClick={() => input.current?.click()} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); input.current?.click(); } }}
+              onDragOver={(e) => { e.preventDefault(); setOver(true); }} onDragLeave={() => setOver(false)}
+              onDrop={(e) => { e.preventDefault(); setOver(false); drop(e.dataTransfer.files); }}>
+              <div>
+                <Icon name="upload" />
+                <b>Drop your raw takes here</b>
+                <p className="small muted" style={{ marginTop: 6 }}>MP4, MOV or WebM. Fumbles and retakes are fine.</p>
+              </div>
+              <input ref={input} type="file" multiple hidden accept="video/*,audio/*,image/*" onChange={(e) => drop(e.target.files)} />
+            </div>
+            <div className="side-actions">
+              <h2>From take to post in one pass</h2>
+              <p>Cutmind keeps your last good take of every line, cuts the pauses, adds subtitles, a hook title, pictures, zooms and music,
+                then writes your caption. Change anything by typing a note.</p>
+              <p className="small faint">Your video stays in this browser.</p>
+            </div>
+          </section>
+
+          <section className="stats" aria-label="Your numbers">
+            <div className="stat"><b>{ps ? ready.length : "–"}</b><span>reels made</span></div>
+            <div className="stat"><b>{ps ? versions : "–"}</b><span>versions from notes</span></div>
+            <div className="stat"><b>{ps ? fmtDur(cut) : "–"}</b><span>of pauses and retakes cut</span></div>
+            <div className="stat"><b>{rules.length}</b><span>style rules learned</span></div>
+          </section>
+
+          <section className="panel">
+            <div className="panel-head">
+              <h2>Recent videos</h2>
+              {ps && ps.length > 0 && <a className="btn ghost sm" href="#videos" onClick={(e) => { e.preventDefault(); onGo("videos"); }}>
+                See all {ps.length}<Icon name="arrowRight" /></a>}
+            </div>
+            {!ps && <div className="tiles" aria-busy="true">{[0, 1, 2, 3].map((i) => <div key={i} className="skel tile-skel" />)}</div>}
+            {ps && !ps.length && <p className="muted">Your reels show up here. Drop a take above to make the first one.</p>}
+            {ps && ps.length > 0 && <div className="tiles">{ps.slice(0, 4).map((p) => <VideoTile key={p.id} p={p} onOpen={() => onOpen(p)} />)}</div>}
+          </section>
+        </div>
+
+        <div className="stack">
+          {doneCount < steps.length && (
+            <section className="panel" aria-labelledby="setup-h">
+              <div className="panel-head"><h2 id="setup-h">Get set up</h2><span className="small faint num">{doneCount} of {steps.length}</span></div>
+              <div className="meter" role="progressbar" aria-valuemin={0} aria-valuemax={steps.length} aria-valuenow={doneCount} aria-label="Setup">
+                <i style={{ transform: `scaleX(${doneCount / steps.length})` }} /></div>
+              <ul className="setup" style={{ marginTop: 10 }}>
+                {steps.map((s) => (
+                  <li key={s.what} className={s.done ? "done" : ""}>
+                    <span className="tick">{s.done ? <Icon name="check" /> : null}</span>
+                    <span className="what grow">{s.what}</span>
+                    {!s.done && <button className="btn sm" onClick={s.act}>{s.label}</button>}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          <section className="panel" aria-labelledby="ed-h">
+            <div className="panel-head"><h2 id="ed-h">Your editor</h2>
+              <a className="btn ghost sm" href="#settings" onClick={(e) => { e.preventDefault(); onGo("settings"); }}>Change</a></div>
+            <ul className="setup">
+              <li><span className="tick"><Icon name="key" /></span><span className="grow">
+                {key ? <>Edits with your <b>{settings.provider === "anthropic" ? "Anthropic" : "OpenAI"}</b> key</> : "No key: simple cuts with subtitles"}</span></li>
+              <li><span className="tick"><Icon name="ear" /></span><span className="grow">
+                {settings.transcriber === "openai" ? "Listens with OpenAI (fast)" : "Listens in your browser (free)"}</span></li>
+              <li><span className="tick"><Icon name="palette" /></span><span className="grow">{themeName} look</span></li>
+            </ul>
+          </section>
+
+          <section className="panel" aria-labelledby="style-h">
+            <div className="panel-head"><h2 id="style-h">My style</h2>
+              <a className="btn ghost sm" href="#style" onClick={(e) => { e.preventDefault(); onGo("style"); }}>All rules</a></div>
+            {rules.length ? (
+              <ul className="rules-mini">{rules.slice(-3).reverse().map((r) => <li key={r.id}>{r.text}</li>)}</ul>
+            ) : <p className="small muted">When a note is a lasting preference, like &ldquo;always use big subtitles&rdquo;, your editor offers to
+              remember it. Remembered rules shape every first edit.</p>}
+          </section>
+        </div>
+      </div>
+    </div>
+  );
+}

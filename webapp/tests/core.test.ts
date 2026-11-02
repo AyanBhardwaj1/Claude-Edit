@@ -73,3 +73,21 @@ test("an AI edit is validated before it reaches the project", () => {
   assert.ok(problems.some((x) => x.includes("nope")) && problems.some((x) => x.includes("cut")));
   assert.equal(postText(p, edit), "Three tools, one week\n\n#a #b #c #d #e");
 });
+
+test("live cut (landing page): retakes, meta-talk and stutters go, the last complete take stays", async () => {
+  const { liveCut, SAMPLE_TAKE } = await import("../lib/livecut");
+  const r = liveCut(SAMPLE_TAKE);
+  const marks = r.lines.map((l) => l.mark);
+  assert.deepEqual(marks, ["false start", "retake", "meta-talk", "retake", "kept", "stutter", "kept"]);
+  assert.ok(r.lines[4].captions.includes("IT TAKES 3"), "numbers become digits in captions");
+  assert.ok(r.keptWords < r.totalWords && r.keptSeconds < r.rawSeconds);
+  assert.deepEqual(liveCut("   ").lines, []);
+});
+
+test("password rules for local accounts", async () => {
+  const { passwordProblem, validEmail } = await import("../lib/auth");
+  assert.ok(passwordProblem("short1"));
+  assert.ok(passwordProblem("onlyletters"));
+  assert.equal(passwordProblem("reels4ever!"), null);
+  assert.ok(validEmail("a@b.co") && !validEmail("a@b") && !validEmail("nope"));
+});

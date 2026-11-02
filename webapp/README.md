@@ -6,6 +6,15 @@ vertical reel with a cover and a post caption, then change it by typing notes. E
 
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FAyanBhardwaj1%2FClaude-Edit&root-directory=webapp&project-name=cutmind)
 
+## Pages
+- `/`: the landing page, with a live demo of the cut (Cutmind's real first-pass rules run on a take you type).
+- `/login`: email and password sign-in and sign-up (no Google). Accounts are local to the browser, like the videos: a salted
+  PBKDF2 hash of the password is kept, never the password, and each account sees only its own videos, keys and style.
+- `/app`: the home dashboard (drop zone, numbers, setup checklist, recent videos, your editor, your style), My videos,
+  New video, the editor, Write a script, My style and Settings.
+- Five looks for the app, picked in the sidebar or Settings: **Studio** (dark), **Radiant** (bright), **Terminal**,
+  **Ivory** and **Natural**. Each is a set of CSS tokens on `html[data-theme]` (`app/globals.css`, `lib/theme.ts`).
+
 ## What it does
 1. **Takes in**: one or more raw takes (retakes and fumbles welcome), plus optional songs, pictures and clips.
 2. **Listens**: a word-timed transcript through OpenAI (OpenAI key), or a speech model running in the browser (no key).
@@ -54,6 +63,8 @@ timeouts, a ~4.5 MB request limit), so all media work runs client-side:
 | `lib/compositor.ts` | draws each frame: reframe, zooms, the picture treatments, labels, captions |
 | `lib/player.ts` | live playback with two video elements per take swapped at cuts, Web Audio mix, MediaRecorder export |
 | `app/api/search`, `app/api/image` | licensed picture search and a fixed-host image fetch |
+| `lib/auth.ts`, `lib/theme.ts` | local email + password accounts; the five looks |
+| `lib/livecut.ts` | the landing page's live demo of the first-pass cut |
 
 Everything is anchored to transcript word ids, so a re-cut never breaks a picture, a zoom or a music lift.
 
@@ -66,9 +77,9 @@ Everything is anchored to transcript word ids, so a re-cut never breaks a pictur
 
 ## Tests
 ```bash
-npm test                                         # unit tests: timeline, analysis, caption text, AI-answer validation
+npm test                                         # unit tests: timeline, analysis, caption text, AI-answer validation, live cut, passwords
 npm run build && npx next start -p 3200 &
-python3 tests/e2e.py <take.mp4> <transcript.json> <out_dir>   # the whole workflow in Chromium, both APIs mocked
+python3 tests/e2e.py <take.mp4> <transcript.json> <out_dir>   # sign up, then the whole workflow in Chromium, both APIs mocked
 ```
 
 The editing doctrine is adapted from Reel Studio's editor prompts (MIT, see `../THIRD_PARTY.md`).

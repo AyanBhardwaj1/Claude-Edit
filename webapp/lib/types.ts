@@ -74,6 +74,7 @@ export type Project = {
   sources: Source[]; words: Word[]; analysis?: Analysis;
   library: Asset[]; versions: Version[]; current: number;
   faces?: FaceSample[];
+  owner?: string;                 // the local account that made it (lib/auth.ts)
   status: "new" | "transcribed" | "edited";
 };
 
