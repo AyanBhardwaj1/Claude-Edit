@@ -8,6 +8,17 @@ description: Write a short-form video script (Instagram Reel, TikTok, YouTube Sh
 Ask (or infer from context) the topic, audience, the ONE takeaway, and target
 length (default 30-45 s; about 2.5 spoken words per second, so 75-110 words).
 
+Hook rules (from Reel Studio's script writer, MIT): no throat clearing ("hey guys", "so", "today I want to"), start
+mid-thought; open a curiosity gap; one idea a 10-year-old gets, in 10 words or fewer; be specific (a number, a date,
+a name: "45 days ago" beats "a while back"); struggle beats success (a confession relates, a brag alienates); lead
+with the words people search. Shapes: exact method ("Here's exactly how I..."), the only one, numbered ("3 things I
+wish I knew before..."), time collapse, contrarian ("Everyone tells you X. It's wrong."), transformation, confession,
+curiosity question, identity call-out, story cold open, comparison. More in `library/hooks.md`.
+Body: the hook's promise is paid off in full; one point; texting cadence; never invent facts about the user: leave a
+bracketed blank like [how much you spent]; say keywords out loud; end on one takeaway or a calm moment, not a summary;
+the call to action is optional, one specific ask at most. On-screen text: 2-5 words each, the first one ADDS context
+to the spoken hook (never repeats it), numbers as digits.
+
 ## Output format (write to `projects/<name>/script.md`)
 1. **5 hook options**, each <= 12 words, of different kinds: bold claim, result-first,
    question, mistake/"stop doing X", curiosity gap. Mark your pick.

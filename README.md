@@ -15,6 +15,7 @@ app** and in Claude Code on the web or CLI.
 | **manim-video** (vendored) | 3Blue1Brown-style technical and maths animations |
 | **launch-video** (vendored, Keeran) | SaaS / app launch videos in code: every word lands on the voice, keyword pills, counters, glowing logo reveal, product UI with camera moves and cursor, 3D-phone app ads; your voice (line-by-line takes), Fish Audio or ElevenLabs; brand from a link via context.dev |
 | **style-memory** | learns how you like videos edited (your feedback, and what you change before approving a draft) and applies it to every first draft |
+| **Reel Studio parity** | everything [Reel Studio](https://getreelstudio.com) does, free: word-anchored edits, face-aware picture placement and its 9 treatments, 6 animated cards, licensed logos and photos with credits, caption corrections and digits, measured music levels and lifts, cover candidates, draft checks, versions per note, post kit, export and send-to-phone by QR. Its editing doctrine (MIT) drives first drafts |
 | supporting skills | hooks (265 templates), rough-cut, captions, music-library, broll-library, broll-motion, audio-polish, export-qa, reel-script |
 
 ## The pipeline
@@ -53,7 +54,8 @@ Also: "make a launch video for <product>" (launch-video), "make me a motion grap
 
 Without Claude: `python3 -m editor auto projects/myreel` runs everything; `python3 -m editor --help` lists
 every stage (`transcribe`, `retext`, `plan`, `cut`, `audio`, `track`, `captions`, `graphic`, `render`,
-`check`, `review`, `inspect`, `cover`, `fetch`, `triage`, `music`, `broll`, `capture`, `models`, `style`, `fonts`, `gen`, ...).
+`check`, `review`, `inspect`, `cover`, `fetch`, `triage`, `music`, `broll`, `capture`, `models`, `style`, `fonts`, `gen`,
+`words`, `images`, `attach`, `pacing`, `version`, `post`, `export`, `share`, ...).
 
 ## It learns your style
 Every video teaches the next first draft. What you say ("captions smaller", "always 16:9", "no voiceover") is

@@ -5,7 +5,8 @@ numpy>=1.24
 pillow>=10
 scipy>=1.10             # launch-video audio mixing
 yt-dlp>=2025.1.1
-requests>=2.31          # ElevenLabs Scribe engine
+requests>=2.31          # ElevenLabs Scribe engine, AI generation, image search
+segno>=1.6              # send-to-phone QR code
 # offline speech recognition (setup.sh installs it: its `srt` dependency is pure Python)
 vosk>=0.3.45
 # b-roll capture (then: python3 -m playwright install chromium)

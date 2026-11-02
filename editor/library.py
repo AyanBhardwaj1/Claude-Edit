@@ -62,8 +62,48 @@ def analyze_audio(path: str | Path) -> dict:
     loud = run(["ffmpeg", "-i", str(path), "-af", "ebur128", "-f", "null", "-"], quiet=False).stderr
     lufs = re.findall(r"I:\s+(-?[\d.]+) LUFS", loud)
     lra = re.findall(r"LRA:\s+([\d.]+) LU", loud)
-    return {"duration": round(info["duration"], 1), "bpm": bpm,
-            "lufs": float(lufs[-1]) if lufs else None, "lra": float(lra[-1]) if lra else None}
+    out = {"duration": round(info["duration"], 1), "bpm": bpm,
+           "lufs": float(lufs[-1]) if lufs else None, "lra": float(lra[-1]) if lra else None}
+    if samples.size > 11025 * 5:
+        out.update(feel(samples, 11025, bpm))
+    return out
+
+
+FEELS = [(0.35, "gentle"), (0.5, "steady"), (0.65, "upbeat"), (0.8, "driving"), (9, "hype")]
+
+
+def feel(x: np.ndarray, sr: int, bpm: int | None) -> dict:
+    """What a track sounds like, measured (not from its name): energy 0-1, a feel word, bright or dark,
+    and where to enter it (a bar before the first big hit, so the music never starts on a loud frame
+    nor wastes a long quiet intro)."""
+    x = x / (np.percentile(np.abs(x), 99.5) + 1e-9)
+    hop = int(sr * 0.1)
+    n = len(x) // hop
+    rms = np.sqrt(np.mean(x[:n * hop].reshape(n, hop) ** 2, axis=1) + 1e-12)
+    pulse = float(np.mean(np.maximum(np.diff(rms), 0)) / (np.mean(rms) + 1e-9))
+    full = float(np.mean(rms > 0.5 * np.percentile(rms, 90)))
+    tempo = min(1.0, max(0.0, ((bpm or 100) - 70) / 80))
+    energy = round(min(1.0, 0.45 * min(1.0, pulse / 0.35) + 0.35 * full + 0.2 * tempo), 2)
+    spec = np.abs(np.fft.rfft(x[: sr * 30] * np.hanning(min(len(x), sr * 30))))
+    freqs = np.fft.rfftfreq(min(len(x), sr * 30), 1 / sr)
+    centroid = float((spec * freqs).sum() / (spec.sum() + 1e-9))
+    smooth = np.convolve(rms, np.ones(10) / 10, mode="same")
+    hits = np.where(smooth >= 0.8 * np.percentile(smooth, 90))[0]
+    bar = 4 * 60 / (bpm or 100)
+    hit = hits[0] * 0.1 if len(hits) else 0.0
+    entry = round(max(0.0, hit - bar), 2) if hit > 1.5 * bar else 0.0
+    return {"energy": energy, "feel": next(w for t, w in FEELS if energy < t),
+            "tone": "bright" if centroid > 1800 else "dark", "entry": entry}
+
+
+def entry_point(path: str | Path) -> float:
+    """Seconds into a track to start it (see feel)."""
+    proc = subprocess.run(["ffmpeg", "-hide_banner", "-nostdin", "-t", "90", "-i", str(path), "-ac", "1", "-ar", "11025",
+                           "-f", "f32le", "-"], capture_output=True)
+    x = np.frombuffer(proc.stdout, np.float32)
+    if x.size < 11025 * 5:
+        return 0.0
+    return feel(x, 11025, _estimate_bpm(x, 11025))["entry"]
 
 
 def _estimate_bpm(x: np.ndarray, sr: int) -> int | None:
@@ -159,6 +199,8 @@ def _write_music_md(db: dict) -> None:
         for t in tracks:
             star = "★ " if t["starred"] else ""
             bits = [f"{t.get('bpm') or '?'} bpm", f"{t.get('duration', 0):.0f}s"]
+            if t.get("feel"):           # measured by listening, not from the name
+                bits = [f"sounds {t['feel']}, {t.get('tone', '')} (energy {t.get('energy')})"] + bits
             tags = ", ".join(t["tags"])
             lines.append(f"- {star}**{t['title']}** `{t['id']}` ({', '.join(bits)})" + (f" — {tags}" if tags else "")
                          + (f". {t['notes']}" if t.get("notes") else ""))
@@ -168,6 +210,11 @@ def _write_music_md(db: dict) -> None:
 
 def music_list(mood: str | None = None) -> str:
     db = _music_db()
+    stale = [t for t in db["tracks"] if "feel" not in t and music_path(t["id"]).exists()]
+    for t in stale:                       # tracks added before songs were measured by listening
+        t.update({k: v for k, v in analyze_audio(music_path(t["id"])).items() if k in ("feel", "energy", "tone", "entry")})
+    if stale:
+        _save_music(db)
     _write_music_md(db)
     text = (ROOT / "music" / "LIBRARY.md").read_text()
     if mood:

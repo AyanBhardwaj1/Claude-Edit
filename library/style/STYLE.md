@@ -41,3 +41,6 @@ Update it with `editor style note` (what the user says) and `editor style learn`
 - [kind:launch] Show the real product UI and only true, sourced claims (cite the source on screen for any price or statistic); paint out dev artifacts like debug badges and personal emails  `653924f7` (2026-10-27)
 - [brand:youbank] Audience: small hedge funds; position YouBank as a cheaper alternative to a Bloomberg terminal, with a non-affiliation line  `76c6e66b` (2026-10-27)
 - [global] Never ask the user to paste API keys into chat; keys go in .env  `4ee0214e` (2026-10-27)
+- [brand:youbank] Use the live site youbank-nu.vercel.app: real UI recorded from it, its address in the browser bar and on the end card  `bf7d5d7c` (2026-10-30)
+- [brand:youbank] YouBank videos: show the app in its Lavender UI style (light, violet accent #7c3aed) with a matching lavender-light video look and violet logo; not the amber-on-black Terminal style  `b42fab30` (2026-10-30)
+- [brand:youbank] Investor (VC fundraising) videos: dark cinematic, near-black with violet glow, Lavender product UI inside, sourced market figures; no invented traction  `b4822aff` (2026-10-31)

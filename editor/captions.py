@@ -42,6 +42,11 @@ STYLES = {
     "white": dict(fonts=["Montserrat ExtraBold", "Inter ExtraBold", "Inter Black", "Arial Black"], size=0.07,
                   upper=False, max_words=3, max_chars=18, primary="#FFFFFF", active=None, emph="#FFFFFF",
                   outline=0.0035, shadow=0.004, pop=1.0, width_k=0.60),
+    # Reel Studio's proven default: Montserrat SemiBold 105 px at 1080 wide, 3 words, upper case, white with a
+    # solid black outline, no word highlight, just under the chin
+    "studio": dict(fonts=["Montserrat SemiBold", "Montserrat Bold", "Inter SemiBold", "Arial"], size=0.097,
+                   upper=True, max_words=3, max_chars=16, primary="#FFFFFF", active=None, emph="#FFFFFF",
+                   outline=0.0074, shadow=0.0, pop=1.0, width_k=0.62),
     "minimal": dict(fonts=["Inter Medium", "Montserrat Medium", "Helvetica Neue", "Arial"], size=0.048,
                     upper=False, lower=True, max_words=4, max_chars=26, primary="#FFFFFF", active=None,
                     emph="#FFFFFF", outline=0.0, shadow=0.003, pop=1.0, width_k=0.52),
@@ -106,7 +111,8 @@ def build(words_path: str | Path, out: str | Path, width: int = 1080, height: in
           emphasis: list[str] | None = None, srt: bool = True, chapters: list[dict] | None = None,
           duration: float | None = None, look: dict | None = None) -> Path:
     st, look = _with_look(STYLES[style], look or {})
-    words = [dict(w) for w in load_json(words_path)["words"]]
+    from .wordfix import fix
+    words = fix([dict(w) for w in load_json(words_path)["words"]], look)
     extra = {e.lower() for e in (emphasis or [])}
     for w in words:
         bare = "".join(ch for ch in w["text"].lower() if ch.isalnum() or ch == "'")

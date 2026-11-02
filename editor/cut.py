@@ -31,6 +31,8 @@ def cut(edl_path: str | Path, out_dir: str | Path, transcript: str | Path | None
     if not segments:
         raise EditorError("EDL has no segments")
     sources = [probe(s["path"]) for s in edl["sources"]]
+    for s, info in zip(edl["sources"], sources):   # front-camera selfies: "mirror": true flips the picture back
+        info["mirror"] = bool(s.get("mirror", edl.get("mirror", False)))
     for s in sources:
         if not s["has_video"]:
             raise EditorError(f"{s['path']} has no video stream")
@@ -51,7 +53,7 @@ def cut(edl_path: str | Path, out_dir: str | Path, transcript: str | Path | None
         out_dur = frames / float(fps)
         src = sources[seg["src"]]
         key = json.dumps([src["path"], os.path.getmtime(src["path"]), seg["start"], seg["end"], speed,
-                          str(fps), width, height], sort_keys=True)
+                          str(fps), width, height, src["mirror"]], sort_keys=True)
         seg_file = seg_dir / f"seg_{hashlib.sha1(key.encode()).hexdigest()[:16]}.mkv"
         jobs.append((src, seg, speed, frames, out_dur, seg_file))
         timeline.append({"index": k, "src": seg["src"], "src_start": seg["start"], "src_end": seg["end"],
@@ -85,6 +87,8 @@ def cut(edl_path: str | Path, out_dir: str | Path, transcript: str | Path | None
 def _encode_segment(src, seg, speed, frames, out_dur, seg_file, *, fps, width, height):
     v = src["video"]
     vf = [TONEMAP] if v.get("hdr") else []
+    if src.get("mirror"):
+        vf.append("hflip")
     vf += [f"scale={width}:{height}:force_original_aspect_ratio=decrease:flags=lanczos",
            f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2", "setsar=1",
            f"setpts=(PTS-STARTPTS)/{speed}", f"fps={fps.numerator}/{fps.denominator}",
@@ -128,7 +132,7 @@ def _remap_words(tr: dict, timeline: list[dict], edl: dict, out: Path) -> None:
     emphasis = {w.lower() for w in edl.get("emphasis", [])}
     words = []
     for seg in timeline:
-        for w in tr["words"]:
+        for i, w in enumerate(tr["words"]):
             if w["src"] != seg["src"]:
                 continue
             mid = (w["start"] + w["end"]) / 2
@@ -137,7 +141,8 @@ def _remap_words(tr: dict, timeline: list[dict], edl: dict, out: Path) -> None:
             s = seg["start"] + (max(w["start"], seg["src_start"]) - seg["src_start"]) / seg["speed"]
             e = seg["start"] + (min(w["end"], seg["src_end"]) - seg["src_start"]) / seg["speed"]
             bare = "".join(ch for ch in w["text"].lower() if ch.isalnum() or ch == "'")
-            words.append({"start": round(s, 3), "end": round(min(e, seg["end"]), 3), "text": w["text"],
-                          "segment": seg["index"], "emph": bare in emphasis})
+            words.append({"id": f"w{i}", "start": round(s, 3), "end": round(min(e, seg["end"]), 3),
+                          "text": w["text"], "segment": seg["index"], "emph": bare in emphasis,
+                          "prob": w.get("prob", 1.0)})
     save_json(out, {"words": words})
     log(f"wrote {out} ({len(words)} words)")

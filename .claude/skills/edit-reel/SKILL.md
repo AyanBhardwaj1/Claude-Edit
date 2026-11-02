@@ -11,6 +11,9 @@ Never modify files in `raw/`. Shared assets in `library/` (hooks, music, B-roll,
 SFX) get better with every reel.
 
 Process (from video-use): **inventory → propose a plan → confirm → execute → self-review → iterate → remember.**
+**Read [doctrine.md](doctrine.md) before the first draft**: the cut ("one red thread"), the hook title, the
+b-roll cadence (12-20 moments plus 4-8 zooms in 60-90 s), music, zooms, cover, post kit, how to look at a draft,
+and how to apply notes. It is what makes a first draft read as hand-edited.
 Rules that are correctness, not taste: never cut inside a word; 30 ms fades at every cut (built in);
 subtitles last, over every overlay (built in); never cover a face; cached transcripts are never redone.
 
@@ -51,7 +54,8 @@ yes**, unless they told you to just do it.
 python3 -m editor auto projects/<name> --from plan --to plan [--speed 1.1]
 ```
 Read `work/rough_cut_viz.png` and `work/edl.json`: audit `removed`, move the hook first, cut tangents,
-set `"title"`, `"emphasis"` and `"chapters"`. Use `python3 -m editor inspect <raw clip> <start> <end> -o x.png
+set `"title"`, `"emphasis"` and `"chapters"`. Tight talk: `--max-gap 0.15`. A front-camera take whose
+room text reads backwards: `"mirror": true` on that source. Use `python3 -m editor inspect <raw clip> <start> <end> -o x.png
 --transcript projects/<name>/work/transcript.json` at ambiguous cut points. Many takes of the same beat:
 brief a sub-agent with video-use's editor brief (`.claude/skills/video-use/SKILL.md`, "Editor sub-agent brief").
 ```bash
@@ -59,16 +63,25 @@ python3 -m editor auto projects/<name> --from cut --to track
 ```
 
 ## 4. Subtitles, music  (captions, music-library skills)
-Default `--style white` (creator look) or `bold` (Hormozi pop). Pick a library track by mood and put it in
-`"music"`. No good fit → no music.
+Default `--style studio` (Reel Studio's proven look), `white` (creator look) or `bold` (Hormozi pop). Proofread:
+`python3 -m editor words projects/<name>/work --unsure 0.6`, then EDL `"captions": {"corrections": [...]}`.
+Pick a song by its measured feel (`editor music list`) into `"music": {"track": id, "level": "under-voice"}`;
+lifts and dips with word-anchored `"automation"`. No good fit → no music.
 
 ## 5. B-roll, graphics, sound  (broll-library, broll-motion skills)
 ```bash
-python3 -m editor timeline projects/<name>/work          # output-timeline times for everything below
+python3 -m editor words projects/<name>/work             # the kept words with ids: anchor everything on words
+python3 -m editor words projects/<name>/work --find "twenty bucks"
 ```
+Anchor every b-roll, zoom, chapter, transition and music lift on its words (`"on": "twenty bucks"` or
+`"words": "w44-w49"`), not seconds, so re-cuts never break it. Name a Reel Studio **treatment** and the placement
+is face-aware: `card-above-head`, `side-card`, `phone-card`, `full-frame`, `split-top`, `text-pop` (hook title and
+step labels: `"style": "label"`), `post-wall`, `icon-wall` (broll-motion skill).
+- Pictures of named things: `editor images search "<brand>" --logo` / `"<place> photo"`, then `editor images
+  fetch <n> --project projects/<name>` (licensed, credited). A file the user hands you: `editor attach`.
 - B-roll: library clips by id, `broll/` files, or captures (`capture web`, `capture sim|android`).
 - App screens with no simulator: any screen recording or screenshot as `"mode": "card", "frame": "phone"`.
-- Motion graphics, fastest: `python3 -m editor graphic counter|lower-third|checklist|title|cta ...` →
+- Motion graphics, fastest: `python3 -m editor graphic counter|lower-third|checklist|title|cta|quote|logo-pop|price-tag|typing ...` →
   `"mode": "overlay"`. Richer: the **claude-video-studio** skill (21 HyperFrames looks) or **manim-video**
   (diagrams). Spawn one sub-agent per animation, in parallel.
 - Sound: `"sfx": "auto"` (default) puts a whoosh/pop/click on visible events only, capped. Set `"none"` for calm pieces.
@@ -85,7 +98,9 @@ python3 -m editor timeline projects/<name>/work          # output-timeline times
 
 ## 6. Render, then self-review (cap: 3 passes)
 ```bash
-python3 -m editor auto projects/<name> --from captions --to check --style white
+python3 -m editor auto projects/<name> --from captions --to render --draft     # fast half-size look (up to 2)
+python3 -m editor pacing projects/<name>/work        # bare face > 4.5 s, zooms only, flashes, names not shown
+python3 -m editor auto projects/<name> --from captions --to check
 ```
 `check` (spec + loudness) and `review` (every cut: clicks, flash frames, mid-word cuts, **faces covered by
 cards/overlays/pills**) run automatically, then a cover is made. Read `out/contact_sheet.png`, every
@@ -96,7 +111,16 @@ For anything that will be published, spawn one **critic sub-agent** with the ren
 sheets: "roast it, don't praise it: a verdict, ranked problems with timecodes, the 5 fixes to do first."
 
 ## 7. Deliver and remember
-Report the path, runtime, hook, cuts, music, B-roll, graphics, check and review results, and the cover.
+```bash
+python3 -m editor cover projects/<name>/out/<name>_reels.mp4 -o projects/<name>/out/cover.jpg --work projects/<name>/work --candidates <t1> <t2> <t3>
+python3 -m editor post projects/<name> --caption "..." --hashtags a b c d e --keywords "..."
+python3 -m editor version projects/<name> --note "first draft"
+python3 -m editor export projects/<name>          # out/export/<Title> - Version N.mp4 + cover + caption.txt
+python3 -m editor share "projects/<name>/out/export/<Title> - Version 1.mp4" --caption projects/<name>/out/post.txt   # QR to the phone (desktop, background)
+```
+Report the path, runtime, hook, cuts, music, B-roll, graphics, check and review results, and the cover, in
+plain warm words (doctrine.md). Then **notes**: each note the user types is applied with the smallest change,
+re-rendered, saved with `editor version --note`, and checked for "remember this for next time?" (doctrine.md).
 Record every preference the user voiced while editing (`editor style note`), and when they approve,
 `python3 -m editor style learn projects/<name>/work/edl.json` (style-memory skill).
 Offer other formats (`--preset youtube|feed|square|tiktok|shorts`) and the `.srt`. Append to

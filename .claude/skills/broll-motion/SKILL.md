@@ -5,7 +5,36 @@ description: Add visual beats to an edit — emphasis punch-in zooms, jump-cut z
 
 # Zooms, B-roll and motion graphics
 
-All times here are **output-timeline** seconds. Get them with:
+## Put things on words, not seconds
+Every entry below (b-roll, zooms, chapters, transitions, sfx, music automation) can name its words instead of a time,
+so re-cutting never breaks it: `"on": "twenty bucks"` (a phrase in the kept words; `"twenty bucks#2"` for the
+second time it's said) or `"words": "w44-w49"`. Optional `"lead"` (default 0.1 s before the first word), `"hold"`
+(after the last), `"min"` (shortest it may be; pictures 1.2 s). Ids and phrases: `python3 -m editor words <work>`
+(`--find "phrase"`). Plain `"start"` / `"dur"` output seconds (`editor timeline`) still work.
+
+## Treatments: face-aware placement (Reel Studio's looks)
+```jsonc
+"broll": [
+  {"treatment": "text-pop", "style": "label", "text": "Why every gym feels the same", "words": "w0-w9"}, // hook title
+  {"treatment": "card-above-head", "path": "broll/web/golden-gate.jpg", "on": "the Golden Gate"},        // picture of the thing
+  {"treatment": "side-card", "path": "broll/chart.png", "on": "my revenue", "side": "auto"},
+  {"treatment": "phone-card", "path": "broll/app.mp4", "on": "I opened the app"},                          // app / site / post
+  {"treatment": "split-top", "path": "broll/page.png", "on": "this whole page"},                            // needs size to read
+  {"treatment": "full-frame", "path": "broll/attached/meme.mp4", "on": "the ick"},                         // IS the moment
+  {"treatment": "text-pop", "style": "pop", "text": "$20", "on": "twenty bucks"},                         // a number, no picture
+  {"treatment": "text-pop", "style": "label", "text": "2: Editing", "on": "number two", "tilt": -2},       // step label
+  {"treatment": "post-wall", "items": ["broll/p1.jpg", "broll/p2.jpg", "broll/p3.jpg"], "on": "all my videos"},
+  {"treatment": "icon-wall", "items": ["broll/web/notion.png", "broll/web/slack.png"], "on": "Notion and Slack"}
+]
+```
+- The face box comes from `work/track.json` (run the track stage). The **eyes-to-chin** zone is protected; hair,
+  forehead and the sides of the head may be covered. A card goes as low as the brows allow and is sized to read
+  (text card >= 55% of the width, photo >= 30%, logo >= 22%); if it can't, it moves beside the face (text >= 40%),
+  then to a split view, and the render log says so: tell the user plainly, don't retry.
+- Stills get a short tilt (-2.5, side cards lean toward the face); clips stay level. `"tilt": 0` for square.
+- Walls build one tile per spoken word of the anchor. A logo wall that can't read above the face becomes full screen.
+
+All plain times below are **output-timeline** seconds:
 ```bash
 python3 -m editor timeline projects/<n>/work
 ```
@@ -87,6 +116,10 @@ peak of each (`editor frames out.mp4 --at <t>`). Record a favourite: `editor sty
    python3 -m editor graphic checklist   -o projects/<n>/broll/steps.mov --title "The workflow" --items Hook "Rough cut" Music --at 0.3 2.0 3.6
    python3 -m editor graphic title       -o projects/<n>/broll/hook.mov --text "Claude Code edits my reels" --highlight claude code
    python3 -m editor graphic cta         -o projects/<n>/broll/cta.mov --text "Comment GUIDE" --sub "(nothing will happen)"
+   python3 -m editor graphic quote       -o projects/<n>/broll/q.mov --text "It still underperformed a junior analyst" --highlight junior --author "Wall Street Prep" --at 0.1 0.3 ...
+   python3 -m editor graphic logo-pop    -o projects/<n>/broll/logo.mov --image broll/web/spotify-logo.png --label Spotify
+   python3 -m editor graphic price-tag   -o projects/<n>/broll/price.mov --value '$20' --old '$99' --label "a month"
+   python3 -m editor graphic typing      -o projects/<n>/broll/prompt.mov --text "make me a reel" --response "Done" [--chat]
    ```
    Add as `{"path": "broll/dau.mov", "start": S, "dur": D, "mode": "overlay"}`. Time the reveal so it
    *lands* on the spoken payoff word (start = word time - reveal time).

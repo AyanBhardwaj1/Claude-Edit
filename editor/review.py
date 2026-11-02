@@ -63,6 +63,8 @@ def _covered_faces(video: Path, work: Path, meta: dict) -> list[dict]:
         return []
     from .render import still
     edl = load_json(meta["edl"]) if Path(meta["edl"]).exists() else {}
+    from .anchors import resolve_work
+    edl = resolve_work(edl, work)
     det = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_alt2.xml")
     v = probe(video)["video"]
     preset = next((k for k, pr in __import__("editor.render", fromlist=["PRESETS"]).PRESETS.items()
@@ -105,6 +107,8 @@ def review(video: str | Path, work_dir: str | Path, out_dir: str | Path | None =
     issues, rows = [], []
     from .transitions import expand
     edl = load_json(meta["edl"]) if Path(meta["edl"]).exists() else {}
+    from .anchors import resolve_work
+    edl = resolve_work(edl, work)
     designed = [(tr["at"] - tr["dur"] / 2 - 0.05, tr["at"] + tr["dur"] / 2 + 0.05)
                 for tr in expand(edl, meta["duration"], meta["timeline"])]
     for b in edl.get("broll", []):     # b-roll that whips or slides in/out jumps on purpose
@@ -163,10 +167,60 @@ def review(video: str | Path, work_dir: str | Path, out_dir: str | Path | None =
         path = out_dir / f"review_{s0 // per_sheet + 1}.png"
         sheet.save(path)
         sheets.append(str(path))
+    pace = pacing(edl, words, meta["duration"])
     report = {"video": str(video), "cuts": len(cuts), "issues": issues, "sheets": sheets,
-              "passed": not issues}
+              "passed": not issues, "pacing": pace}
     save_json(out_dir / "review.json", report)
     log(f"review: {len(cuts)} cuts, {len(issues)} issue(s); read {', '.join(Path(s).name for s in sheets) or 'no sheets'}")
     for i in issues:
         log(f"  {fmt_ts(i['t'])}  {i['kind']}: {i['detail']}")
+    for k, v in pace.items():
+        if v:
+            log(f"  pacing {k}: {v}")
     return report
+
+
+STOPWORDS = {"i", "i'm", "i've", "i'll", "i'd", "the", "a", "and", "so", "but", "if", "it", "this", "that", "my", "you",
+             "we", "when", "what", "okay", "ok", "yeah", "hey", "monday", "tuesday", "wednesday", "thursday",
+             "friday", "saturday", "sunday", "january", "february", "march", "april", "may", "june", "july",
+             "august", "september", "october", "november", "december"}
+
+
+def pacing(edl: dict, words: list[dict], duration: float) -> dict:
+    """What a hand edit would fix (from Reel Studio's draft checks): bare face over 4.5 s, over 10 s with zooms
+    only, too many zooms, visuals that flash by, big word cards over budget, names said but never shown,
+    and too few b-roll moments for the length (hand edits carry about one per 6 s)."""
+    broll = [b for b in edl.get("broll", []) if "start" in b and "dur" in b]
+    zooms = [z for z in edl.get("zooms", []) if "start" in z and "end" in z]
+    hook = lambda b: b.get("treatment") == "text-pop" and b.get("style") == "label" and float(b["start"]) < 1.0  # noqa: E731
+    vis = sorted([(float(b["start"]), float(b["start"]) + float(b["dur"])) for b in broll if not hook(b)] +
+                 [(float(z["start"]), float(z["end"])) for z in zooms])
+    gaps, t = [], 0.0
+    for a, b in vis + [(duration, duration)]:
+        if a - t > 4.5:
+            gaps.append(f"{t:.1f}-{a:.1f}s")
+        t = max(t, b)
+    pics = sorted((float(b["start"]), float(b["start"]) + float(b["dur"])) for b in broll)
+    zoom_only, t = [], 0.0
+    for a, b in pics + [(duration, duration)]:
+        if a - t > 10:
+            zoom_only.append(f"{t:.1f}-{a:.1f}s")
+        t = max(t, b)
+    too_short = [f"{Path(str(b.get('path', b.get('text', '?')))).name} at {float(b['start']):.1f}s"
+                 for b in broll if float(b["dur"]) < 1.2 and b.get("treatment") not in ("post-wall", "icon-wall")]
+    pops = [b for b in broll if b.get("treatment") == "text-pop" and b.get("style", "pop") == "pop"]
+    shown = [(float(b["start"]) - 0.3, float(b["start"]) + float(b["dur"]) + 0.3) for b in broll]
+    names = []
+    for k, w in enumerate(words):
+        core = w["text"].strip(".,!?;:\"'()")
+        prev = words[k - 1]["text"] if k else "."
+        if core[:1].isupper() and core.lower() not in STOPWORDS and not prev.rstrip().endswith((".", "!", "?")) \
+                and not any(a <= w["start"] <= b for a, b in shown) and core not in names:
+            names.append(core)
+    per_min = len(zooms) / max(duration / 60, 1e-6)
+    want = 0.75 * duration / 6
+    return {"face_only_over_4_5s": gaps, "zooms_only_over_10s": zoom_only,
+            "zooms_per_minute_over_10": round(per_min, 1) if per_min > 10 else None,
+            "big_word_cards_over_2": len(pops) if len(pops) > 2 else None,
+            "visuals_under_1_2s": too_short, "named_not_shown": names[:20],
+            "broll_moments": None if len(broll) >= want else f"{len(broll)} (hand edits carry about {round(duration / 6)})"}
