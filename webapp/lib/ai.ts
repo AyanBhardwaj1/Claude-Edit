@@ -1,0 +1,131 @@
+// The AI editor. Calls go straight from the browser to Anthropic or OpenAI with the user's own key:
+// this app's server never sees the key, the transcript or the video.
+
+import type { AiEdit } from "./edit";
+import { APPLY_NOTE, EDIT_SCHEMA, FIRST_EDIT, SCRIPT_SCHEMA, SYSTEM, WRITE_SCRIPT } from "./prompts";
+import type { Edit, Project, Settings, StyleRule } from "./types";
+
+export class AiError extends Error {
+  constructor(message: string, public userMessage: string) { super(message); }
+}
+
+type Json = Record<string, unknown>;
+
+const PREFERRED = {
+  anthropic: [/^claude-sonnet-5/, /^claude-opus-5/, /^claude-sonnet-4/, /^claude-opus-4/, /sonnet/, /claude/],
+  openai: [/^gpt-6(?!.*(mini|nano|audio|realtime|image|search|transcribe|tts))/, /^gpt-5(?!.*(nano|audio|realtime|image|search|transcribe|tts))/,
+    /^gpt-4\.1/, /^gpt-4o(?!.*(audio|realtime|search|transcribe|tts))/, /^gpt-/],
+};
+
+export async function listModels(provider: Settings["provider"], key: string): Promise<{ models: string[]; suggested: string | null }> {
+  const r = provider === "anthropic"
+    ? await fetch("https://api.anthropic.com/v1/models?limit=100", { headers: anthropicHeaders(key) })
+    : await fetch("https://api.openai.com/v1/models", { headers: { Authorization: `Bearer ${key}` } });
+  if (!r.ok) throw new AiError(`models ${r.status}`, r.status === 401 ? "That key was not accepted. Check it and try again." :
+    `The ${provider === "anthropic" ? "Anthropic" : "OpenAI"} API answered ${r.status}.`);
+  const data = (await r.json()) as { data: { id: string; created?: number; created_at?: string }[] };
+  const models = data.data.map((m) => m.id).filter((id) => provider === "anthropic" || /^(gpt|o\d)/.test(id)).sort().reverse();
+  const suggested = PREFERRED[provider].map((re) => models.find((m) => re.test(m))).find(Boolean) ?? models[0] ?? null;
+  return { models, suggested };
+}
+
+function anthropicHeaders(key: string): Record<string, string> {
+  return { "x-api-key": key, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true",
+    "content-type": "application/json" };
+}
+
+async function callJson(s: Settings, system: string, user: string, schema: Json, name: string): Promise<Json> {
+  const anthropic = s.provider === "anthropic";
+  const key = anthropic ? s.anthropicKey : s.openaiKey;
+  if (!key) throw new AiError("no key", `Add your ${anthropic ? "Anthropic" : "OpenAI"} API key in Settings first.`);
+  const model = anthropic ? s.anthropicModel : s.openaiModel;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const r = anthropic
+      ? await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST", headers: anthropicHeaders(key),
+        body: JSON.stringify({ model, max_tokens: 16000, system, messages: [{ role: "user", content: user }],
+          tools: [{ name, description: "Return the result.", input_schema: schema }], tool_choice: { type: "tool", name } }),
+      })
+      : await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST", headers: { Authorization: `Bearer ${key}`, "content-type": "application/json" },
+        body: JSON.stringify({ model, messages: [{ role: "system", content: system }, { role: "user", content: user }],
+          response_format: { type: "json_schema", json_schema: { name, schema: loosen(schema), strict: false } } }),
+      });
+    if (r.status === 429 || r.status >= 500) { await new Promise((ok) => setTimeout(ok, 2000 * (attempt + 1) ** 2)); continue; }
+    if (!r.ok) {
+      const body = await r.text();
+      throw new AiError(`${r.status} ${body.slice(0, 300)}`, r.status === 401 ? "Your API key was not accepted. Check it in Settings." :
+        r.status === 404 ? `The model "${model}" isn't available to your key. Pick another in Settings.` :
+          `The AI couldn't finish (${r.status}). ${body.slice(0, 160)}`);
+    }
+    const data = await r.json();
+    if (anthropic) {
+      const block = (data.content as { type: string; input?: Json }[]).find((c) => c.type === "tool_use");
+      if (block?.input) return block.input;
+    } else {
+      const text = data.choices?.[0]?.message?.content as string | undefined;
+      if (text) { try { return JSON.parse(text); } catch { /* retry below */ } }
+    }
+  }
+  throw new AiError("no usable answer", "The AI is busy or didn't give a usable answer. Try again in a minute.");
+}
+
+/** OpenAI's json_schema doesn't take type arrays like ["string","null"] in every model: widen them. */
+function loosen(schema: Json): Json {
+  return JSON.parse(JSON.stringify(schema, (k, v) => (k === "type" && Array.isArray(v) ? v[0] : v)));
+}
+
+/** The transcript as the editor reads it: one line per phrase, every word with its id. */
+export function transcriptText(p: Project): string {
+  const a = p.analysis;
+  const lines: string[] = [];
+  for (const ph of a?.phrases ?? []) {
+    const i0 = p.words.findIndex((w) => w.id === ph.from), i1 = p.words.findIndex((w) => w.id === ph.to);
+    const ws = p.words.slice(i0, i1 + 1).map((w) => `${w.id}:${w.w.replace(/[<>]/g, "")}`).join(" ");
+    lines.push(`[take ${ph.src + 1} ${ph.s.toFixed(1)}s] ${ws}`);
+  }
+  const parts = [`<transcript>\n${lines.join("\n")}\n</transcript>`];
+  if (a?.retakes.length) parts.push("RETAKE GROUPS (same line said more than once; * = last complete take):\n" +
+    a.retakes.map((g) => g.phrases.map((r, k) => `${k === g.chosen ? "*" : " "} ${r.from}-${r.to} "${g.texts[k]}"`).join("\n")).join("\n---\n"));
+  if (a?.dropped.length) parts.push("SUGGESTED DROPS:\n" + a.dropped.slice(0, 80).map((d) => `${d.from}-${d.to} ${d.reason}: "${d.text}"`).join("\n"));
+  if (a?.pauses.length) parts.push("LONG PAUSES (>0.8 s): " + a.pauses.filter((x) => x.seconds > 0.8).map((x) => `after ${x.after} ${x.seconds}s`).join(", "));
+  if (a?.names.length) parts.push("NAMES HEARD: " + a.names.join(", "));
+  if (a?.unsure.length) parts.push("UNSURE WORDS (the recogniser was less sure): " + a.unsure.join(", "));
+  const lib = p.library.filter((x) => !x.web);
+  parts.push("LIBRARY:\n" + (lib.length ? lib.map((x) => `- key "${x.key}": ${x.kind} "${x.name}"` +
+    (x.kind === "music" ? ` sounds ${x.feel ?? "?"} (energy ${x.energy ?? "?"})` : x.duration ? ` ${x.duration.toFixed(1)}s` : "")).join("\n")
+    : "(empty: use webPictures, labels and zooms)"));
+  return parts.join("\n\n");
+}
+
+const rulesText = (rules: StyleRule[]) => (rules.length ? rules.map((r) => `- ${r.text}`).join("\n") : "(none yet)");
+
+export async function firstEdit(s: Settings, p: Project, rules: StyleRule[]): Promise<AiEdit> {
+  const user = `${FIRST_EDIT}\n\nVideo title: ${p.title}\n\n${transcriptText(p)}`;
+  return (await callJson(s, SYSTEM.replace("{{rules}}", rulesText(rules)), user, EDIT_SCHEMA as unknown as Json, "submit_edit")) as AiEdit;
+}
+
+export async function applyNote(s: Settings, p: Project, current: Edit, note: string, rules: StyleRule[]): Promise<AiEdit> {
+  const cur = toAiShape(current);
+  const user = `${APPLY_NOTE(note)}\n\nCURRENT EDIT:\n${JSON.stringify(cur)}\n\n${transcriptText(p)}`;
+  return (await callJson(s, SYSTEM.replace("{{rules}}", rulesText(rules)), user, EDIT_SCHEMA as unknown as Json, "submit_edit")) as AiEdit;
+}
+
+export async function writeScript(s: Settings, idea: string, rules: StyleRule[]) {
+  return (await callJson(s, `You write short-form video scripts.\nStyle rules:\n${rulesText(rules)}`, WRITE_SCRIPT(idea),
+    SCRIPT_SCHEMA as unknown as Json, "submit_script")) as { hook: string; script: string; onScreenText: string[] };
+}
+
+/** The current Edit in the same shape the AI answers with, so a note can copy what it doesn't change. */
+export function toAiShape(e: Edit): AiEdit {
+  const hook = e.broll.find((b) => b.treatment === "text-pop" && b.style === "label" && b.tilt === 0);
+  return {
+    keep: e.keep, gapCap: e.gapCap, captions: e.captions, corrections: e.corrections,
+    hook: hook ? { text: hook.text ?? "", ...hook.anchor } : null,
+    labels: e.broll.filter((b) => b.treatment === "text-pop" && b !== hook).map((b) => ({ text: b.text ?? "", ...b.anchor, style: b.style })),
+    broll: e.broll.filter((b) => b.treatment !== "text-pop" && b.asset).map((b) => ({ asset: b.asset!, ...b.anchor, treatment: b.treatment, side: b.side })),
+    zooms: e.zooms.map((z) => ({ ...z.anchor, scale: z.scale })),
+    music: { asset: e.music.asset, level: e.music.level, automation: e.music.automation.map((a) => ({ ...a.anchor, db: a.db })) },
+    cover: e.cover, post: e.post,
+  };
+}
