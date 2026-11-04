@@ -27,6 +27,7 @@ const TITLES: Record<Screen, string> = { home: "Home", videos: "My videos", new:
 function parse(hash: string): { screen: Screen; id?: string } {
   const h = hash.replace(/^#/, "");
   if (h.startsWith("video/")) return { screen: "editor", id: decodeURIComponent(h.slice(6)) };
+  if (h.startsWith("animate/")) return { screen: "animate", id: decodeURIComponent(h.slice(8)) };
   return { screen: (["videos", "new", "animate", "script", "style", "settings"].includes(h) ? h : "home") as Screen };
 }
 
@@ -41,6 +42,7 @@ export default function App() {
   const [theme, setThemeState] = useState<ThemeId>("studio");
   const [menu, setMenu] = useState(false);
   const [loading, setLoading] = useState("");
+  const [animId, setAnimId] = useState<string | undefined>();
 
   const sample = useCallback(async () => {
     setLoading("Getting the sample video…");
@@ -61,6 +63,7 @@ export default function App() {
   const route = useCallback(async (hash: string) => {
     if (hash.replace(/^#/, "") === "sample") { await sample(); return; }
     const r = parse(hash);
+    setAnimId(r.screen === "animate" ? r.id : undefined);
     if (r.screen === "editor" && r.id) {
       const p = await loadProject(r.id);
       if (!p) { history.replaceState(null, "", "#videos"); setScreen("videos"); return; }
@@ -176,7 +179,7 @@ export default function App() {
           : <div className="page narrow"><div className="empty"><h2>This video didn&apos;t finish</h2>
               <p>Something stopped it before the first edit. Delete it from My videos and make it again from New video.</p>
               <button className="btn" onClick={() => go("videos")}><Icon name="arrowLeft" />My videos</button></div></div>)}
-        {screen === "animate" && <Studio settings={settings} onSettings={() => go("settings")} />}
+        {screen === "animate" && <Studio key={animId ?? "list"} settings={settings} openId={animId} onSettings={() => go("settings")} />}
         {screen === "script" && <Script settings={settings} />}
         {screen === "style" && <StyleRules />}
         {screen === "settings" && <Settings settings={settings} user={user} theme={theme} onTheme={pickTheme} onUser={setUser} onSignOut={leave}

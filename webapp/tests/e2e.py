@@ -52,7 +52,9 @@ def route_anthropic(route):
     calls["anthropic"] += 1
     body = json.loads(route.request.post_data or "{}")
     user = body["messages"][0]["content"]
-    if "Translate these subtitle lines" in user:
+    if "Write 5 different hook titles" in user:
+        answer = {"hooks": ["The editing habit I quit", "3 tools, zero editing", "Stop editing like it's 2015", "What 3 hours taught me", "You edit too much"]}
+    elif "Translate these subtitle lines" in user:
         lines = [l.split(": ", 1) for l in user.split("\n") if l[:1].isdigit() and ": " in l]
         answer = {"lines": [{"i": int(i), "text": "ES " + t} for i, t in lines]}
     elif "The user left this note" in user:
@@ -152,6 +154,10 @@ with sync_playwright() as pw:
     page.get_by_role("button", name="Make a new version").click()
     page.get_by_role("button", name="Version 5").wait_for(timeout=15000)
     assert lit() > 0.3
+    page.get_by_role("button", name="Try 5 hooks").click()
+    page.get_by_role("button", name="3 tools, zero editing").click()
+    page.get_by_role("button", name="Version 6").wait_for(timeout=15000)
+    assert page.get_by_text("“3 tools, zero editing”").is_visible()
 
     page.get_by_role("button", name="Export").click()
     page.get_by_text("Ready to post").wait_for(timeout=120000)

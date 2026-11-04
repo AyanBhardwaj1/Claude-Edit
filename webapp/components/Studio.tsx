@@ -7,6 +7,7 @@ import { hasBrand, applyBrand } from "@/lib/brand";
 import { FONTS, fontOf, KIND_NAME, newAnim, paletteOf, PALETTES, planScenes, readTime, total, type Anim, type FontId, type PaletteId, type Scene, type SceneKind } from "@/lib/studio";
 import { narration, planWithAi, speak, voicedDuration, VOICES, type Tone } from "@/lib/studioAi";
 import { StudioPlayer } from "@/lib/studioPlay";
+import { aiPicture } from "@/lib/images";
 import type { Format, Settings } from "@/lib/types";
 import { Icon } from "./Icons";
 import { ago, clock } from "./Tiles";
@@ -21,7 +22,7 @@ const fontIdsFor = (brand: boolean): FontId[] => [...(Object.keys(FONTS) as Font
 
 const TONES: [Tone, string][] = [["explainer", "Explainer"], ["promo", "Promo"], ["story", "Story"], ["announcement", "Announcement"]];
 
-export function Studio({ settings, onSettings }: { settings: Settings; onSettings: () => void }) {
+export function Studio({ settings, onSettings, openId }: { settings: Settings; onSettings: () => void; openId?: string }) {
   const [list, setList] = useState<Anim[] | null>(null);
   const [a, setA] = useState<Anim | null>(null);
   const [text, setText] = useState("");
@@ -32,6 +33,9 @@ export function Studio({ settings, onSettings }: { settings: Settings; onSetting
   const [voiceOn, setVoiceOn] = useState(false);
   const [voice, setVoice] = useState<string>("nova");
   const [song, setSong] = useState<File | null>(null);
+  const [link, setLink] = useState("");
+  const [reading, setReading] = useState(false);
+  const [aiPics, setAiPics] = useState(true);
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
   const aiKey = settings.provider === "anthropic" ? settings.anthropicKey : settings.openaiKey;
@@ -41,6 +45,7 @@ export function Studio({ settings, onSettings }: { settings: Settings; onSetting
   useEffect(() => { void applyBrand(settings.brand).then(() => setBrandReady((n) => n + 1)); }, [settings.brand]);
   const refresh = useCallback(() => void listAnims().then(setList), []);
   useEffect(refresh, [refresh]);
+  useEffect(() => { if (openId && list && !a) { const hit = list.find((x) => x.id === openId); if (hit) setA(hit); } }, [openId, list, a]);
 
   async function create() {
     setErr(""); setBusy(aiKey ? "Planning the scenes…" : "Laying out the scenes…");
@@ -52,6 +57,13 @@ export function Studio({ settings, onSettings }: { settings: Settings; onSetting
       const anim = newAnim(text, plan.scenes, { title: plan.title || undefined, palette: plan.palette ?? palette, font: plan.font ?? font, format });
       if (!plan.title) anim.title = plan.scenes[0].text.slice(0, 60);
       if (song) { const key = `anim:${anim.id}:music`; await putMedia(key, song); anim.music = key; }
+      if (aiPics && settings.openaiKey) {
+        const pics = anim.scenes.filter((x) => x.kind === "image");
+        for (const [i, sc] of pics.entries()) {
+          setBusy(`Making picture ${i + 1} of ${pics.length}…`);
+          try { sc.image = await makePicture(settings.openaiKey, anim, sc.picture || sc.text); } catch { /* the scene shows "Add a picture" */ }
+        }
+      }
       if (voiceOn && settings.openaiKey) await addVoice(anim, voice, setBusy);
       await saveAnim(anim);
       setA(anim); refresh();
@@ -72,7 +84,7 @@ export function Studio({ settings, onSettings }: { settings: Settings; onSetting
     anim.voice = { name, keys };
   }
 
-  if (a) return <StudioEditor key={a.id} anim={a} settings={settings} onBack={() => { setA(null); refresh(); }}
+  if (a) return <StudioEditor key={a.id} anim={a} settings={settings} onBack={() => { setA(null); refresh(); if (openId) history.replaceState(null, "", "#animate"); }}
     onVoice={async (anim, name, progress) => { await addVoice(anim, name, progress); }} />;
 
   return (
@@ -81,6 +93,21 @@ export function Studio({ settings, onSettings }: { settings: Settings; onSetting
         card, in your colours. Paste a script, an announcement or a few bullet points.</p></div></div>
       <div className="studio-new">
         <section className="panel stack">
+          <div className="field">
+            <label htmlFor="anim-link">Start from a link (optional)</label>
+            <div className="key-row">
+              <input id="anim-link" className="input" type="url" inputMode="url" spellCheck={false} autoComplete="off" value={link}
+                onChange={(e) => setLink(e.target.value)} placeholder="https://… an article, a launch post, a product page…" />
+              <button className="btn" disabled={!/^https?:\/\/\S+\.\S+/.test(link) || reading} onClick={async () => {
+                setReading(true); setErr("");
+                try { const r = await fetch(`/api/read?url=${encodeURIComponent(link)}`); const d = await r.json() as { title?: string; text?: string; error?: string };
+                  if (!r.ok) throw Object.assign(new Error(d.error), { userMessage: d.error });
+                  setText([d.title, d.text].filter(Boolean).join("\n").slice(0, 6000)); }
+                catch (e) { setErr((e as { userMessage?: string }).userMessage ?? "That page couldn't be read."); }
+                setReading(false); }}>{reading ? <><span className="spin" />Reading…</> : "Read it"}</button>
+            </div>
+            <span className="hint">Cutmind reads the page's text into the box below. Your AI then picks what matters.</span>
+          </div>
           <div className="field">
             <label htmlFor="anim-text">What should it say?</label>
             <textarea id="anim-text" className="textarea" rows={9} value={text} onChange={(e) => setText(e.target.value)}
@@ -123,6 +150,9 @@ export function Studio({ settings, onSettings }: { settings: Settings; onSetting
               take as long as the voice.</span></span></label>
           {voiceOn && <div className="field"><label htmlFor="voice">Voice</label>
             <select id="voice" className="select" value={voice} onChange={(e) => setVoice(e.target.value)}>{VOICES.map((v) => <option key={v} value={v}>{v}</option>)}</select></div>}
+          <label className="check"><input type="checkbox" checked={aiPics && !!settings.openaiKey} disabled={!settings.openaiKey} onChange={(e) => setAiPics(e.target.checked)} />
+            <span>Make AI pictures for picture scenes{settings.openaiKey ? "" : " (needs an OpenAI key)"}<span className="hint block">When the AI plans a picture
+              scene, OpenAI makes the picture (a few cents each). AI pictures are labelled when you export.</span></span></label>
           <div className="field"><label htmlFor="anim-song">Music (optional)</label>
             <input id="anim-song" type="file" accept="audio/*" className="input" onChange={(e) => setSong(e.target.files?.[0] ?? null)} />
             <span className="hint">Only music you own or are licensed to use.</span></div>
@@ -167,7 +197,7 @@ function StudioEditor({ anim, settings, onBack, onVoice }: { anim: Anim; setting
 
   const urlsFor = useCallback(async (x: Anim) => {
     const m = new Map<string, string>();
-    for (const k of [x.music, ...Object.values(x.voice?.keys ?? {})].filter(Boolean) as string[]) {
+    for (const k of [x.music, ...Object.values(x.voice?.keys ?? {}), ...x.scenes.map((sc) => sc.image)].filter(Boolean) as string[]) {
       const b = await getMedia(k); if (b) m.set(k, URL.createObjectURL(b));
     }
     return m;
@@ -223,6 +253,12 @@ function StudioEditor({ anim, settings, onBack, onVoice }: { anim: Anim; setting
     setBusy("");
   }
 
+  async function setPicture(id: string, key: string) {
+    const next = { ...a, scenes: a.scenes.map((x) => (x.id === id ? { ...x, image: key } : x)) };
+    player.current?.setUrls(await urlsFor(next));
+    update(next);
+  }
+
   const shape = FORMATS[a.format];
   const recording = !!exp && exp.pct < 100;
   const name = a.title.replace(/[\\/:*?"<>|]+/g, "").slice(0, 60) || "animation";
@@ -256,7 +292,9 @@ function StudioEditor({ anim, settings, onBack, onVoice }: { anim: Anim; setting
                 <div className="export-ready"><div className="panel-head mb-0"><h2>Ready</h2>
                   <button className="btn ghost icon sm" aria-label="Close" onClick={() => setExp(null)}>&times;</button></div>
                   <div className="row"><a className="btn primary" href={exp.url} download={`${name}.${exp.ext}`}><Icon name="download" />Download video (.{exp.ext})</a>
-                    <a className="btn" href={exp.still} download={`${name} cover.jpg`}>Download cover</a></div></div>)}
+                    <a className="btn" href={exp.still} download={`${name} cover.jpg`}>Download cover</a></div>
+                  {a.scenes.some((x) => x.image?.includes(":img:ai:")) && <p className="alert info small"><Icon name="alert" /><span>This animation has
+                    AI-made pictures. Switch on the platform&apos;s AI label when you post it.</span></p>}</div>)}
             </section>
           )}
           {err && <div className="alert err" role="alert"><Icon name="alert" /><span>{err}</span></div>}
@@ -293,6 +331,21 @@ function StudioEditor({ anim, settings, onBack, onVoice }: { anim: Anim; setting
                     {(s.kind === "title" || s.kind === "statement" || s.kind === "cta") && (
                       <input className="input" aria-label="Words to highlight" placeholder="Words to highlight, comma separated…"
                         value={(s.emphasis ?? []).join(", ")} onChange={(e) => scene(s.id, { emphasis: e.target.value.split(",").map((x) => x.trim()).filter(Boolean) })} />)}
+                    {s.kind === "image" && (
+                      <div className="stack tight">
+                        <input className="input" aria-label="Picture description" placeholder="Describe the picture for AI, e.g. a sunrise over a quiet city…"
+                          value={s.picture ?? ""} onChange={(e) => scene(s.id, { picture: e.target.value })} />
+                        <div className="row">
+                          <label className="btn sm"><Icon name="image" />{s.image ? "Change picture" : "Upload a picture"}
+                            <input type="file" accept="image/*" className="sr-only" onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return;
+                              const key = `anim:${a.id}:img:${uid()}`; await putMedia(key, f); await setPicture(s.id, key); }} /></label>
+                          {settings.openaiKey && <button className="btn sm" disabled={!!busy} onClick={async () => {
+                            setBusy("Making the picture…"); setErr("");
+                            try { await setPicture(s.id, await makePicture(settings.openaiKey, a, s.picture || s.text)); }
+                            catch (e) { setErr((e as { userMessage?: string }).userMessage ?? String(e)); }
+                            setBusy(""); }}>{busy === "Making the picture…" ? <><span className="spin" />Making it…</> : "Make it with AI"}</button>}
+                        </div>
+                      </div>)}
                     <div className="field">
                       <label htmlFor={`d-${s.id}`}>On screen for <span className="num">{s.duration.toFixed(1)} s</span>{a.voice?.keys[s.id] ? " (fits the voice)" : ""}</label>
                       <input id={`d-${s.id}`} className="range" type="range" min={1.8} max={10} step={0.1} value={s.duration} onChange={(e) => scene(s.id, { duration: +e.target.value })} />
@@ -343,4 +396,13 @@ function StudioEditor({ anim, settings, onBack, onVoice }: { anim: Anim; setting
       </div>
     </div>
   );
+}
+
+/** An AI picture for a picture scene, in the animation's shape; returns its media key. */
+async function makePicture(key: string, a: Anim, prompt: string): Promise<string> {
+  const size = a.format === "16:9" ? "1536x1024" : a.format === "1:1" ? "1024x1024" : "1024x1536";
+  const blob = await aiPicture(key, `${prompt}. A photograph, natural light, no text, no logos, no real people's faces.`, size);
+  const k = `anim:${a.id}:img:ai:${uid()}`;
+  await putMedia(k, blob);
+  return k;
 }
