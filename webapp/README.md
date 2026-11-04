@@ -35,12 +35,29 @@ vertical reel with a cover and a post caption, then change it by typing notes. E
 8. **Export**: MP4 (WebM in browsers that can't record MP4) in four shapes (9:16 reel, 4:5 feed, 1:1 square, 16:9 wide),
    the cover, and the caption text.
 9. **Write a script** before filming: hook, what to say, words on screen.
+10. **Motion**: subtitle animations (pop, karaoke, bounce, word by word, typewriter, fade), highlighted numbers and
+    keywords, transitions at every cut (punch-in, whip, flash, dip, glitch), colour looks (warm, cool, cinematic, black and
+    white, vivid, film), picture entrances and slow push-ins, a progress bar; seven one-click styles (Punchy, Karaoke, Clean,
+    Cinematic, Neon, Podcast, Film) plus your brand's.
+11. **Animated cards** on the words that say them: a counting number, a ticking list, a before and after, growing bars.
+12. **Motion Studio** (Animate): any text, or a link to a page, becomes an animated video: kinetic titles, statements,
+    counters, lists, quotes, comparisons, bar charts, picture scenes (your photo or an AI picture) and a call to action, in
+    six palettes or your brand's, five type families, calm / normal / hype pace, with music and an AI voiceover (OpenAI).
+    Exports faster than real time with WebCodecs. Any video can also become an **animated recap**.
+13. **Clips from long videos**: the AI ranks the moments that stand on their own; each becomes its own edited reel.
+14. **Subtitles in 16 languages** and `.srt` files; **AI pictures** from a description (OpenAI), labelled.
+15. **Hook ideas** (five new hook titles in one click) and a **reel check** (a 0-100 score with fixes).
+16. **Brand kit**: name, handle, colours, font, logo, an optional watermark, a brand style and brand animations.
+17. **Pro editing**: a timeline, keyboard shortcuts (space, arrows, frame steps, Cmd/Ctrl+Z for versions), every shape in
+    one export, and a Cmd/Ctrl+K command palette.
 
 ## Privacy and keys
 - Videos never leave the browser: they're processed on the user's computer and kept in IndexedDB.
 - API keys go **straight from the browser to Anthropic or OpenAI**. This app's server never receives them.
   They're kept for the tab only, unless the user ticks "Remember my keys".
-- The server does two small things: search for licensed pictures (Openverse, Wikimedia Commons, Simple Icons:
+- With a database connected it also keeps accounts (see Pages). `/api/read` reads a public web page's text when a user asks
+  Motion Studio to animate a link (public addresses only, 2 MB, 8 s, text only).
+- The server also searches for licensed pictures (Openverse, Wikimedia Commons, Simple Icons:
   CC0, public domain, CC BY, CC BY-SA only), and fetch those pictures from a fixed list of hosts so they can be drawn
   into the video.
 
@@ -77,6 +94,9 @@ timeouts, a ~4.5 MB request limit), so all media work runs client-side:
 | `app/api/account`, `lib/server/` | server accounts: Postgres, scrypt, sessions, same-origin checks, a rate limit |
 | `lib/theme.ts` | the five looks |
 | `lib/demo.ts`, `scripts/make_demo.py` | the sample project (a drawn presenter, a computer voice) |
+| `lib/motion.ts`, `lib/templates.ts` | looks, transitions, entrances; the one-click styles |
+| `lib/studio.ts`, `lib/studioPlay.ts`, `lib/studioAi.ts`, `lib/fastExport.ts` | Motion Studio: scenes, renderer, player, AI planning and voice, WebCodecs export |
+| `lib/clips.ts`, `lib/translate.ts`, `lib/hooks.ts`, `lib/score.ts`, `lib/brand.ts` | clips, translated subtitles and .srt, hook ideas, the reel check, the brand kit |
 | `lib/livecut.ts` | the landing page's live demo of the first-pass cut |
 
 Everything is anchored to transcript word ids, so a re-cut never breaks a picture, a zoom or a music lift.
@@ -94,6 +114,8 @@ npm test                                         # unit tests: timeline, analysi
 npm run build && npx next start -p 3200 &
 python3 tests/e2e.py <take.mp4> <transcript.json> <out_dir>   # sign up, the whole workflow, every shape, the sample (APIs mocked)
 DATABASE_URL=postgres://... npx next start -p 3200 & python3 tests/accounts.py   # server accounts across two browsers
+python3 tests/studio.py http://localhost:3200 <out> "Product launch" [Hype]   # Motion Studio end to end, incl. every shape
+python3 tests/brand.py | cards.py | command.py | recap.py http://localhost:3200 <out>   # brand kit, animated cards, Cmd+K, recaps
 ```
 
 The editing doctrine is adapted from Reel Studio's editor prompts (MIT, see `../THIRD_PARTY.md`).

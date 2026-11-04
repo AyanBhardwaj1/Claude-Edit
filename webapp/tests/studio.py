@@ -42,6 +42,9 @@ with sync_playwright() as pw:
     with page.expect_download() as dl:
         page.get_by_role("link", name="Download video").click()
     vid = out / dl.value.suggested_filename; dl.value.save_as(vid)
+    page.get_by_role("button", name="Make every shape").click()
+    page.get_by_text("Every shape is ready").wait_for(timeout=180000)
+    print("shapes:", page.locator("text=Every shape is ready").locator("xpath=../..").locator("a").all_inner_texts())
     b.close()
 info = json.loads(subprocess.run(["ffprobe", "-v", "error", "-show_streams", "-show_format", "-of", "json", str(vid)], capture_output=True, text=True).stdout)
 print("export", vid.name, [(s["codec_type"], s.get("width"), s.get("height")) for s in info["streams"]], info["format"].get("duration"))
