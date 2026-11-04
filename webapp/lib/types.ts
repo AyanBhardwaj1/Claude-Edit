@@ -43,6 +43,17 @@ export type Music = {
 
 export type Post = { caption: string; hashtags: string[]; keywords: string[] };
 
+export type CaptionAnim = "pop" | "karaoke" | "bounce" | "words" | "typewriter" | "fade" | "none";
+export type Transition = "none" | "punch" | "whip" | "flash" | "fade" | "glitch";
+export type Look = "natural" | "warm" | "cool" | "cinematic" | "mono" | "vivid" | "film";
+export type BrollIn = "pop" | "slide" | "zoom" | "spin";
+
+/** How the edit moves: subtitle animation, highlights, transitions at cuts, the colour look, picture motion. */
+export type Motion = {
+  captionAnim: CaptionAnim; accent: string; emphasis: boolean;
+  transition: Transition; look: Look; progress: boolean; kenBurns: boolean; brollIn: BrollIn;
+};
+
 export type Edit = {
   keep: Range[]; gapCap: number;
   captions: Captions; corrections: { from: string; to: string }[];
@@ -50,6 +61,7 @@ export type Edit = {
   cover: { word: string | null; text: string };
   post: Post;
   sfx: boolean;
+  motion?: Motion;                // missing on edits made before motion existed: DEFAULT_MOTION applies
 };
 
 export type Version = { n: number; edit: Edit; note: string; summary: string; at: string };

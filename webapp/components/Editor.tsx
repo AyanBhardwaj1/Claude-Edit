@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { postText } from "@/lib/edit";
 import { FORMATS } from "@/lib/compositor";
 import { Player } from "@/lib/player";
+import { applyTemplate, templateOf, TEMPLATES } from "@/lib/templates";
 import { loadRules, saveProject, saveRules } from "@/lib/store";
 import type { Edit, Format, Project, Settings } from "@/lib/types";
 import { addToLibrary, applyUserNote, mediaUrls, saveManual } from "@/lib/workflow";
@@ -16,6 +17,7 @@ export function Editor({ project, settings, firstSummary, onBack }: { project: P
   onBack: () => void }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const player = useRef<Player | null>(null);
+  const mounts = useRef(0);
   const chat = useRef<HTMLDivElement>(null);
   const [p, setP] = useState(project);
   const [t, setT] = useState(0);
@@ -32,13 +34,19 @@ export function Editor({ project, settings, firstSummary, onBack }: { project: P
   const version = p.versions.find((v) => v.n === p.current) ?? p.versions[p.versions.length - 1];
 
   const mount = useCallback(async (edit: Edit) => {
+    const gen = ++mounts.current;
     player.current?.dispose();
     const urls = await mediaUrls(p);
-    const pl = new Player(canvas.current!, p, edit, urls);
+    // left the editor, or a newer version/shape/style started loading meanwhile
+    if (!canvas.current || gen !== mounts.current) { urls.forEach((u) => URL.revokeObjectURL(u)); return; }
+    player.current?.dispose();
+    const pl = new Player(canvas.current, p, edit, urls);
     pl.onTime = setT;
     pl.onEnd = () => setPlaying(false);
-    await pl.load();
     player.current = pl;
+    await pl.load();
+    if (!canvas.current || gen !== mounts.current) return;
+    canvas.current!.dataset.cuts = pl.scene.cuts.map((c) => c.toFixed(3)).join(",");   // for tests and tools
     setDur(pl.tl.duration); setT(0); setPlaying(false);
   }, [p]);
 
@@ -145,6 +153,17 @@ export function Editor({ project, settings, firstSummary, onBack }: { project: P
             </div>
             <span className="hint">{shape.for}</span>
           </div>
+          {version && (
+            <div className="shape">
+              <span className="label">Style</span>
+              <div className="chips" role="group" aria-label="Style">
+                {TEMPLATES.map((tp) => (
+                  <button key={tp.id} className="chip" title={tp.line} disabled={recording} aria-pressed={templateOf(version.edit) === tp.id}
+                    onClick={async () => { await saveManual(p, applyTemplate(version.edit, tp), `the ${tp.name} style`); setP({ ...p });
+                      setMsgs((m) => [...m, { who: "ed", text: `Version ${p.current}: the ${tp.name} style. ${tp.line}` }]); }}>{tp.name}</button>))}
+              </div>
+            </div>
+          )}
           <div className="versions" role="group" aria-label="Versions">
             {p.versions.map((v) => (
               <button key={v.n} title={v.note} className="chip" aria-pressed={v.n === p.current}

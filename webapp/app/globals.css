@@ -390,6 +390,10 @@ p { margin: 0; text-wrap: pretty; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .chip { min-height: 32px; padding: 0 12px; border: 0; border-radius: var(--btn-r); background: var(--surface-2); color: var(--ink); font-size: 13px; cursor: pointer; }
 .chip:hover { background: var(--surface-3); }
+.dot-btn { width: 32px; height: 32px; border-radius: 50%; border: 0; cursor: pointer; box-shadow: inset 0 0 0 1px #0003; transition: transform .15s ease; }
+.dot-btn:hover { transform: scale(1.08); }
+.dot-btn[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--ink); }
+.color { width: 44px; height: 34px; padding: 0; border: 0; background: none; cursor: pointer; }
 .chip[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
 
 /* ---------- settings ---------- */

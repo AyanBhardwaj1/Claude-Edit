@@ -1,6 +1,7 @@
 // The AI editor. Calls go straight from the browser to Anthropic or OpenAI with the user's own key:
 // this app's server never sees the key, the transcript or the video.
 
+import { motionOf } from "./edit";
 import type { AiEdit } from "./edit";
 import { APPLY_NOTE, EDIT_SCHEMA, FIRST_EDIT, SCRIPT_SCHEMA, SYSTEM, WRITE_SCRIPT } from "./prompts";
 import type { Edit, Project, Settings, StyleRule } from "./types";
@@ -126,6 +127,7 @@ export function toAiShape(e: Edit): AiEdit {
     broll: e.broll.filter((b) => b.treatment !== "text-pop" && b.asset).map((b) => ({ asset: b.asset!, ...b.anchor, treatment: b.treatment, side: b.side })),
     zooms: e.zooms.map((z) => ({ ...z.anchor, scale: z.scale })),
     music: { asset: e.music.asset, level: e.music.level, automation: e.music.automation.map((a) => ({ ...a.anchor, db: a.db })) },
+    motion: motionOf(e),
     cover: e.cover, post: e.post,
   };
 }

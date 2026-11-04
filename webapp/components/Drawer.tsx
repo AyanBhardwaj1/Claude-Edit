@@ -1,10 +1,18 @@
 "use client";
 import { useMemo, useState } from "react";
 import { indexOf } from "@/lib/timeline";
-import type { Broll, CaptionPreset, Edit, Project, Range } from "@/lib/types";
+import { BROLL_INS, CAPTION_ANIMS, LOOKS, motionOf, TRANSITIONS } from "@/lib/edit";
+import { LOOK_NAME } from "@/lib/motion";
+import type { Broll, BrollIn, CaptionAnim, CaptionPreset, Edit, Look, Motion, Project, Range, Transition } from "@/lib/types";
+
+const ANIM_NAME: Record<CaptionAnim, string> = { pop: "Pop", karaoke: "Karaoke", bounce: "Bounce", words: "Word by word", typewriter: "Typewriter",
+  fade: "Fade", none: "Still" };
+const CUT_NAME: Record<Transition, string> = { none: "Plain cut", punch: "Punch-in", whip: "Whip", flash: "Flash", fade: "Dip", glitch: "Glitch" };
+const IN_NAME: Record<BrollIn, string> = { pop: "Pop", slide: "Slide up", zoom: "Zoom", spin: "Spin" };
+const ACCENTS = ["#FFE14D", "#FF9F43", "#FF3D9A", "#7C5CFF", "#3DA9FF", "#2EE59D", "#FFFFFF"];
 import { Icon } from "./Icons";
 
-const TABS = ["Cut", "Subtitles", "Music", "Pictures", "Cover", "Post"] as const;
+const TABS = ["Cut", "Subtitles", "Motion", "Music", "Pictures", "Cover", "Post"] as const;
 const LABEL: Record<string, string> = { "card-above-head": "Picture above your head", "side-card": "Picture beside you",
   "phone-card": "In a phone", "full-frame": "Full screen", "split-top": "Top half", "text-pop": "Words on screen" };
 const PRESETS: [CaptionPreset, string][] = [["studio", "Studio"], ["bold", "Bold"], ["white", "White"], ["boxed", "Boxed"], ["minimal", "Minimal"]];
@@ -21,6 +29,8 @@ export function Drawer({ project: p, edit, onApply }: { project: Project; edit: 
   }, [e.keep, idx, p.words]);
   const changed = JSON.stringify(e) !== JSON.stringify(edit);
   const cap = (k: Partial<Edit["captions"]>) => setE({ ...e, captions: { ...e.captions, ...k } });
+  const mo = motionOf(e);
+  const mov = (k: Partial<Motion>) => setE({ ...e, motion: { ...mo, ...k } });
 
   function toggleWord(id: string) {
     const next = new Set(kept);
@@ -100,6 +110,32 @@ export function Drawer({ project: p, edit, onApply }: { project: Project; edit: 
               <button className="btn">Add</button>
             </form>
           </div>
+        </>)}
+
+        {tab === "Motion" && (<>
+          <div className="field"><span className="label">Subtitle animation</span>
+            {opt(mo.captionAnim, CAPTION_ANIMS.map((a) => [a, ANIM_NAME[a]] as [CaptionAnim, string]), (v) => mov({ captionAnim: v }), "Subtitle animation")}</div>
+          <div className="field"><span className="label">Highlight colour</span>
+            <div className="row">
+              <div className="chips" role="group" aria-label="Highlight colour">{ACCENTS.map((c) => (
+                <button key={c} className="dot-btn" style={{ background: c }} aria-pressed={mo.accent.toLowerCase() === c.toLowerCase()} aria-label={`Highlight ${c}`}
+                  onClick={() => mov({ accent: c })} />))}</div>
+              <label className="sr-only" htmlFor="accent">Pick any colour</label>
+              <input id="accent" type="color" className="color" value={mo.accent} onChange={(ev) => mov({ accent: ev.target.value })} />
+            </div>
+          </div>
+          <label className="check"><input type="checkbox" checked={mo.emphasis} onChange={(ev) => mov({ emphasis: ev.target.checked })} />
+            <span>Highlight numbers and keywords</span></label>
+          <div className="field"><span className="label">At every cut</span>
+            {opt(mo.transition, TRANSITIONS.map((a) => [a, CUT_NAME[a]] as [Transition, string]), (v) => mov({ transition: v }), "Transition")}</div>
+          <div className="field"><span className="label">Colour look</span>
+            {opt(mo.look, LOOKS.map((a) => [a, LOOK_NAME[a]] as [Look, string]), (v) => mov({ look: v }), "Colour look")}</div>
+          <div className="field"><span className="label">Pictures come in with</span>
+            {opt(mo.brollIn, BROLL_INS.map((a) => [a, IN_NAME[a]] as [BrollIn, string]), (v) => mov({ brollIn: v }), "Picture entrance")}</div>
+          <label className="check"><input type="checkbox" checked={mo.kenBurns} onChange={(ev) => mov({ kenBurns: ev.target.checked })} />
+            <span>Slow push-in on still pictures</span></label>
+          <label className="check"><input type="checkbox" checked={mo.progress} onChange={(ev) => mov({ progress: ev.target.checked })} />
+            <span>Progress bar along the top</span></label>
         </>)}
 
         {tab === "Music" && (<>
