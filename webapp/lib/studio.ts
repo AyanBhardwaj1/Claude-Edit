@@ -2,6 +2,7 @@
 // compare, bars, call to action); the renderer draws every frame on a canvas (kinetic type, counters, charts, wipes),
 // so preview and export are the same pixels. With an AI key the AI plans the scenes; without one, planScenes() does.
 
+import { activeBrand } from "./brand";
 import { FORMATS } from "./compositor";
 import { clamp01, ease } from "./motion";
 import type { Format } from "./types";
@@ -12,8 +13,8 @@ export type Scene = {
   value?: number; prefix?: string; suffix?: string; emphasis?: string[]; duration: number;
   say?: string;                         // what the voiceover reads for this scene (defaults to its words)
 };
-export type PaletteId = "midnight" | "sunset" | "mint" | "paper" | "electric" | "ocean";
-export type FontId = "grotesk" | "serif" | "heavy" | "mono" | "book";
+export type PaletteId = "midnight" | "sunset" | "mint" | "paper" | "electric" | "ocean" | "brand";
+export type FontId = "grotesk" | "serif" | "heavy" | "mono" | "book" | "brand";
 export type Anim = {
   id: string; title: string; createdAt: string; updatedAt: string; source: string;
   palette: PaletteId; font: FontId; format: Format; scenes: Scene[];
@@ -22,7 +23,7 @@ export type Anim = {
   owner?: string;
 };
 
-export const PALETTES: Record<PaletteId, { name: string; bg: string; bg2: string; ink: string; muted: string; accent: string; accent2: string; dark: boolean }> = {
+export const PALETTES: Record<Exclude<PaletteId, "brand">, { name: string; bg: string; bg2: string; ink: string; muted: string; accent: string; accent2: string; dark: boolean }> = {
   midnight: { name: "Midnight", bg: "#0b1020", bg2: "#18224a", ink: "#f4f6ff", muted: "#9aa6d6", accent: "#6ee7ff", accent2: "#a78bfa", dark: true },
   sunset: { name: "Sunset", bg: "#1d0f1f", bg2: "#3a1838", ink: "#fff4ec", muted: "#d9a7b0", accent: "#ff8a4c", accent2: "#ffd166", dark: true },
   mint: { name: "Mint", bg: "#05261f", bg2: "#0d4237", ink: "#eafff8", muted: "#8cc9b6", accent: "#39f0b6", accent2: "#f4ff7a", dark: true },
@@ -30,13 +31,25 @@ export const PALETTES: Record<PaletteId, { name: string; bg: string; bg2: string
   paper: { name: "Paper", bg: "#f4efe6", bg2: "#e6dccb", ink: "#1d1a16", muted: "#6f665a", accent: "#e4572e", accent2: "#2b59c3", dark: false },
   ocean: { name: "Ocean", bg: "#eaf4ff", bg2: "#cfe3ff", ink: "#0b1f3a", muted: "#4d6a91", accent: "#1f6feb", accent2: "#00b3a4", dark: false },
 };
-export const FONTS: Record<FontId, { name: string; family: string; weight: number; track: number }> = {
+export const FONTS: Record<Exclude<FontId, "brand">, { name: string; family: string; weight: number; track: number }> = {
   grotesk: { name: "Grotesk", family: '"Bricolage Grotesque", "Montserrat", sans-serif', weight: 800, track: -0.03 },
   serif: { name: "Serif", family: '"Fraunces", Georgia, serif', weight: 600, track: -0.02 },
   heavy: { name: "Heavy", family: '"Montserrat", sans-serif', weight: 900, track: -0.02 },
   mono: { name: "Mono", family: '"JetBrains Mono", monospace', weight: 700, track: -0.01 },
   book: { name: "Book", family: '"Literata", Georgia, serif', weight: 600, track: -0.02 },
 };
+type Pal = (typeof PALETTES)["midnight"];
+/** A palette or the user's brand colours (dark ground, their two colours). */
+export function paletteOf(id: PaletteId): Pal {
+  if (id !== "brand") return PALETTES[id] ?? PALETTES.midnight;
+  const b = activeBrand().brand;
+  return { name: "Brand", bg: "#0f0f12", bg2: "#1e1e26", ink: "#ffffff", muted: "#a8a8b3", accent: b.accent, accent2: b.accent2, dark: true };
+}
+export function fontOf(id: FontId) {
+  if (id !== "brand") return FONTS[id] ?? FONTS.grotesk;
+  return { name: "Brand", family: `"${activeBrand().brand.font}", "Montserrat", sans-serif`, weight: 800, track: -0.02 };
+}
+
 export const KIND_NAME: Record<SceneKind, string> = { title: "Title", statement: "Statement", number: "Big number", list: "List", quote: "Quote",
   compare: "Before and after", bars: "Bar chart", cta: "Call to action" };
 
@@ -146,7 +159,7 @@ export const total = (a: Anim) => a.scenes.reduce((n, s) => n + s.duration, 0);
 // ------------------------------------------------------------------ drawing
 
 type Ctx = CanvasRenderingContext2D;
-type P = (typeof PALETTES)[PaletteId];
+type P = Pal;
 
 export function frameSize(f: Format) { const d = FORMATS[f] ?? FORMATS["9:16"]; return { W: d.w, H: d.h }; }
 
@@ -210,7 +223,7 @@ function hexA(hex: string, a: number) {
 /** Words rising out of their own line masks, staggered; emphasised words get an accent sweep behind them. */
 function kinetic(g: Ctx, a: Anim, p: P, text: string, emphasis: string[], box: { x: number; y: number; w: number; h: number }, max: number,
                  local: number, opts: { align?: "left" | "center"; lh?: number; stagger?: number; colour?: string } = {}) {
-  const F = FONTS[a.font];
+  const F = fontOf(a.font);
   const font = (s: number) => `${F.weight} ${s}px ${F.family}`;
   const lh = opts.lh ?? 1.04;
   const { size, lines } = fit(g, font, text, box.w, box.h, max, lh);
@@ -269,8 +282,8 @@ const fmtNum = (v: number, done: boolean, target: number) => {
 };
 
 export function drawScene(g: Ctx, a: Anim, s: Scene, local: number, W: number, H: number, index: number, count: number) {
-  const p = PALETTES[a.palette];
-  const F = FONTS[a.font];
+  const p = paletteOf(a.palette);
+  const F = fontOf(a.font);
   const U = Math.min(W, H);
   const tall = H > W * 1.2;
   const m = 0.08 * W;
@@ -406,6 +419,15 @@ export function drawScene(g: Ctx, a: Anim, s: Scene, local: number, W: number, H
         g.fillStyle = p.dark ? p.bg : "#fff"; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(s.sub, 0, 2);
         g.restore(); g.textBaseline = "alphabetic";
       }
+      const { brand, logo } = activeBrand();
+      if (a.palette === "brand" || a.font === "brand") {
+        const k = clamp01((local - 0.8) / 0.5);
+        g.save(); g.globalAlpha = k;
+        if (logo?.naturalWidth) { const h = 0.11 * U, w = Math.min(0.5 * W, logo.naturalWidth * h / logo.naturalHeight); g.drawImage(logo, W / 2 - w / 2, box.y - 0.04 * H - h, w, h * (w / (logo.naturalWidth * h / logo.naturalHeight))); }
+        if (brand.handle.trim()) { g.font = body(0.045 * U, 700); g.fillStyle = p.muted; g.textAlign = "center";
+          g.fillText(brand.handle.startsWith("@") ? brand.handle : `@${brand.handle}`, W / 2, r.bottom + 0.2 * H); }
+        g.restore();
+      }
       break;
     }
   }
@@ -420,7 +442,7 @@ export function drawScene(g: Ctx, a: Anim, s: Scene, local: number, W: number, H
 /** One frame of the whole animation at time t: background, the scene (with its exit), and a wipe between scenes. */
 export function drawAnim(g: Ctx, a: Anim, t: number) {
   const { W, H } = frameSize(a.format);
-  const p = PALETTES[a.palette];
+  const p = paletteOf(a.palette);
   background(g, p, W, H, t);
   const tl = timeline(a);
   const i = Math.max(0, tl.findIndex((x) => t >= x.start && t < x.end));

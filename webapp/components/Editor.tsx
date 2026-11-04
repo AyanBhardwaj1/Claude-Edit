@@ -3,7 +3,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { postText } from "@/lib/edit";
 import { FORMATS } from "@/lib/compositor";
 import { Player } from "@/lib/player";
-import { applyTemplate, templateOf, TEMPLATES } from "@/lib/templates";
+import { applyBrand, brandOf, hasBrand } from "@/lib/brand";
+import { applyTemplate, brandTemplate, templateOf, TEMPLATES } from "@/lib/templates";
 import { loadRules, saveProject, saveRules } from "@/lib/store";
 import type { Edit, Format, Project, Settings } from "@/lib/types";
 import { addToLibrary, applyUserNote, mediaUrls, saveManual } from "@/lib/workflow";
@@ -28,14 +29,17 @@ export function Editor({ project, settings, firstSummary, onBack }: { project: P
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState("");
   const [drawer, setDrawer] = useState(false);
-  const [exp, setExp] = useState<{ pct: number; video?: string; ext?: string; cover?: string; caption?: string } | null>(null);
+  const [exp, setExp] = useState<{ pct: number; video?: string; ext?: string; cover?: string; caption?: string; label?: string } | null>(null);
   const [err, setErr] = useState("");
   const [toast, setToast] = useState("");
+  const [track, setTrack] = useState<{ segs: [number, number][]; layers: { s: number; e: number; text: boolean; label: string }[]; zooms: [number, number][] } | null>(null);
+  const [all, setAll] = useState<{ f: Format; url: string; ext: string }[] | null>(null);
   const version = p.versions.find((v) => v.n === p.current) ?? p.versions[p.versions.length - 1];
 
   const mount = useCallback(async (edit: Edit) => {
     const gen = ++mounts.current;
     player.current?.dispose();
+    await applyBrand(settings.brand);
     const urls = await mediaUrls(p);
     // left the editor, or a newer version/shape/style started loading meanwhile
     if (!canvas.current || gen !== mounts.current) { urls.forEach((u) => URL.revokeObjectURL(u)); return; }
@@ -47,8 +51,10 @@ export function Editor({ project, settings, firstSummary, onBack }: { project: P
     await pl.load();
     if (!canvas.current || gen !== mounts.current) return;
     canvas.current!.dataset.cuts = pl.scene.cuts.map((c) => c.toFixed(3)).join(",");   // for tests and tools
+    setTrack({ segs: pl.tl.segments.map((x) => [x.outStart, x.outEnd]), zooms: pl.scene.zooms.map((z) => [z.s, z.e]),
+      layers: pl.scene.layers.map((L) => ({ s: L.start, e: L.end, text: L.b.treatment === "text-pop", label: L.b.text ?? p.library.find((x) => x.key === L.b.asset)?.name ?? "Picture" })) });
     setDur(pl.tl.duration); setT(0); setPlaying(false);
-  }, [p]);
+  }, [p, settings.brand]);
 
   useEffect(() => { if (version) void mount(version.edit); return () => player.current?.dispose(); }, [version, mount]);
   useEffect(() => { chat.current?.scrollTo({ top: chat.current.scrollHeight, behavior: "smooth" }); }, [msgs, busy]);
@@ -60,6 +66,26 @@ export function Editor({ project, settings, firstSummary, onBack }: { project: P
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
   }, [exp, busy]);
+
+  useEffect(() => {
+    const onKey = (ev: KeyboardEvent) => {
+      const el = ev.target as HTMLElement;
+      if (el.closest("input, textarea, select, [contenteditable]") || (!!exp && exp.pct < 100)) return;
+      const pl = player.current; if (!pl) return;
+      const mod = ev.metaKey || ev.ctrlKey;
+      if (ev.key === " " && !mod) { ev.preventDefault(); void toggle(); return; }
+      const step = ev.key === "ArrowLeft" ? -1 : ev.key === "ArrowRight" ? 1 : ev.key === "," ? -1 / 30 : ev.key === "." ? 1 / 30 : 0;
+      if (step && !mod) { ev.preventDefault(); const v = Math.max(0, Math.min(dur, pl.t + step * (ev.shiftKey ? 5 : 1))); setT(v); void pl.seek(v); return; }
+      if (mod && (ev.key === "z" || ev.key === "Z" || ev.key === "y")) {
+        ev.preventDefault();
+        const ns = p.versions.map((v) => v.n), at = ns.indexOf(p.current);
+        const to = (ev.key === "y" || ev.shiftKey) ? ns[at + 1] : ns[at - 1];
+        if (to !== undefined) { p.current = to; void saveProject(p).then(() => { setP({ ...p }); setToast(`Version ${to}`); }); }
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
 
   async function toggle() {
     const pl = player.current;
@@ -89,6 +115,26 @@ export function Editor({ project, settings, firstSummary, onBack }: { project: P
   function addRule(text: string) {
     const rules = loadRules();
     if (!rules.some((r) => r.text.toLowerCase() === text.toLowerCase())) saveRules([...rules, { id: Math.random().toString(36).slice(2), text, at: new Date().toISOString() }]);
+  }
+
+  async function exportAll() {
+    if (!version) return;
+    const keep = p.format ?? "9:16";
+    const out: { f: Format; url: string; ext: string }[] = [];
+    setAll(null); setPlaying(true);
+    try {
+      for (const [i, f] of (Object.keys(FORMATS) as Format[]).entries()) {
+        p.format = f;
+        await mount(version.edit);
+        const pl = player.current; if (!pl) break;
+        setExp({ pct: 0, label: `${FORMATS[f].name} (${i + 1} of 4)` });
+        const { blob, ext } = await pl.record((pct) => setExp((x) => ({ ...x!, pct })));
+        out.push({ f, url: URL.createObjectURL(blob), ext });
+      }
+    } catch (e) { setErr(String(e)); }
+    p.format = keep;
+    await mount(version.edit);
+    setExp(null); setAll(out); setPlaying(false);
   }
 
   async function exportVideo() {
@@ -144,6 +190,18 @@ export function Editor({ project, settings, firstSummary, onBack }: { project: P
               onChange={(ev) => { const v = +ev.target.value; setT(v); void player.current?.seek(v); }} />
             <span className="time">{clock(t)} / {clock(dur)}</span>
           </div>
+          {track && dur > 0 && (
+            <div className="track" aria-hidden="true" onPointerDown={(ev) => {
+              const r = ev.currentTarget.getBoundingClientRect(); const v = Math.max(0, Math.min(dur, ((ev.clientX - r.left) / r.width) * dur));
+              setT(v); void player.current?.seek(v); }}>
+              <div className="lane">{track.segs.map(([a, b], i) => <i key={i} className={`seg ${i % 2 ? "alt" : ""}`} style={{ left: `${(100 * a) / dur}%`, width: `${(100 * (b - a)) / dur}%` }} />)}</div>
+              <div className="lane">{track.layers.map((L, i) => <i key={i} className={`lay ${L.text ? "txt" : ""}`} title={L.label}
+                style={{ left: `${(100 * L.s) / dur}%`, width: `${Math.max(0.8, (100 * (L.e - L.s)) / dur)}%` }}><span>{L.label}</span></i>)}</div>
+              <div className="lane thin">{track.zooms.map(([a, b], i) => <i key={i} className="zm" style={{ left: `${(100 * a) / dur}%`, width: `${(100 * (b - a)) / dur}%` }} />)}</div>
+              <b className="head" style={{ left: `${(100 * t) / dur}%` }} />
+            </div>
+          )}
+          <p className="hint keys">Space plays · ← → move 1 s (Shift: 5 s) · , . move a frame · ⌘Z and ⌘⇧Z step through versions</p>
           <div className="shape">
             <span className="label">Shape</span>
             <div className="seg" role="group" aria-label="Shape">
@@ -157,7 +215,7 @@ export function Editor({ project, settings, firstSummary, onBack }: { project: P
             <div className="shape">
               <span className="label">Style</span>
               <div className="chips" role="group" aria-label="Style">
-                {TEMPLATES.map((tp) => (
+                {[...(hasBrand(settings.brand) ? [brandTemplate(brandOf(settings.brand))] : []), ...TEMPLATES].map((tp) => (
                   <button key={tp.id} className="chip" title={tp.line} disabled={recording} aria-pressed={templateOf(version.edit) === tp.id}
                     onClick={async () => { await saveManual(p, applyTemplate(version.edit, tp), `the ${tp.name} style`); setP({ ...p });
                       setMsgs((m) => [...m, { who: "ed", text: `Version ${p.current}: the ${tp.name} style. ${tp.line}` }]); }}>{tp.name}</button>))}
@@ -173,10 +231,18 @@ export function Editor({ project, settings, firstSummary, onBack }: { project: P
         </div>
 
         <div className="ed-col">
+          {all && (
+            <section className="panel" aria-live="polite">
+              <div className="panel-head"><h2>Every shape is ready</h2><button className="btn ghost icon sm" aria-label="Close" onClick={() => setAll(null)}>&times;</button></div>
+              <div className="row">{all.map((x) => <a key={x.f} className="btn" href={x.url}
+                download={`${p.title.replace(/[\\/:*?"<>|]+/g, "").slice(0, 60)} - ${FORMATS[x.f].name.toLowerCase()} ${x.f.replace(":", "x")}.${x.ext}`}>
+                <Icon name="download" />{x.f} {FORMATS[x.f].name}</a>)}</div>
+            </section>
+          )}
           {exp && (
             <section className="panel" aria-live="polite">
               {exp.pct < 100 ? (<>
-                <div className="panel-head"><h2>Making the video</h2><span className="small faint num">{Math.round(exp.pct)}%</span></div>
+                <div className="panel-head"><h2>Making the video{exp.label ? `: ${exp.label}` : ""}</h2><span className="small faint num">{Math.round(exp.pct)}%</span></div>
                 <div className="progress"><i style={{ transform: `scaleX(${exp.pct / 100})` }} /></div>
                 <p className="small muted">It plays through once in real time to record. Keep this tab open and in front.</p></>) : (
                 <div className="export-ready">
@@ -188,6 +254,7 @@ export function Editor({ project, settings, firstSummary, onBack }: { project: P
                     <a className="btn" href={exp.caption} download={`${base} caption.txt`}>Caption .txt</a>
                     <button className="btn ghost" onClick={() => copy(post)}><Icon name="copy" />Copy caption</button>
                   </div>
+                  <div className="row"><button className="btn ghost sm" onClick={() => { setExp(null); void exportAll(); }}>Also make every shape (4 files, about {Math.ceil(4 * dur / 60)} min)</button></div>
                   {exp.ext === "webm" && <p className="small muted">Your browser recorded WebM. For Instagram, export from Chrome, Edge or Safari
                     to get MP4, or convert the file.</p>}
                 </div>)}

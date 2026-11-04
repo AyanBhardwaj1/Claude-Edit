@@ -2,8 +2,11 @@
 import { useEffect, useState } from "react";
 import { listModels } from "@/lib/ai";
 import { accountMode, AuthError, changePassword, rename, type Mode, type User } from "@/lib/auth";
+import { brandOf } from "@/lib/brand";
+import { uid } from "@/lib/media";
+import { getMedia, putMedia } from "@/lib/store";
 import { THEMES, type ThemeId } from "@/lib/theme";
-import type { Settings as S } from "@/lib/types";
+import type { Brand, Settings as S } from "@/lib/types";
 import { Icon } from "./Icons";
 
 type Note = { ok: boolean; text: string } | null;
@@ -25,6 +28,15 @@ export function Settings({ settings, user, theme, onTheme, onUser, onSignOut, on
   useEffect(() => { void accountMode().then(setWhere); }, []);
   const set = (k: Partial<S>) => { setS({ ...s, ...k }); setSaved(null); };
   const dirty = JSON.stringify(s) !== JSON.stringify(settings);
+  const b = brandOf(s.brand);
+  const setB = (k: Partial<Brand>) => set({ brand: { ...b, ...k } });
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  useEffect(() => {
+    let u: string | null = null;
+    if (b.logo) void getMedia(b.logo).then((blob) => { if (blob) { u = URL.createObjectURL(blob); setLogoUrl(u); } });
+    else setLogoUrl(null);
+    return () => { if (u) URL.revokeObjectURL(u); };
+  }, [b.logo]);
 
   async function check(provider: S["provider"]) {
     setMsg(null);
@@ -91,6 +103,43 @@ export function Settings({ settings, user, theme, onTheme, onUser, onSignOut, on
                 <span className="tl">{t.line}</span>
               </button>
             ))}
+          </div>
+        </section>
+
+        <section className="set-sec" aria-labelledby="brand-h">
+          <div><h2 id="brand-h">Brand</h2><p>Your colours, font, logo and handle. They power the brand style in the editor, a corner watermark and the Brand
+            colours in Animate. Save settings to keep them.</p></div>
+          <div className="stack">
+            <div className="row">
+              <div className="field grow"><label htmlFor="b-name">Brand or channel name</label>
+                <input id="b-name" className="input" value={b.name} autoComplete="organization" onChange={(e) => setB({ name: e.target.value.slice(0, 40) })} placeholder="Northside Coffee…" /></div>
+              <div className="field grow"><label htmlFor="b-handle">Handle</label>
+                <input id="b-handle" className="input" value={b.handle} spellCheck={false} autoComplete="off" onChange={(e) => setB({ handle: e.target.value.replace(/\s+/g, "").slice(0, 30) })} placeholder="@northside…" /></div>
+            </div>
+            <div className="row">
+              <div className="field"><label htmlFor="b-acc">Main colour</label><input id="b-acc" type="color" className="color big" value={b.accent} onChange={(e) => setB({ accent: e.target.value })} /></div>
+              <div className="field"><label htmlFor="b-acc2">Second colour</label><input id="b-acc2" type="color" className="color big" value={b.accent2} onChange={(e) => setB({ accent2: e.target.value })} /></div>
+              <div className="field grow"><label htmlFor="b-font">Font (any Google Font)</label>
+                <input id="b-font" className="input" list="b-fonts" value={b.font} onChange={(e) => setB({ font: e.target.value.slice(0, 40) })}
+                  onBlur={(e) => { const n = e.target.value; if (n && !document.querySelector(`link[data-font="${n}"]`)) { const l = document.createElement("link"); l.rel = "stylesheet";
+                    l.dataset.font = n; l.href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(n)}:wght@500;700;800;900&display=swap`; document.head.appendChild(l); } }} />
+                <datalist id="b-fonts">{["Montserrat", "Bricolage Grotesque", "Fraunces", "Plus Jakarta Sans", "Inter", "Poppins", "Anton", "Bebas Neue", "Archivo Black", "DM Serif Display"].map((f) => <option key={f} value={f} />)}</datalist></div>
+            </div>
+            <div className="brand-preview" style={{ fontFamily: `"${b.font}", Montserrat, sans-serif` }}>
+              {logoUrl && <img src={logoUrl} alt="Your logo" width={48} height={48} />}
+              <span><b style={{ color: b.accent }}>{b.name || "Your brand"}</b> <em style={{ background: b.accent2 }}>{b.handle || "@handle"}</em></span>
+            </div>
+            <div className="row">
+              <label className="btn"><Icon name="image" />{b.logo ? "Change logo" : "Add a logo"}
+                <input type="file" accept="image/png,image/svg+xml,image/webp,image/jpeg" className="sr-only" onChange={async (e) => {
+                  const f = e.target.files?.[0]; if (!f) return; const key = `brand:${uid()}`; await putMedia(key, f); setB({ logo: key }); }} /></label>
+              {b.logo && <button className="btn ghost" onClick={() => setB({ logo: undefined })}>Remove logo</button>}
+            </div>
+            <label className="check"><input type="checkbox" checked={b.watermark} onChange={(e) => setB({ watermark: e.target.checked })} />
+              <span>Put my logo and handle in the corner of every video<span className="hint block">A transparent PNG logo looks best. The logo stays on this
+                device; your colours, font and handle follow your account.</span></span></label>
+            <div className="row"><button className="btn primary" disabled={!dirty} onClick={() => { onSave(s); setSaved({ ok: true, text: "Settings saved." }); }}>Save settings</button>
+              {saved && <span className="small say-ok" role="status">{saved.text}</span>}</div>
           </div>
         </section>
 

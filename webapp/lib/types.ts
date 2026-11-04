@@ -94,7 +94,11 @@ export type Project = {
 
 export type Format = "9:16" | "4:5" | "1:1" | "16:9";
 
+/** The user's brand: used for highlights, subtitles, a corner watermark and Motion Studio's "Brand" colours. */
+export type Brand = { name: string; handle: string; accent: string; accent2: string; font: string; logo?: string; watermark: boolean };
+
 export type Settings = {
+  brand?: Brand;
   provider: "anthropic" | "openai";
   anthropicKey: string; openaiKey: string;
   anthropicModel: string; openaiModel: string;
