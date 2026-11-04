@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 
 /** A muted loop that respects reduced motion and can be paused (it runs longer than 5 seconds). */
-export function LoopVideo({ src, poster, label }: { src: string; poster: string; label: string }) {
+export function LoopVideo({ src, poster, label, width = 1440, height = 900 }: { src: string; poster: string; label: string; width?: number; height?: number }) {
   const v = useRef<HTMLVideoElement>(null);
   const [on, setOn] = useState(false);
   useEffect(() => {
@@ -12,7 +12,7 @@ export function LoopVideo({ src, poster, label }: { src: string; poster: string;
   const toggle = () => { const el = v.current; if (!el) return; if (el.paused) { void el.play(); setOn(true); } else { el.pause(); setOn(false); } };
   return (
     <>
-      <video ref={v} muted loop playsInline preload="metadata" poster={poster} width={1440} height={900} aria-label={label}>
+      <video ref={v} muted loop playsInline preload="metadata" poster={poster} width={width} height={height} aria-label={label}>
         <source src={src} type="video/mp4" />
       </video>
       <button className="loop-btn" type="button" onClick={toggle} aria-label={on ? "Pause the video" : "Play the video"}>{on ? "Pause" : "Play"}</button>
