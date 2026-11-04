@@ -4,6 +4,7 @@ import { postText } from "@/lib/edit";
 import { FORMATS } from "@/lib/compositor";
 import { findClips, makeClip, type Clip } from "@/lib/clips";
 import { hookIdeas, hookOf, withHook } from "@/lib/hooks";
+import { reelCheck, type Check } from "@/lib/score";
 import { newAnim } from "@/lib/studio";
 import { captionWords } from "@/lib/text";
 import { recapOf } from "@/lib/studioAi";
@@ -44,6 +45,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
   const [hooks, setHooks] = useState<string[] | null>(null);
   const [hookBusy, setHookBusy] = useState(false);
   const [recapBusy, setRecapBusy] = useState(false);
+  const [check, setCheck] = useState<{ score: number; checks: Check[] } | null>(null);
   const [track, setTrack] = useState<{ segs: [number, number][]; layers: { s: number; e: number; text: boolean; label: string }[]; zooms: [number, number][] } | null>(null);
   const [all, setAll] = useState<{ f: Format; url: string; ext: string }[] | null>(null);
   const version = p.versions.find((v) => v.n === p.current) ?? p.versions[p.versions.length - 1];
@@ -63,6 +65,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
     await pl.load();
     if (!canvas.current || gen !== mounts.current) return;
     canvas.current!.dataset.cuts = pl.scene.cuts.map((c) => c.toFixed(3)).join(",");   // for tests and tools
+    setCheck(reelCheck(p, edit, pl.tl));
     setTrack({ segs: pl.tl.segments.map((x) => [x.outStart, x.outEnd]), zooms: pl.scene.zooms.map((z) => [z.s, z.e]),
       layers: pl.scene.layers.map((L) => ({ s: L.start, e: L.end, text: L.b.treatment === "text-pop", label: L.b.text ?? L.b.card?.text ?? p.library.find((x) => x.key === L.b.asset)?.name ?? "Picture" })) });
     setDur(pl.tl.duration); setT(0); setPlaying(false);
@@ -297,6 +300,27 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
               {did.map(([on, text]) => <li key={text} className={on ? "" : "off"}><Icon name={on ? "check" : "dot"} />{text}</li>)}
             </ul>
           </section>
+
+          {check && (
+            <section className="panel" aria-labelledby="check-h">
+              <div className="panel-head"><h2 id="check-h">Reel check</h2></div>
+              <div className="check-wrap">
+                <div className={`ring ${check.score >= 80 ? "good" : check.score >= 60 ? "mid" : "low"}`} role="img" aria-label={`Score ${check.score} out of 100`}>
+                  <svg viewBox="0 0 120 120" aria-hidden="true"><circle cx="60" cy="60" r="52" className="bg" />
+                    <circle cx="60" cy="60" r="52" className="fg" strokeDasharray={`${(check.score / 100) * 326.7} 326.7`} /></svg>
+                  <b className="num">{check.score}</b>
+                </div>
+                <ul className="checks">
+                  {check.checks.filter((c) => !c.ok).concat(check.checks.filter((c) => c.ok)).map((c) => (
+                    <li key={c.id} className={c.ok ? "ok" : c.warn ? "warn" : "bad"}>
+                      <Icon name={c.ok ? "check" : "alert"} />
+                      <span className="grow"><b>{c.title}</b><span className="small muted block">{c.detail}</span>
+                        {!c.ok && c.fix && <span className="small block fix">{c.fix}</span>}</span>
+                    </li>))}
+                </ul>
+              </div>
+            </section>
+          )}
 
           {version && hookOf(version.edit) && (
             <section className="panel" aria-labelledby="hook-h">
