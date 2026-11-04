@@ -1,11 +1,21 @@
 // Defaults, the no-AI edit, and turning the AI's answer into a valid Edit (it never touches media).
 
-import type { Asset, Broll, Captions, Edit, Project, Range, Treatment } from "./types";
+import type { Asset, Broll, BrollIn, CaptionAnim, Captions, Edit, Look, Motion, Project, Range, Transition, Treatment } from "./types";
 import { indexOf } from "./timeline";
 
 export const DEFAULT_CAPTIONS: Captions = {
   enabled: true, preset: "studio", size: 105, position: 0.75, textCase: "upper", maxWords: 3, font: "Montserrat",
 };
+
+export const DEFAULT_MOTION: Motion = {
+  captionAnim: "pop", accent: "#FFE14D", emphasis: true, transition: "punch", look: "natural", progress: false, kenBurns: true, brollIn: "pop",
+};
+export const motionOf = (e: Edit): Motion => ({ ...DEFAULT_MOTION, ...(e.motion ?? {}) });
+
+export const CAPTION_ANIMS: CaptionAnim[] = ["pop", "karaoke", "bounce", "words", "typewriter", "fade", "none"];
+export const TRANSITIONS: Transition[] = ["none", "punch", "whip", "flash", "fade", "glitch"];
+export const LOOKS: Look[] = ["natural", "warm", "cool", "cinematic", "mono", "vivid", "film"];
+export const BROLL_INS: BrollIn[] = ["pop", "slide", "zoom", "spin"];
 
 export function defaultEdit(p: Project): Edit {
   const music = p.library.find((a) => a.kind === "music");
@@ -14,7 +24,7 @@ export function defaultEdit(p: Project): Edit {
       ? [{ from: p.words[0].id, to: p.words[p.words.length - 1].id }] : [],
     gapCap: 0.15, captions: { ...DEFAULT_CAPTIONS }, corrections: [], broll: [], zooms: [],
     music: { asset: music?.key ?? null, level: "under-voice", startAt: null, automation: [] },
-    cover: { word: null, text: "" }, post: { caption: "", hashtags: [], keywords: [] }, sfx: true,
+    cover: { word: null, text: "" }, post: { caption: "", hashtags: [], keywords: [] }, sfx: true, motion: { ...DEFAULT_MOTION },
   };
 }
 
@@ -34,6 +44,7 @@ export type AiEdit = {
   cover?: { word?: string | null; text?: string };
   post?: { caption?: string; hashtags?: string[]; keywords?: string[] };
   mirror?: boolean;
+  motion?: Partial<Motion>;
   styleRule?: string | null;
 };
 
@@ -68,6 +79,7 @@ export function fromAi(p: Project, base: Edit, ai: AiEdit, webAssets: Map<string
       font: typeof c.font === "string" && c.font.length < 40 ? c.font : e.captions.font,
     };
   }
+  if (ai.motion) e.motion = cleanMotion({ ...motionOf(e), ...ai.motion });
   if (ai.corrections) e.corrections = ai.corrections.filter((c) => c.from?.trim() && c.to?.trim()).slice(0, 60);
   if (ai.mirror !== undefined) p.sources.forEach((s) => (s.mirror = !!ai.mirror));
   const broll: Broll[] = [];
@@ -126,6 +138,17 @@ export function fromAi(p: Project, base: Edit, ai: AiEdit, webAssets: Map<string
   return { edit: e, problems };
 }
 
+export function cleanMotion(m: Partial<Motion>): Motion {
+  const d = DEFAULT_MOTION;
+  const pick = <T,>(v: unknown, list: T[], def: T) => (list.includes(v as T) ? (v as T) : def);
+  return {
+    captionAnim: pick(m.captionAnim, CAPTION_ANIMS, d.captionAnim),
+    accent: typeof m.accent === "string" && /^#[0-9a-f]{6}$/i.test(m.accent) ? m.accent : d.accent,
+    emphasis: m.emphasis ?? d.emphasis, transition: pick(m.transition, TRANSITIONS, d.transition), look: pick(m.look, LOOKS, d.look),
+    progress: m.progress ?? d.progress, kenBurns: m.kenBurns ?? d.kenBurns, brollIn: pick(m.brollIn, BROLL_INS, d.brollIn),
+  };
+}
+
 /** The text under the post: caption, photo credits (CC BY / BY-SA pictures used), 5 hashtags. */
 export function postText(p: Project, e: Edit): string {
   const used = new Set(e.broll.map((b) => b.asset).filter(Boolean));
@@ -145,5 +168,6 @@ export function describe(a: Edit, b: Edit): string {
   if (JSON.stringify(a.zooms) !== JSON.stringify(b.zooms)) out.push("zooms");
   if (JSON.stringify(a.cover) !== JSON.stringify(b.cover)) out.push("cover");
   if (JSON.stringify(a.post) !== JSON.stringify(b.post)) out.push("post caption");
+  if (JSON.stringify(motionOf(a)) !== JSON.stringify(motionOf(b))) out.push("motion");
   return out.length ? `Changed ${out.join(", ")}.` : "No changes.";
 }

@@ -105,3 +105,21 @@ test("the sample project's first edit is valid against its own transcript", asyn
   assert.ok(/I never move it/.test(text) && !/I I never/.test(text), "stutter cut");
   assert.equal(edit.broll.filter((b) => b.treatment === "text-pop").length, 5);   // hook title + 4 labels
 });
+
+test("motion: defaults for old edits, validation of AI answers, templates", async () => {
+  const { motionOf, cleanMotion, DEFAULT_MOTION } = await import("../lib/edit");
+  const { TEMPLATES, applyTemplate, templateOf } = await import("../lib/templates");
+  const { cutFx } = await import("../lib/motion");
+  const ws = words("one two three four five six");
+  const p = project(ws);
+  const old = defaultEdit(p); delete old.motion;
+  assert.deepEqual(motionOf(old), DEFAULT_MOTION);
+  const m = cleanMotion({ captionAnim: "wobble" as never, accent: "red", transition: "whip", look: "film" });
+  assert.equal(m.captionAnim, "pop"); assert.equal(m.accent, DEFAULT_MOTION.accent); assert.equal(m.transition, "whip"); assert.equal(m.look, "film");
+  const { edit } = fromAi(p, defaultEdit(p), { motion: { captionAnim: "karaoke", accent: "#ff3d9a" } });
+  assert.equal(motionOf(edit).captionAnim, "karaoke");
+  for (const t of TEMPLATES) assert.equal(templateOf(applyTemplate(defaultEdit(p), t)), t.id);
+  assert.equal(cutFx("flash", [5], 5.05)?.kind, "flash");
+  assert.equal(cutFx("flash", [5], 5.5), null);
+  assert.equal(cutFx("punch", [5], 5), null);
+});
