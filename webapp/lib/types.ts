@@ -20,13 +20,17 @@ export type Asset = {
   ai?: boolean;                   // made by an AI image model (labelled; platforms want an AI label)
 };
 
-export type Treatment = "card-above-head" | "side-card" | "phone-card" | "full-frame" | "split-top" | "text-pop";
+export type Treatment = "card-above-head" | "side-card" | "phone-card" | "full-frame" | "split-top" | "text-pop" | "motion";
 
 export type Broll = {
   id: string; anchor: Range; treatment: Treatment;
   asset?: string;                 // library key (image or clip)
   text?: string; style?: "label" | "pop"; side?: "left" | "right" | "auto"; tilt?: number;
+  card?: MotionCard; palette?: string;   // treatment "motion": an animated card drawn by Motion Studio's engine
 };
+
+export type MotionCard = { kind: "number" | "list" | "compare" | "bars" | "statement" | "title"; text: string; sub?: string; items?: string[];
+  value?: number; prefix?: string; suffix?: string };
 
 export type Zoom = { anchor: Range; scale: number };
 

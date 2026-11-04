@@ -1227,12 +1227,16 @@
     "from": "w57",
     "to": "w63",
     "style": "label"
-   },
+   }
+  ],
+  "motionCards": [
    {
-    "text": "4 videos",
+    "kind": "number",
+    "value": 4,
+    "suffix": " videos",
+    "text": "every Sunday morning",
     "from": "w26",
-    "to": "w29",
-    "style": "pop"
+    "to": "w32"
    }
   ],
   "broll": [
@@ -1244,11 +1248,6 @@
    }
   ],
   "zooms": [
-   {
-    "from": "w30",
-    "to": "w32",
-    "scale": 1.12
-   },
    {
     "from": "w64",
     "to": "w68",

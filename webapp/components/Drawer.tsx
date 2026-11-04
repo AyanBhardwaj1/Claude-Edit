@@ -19,7 +19,8 @@ import { Icon } from "./Icons";
 
 const TABS = ["Cut", "Subtitles", "Motion", "Music", "Pictures", "Cover", "Post"] as const;
 const LABEL: Record<string, string> = { "card-above-head": "Picture above your head", "side-card": "Picture beside you",
-  "phone-card": "In a phone", "full-frame": "Full screen", "split-top": "Top half", "text-pop": "Words on screen" };
+  "phone-card": "In a phone", "full-frame": "Full screen", "split-top": "Top half", "text-pop": "Words on screen", motion: "Animated card" };
+const CARD_NAME = { number: "A number that counts up", list: "A list that ticks in", compare: "Before and after", statement: "A statement" } as const;
 const PRESETS: [CaptionPreset, string][] = [["studio", "Studio"], ["bold", "Bold"], ["white", "White"], ["boxed", "Boxed"], ["minimal", "Minimal"]];
 
 export function Drawer({ project: p, edit, onApply, settings }: { project: Project; edit: Edit; onApply: (e: Edit, what: string) => void; settings?: Settings }) {
@@ -33,6 +34,7 @@ export function Drawer({ project: p, edit, onApply, settings }: { project: Proje
   const [imgSize, setImgSize] = useState<"1024x1024" | "1024x1536" | "1536x1024">("1536x1024");
   const [imgBusy, setImgBusy] = useState(false);
   const [imgErr, setImgErr] = useState("");
+  const [card, setCard] = useState<{ kind: keyof typeof CARD_NAME; text: string; value: string; items: string }>({ kind: "number", text: "", value: "", items: "" });
   const hasKey = !!settings && (settings.provider === "anthropic" ? !!settings.anthropicKey : !!settings.openaiKey);
   const idx = useMemo(() => indexOf(p.words), [p.words]);
   const kept = useMemo(() => {
@@ -193,13 +195,28 @@ export function Drawer({ project: p, edit, onApply, settings }: { project: Proje
           {!e.broll.length && <p className="small muted">No pictures or text cards in this version yet.</p>}
           {e.broll.map((b) => (
             <div key={b.id} className="pic-row">
-              <span className="grow">On &ldquo;{textOf(b.anchor)}&rdquo;: {b.treatment === "text-pop" ? `“${b.text}”` : p.library.find((a) => a.key === b.asset)?.name}
+              <span className="grow">On &ldquo;{textOf(b.anchor)}&rdquo;: {b.treatment === "text-pop" ? `“${b.text}”` : b.treatment === "motion" ? `“${b.card?.text || b.card?.items?.join(" / ") || ""}”` : p.library.find((a) => a.key === b.asset)?.name}
                 <span className="faint"> · {LABEL[b.treatment]}</span></span>
-              {b.treatment !== "text-pop" && <select className="select w-200" aria-label="Where it goes" value={b.treatment} onChange={(ev) => setE({ ...e,
+              {b.treatment !== "text-pop" && b.treatment !== "motion" && <select className="select w-200" aria-label="Where it goes" value={b.treatment} onChange={(ev) => setE({ ...e,
                 broll: e.broll.map((x) => (x.id === b.id ? { ...x, treatment: ev.target.value as Broll["treatment"] } : x)) })}>
                 {["card-above-head", "side-card", "phone-card", "full-frame", "split-top"].map((t) => <option key={t} value={t}>{LABEL[t]}</option>)}</select>}
               <button className="btn ghost sm" onClick={() => setE({ ...e, broll: e.broll.filter((x) => x.id !== b.id) })}>Remove</button>
             </div>))}
+          <div className="field">
+            <span className="label">Add an animated card</span>
+            <div className="row">
+              <label className="sr-only" htmlFor="card-kind">Kind</label>
+              <select id="card-kind" className="select w-200" value={card.kind} onChange={(ev) => setCard({ ...card, kind: ev.target.value as keyof typeof CARD_NAME })}>
+                {(Object.keys(CARD_NAME) as (keyof typeof CARD_NAME)[]).map((k) => <option key={k} value={k}>{CARD_NAME[k]}</option>)}</select>
+              <input className="input grow" aria-label="Words on the card" value={card.text} autoComplete="off" onChange={(ev) => setCard({ ...card, text: ev.target.value })}
+                placeholder={card.kind === "number" ? "What the number is, e.g. videos every Sunday…" : card.kind === "statement" ? "A short line…" : "A heading (optional)…"} />
+            </div>
+            {card.kind === "number" && <input className="input" type="number" aria-label="The number" value={card.value} onChange={(ev) => setCard({ ...card, value: ev.target.value })} placeholder="4" />}
+            {(card.kind === "list" || card.kind === "compare") && <textarea className="textarea" rows={3} aria-label="One per line" value={card.items}
+              onChange={(ev) => setCard({ ...card, items: ev.target.value })} placeholder={card.kind === "compare" ? "Before\nAfter…" : "One item per line…"} />}
+            <div className="row"><button className="btn" disabled={card.kind === "number" ? !card.value : card.kind === "statement" ? !card.text.trim() : !card.items.trim()}
+              onClick={() => setPicFor("__card")}>Pick the word where it shows</button></div>
+          </div>
           <div className="field">
             <label htmlFor="ai-pic">Make a picture with AI</label>
             <div className="row">
@@ -233,8 +250,13 @@ export function Drawer({ project: p, edit, onApply, settings }: { project: Proje
           {picFor && <div className="words" aria-label="Pick a word">
             {p.words.filter((w) => kept.has(w.id)).map((w, k, arr) => (
               <button key={w.id} className="w" onClick={() => {
-                const end = arr.slice(k).find((x) => x.e - w.s >= 2.0) ?? arr[arr.length - 1];
-                setE({ ...e, broll: [...e.broll, { id: `m${Date.now()}`, anchor: { from: w.id, to: end.id }, asset: picFor, treatment: "card-above-head" }] });
+                const end = arr.slice(k).find((x) => x.e - w.s >= (picFor === "__card" ? 2.6 : 2.0)) ?? arr[arr.length - 1];
+                if (picFor === "__card") {
+                  const items = card.items.split("\n").map((x) => x.trim()).filter(Boolean).slice(0, 5);
+                  setE({ ...e, broll: [...e.broll, { id: `c${Date.now()}`, anchor: { from: w.id, to: end.id }, treatment: "motion",
+                    card: { kind: card.kind, text: card.text.trim(), value: card.kind === "number" ? Number(card.value) : undefined, items: items.length ? items : undefined } }] });
+                  setCard({ kind: card.kind, text: "", value: "", items: "" });
+                } else setE({ ...e, broll: [...e.broll, { id: `m${Date.now()}`, anchor: { from: w.id, to: end.id }, asset: picFor, treatment: "card-above-head" }] });
                 setPicFor(null);
               }}>{w.w}</button>))}
           </div>}

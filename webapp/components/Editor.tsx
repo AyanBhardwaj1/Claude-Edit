@@ -59,7 +59,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject 
     if (!canvas.current || gen !== mounts.current) return;
     canvas.current!.dataset.cuts = pl.scene.cuts.map((c) => c.toFixed(3)).join(",");   // for tests and tools
     setTrack({ segs: pl.tl.segments.map((x) => [x.outStart, x.outEnd]), zooms: pl.scene.zooms.map((z) => [z.s, z.e]),
-      layers: pl.scene.layers.map((L) => ({ s: L.start, e: L.end, text: L.b.treatment === "text-pop", label: L.b.text ?? p.library.find((x) => x.key === L.b.asset)?.name ?? "Picture" })) });
+      layers: pl.scene.layers.map((L) => ({ s: L.start, e: L.end, text: L.b.treatment === "text-pop", label: L.b.text ?? L.b.card?.text ?? p.library.find((x) => x.key === L.b.asset)?.name ?? "Picture" })) });
     setDur(pl.tl.duration); setT(0); setPlaying(false);
   }, [p, settings.brand]);
 
@@ -161,7 +161,8 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject 
   const copy = async (text: string) => { try { await navigator.clipboard.writeText(text); setToast("Caption copied"); } catch { setToast("Couldn't copy: select the text instead"); } };
   const post = version ? postText(p, version.edit) : "";
   const e = version?.edit;
-  const pics = e?.broll.filter((b) => b.treatment !== "text-pop").length ?? 0, cards = e ? e.broll.length - pics : 0;
+  const motionCards = e?.broll.filter((b) => b.treatment === "motion").length ?? 0;
+  const pics = e?.broll.filter((b) => b.treatment !== "text-pop" && b.treatment !== "motion").length ?? 0, cards = e ? e.broll.length - pics - motionCards : 0;
   const song = e?.music.asset ? p.library.find((a) => a.key === e.music.asset) : undefined;
   const fmt: Format = p.format ?? "9:16";
   const shape = FORMATS[fmt];
@@ -174,6 +175,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject 
     [!!song, song ? `Added music: ${song.name}` : "No music (add a song below)"],
     [pics + cards > 0, pics + cards ? `${pics} picture${pics === 1 ? "" : "s"} and ${cards} text card${cards === 1 ? "" : "s"}` : "No pictures yet"],
     [e.zooms.length > 0, e.zooms.length ? `${e.zooms.length} zoom${e.zooms.length === 1 ? "" : "s"}` : "No zooms"],
+    ...(motionCards ? [[true, `${motionCards} animated card${motionCards === 1 ? "" : "s"}`] as [boolean, string]] : []),
     [!!e.post.caption, e.post.caption ? "Wrote your post caption" : "No post caption yet"],
   ] : [];
 

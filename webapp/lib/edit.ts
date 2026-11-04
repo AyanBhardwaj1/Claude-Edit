@@ -28,7 +28,8 @@ export function defaultEdit(p: Project): Edit {
   };
 }
 
-const TREATMENTS: Treatment[] = ["card-above-head", "side-card", "phone-card", "full-frame", "split-top", "text-pop"];
+const TREATMENTS: Treatment[] = ["card-above-head", "side-card", "phone-card", "full-frame", "split-top", "text-pop", "motion"];
+const CARD_KINDS = ["number", "list", "compare", "bars", "statement", "title"] as const;
 
 /** What the AI sends back (see prompts.ts EDIT_SCHEMA). Every field is checked before it reaches the project. */
 export type AiEdit = {
@@ -40,6 +41,7 @@ export type AiEdit = {
   broll?: { asset: string; from: string; to: string; treatment?: string; side?: string }[];
   webPictures?: { query: string; kind: "logo" | "photo"; from: string; to: string; treatment?: string }[];
   zooms?: { from: string; to: string; scale?: number }[];
+  motionCards?: { kind: string; text?: string; sub?: string; items?: string[]; value?: number; prefix?: string; suffix?: string; from: string; to: string }[];
   music?: { asset?: string | null; level?: string; automation?: { from: string; to: string; db: number }[] };
   cover?: { word?: string | null; text?: string };
   post?: { caption?: string; hashtags?: string[]; keywords?: string[] };
@@ -94,7 +96,7 @@ export function fromAi(p: Project, base: Edit, ai: AiEdit, webAssets: Map<string
     if (r && l.text) broll.push({ id: id(), anchor: r, treatment: "text-pop", style: l.style === "pop" ? "pop" : "label", text: l.text.slice(0, 40) });
   }
   const treat = (t?: string, fallback: Treatment = "card-above-head"): Treatment =>
-    TREATMENTS.includes(t as Treatment) && t !== "text-pop" ? (t as Treatment) : fallback;
+    TREATMENTS.includes(t as Treatment) && t !== "text-pop" && t !== "motion" ? (t as Treatment) : fallback;
   for (const b of ai.broll ?? []) {
     const r = okRange(b, `picture ${b.asset}`);
     if (!r) continue;
@@ -109,7 +111,15 @@ export function fromAi(p: Project, base: Edit, ai: AiEdit, webAssets: Map<string
     const r = okRange(w, `web picture "${w.query}"`);
     if (r) broll.push({ id: id(), anchor: r, asset: a.key, treatment: treat(w.treatment) });
   }
-  if (ai.hook !== undefined || ai.labels !== undefined || ai.broll !== undefined || ai.webPictures !== undefined) {
+  for (const c of (ai.motionCards ?? []).slice(0, 4)) {
+    const r = okRange(c, `animated card "${c.text ?? c.kind}"`);
+    if (!r || !CARD_KINDS.includes(c.kind as never)) continue;
+    broll.push({ id: id(), anchor: r, treatment: "motion", card: { kind: c.kind as (typeof CARD_KINDS)[number], text: String(c.text ?? "").slice(0, 80),
+      sub: c.sub ? String(c.sub).slice(0, 60) : undefined, items: Array.isArray(c.items) ? c.items.slice(0, 5).map((x) => String(x).slice(0, 50)) : undefined,
+      value: Number.isFinite(Number(c.value)) ? Number(c.value) : undefined, prefix: c.prefix ? String(c.prefix).slice(0, 3) : undefined,
+      suffix: c.suffix ? String(c.suffix).slice(0, 12) : undefined } });
+  }
+  if (ai.hook !== undefined || ai.labels !== undefined || ai.broll !== undefined || ai.webPictures !== undefined || ai.motionCards !== undefined) {
     // a note that only touches pictures keeps the rest; a first edit replaces them all
     e.broll = broll;
   }
