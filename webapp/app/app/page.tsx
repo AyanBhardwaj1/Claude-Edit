@@ -97,7 +97,12 @@ export default function App() {
   const pickTheme = (id: ThemeId) => { setTheme(id); setThemeState(id); };
   const leave = () => { signOut(); location.href = "/"; };
 
-  if (!user) return <div className="app" aria-busy="true" />;
+  if (!user) return (
+    <div className="app" aria-busy="true" aria-label="Loading Cutmind">
+      <aside className="side"><div className="skel boot-skel" /><div className="skel boot-skel" /><div className="skel boot-skel" /></aside>
+      <main className="main"><div className="page"><div className="skel boot-head" /><div className="skel boot-body" /></div></main>
+    </div>
+  );
   const key = settings.provider === "anthropic" ? settings.anthropicKey : settings.openaiKey;
   const here = screen === "editor" ? "videos" : screen;
   const link = (n: (typeof NAV)[number]) => (

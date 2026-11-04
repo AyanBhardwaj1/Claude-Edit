@@ -301,6 +301,9 @@ html.js .site .hero .shot { opacity: 0; transform: translateY(40px); animation: 
 .doc p, .doc li { font-size: var(--body); }
 .doc p + p { margin-top: 14px; }
 
+.doc .err-detail { margin-top: 18px; font-size: var(--small); color: var(--muted); overflow-wrap: anywhere; }
+.doc .err-acts { margin-top: 32px; display: flex; gap: 16px; flex-wrap: wrap; }
+
 /* ---------- phone ---------- */
 @media (max-width: 860px) {
   .site { --m: 20px; }

@@ -126,7 +126,7 @@ export function Drawer({ project: p, edit, onApply }: { project: Project; edit: 
             <div key={b.id} className="pic-row">
               <span className="grow">On &ldquo;{textOf(b.anchor)}&rdquo;: {b.treatment === "text-pop" ? `“${b.text}”` : p.library.find((a) => a.key === b.asset)?.name}
                 <span className="faint"> · {LABEL[b.treatment]}</span></span>
-              {b.treatment !== "text-pop" && <select className="select" style={{ width: 200 }} aria-label="Where it goes" value={b.treatment} onChange={(ev) => setE({ ...e,
+              {b.treatment !== "text-pop" && <select className="select w-200" aria-label="Where it goes" value={b.treatment} onChange={(ev) => setE({ ...e,
                 broll: e.broll.map((x) => (x.id === b.id ? { ...x, treatment: ev.target.value as Broll["treatment"] } : x)) })}>
                 {["card-above-head", "side-card", "phone-card", "full-frame", "split-top"].map((t) => <option key={t} value={t}>{LABEL[t]}</option>)}</select>}
               <button className="btn ghost sm" onClick={() => setE({ ...e, broll: e.broll.filter((x) => x.id !== b.id) })}>Remove</button>

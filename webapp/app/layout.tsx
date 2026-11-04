@@ -2,7 +2,10 @@ import type { Metadata, Viewport } from "next";
 import { THEME_BOOT } from "@/lib/theme";
 import "./globals.css";
 
+const site = process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "http://localhost:3000";
+
 export const metadata: Metadata = {
+  metadataBase: new URL(site),
   title: "Cutmind: you talk, it cuts",
   description: "Cutmind is a video editor in your browser. Drop in your raw talking-head takes: it keeps your best take of every line, cuts " +
     "the pauses, adds subtitles, pictures and music, and writes your caption. Bring your own Anthropic or OpenAI key. Your videos never leave your browser.",

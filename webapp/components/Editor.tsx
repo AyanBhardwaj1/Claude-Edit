@@ -161,7 +161,7 @@ export function Editor({ project, settings, firstSummary, onBack }: { project: P
                 <div className="progress"><i style={{ transform: `scaleX(${exp.pct / 100})` }} /></div>
                 <p className="small muted">It plays through once in real time to record. Keep this tab open and in front.</p></>) : (
                 <div className="export-ready">
-                  <div className="panel-head" style={{ marginBottom: 0 }}><h2>Ready to post</h2>
+                  <div className="panel-head mb-0"><h2>Ready to post</h2>
                     <button className="btn ghost icon sm" aria-label="Close" onClick={() => setExp(null)}>&times;</button></div>
                   <div className="row">
                     <a className="btn primary" href={exp.video} download={`${base}.${exp.ext}`}><Icon name="download" />Download video (.{exp.ext})</a>
@@ -192,7 +192,7 @@ export function Editor({ project, settings, firstSummary, onBack }: { project: P
                   {m.rule && (
                     <div className="ask">
                       <div className="small">Remember this for next time? &ldquo;{m.rule}&rdquo;</div>
-                      <div className="row" style={{ marginTop: 8 }}>
+                      <div className="row mt-8">
                         <button className="btn sm primary" onClick={() => { addRule(m.rule!); setMsgs((x) => x.map((y, k) => (k === i ? { ...y, rule: undefined, text: y.text + "\nSaved to My style." } : y))); }}>Yes, remember it</button>
                         <button className="btn sm ghost" onClick={() => setMsgs((x) => x.map((y, k) => (k === i ? { ...y, rule: undefined } : y)))}>No, just this video</button>
                       </div>
@@ -202,14 +202,16 @@ export function Editor({ project, settings, firstSummary, onBack }: { project: P
               ))}
               {busy && <div className="msg ed busy"><span className="spin" aria-hidden="true" />{busy}</div>}
             </div>
-            {err && <div className="alert err" role="alert" style={{ marginTop: 12 }}><Icon name="alert" /><span>{err}</span></div>}
+            {err && <div className="alert err mt-12" role="alert"><Icon name="alert" /><span>{err}</span></div>}
             <div className="composer">
               <label className="sr-only" htmlFor="note">Note for your editor</label>
-              <textarea id="note" rows={1} value={note} placeholder="Tell your editor what to change, e.g. “music too loud at the start”…"
+              <textarea id="note" rows={1} value={note} placeholder="Tell your editor what to change…" aria-describedby="note-hint"
                 autoComplete="off" onChange={(ev) => setNote(ev.target.value)}
                 onKeyDown={(ev) => { if (ev.key === "Enter" && !ev.shiftKey && !ev.nativeEvent.isComposing) { ev.preventDefault(); void send(); } }} />
               <button className="btn primary" onClick={send} disabled={!!busy || !note.trim()}><Icon name="send" />Send</button>
             </div>
+            <p className="hint note-hint" id="note-hint">For example: &ldquo;music too loud at the start&rdquo;, &ldquo;show the Spotify logo when I say
+              Spotify&rdquo;, &ldquo;cut the part about my cat&rdquo;. Enter sends, Shift+Enter starts a new line.</p>
             <label className="attach">
               <Icon name="paperclip" />Add a song, picture or clip your editor can use
               <input type="file" multiple accept="audio/*,image/*,video/*"

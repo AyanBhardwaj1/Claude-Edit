@@ -29,7 +29,7 @@ export default function Privacy() {
           <h2>What Cutmind&apos;s server does</h2>
           <p>Two things: it searches Openverse, Wikimedia Commons and Simple Icons for open-licence pictures of words in your video, and it fetches those
             pictures from a fixed list of hosts so they can be drawn into the reel. The search words come from your transcript; nothing else is sent.</p>
-          <p style={{ marginTop: 48 }}><a className="textlink" href="/">Back to the home page</a></p>
+          <p className="err-acts"><a className="textlink" href="/">Back to the home page</a></p>
         </main>
       </div>
     </div>

@@ -40,12 +40,12 @@ export function Script({ settings }: { settings: Settings }) {
         </div>
         {err && <div className="alert err" role="alert"><Icon name="alert" /><span>{err}</span></div>}
       </section>
-      {busy && !res && <div className="skel" style={{ height: 260, marginTop: 16 }} aria-hidden="true" />}
+      {busy && !res && <div className="skel skel-script mt-16" aria-hidden="true" />}
       {res && (
-        <section className="panel script-out" style={{ marginTop: 16 }} aria-live="polite">
+        <section className="panel script-out mt-16" aria-live="polite">
           <div><h2 className="faint">Hook</h2><p className="hook">{res.hook}</p></div>
-          <div><h2 className="faint">What to say</h2><p style={{ whiteSpace: "pre-wrap", marginTop: 6 }}>{res.script}</p></div>
-          <div><h2 className="faint">Words on screen</h2><ul className="onscreen" style={{ marginTop: 8 }}>{res.onScreenText.map((t) => <li key={t}>{t}</li>)}</ul></div>
+          <div><h2 className="faint">What to say</h2><p className="pre mt-6">{res.script}</p></div>
+          <div><h2 className="faint">Words on screen</h2><ul className="onscreen mt-8">{res.onScreenText.map((t) => <li key={t}>{t}</li>)}</ul></div>
           <div className="row">
             <button className="btn" onClick={async () => { await navigator.clipboard.writeText(`${res.hook}\n\n${res.script}\n\nOn screen:\n${res.onScreenText.join("\n")}`); setCopied(true); }}>
               <Icon name="copy" />{copied ? "Copied" : "Copy script"}</button>
@@ -73,7 +73,7 @@ export function StyleRules() {
           placeholder="Add a rule, e.g. “Keep music quieter under talking.”…" />
         <button className="btn primary" disabled={!text.trim()}><Icon name="plus" />Add rule</button>
       </form>
-      <div className="stack" style={{ marginTop: 18, gap: 8 }}>
+      <div className="stack tight mt-16">
         {!rules.length && <div className="empty"><h2>Nothing learned yet</h2><p>Leave notes on your videos. Anything you&apos;d want on every video becomes a
           rule here, and your first edits start to look like your own.</p></div>}
         {rules.map((r) => (
