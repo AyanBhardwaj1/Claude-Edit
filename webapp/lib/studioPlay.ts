@@ -1,6 +1,6 @@
 // Plays a Motion Studio animation on a canvas with its music and voiceover, and records it (MediaRecorder).
 
-import { drawAnim, frameSize, timeline, total, type Anim } from "./studio";
+import { drawAnim, frameSize, setStudioImage, studioImage, timeline, total, type Anim } from "./studio";
 
 export class StudioPlayer {
   t = 0;
@@ -20,6 +20,14 @@ export class StudioPlayer {
   constructor(private canvas: HTMLCanvasElement, public anim: Anim, private urls: Map<string, string>) {
     this.g = canvas.getContext("2d")!;
     this.setAnim(anim);
+    void this.loadImages();
+  }
+
+  /** Decode the pictures of picture scenes (once each), then redraw. */
+  async loadImages() {
+    const want = this.anim.scenes.map((s) => s.image).filter((k): k is string => !!k && !studioImage(k) && this.urls.has(k));
+    await Promise.all(want.map(async (k) => { const img = new Image(); img.src = this.urls.get(k)!; await img.decode().catch(() => undefined); setStudioImage(k, img); }));
+    if (want.length && !this.playing) this.draw(this.t);
   }
 
   setAnim(a: Anim) {
@@ -30,7 +38,7 @@ export class StudioPlayer {
     if (!this.playing) this.draw(this.t);
   }
 
-  setUrls(urls: Map<string, string>) { this.urls = urls; }
+  setUrls(urls: Map<string, string>) { this.urls = urls; void this.loadImages(); }
 
   get duration() { return total(this.anim); }
 

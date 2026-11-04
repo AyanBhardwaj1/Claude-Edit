@@ -1,12 +1,13 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import type { User } from "@/lib/auth";
-import { listProjects, loadRules } from "@/lib/store";
+import { listAnims, listProjects, loadRules } from "@/lib/store";
+import { paletteOf, total, type Anim } from "@/lib/studio";
 import { THEME_KEY, THEMES, type ThemeId } from "@/lib/theme";
 import type { Project, Settings, StyleRule } from "@/lib/types";
 import { kindOf } from "@/lib/workflow";
 import { Icon } from "./Icons";
-import { fmtDur, keptSeconds, rawSeconds, VideoTile } from "./Tiles";
+import { clock, fmtDur, keptSeconds, rawSeconds, VideoTile } from "./Tiles";
 
 type Go = "videos" | "animate" | "script" | "style" | "settings";
 
@@ -20,11 +21,13 @@ export function Dashboard({ user, settings, theme, onNew, onOpen, onGo, onSample
   onSample: () => void; onNew: (files?: File[]) => void; onOpen: (p: Project) => void; onGo: (s: Go) => void }) {
   const [ps, setPs] = useState<Project[] | null>(null);
   const [rules, setRules] = useState<StyleRule[]>([]);
+  const [anims, setAnims] = useState<Anim[]>([]);
   const [over, setOver] = useState(false);
   const [lookPicked, setLookPicked] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   useEffect(() => {
     void listProjects().then(setPs);
+    void listAnims().then(setAnims);
     setRules(loadRules());
     try { setLookPicked(!!localStorage.getItem(THEME_KEY)); } catch { /* storage blocked */ }
   }, [theme]);
@@ -129,6 +132,17 @@ export function Dashboard({ user, settings, theme, onNew, onOpen, onGo, onSample
                 {settings.transcriber === "openai" ? "Listens with OpenAI (fast)" : "Listens in your browser (free)"}</span></li>
               <li><span className="tick"><Icon name="palette" /></span><span className="grow">{themeName} look</span></li>
             </ul>
+          </section>
+
+          <section className="panel" aria-labelledby="anim-h2">
+            <div className="panel-head"><h2 id="anim-h2">Animations</h2>
+              <a className="btn ghost sm" href="#animate" onClick={(e) => { e.preventDefault(); onGo("animate"); }}>{anims.length ? "All" : "Make one"}</a></div>
+            {anims.length ? <div className="anim-list">{anims.slice(0, 3).map((x) => (
+              <a key={x.id} className="anim-row link-row" href={`#animate/${encodeURIComponent(x.id)}`}>
+                <span className="sw" style={{ background: paletteOf(x.palette).bg }}><i style={{ background: paletteOf(x.palette).accent }} /></span>
+                <span className="grow"><b className="trunc block">{x.title}</b><span className="small faint">{x.scenes.length} scenes · {clock(total(x))}</span></span>
+              </a>))}</div>
+              : <p className="small muted">Type a script, a launch or a few bullet points and Motion Studio animates it. No camera needed.</p>}
           </section>
 
           <section className="panel" aria-labelledby="style-h">

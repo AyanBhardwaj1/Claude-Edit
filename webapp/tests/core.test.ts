@@ -178,3 +178,10 @@ test("subtitles: phrases for translation and an .srt file", async () => {
   const tr = srt(p, { ...e, translation: { lang: "Spanish", lines: [{ from: ph[0].from, to: ph[0].to, text: "Hola amigos." }] } }, tl);
   assert.match(tr, /Hola amigos\./);
 });
+
+test("page reader refuses private and local addresses", async () => {
+  const { privateIp } = await import("../lib/server/net");
+  for (const ip of ["127.0.0.1", "10.2.3.4", "172.16.0.9", "192.168.1.1", "169.254.169.254", "100.64.0.1", "0.0.0.0", "::1", "fd00::1", "::ffff:10.0.0.1"])
+    assert.equal(privateIp(ip), true, ip);
+  for (const ip of ["8.8.8.8", "151.101.1.69", "2606:4700::6810:84e5"]) assert.equal(privateIp(ip), false, ip);
+});

@@ -54,7 +54,7 @@ export async function listAnims(): Promise<Anim[]> {
 }
 export async function deleteAnim(a: Anim) {
   await del(a.id, anims());
-  await Promise.all([a.music, ...Object.values(a.voice?.keys ?? {})].filter(Boolean).map((k) => del(k!, media())));
+  await Promise.all([a.music, ...Object.values(a.voice?.keys ?? {}), ...a.scenes.map((x) => x.image)].filter(Boolean).map((k) => del(k!, media())));
 }
 
 export const DEFAULT_SETTINGS: Settings = {

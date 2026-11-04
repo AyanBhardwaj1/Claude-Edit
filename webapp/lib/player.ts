@@ -36,7 +36,8 @@ export class Player {
   constructor(private canvas: HTMLCanvasElement, public project: Project, public edit: Edit,
               private urls: Map<string, string>) {
     setFormat(project.format);
-    canvas.width = W; canvas.height = H;
+    // resizing clears the canvas: only do it when the shape changes, so the last frame stays up while a version loads
+    if (canvas.width !== W || canvas.height !== H) { canvas.width = W; canvas.height = H; }
     this.g = canvas.getContext("2d")!;
   }
 

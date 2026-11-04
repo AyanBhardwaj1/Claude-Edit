@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { postText } from "@/lib/edit";
 import { FORMATS } from "@/lib/compositor";
 import { findClips, makeClip, type Clip } from "@/lib/clips";
+import { hookIdeas, hookOf, withHook } from "@/lib/hooks";
 import { Player } from "@/lib/player";
 import { srt } from "@/lib/translate";
 import { applyBrand, brandOf, hasBrand } from "@/lib/brand";
@@ -36,6 +37,8 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject 
   const [toast, setToast] = useState("");
   const [clips, setClips] = useState<Clip[] | null>(null);
   const [clipBusy, setClipBusy] = useState("");
+  const [hooks, setHooks] = useState<string[] | null>(null);
+  const [hookBusy, setHookBusy] = useState(false);
   const [track, setTrack] = useState<{ segs: [number, number][]; layers: { s: number; e: number; text: boolean; label: string }[]; zooms: [number, number][] } | null>(null);
   const [all, setAll] = useState<{ f: Format; url: string; ext: string }[] | null>(null);
   const version = p.versions.find((v) => v.n === p.current) ?? p.versions[p.versions.length - 1];
@@ -275,6 +278,21 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject 
               {did.map(([on, text]) => <li key={text} className={on ? "" : "off"}><Icon name={on ? "check" : "dot"} />{text}</li>)}
             </ul>
           </section>
+
+          {version && hookOf(version.edit) && (
+            <section className="panel" aria-labelledby="hook-h">
+              <div className="panel-head"><h2 id="hook-h">Hook title</h2>
+                <button className="btn sm" disabled={hookBusy || !(settings.provider === "anthropic" ? settings.anthropicKey : settings.openaiKey)} onClick={async () => {
+                  setHookBusy(true); setErr("");
+                  try { const pl = player.current; if (pl) setHooks(await hookIdeas(settings, pl.tl, hookOf(version.edit))); }
+                  catch (e) { setErr((e as { userMessage?: string }).userMessage ?? String(e)); }
+                  setHookBusy(false); }}>{hookBusy ? <><span className="spin" />Thinking…</> : <><Icon name="spark" />Try 5 hooks</>}</button></div>
+              <p className="hook-now">&ldquo;{hookOf(version.edit)}&rdquo;</p>
+              {hooks && <div className="chips mt-8" role="group" aria-label="Hook ideas">{hooks.map((h) => (
+                <button key={h} className="chip" onClick={async () => { await saveManual(p, withHook(version.edit, h), "a new hook title"); setP({ ...p });
+                  setMsgs((m) => [...m, { who: "ed", text: `Version ${p.current}: the hook now says "${h}".` }]); setHooks(null); }}>{h}</button>))}</div>}
+            </section>
+          )}
 
           {!p.parent && (p.words.length > 120 || clips) && (
             <section className="panel" aria-labelledby="clips-h">

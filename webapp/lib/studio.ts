@@ -7,11 +7,13 @@ import { FORMATS } from "./compositor";
 import { clamp01, ease } from "./motion";
 import type { Format } from "./types";
 
-export type SceneKind = "title" | "statement" | "number" | "list" | "quote" | "compare" | "bars" | "cta";
+export type SceneKind = "title" | "statement" | "number" | "list" | "quote" | "compare" | "bars" | "image" | "cta";
 export type Scene = {
   id: string; kind: SceneKind; text: string; sub?: string; items?: string[];
   value?: number; prefix?: string; suffix?: string; emphasis?: string[]; duration: number;
   say?: string;                         // what the voiceover reads for this scene (defaults to its words)
+  image?: string;                       // picture scenes: media key of the picture
+  picture?: string;                     // picture scenes: a description an AI image model can make
 };
 export type PaletteId = "midnight" | "sunset" | "mint" | "paper" | "electric" | "ocean" | "brand";
 export type FontId = "grotesk" | "serif" | "heavy" | "mono" | "book" | "brand";
@@ -51,7 +53,12 @@ export function fontOf(id: FontId) {
 }
 
 export const KIND_NAME: Record<SceneKind, string> = { title: "Title", statement: "Statement", number: "Big number", list: "List", quote: "Quote",
-  compare: "Before and after", bars: "Bar chart", cta: "Call to action" };
+  compare: "Before and after", bars: "Bar chart", image: "Picture", cta: "Call to action" };
+
+/** Pictures for picture scenes, by media key (the player loads them). */
+const IMAGES = new Map<string, HTMLImageElement>();
+export const setStudioImage = (key: string, img: HTMLImageElement) => IMAGES.set(key, img);
+export const studioImage = (key?: string) => (key ? IMAGES.get(key) : undefined);
 
 const uid = () => Math.random().toString(36).slice(2, 9);
 const STOP = new Set("the a an and or but of to in on at for with from by is are was were be been it this that these those your you our we my i me they them their his her its as so if then than just very really more most into over about what when how why who".split(" "));
@@ -147,7 +154,7 @@ export function cleanScenes(raw: unknown): Scene[] {
       value: Number.isFinite(Number(s.value)) ? Number(s.value) : undefined, prefix: s.prefix ? String(s.prefix).slice(0, 3) : undefined,
       suffix: s.suffix ? String(s.suffix).slice(0, 12) : undefined,
       emphasis: Array.isArray(s.emphasis) ? s.emphasis.slice(0, 3).map(String) : undefined, duration: 3,
-      say: s.say ? String(s.say).slice(0, 400) : undefined };
+      say: s.say ? String(s.say).slice(0, 400) : undefined, picture: s.picture ? String(s.picture).slice(0, 400) : undefined };
     sc.duration = Number.isFinite(Number(s.duration)) ? Math.min(8, Math.max(1.8, Number(s.duration))) : readTime(sc);
     return sc;
   }).filter((s) => s.text || s.items?.length);
@@ -404,6 +411,25 @@ export function drawScene(g: Ctx, a: Anim, s: Scene, local: number, W: number, H
         if (w > g.measureText(label).width + bh) g.fillText(label, m + w - g.measureText(label).width - bh * 0.45, y + bh / 2);
         g.textBaseline = "alphabetic";
       });
+      break;
+    }
+    case "image": {
+      const img = studioImage(s.image);
+      const kb = 1.04 + 0.08 * clamp01(local / Math.max(1, s.duration));
+      if (img?.naturalWidth) {
+        const sc = Math.max(W / img.naturalWidth, H / img.naturalHeight) * kb;
+        const dw = img.naturalWidth * sc, dh = img.naturalHeight * sc;
+        g.save(); g.globalAlpha = ease.out(clamp01(local / 0.5));
+        g.drawImage(img, (W - dw) / 2 + 0.02 * W * Math.sin(local * 0.3), (H - dh) / 2, dw, dh); g.restore();
+        const sh = g.createLinearGradient(0, H * 0.45, 0, H);
+        sh.addColorStop(0, "rgba(0,0,0,0)"); sh.addColorStop(1, "rgba(0,0,0,0.78)");
+        g.fillStyle = sh; g.fillRect(0, 0, W, H);
+      } else {
+        g.fillStyle = hexA(p.ink, 0.06); g.beginPath(); g.roundRect(m, 0.18 * H, W - 2 * m, 0.42 * H, 0.03 * U); g.fill();
+        g.fillStyle = p.muted; g.font = body(0.04 * U, 600); g.textAlign = "center"; g.fillText("Add a picture for this scene", W / 2, 0.4 * H);
+      }
+      if (s.text) kinetic(g, a, { ...p, ink: "#ffffff" }, s.text, s.emphasis ?? [], { x: m, y: tall ? 0.64 * H : 0.6 * H, w: W - 2 * m, h: tall ? 0.2 * H : 0.28 * H },
+        0.1 * U, local, { align: "left", colour: "#ffffff" });
       break;
     }
     case "cta": {
