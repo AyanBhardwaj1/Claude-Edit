@@ -15,6 +15,7 @@ with sync_playwright() as pw:
     page.get_by_label("Password", exact=True).fill("reels4ever!"); page.get_by_role("button", name="Create my account").click()
     page.wait_for_url("**/app**"); page.goto(base + "/app#animate")
     page.get_by_role("button", name=sys.argv[3] if len(sys.argv) > 3 else "Product launch").click()
+    if len(sys.argv) > 4: page.get_by_role("group", name="Pace").get_by_role("button", name=sys.argv[4]).click()
     page.get_by_role("button", name="Animate it").click()
     page.get_by_role("button", name="All animations").wait_for(timeout=30000)
     page.wait_for_timeout(1200)
@@ -36,7 +37,8 @@ with sync_playwright() as pw:
     page.get_by_role("button", name="16:9 Wide").click(); page.wait_for_timeout(400); grab("wide-title", 1.5); grab("wide-mid", round(dur * 0.4, 2))
     page.get_by_role("button", name="1:1 Square").click(); page.wait_for_timeout(400)
     page.get_by_role("button", name="Export").click()
-    page.get_by_text("Ready", exact=True).wait_for(timeout=120000)
+    page.get_by_role("link", name="Download video").wait_for(timeout=120000)
+    print("export header:", page.locator(".export-ready h2").inner_text())
     with page.expect_download() as dl:
         page.get_by_role("link", name="Download video").click()
     vid = out / dl.value.suggested_filename; dl.value.save_as(vid)

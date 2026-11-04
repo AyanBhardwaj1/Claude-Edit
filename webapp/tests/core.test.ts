@@ -136,6 +136,7 @@ test("motion studio: the offline planner reads the shape of the text", async () 
   const two = planScenes("Why your videos stop getting views.\nA slow intro loses 65% of them.\nOpen with the payoff.");
   const num = two.find((s) => s.kind === "number")!;
   assert.equal(num.value, 65); assert.equal(num.suffix, "%");
+  assert.equal(planScenes("A title here.\nStep 1, I write every hook.").find((s) => s.kind === "number"), undefined, "step numbers are not stats");
   assert.deepEqual(sc.find((s) => s.kind === "list")!.items, ["Subtitles on every word", "Pictures that miss your face", "Music under your voice"]);
   assert.ok(sc.every((s) => s.duration >= 2.4 && s.duration <= 7));
   const cleaned = cleanScenes([{ kind: "wobble", text: "Hi" }, { kind: "number", text: "users", value: "12", duration: 99 }, { kind: "list" }]);

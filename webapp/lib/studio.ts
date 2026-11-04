@@ -15,12 +15,15 @@ export type Scene = {
   image?: string;                       // picture scenes: media key of the picture
   picture?: string;                     // picture scenes: a description an AI image model can make
 };
+export type Pace = "calm" | "normal" | "hype";
+export const PACE_NAME: Record<Pace, string> = { calm: "Calm", normal: "Normal", hype: "Hype" };
 export type PaletteId = "midnight" | "sunset" | "mint" | "paper" | "electric" | "ocean" | "brand";
 export type FontId = "grotesk" | "serif" | "heavy" | "mono" | "book" | "brand";
 export type Anim = {
   id: string; title: string; createdAt: string; updatedAt: string; source: string;
   palette: PaletteId; font: FontId; format: Format; scenes: Scene[];
   music?: string;                       // media key of a song (IndexedDB)
+  pace?: Pace;                          // calm (slower, softer), normal, hype (one huge word at a time)
   voice?: { name: string; keys: Record<string, string> };   // scene id -> media key of its voiceover
   owner?: string;
 };
@@ -121,7 +124,8 @@ export function planScenes(text: string): Scene[] {
     if (cmp && words <= 16 && /\d|before|after|old|new|vs|versus|instead/i.test(u)) {
       push({ kind: "compare", text: "", items: [cmp[1].replace(/^from\s+/i, ""), cmp[2]] }); i++; continue;
     }
-    if (n && words <= 18 && +n[2].replace(/,/g, "") > 0) {
+    const ordinal = n && /\b(step|number|no\.?|part|tip|rule|day|chapter|lesson|level|round|version)\s*$/i.test(u.slice(0, n.index ?? 0));
+    if (n && !ordinal && words <= 18 && +n[2].replace(/,/g, "") > 0) {
       const value = +n[2].replace(/,/g, "");
       push({ kind: "number", text: u.replace(/[.]$/, ""), value, prefix: n[1] ?? "", suffix: n[3] ? (n[3] === "%" ? "%" : ` ${n[3]}`) : "" });
       i++; continue;
@@ -240,7 +244,7 @@ function kinetic(g: Ctx, a: Anim, p: P, text: string, emphasis: string[], box: {
   const blockH = lines.length * size * lh;
   let y0 = box.y + (box.h - blockH) / 2;
   let idx = 0;
-  const stagger = opts.stagger ?? 0.07;
+  const stagger = (opts.stagger ?? 0.07) * (a.pace === "calm" ? 1.7 : 1);
   g.textBaseline = "alphabetic";
   for (const line of lines) {
     const lw = g.measureText(line.join(" ")).width;
@@ -299,6 +303,11 @@ export function drawScene(g: Ctx, a: Anim, s: Scene, local: number, W: number, H
   const inA = clamp01((local - 0.5) / 0.5);
   const box = { x: m, y: tall ? 0.27 * H : 0.17 * H, w: W - 2 * m, h: tall ? 0.36 * H : 0.48 * H };
   g.textAlign = "left";
+  if (a.pace === "hype" && (s.kind === "title" || s.kind === "statement" || s.kind === "cta" || s.kind === "quote")) {
+    hype(g, a, p, s, local, W, H);
+    dots(g, p, W, H, U, index, count);
+    return;
+  }
   switch (s.kind) {
     case "title": {
       const r = kinetic(g, a, p, s.text, s.emphasis ?? [], { ...box, h: box.h * 0.9 }, 0.17 * U, local, { stagger: 0.07 });
@@ -457,6 +466,39 @@ export function drawScene(g: Ctx, a: Anim, s: Scene, local: number, W: number, H
       break;
     }
   }
+  dots(g, p, W, H, U, index, count);
+}
+
+/** Hype pace: one word at a time, huge, the ground flipping to the accent on the key words, each word punching in. */
+function hype(g: Ctx, a: Anim, p: P, s: Scene, local: number, W: number, H: number) {
+  const words = s.text.split(/\s+/).filter(Boolean);
+  if (!words.length) return;
+  const per = Math.max(0.18, (s.duration - 0.3) / words.length);
+  const i = Math.min(words.length - 1, Math.floor(local / per));
+  const k = clamp01((local - i * per) / Math.min(0.16, per * 0.6));
+  const em = new Set((s.emphasis ?? []).flatMap((e) => e.split(/\s+/)).map(bare));
+  const hot = em.has(bare(words[i])) || /\d/.test(words[i]) || i === words.length - 1;
+  const U = Math.min(W, H);
+  if (hot) { g.fillStyle = p.accent; g.fillRect(0, 0, W, H); }
+  const F = fontOf(a.font);
+  const w = words[i].replace(/[.,!?;:]+$/, "");
+  let size = 0.36 * U;
+  g.font = `${F.weight} ${size}px ${F.family}`;
+  while (g.measureText(w).width > W * 0.8 && size > 0.08 * U) { size *= 0.93; g.font = `${F.weight} ${size}px ${F.family}`; }
+  g.save(); g.translate(W / 2, H / 2);
+  const sc = 1.25 - 0.25 * ease.back(k); g.scale(sc, sc); g.rotate(((i % 2 ? 1 : -1) * (1 - k) * 4 * Math.PI) / 180);
+  g.globalAlpha = Math.min(1, k * 2);
+  g.textAlign = "center"; g.textBaseline = "middle";
+  g.fillStyle = hot ? (p.dark ? p.bg : "#fff") : p.ink;
+  g.fillText(s.kind === "title" || s.kind === "cta" ? w.toUpperCase() : w, 0, 0);
+  g.restore();
+  if (s.kind === "cta" && s.sub && i === words.length - 1) {
+    g.font = `800 ${0.05 * U}px "Plus Jakarta Sans", sans-serif`; g.textAlign = "center"; g.fillStyle = hot ? (p.dark ? p.bg : "#fff") : p.accent;
+    g.globalAlpha = clamp01((local - i * per - 0.2) / 0.3); g.fillText(s.sub, W / 2, H / 2 + 0.22 * U); g.globalAlpha = 1;
+  }
+}
+
+function dots(g: Ctx, p: P, W: number, H: number, U: number, index: number, count: number) {
   // scene dots along the bottom
   const dotW = 0.04 * U, gapD = 0.014 * U, totalW = count * dotW + (count - 1) * gapD;
   for (let i = 0; i < count; i++) {

@@ -22,6 +22,9 @@ export function Dashboard({ user, settings, theme, onNew, onOpen, onGo, onSample
   const [ps, setPs] = useState<Project[] | null>(null);
   const [rules, setRules] = useState<StyleRule[]>([]);
   const [anims, setAnims] = useState<Anim[]>([]);
+  const [welcome, setWelcome] = useState(false);
+  useEffect(() => { try { setWelcome(!localStorage.getItem(`cutmind.welcomed.${user.id}`)); } catch { /* storage blocked */ } }, [user.id]);
+  const dismiss = () => { setWelcome(false); try { localStorage.setItem(`cutmind.welcomed.${user.id}`, "1"); } catch { /* storage blocked */ } };
   const [over, setOver] = useState(false);
   const [lookPicked, setLookPicked] = useState(false);
   const input = useRef<HTMLInputElement>(null);
@@ -61,6 +64,20 @@ export function Dashboard({ user, settings, theme, onNew, onOpen, onGo, onSample
         </div>
       </div>
 
+      {welcome && (
+        <section className="welcome" aria-labelledby="welcome-h">
+          <div className="grow">
+            <h2 id="welcome-h">Welcome to Cutmind, {user.name.split(/\s+/)[0]}</h2>
+            <p>Three ways to start. Everything stays in this browser, and you can add an AI key any time for the full editor.</p>
+          </div>
+          <div className="welcome-acts">
+            <button className="w-act" onClick={() => { dismiss(); onNew(); }}><Icon name="upload" /><b>Edit a video</b><span>Raw takes in, a finished reel out</span></button>
+            <button className="w-act" onClick={() => { dismiss(); onGo("animate"); }}><Icon name="wand" /><b>Animate text</b><span>No camera: type it, watch it move</span></button>
+            <button className="w-act" onClick={() => { dismiss(); onSample(); }}><Icon name="play" /><b>Open the sample</b><span>A finished edit to play with</span></button>
+          </div>
+          <button className="btn ghost icon sm close" aria-label="Close the welcome" onClick={dismiss}>&times;</button>
+        </section>
+      )}
       <div className="dash">
         <div className="stack">
           <section className="panel start" aria-label="Start a reel">
