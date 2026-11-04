@@ -124,7 +124,8 @@ export function planScenes(text: string): Scene[] {
     if (cmp && words <= 16 && /\d|before|after|old|new|vs|versus|instead/i.test(u)) {
       push({ kind: "compare", text: "", items: [cmp[1].replace(/^from\s+/i, ""), cmp[2]] }); i++; continue;
     }
-    if (n && words <= 18 && +n[2].replace(/,/g, "") > 0) {
+    const ordinal = n && /\b(step|number|no\.?|part|tip|rule|day|chapter|lesson|level|round|version)\s*$/i.test(u.slice(0, n.index ?? 0));
+    if (n && !ordinal && words <= 18 && +n[2].replace(/,/g, "") > 0) {
       const value = +n[2].replace(/,/g, "");
       push({ kind: "number", text: u.replace(/[.]$/, ""), value, prefix: n[1] ?? "", suffix: n[3] ? (n[3] === "%" ? "%" : ` ${n[3]}`) : "" });
       i++; continue;

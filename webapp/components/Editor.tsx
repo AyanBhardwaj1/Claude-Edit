@@ -4,6 +4,10 @@ import { postText } from "@/lib/edit";
 import { FORMATS } from "@/lib/compositor";
 import { findClips, makeClip, type Clip } from "@/lib/clips";
 import { hookIdeas, hookOf, withHook } from "@/lib/hooks";
+import { newAnim } from "@/lib/studio";
+import { captionWords } from "@/lib/text";
+import { recapOf } from "@/lib/studioAi";
+import { saveAnim } from "@/lib/store";
 import { Player } from "@/lib/player";
 import { srt } from "@/lib/translate";
 import { applyBrand, brandOf, hasBrand } from "@/lib/brand";
@@ -17,8 +21,8 @@ import { clock } from "./Tiles";
 
 type Msg = { who: "you" | "ed"; text: string; rule?: string };
 
-export function Editor({ project, settings, firstSummary, onBack, onOpenProject }: { project: Project; settings: Settings; firstSummary?: string;
-  onBack: () => void; onOpenProject?: (p: Project, summary: string) => void }) {
+export function Editor({ project, settings, firstSummary, onBack, onOpenProject, onOpenAnim }: { project: Project; settings: Settings; firstSummary?: string;
+  onBack: () => void; onOpenProject?: (p: Project, summary: string) => void; onOpenAnim?: (id: string) => void }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const player = useRef<Player | null>(null);
   const mounts = useRef(0);
@@ -39,6 +43,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject 
   const [clipBusy, setClipBusy] = useState("");
   const [hooks, setHooks] = useState<string[] | null>(null);
   const [hookBusy, setHookBusy] = useState(false);
+  const [recapBusy, setRecapBusy] = useState(false);
   const [track, setTrack] = useState<{ segs: [number, number][]; layers: { s: number; e: number; text: boolean; label: string }[]; zooms: [number, number][] } | null>(null);
   const [all, setAll] = useState<{ f: Format; url: string; ext: string }[] | null>(null);
   const version = p.versions.find((v) => v.n === p.current) ?? p.versions[p.versions.length - 1];
@@ -184,6 +189,18 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject 
       <div className="ed-head">
         <button className="btn ghost sm" onClick={onBack}><Icon name="arrowLeft" />My videos</button>
         <h1 className="grow trunc">{p.title}</h1>
+        <button className="btn ghost" disabled={recapBusy || !player.current} onClick={async () => {
+          const pl = player.current; if (!pl) return;
+          setRecapBusy(true); setErr("");
+          try {
+            const said = captionWords(pl.tl.words, version?.edit.corrections ?? []).map((w) => w.text).join(" ");   // numbers as digits
+            const plan = await recapOf(settings, said, p.title);
+            const anim = newAnim(said, plan.scenes, { title: `${p.title}: recap`.slice(0, 60), palette: plan.palette ?? "midnight", font: plan.font ?? "grotesk", format: p.format ?? "9:16" });
+            await saveAnim(anim);
+            onOpenAnim?.(anim.id);
+          } catch (e) { setErr((e as { userMessage?: string }).userMessage ?? String(e)); }
+          setRecapBusy(false);
+        }}>{recapBusy ? <><span className="spin" />Animating…</> : <><Icon name="wand" />Animated recap</>}</button>
         <button className="btn" aria-pressed={drawer} onClick={() => setDrawer(!drawer)}><Icon name="scissors" />{drawer ? "Close the editor" : "Edit it myself"}</button>
         <button className="btn primary" onClick={exportVideo} disabled={recording}><Icon name="download" />Export</button>
       </div>

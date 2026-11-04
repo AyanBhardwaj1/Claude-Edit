@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Dashboard } from "@/components/Dashboard";
 import { Editor } from "@/components/Editor";
 import { Icon, Mark, type IconName } from "@/components/Icons";
@@ -45,7 +45,10 @@ export default function App() {
   const [loading, setLoading] = useState("");
   const [animId, setAnimId] = useState<string | undefined>();
 
+  const sampling = useRef(false);
   const sample = useCallback(async () => {
+    if (sampling.current) return;                 // the start-up route and a hash change can both ask at once
+    sampling.current = true;
     setLoading("Getting the sample video…");
     try {
       const { project: p, summary: s } = await createSample((m) => setLoading(m === "Ready" ? "" : `${m}…`));
@@ -56,9 +59,11 @@ export default function App() {
       setLoading((e as { userMessage?: string }).userMessage ?? "The sample video couldn't load.");
       setTimeout(() => setLoading(""), 4000);
       history.replaceState(null, "", "#"); setScreen("home");
+      sampling.current = false;
       return;
     }
     setLoading("");
+    sampling.current = false;
   }, []);
 
   const route = useCallback(async (hash: string) => {
@@ -177,7 +182,7 @@ export default function App() {
           onDone={(p, s) => { setPending([]); open(p, s); }} />}
         {screen === "editor" && project && (project.versions.length
           ? <Editor key={project.id} project={project} settings={settings} firstSummary={summary} onBack={() => go("videos")}
-            onOpenProject={(p, s) => open(p, s)} />
+            onOpenProject={(p, s) => open(p, s)} onOpenAnim={(id) => { location.hash = `animate/${encodeURIComponent(id)}`; }} />
           : <div className="page narrow"><div className="empty"><h2>This video didn&apos;t finish</h2>
               <p>Something stopped it before the first edit. Delete it from My videos and make it again from New video.</p>
               <button className="btn" onClick={() => go("videos")}><Icon name="arrowLeft" />My videos</button></div></div>)}

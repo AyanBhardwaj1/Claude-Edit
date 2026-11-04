@@ -2,7 +2,7 @@
 // (OpenAI text to speech with the user's key). Both called straight from the browser.
 
 import { callJson } from "./ai";
-import { cleanScenes, FONTS, narration, PALETTES, readTime, type FontId, type PaletteId, type Scene } from "./studio";
+import { cleanScenes, FONTS, narration, PALETTES, planScenes, readTime, type FontId, type PaletteId, type Scene } from "./studio";
 import type { Settings } from "./types";
 
 export const STUDIO_SYSTEM = `You are a motion designer and script editor. You turn the user's text into a short animated video made of
@@ -80,3 +80,13 @@ export async function speak(key: string, text: string, voice: string): Promise<{
 /** Scene length with a voiceover: the voice plus a beat, never shorter than reading time. */
 export const voicedDuration = (s: Scene, seconds: number) => +Math.min(12, Math.max(readTime(s), seconds + 0.6)).toFixed(1);
 export { narration };
+
+/** A recap animation of a video: the AI (or the offline planner) turns what was said into scenes. */
+export async function recapOf(s: Settings, said: string, title: string): Promise<{ title: string; palette?: PaletteId; font?: FontId; scenes: Scene[] }> {
+  const key = s.provider === "anthropic" ? s.anthropicKey : s.openaiKey;
+  if (key) {
+    const plan = await planWithAi(s, `A recap of a talking video called "${title}". Pull out its hook, its key points and numbers, and end on its takeaway.\n\n${said}`, "explainer", "9:16");
+    return plan;
+  }
+  return { title, scenes: planScenes(said) };
+}
