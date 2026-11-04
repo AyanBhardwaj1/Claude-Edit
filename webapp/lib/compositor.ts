@@ -35,7 +35,13 @@ export type Layer = {
 export type Scene = { tl: Timeline; cues: Cue[]; layers: Layer[]; zooms: { s: number; e: number; scale: number }[]; cuts: number[]; emph: Set<string> };
 
 export function buildScene(p: Project, e: Edit, tl: Timeline, media: Map<string, HTMLImageElement | HTMLVideoElement>): Scene {
-  const cues = e.captions.enabled ? chunk(captionWords(tl.words, e.corrections), e.captions.maxWords) : [];
+  let cues = e.captions.enabled ? chunk(captionWords(tl.words, e.corrections), e.captions.maxWords) : [];
+  if (e.captions.enabled && e.translation?.lines.length) {
+    // translated subtitles: one cue per phrase, the whole line as one "word" (drawn wrapped, see drawCaptions)
+    cues = e.translation.lines.map((l) => { const a = tl.byId.get(l.from), b = tl.byId.get(l.to);
+      return a && b ? { start: a.os, end: b.oe + 0.12, words: [{ id: l.from, text: l.text, os: a.os, oe: b.oe, seg: a.seg }] } : null; })
+      .filter(Boolean) as Cue[];
+  }
   const zooms = e.zooms.map((z) => { const s = spanOf(tl, z.anchor); return s ? { s: s[0], e: s[1] + 0.05, scale: z.scale } : null; })
     .filter(Boolean) as Scene["zooms"];
   const layers: Layer[] = [];
@@ -315,9 +321,34 @@ const PRESET = {
 
 const NUMERIC = /[0-9$£€%]/;
 
+function drawTranslated(g: CanvasRenderingContext2D, e: Edit, text: string, alpha: number, split: boolean) {
+  const st = PRESET[e.captions.preset];
+  const caseFn = (x: string) => (e.captions.textCase === "upper" ? x.toUpperCase() : e.captions.textCase === "lower" ? x.toLowerCase() : x);
+  let size = e.captions.size * 0.82 * (U / 1080);
+  const font = (sz: number) => `${st.weight} ${sz}px "${e.captions.font}", Montserrat, "Noto Sans", Arial, sans-serif`;
+  let lines: string[] = [];
+  for (let k = 0; k < 10; k++) {
+    g.font = font(size);
+    lines = wrap(g, caseFn(text), W * 0.84);
+    if (lines.length <= 2 && lines.every((l) => g.measureText(l).width <= W * 0.9)) break;
+    size *= 0.9;
+  }
+  const y0 = (split ? 0.8 : e.captions.position) * H - ((lines.length - 1) * size * 1.15) / 2;
+  g.save(); g.globalAlpha = alpha; g.textAlign = "center"; g.textBaseline = "middle"; g.lineJoin = "round";
+  lines.forEach((l, i) => {
+    const y = y0 + i * size * 1.15;
+    if (st.box) { const w = g.measureText(l).width; g.fillStyle = "#000"; rounded(g, W / 2 - w / 2 - 0.3 * size, y - 0.68 * size, w + 0.6 * size, 1.3 * size, 0.18 * size); g.fill(); }
+    if (st.outline) { g.lineWidth = st.outline * 1.8 * (size / e.captions.size); g.strokeStyle = "#000"; g.strokeText(l, W / 2, y); }
+    else if (!st.box) { g.shadowColor = "rgba(0,0,0,0.6)"; g.shadowBlur = 8; }
+    g.fillStyle = "#fff"; g.fillText(l, W / 2, y);
+  });
+  g.restore();
+}
+
 function drawCaptions(g: CanvasRenderingContext2D, e: Edit, scene: Scene, t: number, split: boolean) {
   const cue = scene.cues.find((c) => t >= c.start && t < c.end);
   if (!cue) return;
+  if (e.translation?.lines.length) return drawTranslated(g, e, cue.words[0].text, clamp01((t - cue.start) / 0.12), split);
   const m = motionOf(e);
   const anim = m.captionAnim;
   const st = PRESET[e.captions.preset];

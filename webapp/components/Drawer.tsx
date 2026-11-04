@@ -3,7 +3,12 @@ import { useMemo, useState } from "react";
 import { indexOf } from "@/lib/timeline";
 import { BROLL_INS, CAPTION_ANIMS, LOOKS, motionOf, TRANSITIONS } from "@/lib/edit";
 import { LOOK_NAME } from "@/lib/motion";
-import type { Broll, BrollIn, CaptionAnim, CaptionPreset, Edit, Look, Motion, Project, Range, Transition } from "@/lib/types";
+import { aiPicture } from "@/lib/images";
+import { saveProject } from "@/lib/store";
+import { buildTimeline } from "@/lib/timeline";
+import { addToLibrary } from "@/lib/workflow";
+import { LANGUAGES, translateSubtitles } from "@/lib/translate";
+import type { Broll, BrollIn, CaptionAnim, CaptionPreset, Edit, Look, Motion, Project, Range, Settings, Transition } from "@/lib/types";
 
 const ANIM_NAME: Record<CaptionAnim, string> = { pop: "Pop", karaoke: "Karaoke", bounce: "Bounce", words: "Word by word", typewriter: "Typewriter",
   fade: "Fade", none: "Still" };
@@ -17,10 +22,18 @@ const LABEL: Record<string, string> = { "card-above-head": "Picture above your h
   "phone-card": "In a phone", "full-frame": "Full screen", "split-top": "Top half", "text-pop": "Words on screen" };
 const PRESETS: [CaptionPreset, string][] = [["studio", "Studio"], ["bold", "Bold"], ["white", "White"], ["boxed", "Boxed"], ["minimal", "Minimal"]];
 
-export function Drawer({ project: p, edit, onApply }: { project: Project; edit: Edit; onApply: (e: Edit, what: string) => void }) {
+export function Drawer({ project: p, edit, onApply, settings }: { project: Project; edit: Edit; onApply: (e: Edit, what: string) => void; settings?: Settings }) {
   const [tab, setTab] = useState<(typeof TABS)[number]>("Cut");
   const [e, setE] = useState<Edit>(() => structuredClone(edit));
   const [picFor, setPicFor] = useState<string | null>(null);
+  const [lang, setLang] = useState(edit.translation?.lang ?? "Spanish");
+  const [tBusy, setTBusy] = useState(false);
+  const [tErr, setTErr] = useState("");
+  const [imgPrompt, setImgPrompt] = useState("");
+  const [imgSize, setImgSize] = useState<"1024x1024" | "1024x1536" | "1536x1024">("1536x1024");
+  const [imgBusy, setImgBusy] = useState(false);
+  const [imgErr, setImgErr] = useState("");
+  const hasKey = !!settings && (settings.provider === "anthropic" ? !!settings.anthropicKey : !!settings.openaiKey);
   const idx = useMemo(() => indexOf(p.words), [p.words]);
   const kept = useMemo(() => {
     const s = new Set<string>();
@@ -91,6 +104,26 @@ export function Drawer({ project: p, edit, onApply }: { project: Project; edit: 
             <label htmlFor="case">Case</label>
             <select id="case" className="select" value={e.captions.textCase} onChange={(ev) => cap({ textCase: ev.target.value as Edit["captions"]["textCase"] })}>
               <option value="upper">UPPER CASE</option><option value="as-is">As said</option><option value="lower">lower case</option></select>
+          </div>
+          <div className="field">
+            <span className="label">Language</span>
+            <div className="row">
+              <span className="badge">{e.translation ? `${e.translation.lang} (translated)` : "As spoken"}</span>
+              <label className="sr-only" htmlFor="lang">Translate into</label>
+              <select id="lang" className="select w-200" value={lang} onChange={(ev) => setLang(ev.target.value)}>{LANGUAGES.map((l) => <option key={l}>{l}</option>)}</select>
+              <button className="btn" disabled={!hasKey || tBusy} onClick={async () => {
+                setTBusy(true); setTErr("");
+                try { const tl = buildTimeline(p.words, e, p.sources.map((x) => x.duration)); setE({ ...e, translation: await translateSubtitles(settings!, tl, lang) }); }
+                catch (err) { setTErr((err as { userMessage?: string }).userMessage ?? String(err)); }
+                setTBusy(false); }}>{tBusy ? <><span className="spin" />Translating…</> : "Translate"}</button>
+              {e.translation && <button className="btn ghost" onClick={() => setE({ ...e, translation: undefined })}>Back to as spoken</button>}
+            </div>
+            {!hasKey && <span className="hint">Translating needs an AI key in Settings.</span>}
+            {tErr && <span className="field-error">{tErr}</span>}
+            {e.translation && <span className="hint">One subtitle line per phrase. Fix a line by editing it below.</span>}
+            {e.translation && <div className="tr-lines">{e.translation.lines.map((l, i) => (
+              <input key={l.from} className="input" aria-label={`Line ${i + 1}`} value={l.text}
+                onChange={(ev) => setE({ ...e, translation: { ...e.translation!, lines: e.translation!.lines.map((x, k) => (k === i ? { ...x, text: ev.target.value } : x)) } })} />))}</div>}
           </div>
           <div className="field">
             <label htmlFor="font">Font (any Google Font name)</label>
@@ -167,6 +200,30 @@ export function Drawer({ project: p, edit, onApply }: { project: Project; edit: 
                 {["card-above-head", "side-card", "phone-card", "full-frame", "split-top"].map((t) => <option key={t} value={t}>{LABEL[t]}</option>)}</select>}
               <button className="btn ghost sm" onClick={() => setE({ ...e, broll: e.broll.filter((x) => x.id !== b.id) })}>Remove</button>
             </div>))}
+          <div className="field">
+            <label htmlFor="ai-pic">Make a picture with AI</label>
+            <div className="row">
+              <input id="ai-pic" className="input grow" value={imgPrompt} autoComplete="off" onChange={(ev) => setImgPrompt(ev.target.value)}
+                placeholder="e.g. a messy desk at 2am lit by a laptop, photo…" />
+              <label className="sr-only" htmlFor="ai-size">Shape</label>
+              <select id="ai-size" className="select w-200" value={imgSize} onChange={(ev) => setImgSize(ev.target.value as typeof imgSize)}>
+                <option value="1536x1024">Wide</option><option value="1024x1024">Square</option><option value="1024x1536">Tall</option></select>
+              <button className="btn" disabled={!settings?.openaiKey || !imgPrompt.trim() || imgBusy} onClick={async () => {
+                setImgBusy(true); setImgErr("");
+                try {
+                  const blob = await aiPicture(settings!.openaiKey, imgPrompt, imgSize);
+                  const name = `AI ${imgPrompt.trim().slice(0, 28)}.png`;
+                  const [added] = await addToLibrary(p, [new File([blob], name, { type: "image/png" })]);
+                  const a = p.library.find((x) => x.name === added);
+                  if (a) { a.ai = true; a.credit = { title: imgPrompt.trim().slice(0, 120), creator: "AI (OpenAI gpt-image-1)", license: "ai", page: "", source: "openai" }; setPicFor(a.key); }
+                  await saveProject(p);
+                  setImgPrompt("");
+                } catch (err) { setImgErr((err as { userMessage?: string }).userMessage ?? String(err)); }
+                setImgBusy(false); }}>{imgBusy ? <><span className="spin" />Making it…</> : "Make it"}</button>
+            </div>
+            <span className="hint">{settings?.openaiKey ? "Uses your OpenAI key (a few cents a picture). Then click the word where it should pop up. AI pictures are labelled." : "Needs an OpenAI key in Settings."}</span>
+            {imgErr && <span className="field-error">{imgErr}</span>}
+          </div>
           <div className="field">
             <span className="label">Add a picture: pick one, then click the word where it should pop up</span>
             <div className="chips">{pictures.slice(0, 12).map((a) => (

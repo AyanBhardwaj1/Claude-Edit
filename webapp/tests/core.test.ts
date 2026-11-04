@@ -141,3 +141,40 @@ test("motion studio: the offline planner reads the shape of the text", async () 
   assert.equal(cleaned[0].kind, "statement"); assert.equal(cleaned[1].value, 12); assert.equal(cleaned[1].duration, 8); assert.equal(cleaned.length, 2);
   assert.match(narration({ id: "x", kind: "number", text: "hours saved", value: 3, duration: 3 }), /3 hours saved/);
 });
+
+test("clips: the AI's picks are checked (ids, length, overlaps) and ranked", async () => {
+  const { findClips } = await import("../lib/clips");
+  const ws = words(Array.from({ length: 200 }, (_, i) => `w${i}x`).join(" "), 0, 0.4);
+  const p = project(ws);
+  const answer = { clips: [
+    { title: "Good one", hook: "A hook", from: "w10", to: "w80", why: "it lands", score: 7 },     // 28 s
+    { title: "Overlaps", from: "w50", to: "w120", score: 9 },                                       // overlaps the first once ranked? kept: higher score first
+    { title: "Too short", from: "w150", to: "w155", score: 10 },
+    { title: "Unknown ids", from: "w999", to: "w1000", score: 10 },
+    { title: "Fine", from: "w130", to: "w190", score: 6 },
+  ] };
+  const real = globalThis.fetch;
+  globalThis.fetch = (async () => new Response(JSON.stringify({ content: [{ type: "tool_use", name: "submit_clips", input: answer }] }),
+    { status: 200, headers: { "content-type": "application/json" } })) as typeof fetch;
+  try {
+    const s = { provider: "anthropic", anthropicKey: "k", openaiKey: "", anthropicModel: "m", openaiModel: "", transcriber: "browser", rememberKeys: false } as const;
+    const clips = await findClips(s, p);
+    assert.deepEqual(clips.map((c) => c.title), ["Good one", "Fine"]);
+    assert.equal(clips[0].seconds > 20, true);
+  } finally { globalThis.fetch = real; }
+});
+
+test("subtitles: phrases for translation and an .srt file", async () => {
+  const { phrasesOf, srt } = await import("../lib/translate");
+  const ws = [...words("Hello there friends.", 0, 0.4), ...words("This is the second line", 3, 0.4, 0, 3)];
+  const p = project(ws);
+  const e = defaultEdit(p);
+  const tl = buildTimeline(ws, e, [60]);
+  const ph = phrasesOf(tl);
+  assert.equal(ph.length, 2);
+  assert.equal(ph[0].text, "Hello there friends.");
+  const file = srt(p, e, tl);
+  assert.match(file, /^1\n00:00:00,000 --> 00:00:0\d,\d{3}\nHello there friends\.\n/);
+  const tr = srt(p, { ...e, translation: { lang: "Spanish", lines: [{ from: ph[0].from, to: ph[0].to, text: "Hola amigos." }] } }, tl);
+  assert.match(tr, /Hola amigos\./);
+});

@@ -388,6 +388,10 @@ p { margin: 0; text-wrap: pretty; }
 .export-ready { display: grid; gap: 12px; }
 @keyframes rise { from { opacity: 0; transform: translateY(6px); } }
 
+.clip-row { display: flex; gap: 12px; align-items: flex-start; padding: 12px; border-radius: var(--r-md); background: var(--surface-2); }
+.clip-row .score { width: 34px; height: 34px; flex: none; display: grid; place-items: center; border-radius: 50%; background: var(--accent); color: var(--accent-ink); font-weight: 700; }
+.clip-row b { font-size: 14px; }
+
 /* drawer (edit it myself) */
 .tabs { display: flex; gap: 2px; overflow-x: auto; margin: -6px -6px 18px; padding: 4px; border-radius: calc(var(--r-md) + 4px); background: var(--surface-2); scrollbar-width: none; }
 .tab { flex: none; min-height: 34px; padding: 0 14px; border: 0; border-radius: var(--r-md); background: transparent; color: var(--ink-2); font-weight: 600; font-size: 13px; cursor: pointer; }
@@ -399,6 +403,7 @@ p { margin: 0; text-wrap: pretty; }
 .w:hover { background: var(--accent-soft); }
 .w.cut { color: var(--ink-3); text-decoration: line-through; text-decoration-color: var(--bad); }
 .drawer-foot { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 20px; padding-top: 16px; box-shadow: 0 -1px 0 var(--line); }
+.tr-lines { display: grid; gap: 6px; max-height: 300px; overflow: auto; padding-right: 4px; }
 .pic-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: var(--r-md); background: var(--surface-2); flex-wrap: wrap; }
 .pic-row .grow { font-size: 14px; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
