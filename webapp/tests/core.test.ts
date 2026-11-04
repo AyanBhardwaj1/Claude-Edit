@@ -187,3 +187,20 @@ test("page reader refuses private and local addresses", async () => {
     assert.equal(privateIp(ip), true, ip);
   for (const ip of ["8.8.8.8", "151.101.1.69", "2606:4700::6810:84e5"]) assert.equal(privateIp(ip), false, ip);
 });
+
+test("reel check: scores the sample's first edit and flags real problems", async () => {
+  const { readFileSync } = await import("node:fs");
+  const { reelCheck } = await import("../lib/score");
+  const d = JSON.parse(readFileSync(new URL("../public/demo/demo.json", import.meta.url), "utf8"));
+  const ws: Word[] = d.words.map((w: { w: string; s: number; e: number }, i: number) => ({ id: `w${i}`, src: 0, s: w.s, e: w.e, w: w.w }));
+  const p = project(ws);
+  p.library = [{ key: "card", name: "hook list.png", kind: "image", width: 1200, height: 900 }, { key: "song", name: "pad.m4a", kind: "music", feel: "gentle" }];
+  const { edit } = fromAi(p, defaultEdit(p), d.edit);
+  const r = reelCheck(p, edit, buildTimeline(ws, edit, [d.source.duration]));
+  assert.ok(r.score >= 80, `sample scores ${r.score}: ${r.checks.filter((c) => !c.ok).map((c) => c.id)}`);
+  const bare = defaultEdit(p); bare.captions.enabled = false;
+  const r2 = reelCheck(p, bare, buildTimeline(ws, bare, [d.source.duration]));
+  assert.ok(r2.score < r.score - 20);
+  assert.equal(r2.checks.find((c) => c.id === "hook")!.ok, false);
+  assert.equal(r2.checks.find((c) => c.id === "subs")!.ok, false);
+});
