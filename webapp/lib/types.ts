@@ -17,6 +17,7 @@ export type Asset = {
   width?: number; height?: number; duration?: number; credit?: Credit; feel?: string; energy?: number; rms?: number;
   entry?: number;                 // music: seconds in to start (a bar before the first big hit)
   web?: boolean;
+  ai?: boolean;                   // made by an AI image model (labelled; platforms want an AI label)
 };
 
 export type Treatment = "card-above-head" | "side-card" | "phone-card" | "full-frame" | "split-top" | "text-pop";
@@ -62,7 +63,11 @@ export type Edit = {
   post: Post;
   sfx: boolean;
   motion?: Motion;                // missing on edits made before motion existed: DEFAULT_MOTION applies
+  translation?: Translation;      // subtitles in another language (lib/translate.ts)
 };
+
+/** Subtitles in another language: one translated line per spoken phrase, timed by the words it covers. */
+export type Translation = { lang: string; lines: { from: string; to: string; text: string }[] };
 
 export type Version = { n: number; edit: Edit; note: string; summary: string; at: string };
 
@@ -88,6 +93,7 @@ export type Project = {
   faces?: FaceSample[];
   owner?: string;                 // the local account that made it (lib/auth.ts)
   sample?: boolean;               // the built-in sample project (lib/demo.ts)
+  parent?: string;                // a clip made from a longer video (lib/clips.ts) shares that video's media
   format?: Format;                // the shape it plays and exports in (default 9:16)
   status: "new" | "transcribed" | "edited";
 };

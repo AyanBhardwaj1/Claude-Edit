@@ -2,7 +2,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { postText } from "@/lib/edit";
 import { FORMATS } from "@/lib/compositor";
+import { findClips, makeClip, type Clip } from "@/lib/clips";
 import { Player } from "@/lib/player";
+import { srt } from "@/lib/translate";
 import { applyBrand, brandOf, hasBrand } from "@/lib/brand";
 import { applyTemplate, brandTemplate, templateOf, TEMPLATES } from "@/lib/templates";
 import { loadRules, saveProject, saveRules } from "@/lib/store";
@@ -14,8 +16,8 @@ import { clock } from "./Tiles";
 
 type Msg = { who: "you" | "ed"; text: string; rule?: string };
 
-export function Editor({ project, settings, firstSummary, onBack }: { project: Project; settings: Settings; firstSummary?: string;
-  onBack: () => void }) {
+export function Editor({ project, settings, firstSummary, onBack, onOpenProject }: { project: Project; settings: Settings; firstSummary?: string;
+  onBack: () => void; onOpenProject?: (p: Project, summary: string) => void }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const player = useRef<Player | null>(null);
   const mounts = useRef(0);
@@ -29,9 +31,11 @@ export function Editor({ project, settings, firstSummary, onBack }: { project: P
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState("");
   const [drawer, setDrawer] = useState(false);
-  const [exp, setExp] = useState<{ pct: number; video?: string; ext?: string; cover?: string; caption?: string; label?: string } | null>(null);
+  const [exp, setExp] = useState<{ pct: number; video?: string; ext?: string; cover?: string; caption?: string; label?: string; srt?: string } | null>(null);
   const [err, setErr] = useState("");
   const [toast, setToast] = useState("");
+  const [clips, setClips] = useState<Clip[] | null>(null);
+  const [clipBusy, setClipBusy] = useState("");
   const [track, setTrack] = useState<{ segs: [number, number][]; layers: { s: number; e: number; text: boolean; label: string }[]; zooms: [number, number][] } | null>(null);
   const [all, setAll] = useState<{ f: Format; url: string; ext: string }[] | null>(null);
   const version = p.versions.find((v) => v.n === p.current) ?? p.versions[p.versions.length - 1];
@@ -145,7 +149,8 @@ export function Editor({ project, settings, firstSummary, onBack }: { project: P
       const { blob, ext } = await pl.record((pct) => setExp((x) => ({ ...x!, pct })));
       const cover = await pl.cover();
       setExp({ pct: 100, video: URL.createObjectURL(blob), ext, cover: URL.createObjectURL(cover),
-        caption: URL.createObjectURL(new Blob([post], { type: "text/plain" })) });
+        caption: URL.createObjectURL(new Blob([post], { type: "text/plain" })),
+        srt: version ? URL.createObjectURL(new Blob([srt(p, version.edit, pl.tl)], { type: "application/x-subrip" })) : undefined });
     } catch (e) { setErr(String(e)); setExp(null); }
     setPlaying(false);
   }
@@ -252,9 +257,12 @@ export function Editor({ project, settings, firstSummary, onBack }: { project: P
                     <a className="btn primary" href={exp.video} download={`${base}.${exp.ext}`}><Icon name="download" />Download video (.{exp.ext})</a>
                     <a className="btn" href={exp.cover} download={`${base} cover.jpg`}>Download cover</a>
                     <a className="btn" href={exp.caption} download={`${base} caption.txt`}>Caption .txt</a>
+                    {exp.srt && <a className="btn" href={exp.srt} download={`${base}${version?.edit.translation ? ` ${version.edit.translation.lang}` : ""}.srt`}>Subtitles .srt</a>}
                     <button className="btn ghost" onClick={() => copy(post)}><Icon name="copy" />Copy caption</button>
                   </div>
                   <div className="row"><button className="btn ghost sm" onClick={() => { setExp(null); void exportAll(); }}>Also make every shape (4 files, about {Math.ceil(4 * dur / 60)} min)</button></div>
+                  {version && version.edit.broll.some((b) => p.library.find((x) => x.key === b.asset)?.ai) &&
+                    <p className="alert info small"><Icon name="alert" /><span>This video has AI-made pictures. Switch on the platform&apos;s AI label when you post it.</span></p>}
                   {exp.ext === "webm" && <p className="small muted">Your browser recorded WebM. For Instagram, export from Chrome, Edge or Safari
                     to get MP4, or convert the file.</p>}
                 </div>)}
@@ -267,6 +275,31 @@ export function Editor({ project, settings, firstSummary, onBack }: { project: P
               {did.map(([on, text]) => <li key={text} className={on ? "" : "off"}><Icon name={on ? "check" : "dot"} />{text}</li>)}
             </ul>
           </section>
+
+          {!p.parent && (p.words.length > 120 || clips) && (
+            <section className="panel" aria-labelledby="clips-h">
+              <div className="panel-head"><h2 id="clips-h">Short clips from this video</h2>
+                {!clips && <button className="btn sm" disabled={!!clipBusy || !(settings.provider === "anthropic" ? settings.anthropicKey : settings.openaiKey)}
+                  onClick={async () => { setClipBusy("Reading the whole video…"); setErr("");
+                    try { setClips(await findClips(settings, p)); } catch (e) { setErr((e as { userMessage?: string }).userMessage ?? String(e)); }
+                    setClipBusy(""); }}>{clipBusy ? <><span className="spin" />{clipBusy}</> : <><Icon name="scissors" />Find the best clips</>}</button>}</div>
+              {!clips && <p className="small muted">Your AI editor reads the whole video and picks the moments that stand on their own as 20 to 75 second reels.
+                Each one becomes its own edited video.{!(settings.provider === "anthropic" ? settings.anthropicKey : settings.openaiKey) && " Needs an AI key in Settings."}</p>}
+              {clips && !clips.length && <p className="small muted">No moment stood on its own. Longer videos with clear points work best.</p>}
+              {clips && clips.length > 0 && <div className="stack tight">{clips.map((c) => (
+                <div key={c.from} className="clip-row">
+                  <span className="score num" aria-label={`Score ${c.score} of 10`}>{c.score}</span>
+                  <span className="grow"><b>{c.title}</b><span className="small faint block">{clock(c.seconds)} · hook: &ldquo;{c.hook}&rdquo;</span>
+                    {c.why && <span className="small muted block">{c.why}</span>}</span>
+                  <button className="btn sm primary" disabled={!!clipBusy} onClick={async () => {
+                    setClipBusy(`Editing "${c.title}"…`); setErr("");
+                    try { const r = await makeClip(settings, p, c, loadRules(), (m) => setClipBusy(m)); onOpenProject?.(r.project, r.summary); }
+                    catch (e) { setErr((e as { userMessage?: string }).userMessage ?? String(e)); }
+                    setClipBusy(""); }}>Make this clip</button>
+                </div>))}
+                {clipBusy && <p className="small muted" aria-live="polite"><span className="spin" /> {clipBusy}</p>}</div>}
+            </section>
+          )}
 
           <section className="panel" aria-labelledby="notes-h">
             <div className="panel-head"><h2 id="notes-h">Notes for your editor</h2></div>
@@ -309,7 +342,7 @@ export function Editor({ project, settings, firstSummary, onBack }: { project: P
 
           {drawer && version && (
             <section className="panel" aria-label="Edit it myself">
-              <Drawer project={p} edit={version.edit} onApply={async (edit, what) => { await saveManual(p, edit, what); setP({ ...p }); setMsgs((m) => [...m, { who: "ed", text: `Version ${p.current}: ${what}` }]); }} />
+              <Drawer project={p} edit={version.edit} settings={settings} onApply={async (edit, what) => { await saveManual(p, edit, what); setP({ ...p }); setMsgs((m) => [...m, { who: "ed", text: `Version ${p.current}: ${what}` }]); }} />
             </section>
           )}
 

@@ -35,7 +35,11 @@ export async function listProjects(): Promise<Project[]> {
 }
 export async function deleteProject(p: Project) {
   await del(p.id, projects());
-  await Promise.all([...p.sources.map((s) => s.mediaKey), ...p.library.map((a) => a.key)].map((k) => del(k, media())));
+  // clips share their long video's files: only delete what no other project (of any account) still uses
+  const ks = await keys(projects());
+  const others = (await Promise.all(ks.map((k) => get(k, projects()) as Promise<Project>))).filter(Boolean);
+  const used = new Set(others.flatMap((q) => [...q.sources.map((s) => s.mediaKey), ...q.library.map((a) => a.key)]));
+  await Promise.all([...p.sources.map((s) => s.mediaKey), ...p.library.map((a) => a.key)].filter((k) => !used.has(k)).map((k) => del(k, media())));
 }
 
 export async function saveAnim(a: Anim) {

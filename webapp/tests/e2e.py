@@ -52,7 +52,10 @@ def route_anthropic(route):
     calls["anthropic"] += 1
     body = json.loads(route.request.post_data or "{}")
     user = body["messages"][0]["content"]
-    if "The user left this note" in user:
+    if "Translate these subtitle lines" in user:
+        lines = [l.split(": ", 1) for l in user.split("\n") if l[:1].isdigit() and ": " in l]
+        answer = {"lines": [{"i": int(i), "text": "ES " + t} for i, t in lines]}
+    elif "The user left this note" in user:
         cur = json.loads(user.split("CURRENT EDIT:\n", 1)[1].split("\n\n", 1)[0])
         cur["music"]["automation"] = [{"from": "w0", "to": "w5", "db": -6}]
         cur["summary"] = "I turned the music down at the start."
@@ -88,6 +91,10 @@ with sync_playwright() as pw:
       openaiKey:'sk-openai-test', anthropicModel:'claude-sonnet-5-5', transcriber:'openai', rememberKeys:true}));""")
     ctx.route("https://api.anthropic.com/**", lambda r: cors(r) or route_anthropic(r))
     ctx.route("https://api.openai.com/v1/audio/transcriptions", lambda r: cors(r) or route_whisper(r))
+    import base64
+    png = base64.b64encode((out / "pic.png").read_bytes()).decode()
+    ctx.route("https://api.openai.com/v1/images/generations", lambda r: cors(r) or r.fulfill(status=200, content_type="application/json",
+              headers={"access-control-allow-origin": "*"}, body=json.dumps({"data": [{"b64_json": png}]})))
     page = ctx.new_page()
     errors = []
     page.on("pageerror", lambda e: errors.append(str(e)))
@@ -132,6 +139,20 @@ with sync_playwright() as pw:
     page.get_by_role("button", name="Make a new version").click()
     page.get_by_role("button", name="Version 3").wait_for(timeout=15000)
 
+    # subtitles in Spanish, then an AI picture placed on a word
+    page.get_by_role("tab", name="Subtitles").click()
+    page.get_by_role("button", name="Translate").click()
+    page.get_by_text("Spanish (translated)").wait_for(timeout=15000)
+    page.get_by_role("button", name="Make a new version").click()
+    page.get_by_role("button", name="Version 4").wait_for(timeout=15000)
+    page.get_by_role("tab", name="Pictures").click()
+    page.get_by_label("Make a picture with AI").fill("a tidy desk with a laptop, photo")
+    page.get_by_role("button", name="Make it").click()
+    page.locator(".words .w").nth(3).click(timeout=15000)
+    page.get_by_role("button", name="Make a new version").click()
+    page.get_by_role("button", name="Version 5").wait_for(timeout=15000)
+    assert lit() > 0.3
+
     page.get_by_role("button", name="Export").click()
     page.get_by_text("Ready to post").wait_for(timeout=120000)
     with page.expect_download() as dl:
@@ -142,6 +163,11 @@ with sync_playwright() as pw:
         page.get_by_role("link", name="Download cover").click()
     dl2.value.save_as(out / "cover.jpg")
     page.screenshot(path=str(out / "3-exported.png"))
+    assert page.get_by_text("This video has AI-made pictures").is_visible()
+    with page.expect_download() as dl3:
+        page.get_by_role("link", name="Subtitles .srt").click()
+    srt = (out / "subs.srt"); dl3.value.save_as(srt)
+    assert "ES " in srt.read_text(), srt.read_text()[:200]
     # other shapes: the preview redraws at the new size, still lit
     for name, size in [("16:9 Wide", [1920, 1080]), ("1:1 Square", [1080, 1080]), ("4:5 Feed", [1080, 1350])]:
         page.get_by_role("button", name=name).click()

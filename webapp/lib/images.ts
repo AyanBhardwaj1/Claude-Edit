@@ -40,3 +40,20 @@ async function svgToPng(svg: Blob, size = 800): Promise<Blob> {
   URL.revokeObjectURL(url);
   return new Promise((ok) => c.toBlob((b) => ok(b!), "image/png"));
 }
+
+/** A picture made from a description with the user's OpenAI key (gpt-image-1). */
+export async function aiPicture(key: string, prompt: string, size: "1024x1024" | "1024x1536" | "1536x1024"): Promise<Blob> {
+  const r = await fetch("https://api.openai.com/v1/images/generations", { method: "POST",
+    headers: { Authorization: `Bearer ${key}`, "content-type": "application/json" },
+    body: JSON.stringify({ model: "gpt-image-1", prompt: prompt.slice(0, 1500), size, quality: "medium", n: 1 }) });
+  if (!r.ok) {
+    const t = await r.text();
+    throw Object.assign(new Error(`image ${r.status}`), { userMessage: r.status === 401 ? "Your OpenAI key was not accepted (Settings)." :
+      r.status === 400 && /safety|policy/i.test(t) ? "OpenAI declined that description. Try describing it differently." : `The picture couldn't be made (${r.status}).` });
+  }
+  const d = await r.json() as { data?: { b64_json?: string; url?: string }[] };
+  const b64 = d.data?.[0]?.b64_json;
+  if (b64) return new Blob([Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))], { type: "image/png" });
+  if (d.data?.[0]?.url) return (await fetch(d.data[0].url)).blob();
+  throw Object.assign(new Error("no image"), { userMessage: "OpenAI didn't send a picture back. Try again." });
+}
