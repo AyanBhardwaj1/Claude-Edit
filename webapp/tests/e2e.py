@@ -153,6 +153,7 @@ with sync_playwright() as pw:
     page.locator(".words .w").nth(3).click(timeout=15000)
     page.get_by_role("button", name="Make a new version").click()
     page.get_by_role("button", name="Version 5").wait_for(timeout=15000)
+    page.wait_for_timeout(1500)
     assert lit() > 0.3
     page.get_by_role("button", name="Try 5 hooks").click()
     page.get_by_role("button", name="3 tools, zero editing").click()
