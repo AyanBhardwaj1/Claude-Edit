@@ -168,6 +168,15 @@ body:has(.site) { background: #ffffff; color: #000000; }
 .frag-lang .c { font: 900 18px/1.1 Montserrat, "Noto Sans", sans-serif; color: #fff; }
 .frag-lang .c.es { color: #ffd84d; } .frag-lang .c.hi, .frag-lang .c.ja { font-weight: 700; color: #cfcfcf; }
 
+.frag-score { display: grid; justify-items: center; align-content: center; gap: 14px; padding: 18px; height: 100%; }
+.frag-score .ring-s { position: relative; width: 96px; height: 96px; }
+.frag-score .ring-s svg { width: 96px; height: 96px; transform: rotate(-90deg); }
+.frag-score .ring-s circle { fill: none; stroke-width: 9; }
+.frag-score .ring-s .bg { stroke: var(--u-s2); } .frag-score .ring-s .fg { stroke: #4cc98a; stroke-linecap: round; }
+.frag-score .ring-s b { position: absolute; inset: 0; display: grid; place-items: center; font: 700 28px/1 Geist, sans-serif; }
+.frag-score ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 13px; }
+.frag-score li::before { content: "✓ "; color: #4cc98a; } .frag-score li.no::before { content: "! "; color: #ff7a3d; }
+
 /* ---------- motion styles and Motion Studio: full-bleed colour pages ---------- */
 .styles-sec { background: var(--f2); color: #000; display: grid; grid-template-columns: var(--axis) 1fr; }
 .styles-sec .say { padding: 56px var(--m); display: grid; align-content: space-between; gap: 28px; }

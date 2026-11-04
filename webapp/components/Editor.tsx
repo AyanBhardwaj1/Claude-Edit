@@ -11,6 +11,7 @@ import { recapOf } from "@/lib/studioAi";
 import { saveAnim } from "@/lib/store";
 import { Player } from "@/lib/player";
 import { srt } from "@/lib/translate";
+import { waveform } from "@/lib/wave";
 import { applyBrand, brandOf, hasBrand } from "@/lib/brand";
 import { applyTemplate, brandTemplate, templateOf, TEMPLATES } from "@/lib/templates";
 import { loadRules, saveProject, saveRules } from "@/lib/store";
@@ -45,6 +46,8 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
   const [hooks, setHooks] = useState<string[] | null>(null);
   const [hookBusy, setHookBusy] = useState(false);
   const [recapBusy, setRecapBusy] = useState(false);
+  const [renaming, setRenaming] = useState(false);
+  const [wave, setWave] = useState<number[] | null>(null);
   const [check, setCheck] = useState<{ score: number; checks: Check[] } | null>(null);
   const [track, setTrack] = useState<{ segs: [number, number][]; layers: { s: number; e: number; text: boolean; label: string }[]; zooms: [number, number][] } | null>(null);
   const [all, setAll] = useState<{ f: Format; url: string; ext: string }[] | null>(null);
@@ -66,6 +69,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
     if (!canvas.current || gen !== mounts.current) return;
     canvas.current!.dataset.cuts = pl.scene.cuts.map((c) => c.toFixed(3)).join(",");   // for tests and tools
     setCheck(reelCheck(p, edit, pl.tl));
+    void waveform(p, pl.tl).then((w) => { if (gen === mounts.current) setWave(w); });
     setTrack({ segs: pl.tl.segments.map((x) => [x.outStart, x.outEnd]), zooms: pl.scene.zooms.map((z) => [z.s, z.e]),
       layers: pl.scene.layers.map((L) => ({ s: L.start, e: L.end, text: L.b.treatment === "text-pop", label: L.b.text ?? L.b.card?.text ?? p.library.find((x) => x.key === L.b.asset)?.name ?? "Picture" })) });
     setDur(pl.tl.duration); setT(0); setPlaying(false);
@@ -191,7 +195,11 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
     <div className="page">
       <div className="ed-head">
         <button className="btn ghost sm" onClick={onBack}><Icon name="arrowLeft" />My videos</button>
-        <h1 className="grow trunc">{p.title}</h1>
+        {renaming ? (
+          <input className="input grow title-input" aria-label="Video name" autoFocus defaultValue={p.title} maxLength={80}
+            onKeyDown={(ev) => { if (ev.key === "Enter") (ev.target as HTMLInputElement).blur(); if (ev.key === "Escape") setRenaming(false); }}
+            onBlur={async (ev) => { const v = ev.target.value.trim(); setRenaming(false); if (v && v !== p.title) { p.title = v; await saveProject(p); setP({ ...p }); } }} />
+        ) : <h1 className="grow trunc"><button className="title-btn" title="Rename" onClick={() => setRenaming(true)}>{p.title}</button></h1>}
         <button className="btn ghost" disabled={recapBusy || !player.current} onClick={async () => {
           const pl = player.current; if (!pl) return;
           setRecapBusy(true); setErr("");
@@ -227,6 +235,8 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
               <div className="lane">{track.segs.map(([a, b], i) => <i key={i} className={`seg ${i % 2 ? "alt" : ""}`} style={{ left: `${(100 * a) / dur}%`, width: `${(100 * (b - a)) / dur}%` }} />)}</div>
               <div className="lane">{track.layers.map((L, i) => <i key={i} className={`lay ${L.text ? "txt" : ""}`} title={L.label}
                 style={{ left: `${(100 * L.s) / dur}%`, width: `${Math.max(0.8, (100 * (L.e - L.s)) / dur)}%` }}><span>{L.label}</span></i>)}</div>
+              {wave && <svg className="wave" viewBox={`0 0 ${wave.length} 20`} preserveAspectRatio="none" aria-hidden="true">
+                <path d={wave.map((v, i) => `M${i + 0.5} ${10 - v * 9}V${10 + v * 9}`).join("")} /></svg>}
               <div className="lane thin">{track.zooms.map(([a, b], i) => <i key={i} className="zm" style={{ left: `${(100 * a) / dur}%`, width: `${(100 * (b - a)) / dur}%` }} />)}</div>
               <b className="head" style={{ left: `${(100 * t) / dur}%` }} />
             </div>

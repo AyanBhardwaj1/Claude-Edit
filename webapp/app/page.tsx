@@ -20,6 +20,7 @@ const FEATURES = [
   { h: "Music under your voice", p: "It listens to your songs, picks one by mood, starts it a beat before the first hit, dips it under every word and lifts it in the pauses.", pic: "w180", frag: "music" },
   { h: "One long video, five reels", p: "Drop in a podcast, a talk or a long take. Your AI editor reads all of it, ranks the moments that stand on their own and turns each into its own finished reel.", pic: "w320", frag: "clips" },
   { h: "Subtitles in 16 languages", p: "Translate the subtitles into Spanish, Hindi, Japanese and 13 more, line by line on the words they cover, then fix any line. A subtitle file comes with every export.", pic: "w180", frag: "lang" },
+  { h: "A score before you post", p: "The reel check grades the hook, the pace, how often the picture changes, the length, the subtitles and the caption, out of 100, and says exactly what to fix.", pic: "w180", frag: "score" },
   { h: "A caption ready to post", p: "A hook line people search for, a sentence of context, credits for every picture and exactly five hashtags. The cover is the frame where your face says the most.", pic: "w240", frag: "post" },
 ] as const;
 
@@ -104,6 +105,9 @@ export default function Landing() {
                   {f.frag === "clips" && <div className="frag-clips">{[["9", "The 3 hour edit I quit", "0:48"], ["8", "Why intros lose viewers", "0:36"], ["7", "My Sunday batching day", "1:02"]].map(([sc, t, d]) => (
                     <div key={t} className="clip"><b>{sc}</b><span>{t}<em>{d} · ready to edit</em></span></div>))}</div>}
                   {f.frag === "lang" && <div className="frag-lang"><div className="c">THE ONE HABIT</div><div className="c es">EL ÚNICO HÁBITO</div><div className="c hi">एक आदत</div><div className="c ja">たった一つの習慣</div></div>}
+                  {f.frag === "score" && <div className="frag-score"><div className="ring-s"><svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="42" className="bg" />
+                    <circle cx="50" cy="50" r="42" className="fg" strokeDasharray="242.8 264" /></svg><b>92</b></div><ul>
+                    <li>Hook from the first word</li><li>183 words a minute</li><li className="no">5.2 s without a change</li></ul></div>}
                   {f.frag === "post" && <div className="frag-post"><div className="box">The 20 minute edit that replaced my 3 hour one. I talk once,
                     it keeps my best take and adds the rest. Try it on your next video.<br /><br /><span className="tags">#reelsediting #talkinghead
                     #contentcreatortips #videoworkflow #smallcreator</span></div></div>}
@@ -131,8 +135,8 @@ export default function Landing() {
           <div className="grid">
             <div className="say">
               <h2 id="anim-h" data-reveal>Or skip the camera</h2>
-              <p data-reveal style={d(1)}>Type a script, a launch or five bullet points. Motion Studio turns it into kinetic type, counters, lists, charts and a
-                closing card, in your colours, read by an AI voice if you like.</p>
+              <p data-reveal style={d(1)}>Type a script, paste a link or five bullet points. Motion Studio turns it into kinetic type, counters, lists, charts,
+                pictures and a closing card, in your colours, calm or hype, read by an AI voice if you like.</p>
               <div data-reveal style={d(2)}><a className="act ink" href="/login?mode=signup&amp;next=%2Fapp%23animate">Animate some text<Arrow /></a></div>
             </div>
             <figure className="t big"><LoopVideo src="/shots/anim-loop.mp4" poster="/shots/anim-loop.webp" width={720} height={720}
