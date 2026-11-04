@@ -5,16 +5,14 @@ import { drawWatermark } from "./brand";
 import { motionOf } from "./edit";
 import { faceAt } from "./face";
 import { clamp01, cutFx, ease, enter, LOOK_FILTER, lookOverlay, lightColour, rnd } from "./motion";
+import { activeBrand, hasBrand } from "./brand";
+import { drawBackground, drawScene, type Anim, type Scene as CardScene } from "./studio";
 import { captionWords, chunk, type Cue } from "./text";
 import { spanOf, type Timeline } from "./timeline";
 import type { Asset, Broll, Edit, Format, Project } from "./types";
 
-export const FORMATS: Record<Format, { w: number; h: number; name: string; for: string }> = {
-  "9:16": { w: 1080, h: 1920, name: "Reel", for: "Reels, TikTok, Shorts" },
-  "4:5": { w: 1080, h: 1350, name: "Feed", for: "Instagram and Facebook feed" },
-  "1:1": { w: 1080, h: 1080, name: "Square", for: "Feeds and LinkedIn" },
-  "16:9": { w: 1920, h: 1080, name: "Wide", for: "YouTube and websites" },
-};
+export { FORMATS } from "./formats";
+import { FORMATS } from "./formats";
 
 // The frame being drawn. Every size below is relative to it; U (the short side, 1080 in every format) keeps type and
 // cards at the same readable size whichever shape is chosen.
@@ -98,7 +96,7 @@ function faceOut(p: Project, tl: Timeline, t: number) {
 
 function placeLayer(p: Project, tl: Timeline, L: Layer): Layer["place"] {
   const t = L.b.treatment;
-  if (t === "full-frame" || t === "text-pop") return undefined;
+  if (t === "full-frame" || t === "text-pop" || t === "motion") return undefined;
   if (t === "split-top") return { x: 0, y: 0, w: W, h: H * 0.42, tilt: 0, mode: "split" };
   const face = faceOut(p, tl, (L.start + L.end) / 2);
   const aw = L.asset?.width ?? 16, ah = L.asset?.height ?? 9;
@@ -220,6 +218,7 @@ function popIn(t: number, start: number) {        // opaque on the first frame, 
 function drawLayer(g: CanvasRenderingContext2D, L: Layer, t: number, brollIn: Parameters<typeof enter>[0], kenBurns: boolean) {
   const b = L.b;
   if (b.treatment === "text-pop") return drawTextPop(g, L, t);
+  if (b.treatment === "motion") return drawCard(g, L, t);
   const el = L.el;
   if (!el) return;
   const [iw, ih] = dims(el);
@@ -265,6 +264,22 @@ function drawLayer(g: CanvasRenderingContext2D, L: Layer, t: number, brollIn: Pa
     drawCover(g, el, iw, ih, -P.w / 2, -P.h / 2, P.w, P.h);
     g.restore();
   }
+  g.restore();
+}
+
+/** An animated card (Motion Studio's engine) over the video on the words that say it: a counter, a list, a before and after. */
+function drawCard(g: CanvasRenderingContext2D, L: Layer, t: number) {
+  const c = L.b.card;
+  if (!c) return;
+  const dur = Math.max(0.8, L.end - L.start), local = t - L.start;
+  const a = { palette: L.b.palette ?? (hasBrand(activeBrand().brand) ? "brand" : "midnight"), font: "grotesk", format: "9:16", scenes: [] } as unknown as Anim;
+  const sc: CardScene = { id: L.b.id, kind: c.kind, text: c.text, sub: c.sub, items: c.items, value: c.value, prefix: c.prefix, suffix: c.suffix, duration: dur };
+  const k = Math.min(clamp01(local / 0.25), clamp01((dur - local) / 0.2));
+  g.save();
+  g.globalAlpha = k;
+  g.translate(W / 2, H / 2); const s = 0.94 + 0.06 * ease.out(clamp01(local / 0.35)); g.scale(s, s); g.translate(-W / 2, -H / 2);
+  drawBackground(g, a, W, H, t);
+  drawScene(g, a, sc, local, W, H, 0, 0);
   g.restore();
 }
 

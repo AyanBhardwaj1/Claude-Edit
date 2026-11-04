@@ -103,7 +103,8 @@ test("the sample project's first edit is valid against its own transcript", asyn
   const text = buildTimeline(ws, edit, [d.source.duration]).words.map((w) => w.w).join(" ");
   assert.ok(!/let me try that again/i.test(text) && !/^Okay so/.test(text), text);
   assert.ok(/I never move it/.test(text) && !/I I never/.test(text), "stutter cut");
-  assert.equal(edit.broll.filter((b) => b.treatment === "text-pop").length, 5);   // hook title + 4 labels
+  assert.equal(edit.broll.filter((b) => b.treatment === "text-pop").length, 4);   // hook title + 3 labels
+  assert.equal(edit.broll.filter((b) => b.treatment === "motion" && b.card?.value === 4).length, 1);   // the animated counter
 });
 
 test("motion: defaults for old edits, validation of AI answers, templates", async () => {

@@ -3,7 +3,7 @@
 // so preview and export are the same pixels. With an AI key the AI plans the scenes; without one, planScenes() does.
 
 import { activeBrand } from "./brand";
-import { FORMATS } from "./compositor";
+import { FORMATS } from "./formats";
 import { clamp01, ease } from "./motion";
 import type { Format } from "./types";
 
@@ -464,6 +464,9 @@ export function drawScene(g: Ctx, a: Anim, s: Scene, local: number, W: number, H
     g.beginPath(); g.roundRect(W / 2 - totalW / 2 + i * (dotW + gapD), H - 0.06 * H, dotW, Math.max(6, 0.008 * U), 4); g.fill();
   }
 }
+
+/** The animated ground of a palette (used by cards inside reels too). */
+export const drawBackground = (g: Ctx, a: Pick<Anim, "palette">, W: number, H: number, t: number) => background(g, paletteOf(a.palette), W, H, t);
 
 /** One frame of the whole animation at time t: background, the scene (with its exit), and a wipe between scenes. */
 export function drawAnim(g: Ctx, a: Anim, t: number) {
