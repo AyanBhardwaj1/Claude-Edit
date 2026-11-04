@@ -467,6 +467,14 @@ kbd { font: 600 11px/1 var(--font-ui); padding: 3px 6px; border-radius: 5px; bac
 
 /* ---------- motion studio ---------- */
 .studio-new { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(300px, 1fr); gap: 16px; align-items: start; }
+.tpls { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.tpl { display: flex; gap: 10px; align-items: center; padding: 8px; border: 0; border-radius: var(--r-md); background: var(--surface-2); color: var(--ink);
+  text-align: left; cursor: pointer; transition: background-color .15s ease, transform .15s ease; min-width: 0; }
+.tpl:hover { background: var(--surface-3); transform: translateY(-1px); }
+.tpl b { font-size: 13px; }
+.tpl-sw { position: relative; width: 42px; height: 42px; flex: none; border-radius: var(--r-sm); display: grid; place-items: center; font-weight: 800; font-size: 16px; overflow: hidden; }
+.tpl-sw i { position: absolute; left: 6px; right: 6px; bottom: 5px; height: 4px; border-radius: 2px; }
+@media (max-width: 700px) { .tpls { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .palettes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .pal { display: grid; gap: 6px; padding: 6px 6px 8px; border: 0; border-radius: var(--r-md); background: var(--surface-2); color: var(--ink); font-size: 13px;
   font-weight: 600; cursor: pointer; text-align: left; transition: background-color .15s ease; }

@@ -13,10 +13,20 @@ import type { Format, Settings } from "@/lib/types";
 import { Icon } from "./Icons";
 import { ago, clock } from "./Tiles";
 
-const EXAMPLES = [
-  { name: "Product launch", text: "Cutmind turns raw takes into finished reels.\nIt keeps your best take of every line.\nEditing used to take 3 hours. Now it takes 20 minutes.\n- Subtitles on every word\n- Pictures that miss your face\n- Music under your voice\nTry it on your next video." },
-  { name: "Editing tips", text: "Why your videos stop getting views.\nMost viewers decide in the first 2 seconds.\nA slow intro loses 65% of them.\nOpen with the payoff, not the setup.\nCut every pause longer than half a second.\nFollow for one editing tip a day." },
-  { name: "Milestone", text: "We just hit 10,000 creators.\nThank you for every video, note and idea.\nFrom 12 people in a group chat to 10,000 makers.\nNext month: four new styles and team folders.\nJoin the community." },
+/** Starting points: words to edit plus a look and a pace that suit them. */
+const EXAMPLES: { name: string; line: string; palette: PaletteId; font: FontId; pace: Pace; tone: Tone; text: string }[] = [
+  { name: "Product launch", line: "Kinetic, confident", palette: "midnight", font: "grotesk", pace: "normal", tone: "promo",
+    text: "Cutmind turns raw takes into finished reels.\nIt keeps your best take of every line.\nEditing used to take 3 hours. Now it takes 20 minutes.\n- Subtitles on every word\n- Pictures that miss your face\n- Music under your voice\nTry it on your next video." },
+  { name: "Editing tips", line: "Clear, numbered", palette: "ocean", font: "grotesk", pace: "normal", tone: "explainer",
+    text: "Why your videos stop getting views.\nMost viewers decide in the first 2 seconds.\nA slow intro loses 65% of them.\nOpen with the payoff, not the setup.\nCut every pause longer than half a second.\nFollow for one editing tip a day." },
+  { name: "Milestone", line: "Warm, grateful", palette: "sunset", font: "serif", pace: "calm", tone: "announcement",
+    text: "We just hit 10,000 creators.\nThank you for every video, note and idea.\nFrom 12 people in a group chat to 10,000 makers.\nNext month: four new styles and team folders.\nJoin the community." },
+  { name: "Hype teaser", line: "One word at a time", palette: "electric", font: "heavy", pace: "hype", tone: "promo",
+    text: "Stop editing. Start posting.\nYour raw take goes in.\nA finished reel comes out.\nSubtitles, music, pictures, done.\nTry Cutmind free." },
+  { name: "Quote card", line: "Quiet, editorial", palette: "paper", font: "book", pace: "calm", tone: "story",
+    text: "Lessons from 100 videos.\n\"The first take is never the one you post.\" - my old editor\nFilm twice, keep one.\nFollow for the other 99." },
+  { name: "Weekly stats", line: "Charts that grow", palette: "mint", font: "grotesk", pace: "normal", tone: "explainer",
+    text: "My week in numbers.\nViews went from 2,000 to 18,500.\n- Reels: 12\n- Hours editing: 3\n- New followers: 940\nSame time next week." },
 ];
 const palIdsFor = (brand: boolean): PaletteId[] => [...(brand ? ["brand" as PaletteId] : []), ...(Object.keys(PALETTES) as PaletteId[])];
 const fontIdsFor = (brand: boolean): FontId[] => [...(Object.keys(FONTS) as FontId[]), ...(brand ? ["brand" as FontId] : [])];
@@ -115,8 +125,13 @@ export function Studio({ settings, onSettings, openId }: { settings: Settings; o
             <textarea id="anim-text" className="textarea" rows={9} value={text} onChange={(e) => setText(e.target.value)}
               placeholder={"Your idea, script or notes. Short lines work best. Numbers become counters, bullet points become lists…"} />
           </div>
-          <div className="chips" aria-label="Examples">
-            {EXAMPLES.map((x) => <button key={x.name} className="chip" onClick={() => setText(x.text)}>{x.name}</button>)}
+          <div className="tpls" role="group" aria-label="Start from an example">
+            {EXAMPLES.map((x) => (
+              <button key={x.name} className="tpl" onClick={() => { setText(x.text); setPalette(x.palette); setFont(x.font); setPace(x.pace); setTone(x.tone); }}>
+                <span className="tpl-sw" style={{ background: paletteOf(x.palette).bg, color: paletteOf(x.palette).ink, fontFamily: fontOf(x.font).family }}>
+                  <i style={{ background: paletteOf(x.palette).accent }} />Aa</span>
+                <span><b>{x.name}</b><span className="small faint block">{x.line}</span></span>
+              </button>))}
           </div>
           <div className="field"><span className="label">It&apos;s a</span>
             <div className="seg" role="group" aria-label="Tone">{TONES.map(([v, n]) => <button key={v} aria-pressed={tone === v} onClick={() => setTone(v)}>{n}</button>)}</div>
@@ -195,8 +210,23 @@ function StudioEditor({ anim, settings, onBack, onVoice }: { anim: Anim; setting
   const [t, setT] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [tab, setTab] = useState<"Scenes" | "Look">("Scenes");
-  const [exp, setExp] = useState<{ pct: number; url?: string; ext?: string; still?: string; fast?: boolean } | null>(null);
+  const [exp, setExp] = useState<{ pct: number; url?: string; ext?: string; still?: string; fast?: boolean; label?: string } | null>(null);
   const [fast, setFast] = useState<number | null>(null);
+  const [shapes, setShapes] = useState<{ f: Format; url: string }[] | null>(null);
+  async function exportShapes() {
+    setErr(""); setShapes(null);
+    const urls = await urlsFor(a);
+    const out: { f: Format; url: string }[] = [];
+    try {
+      for (const [i, f] of (Object.keys(FORMATS) as Format[]).entries()) {
+        setExp({ pct: 0, fast: true, label: `${FORMATS[f].name} (${i + 1} of 4)` });
+        const blob = await exportAnimFast({ ...a, format: f }, urls, (pct) => setExp((x) => ({ ...x!, pct })));
+        out.push({ f, url: URL.createObjectURL(blob) });
+      }
+      setShapes(out);
+    } catch (e) { setErr((e as Error).message || "Exporting every shape didn't work in this browser."); }
+    setExp(null);
+  }
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
   const dur = total(a);
@@ -302,15 +332,23 @@ function StudioEditor({ anim, settings, onBack, onVoice }: { anim: Anim; setting
         <div className="ed-col">
           {exp && (
             <section className="panel" aria-live="polite">
-              {exp.pct < 100 ? (<><div className="panel-head"><h2>Making the video</h2><span className="small faint num">{Math.round(exp.pct)}%</span></div>
+              {exp.pct < 100 ? (<><div className="panel-head"><h2>Making the video{exp.label ? `: ${exp.label}` : ""}</h2><span className="small faint num">{Math.round(exp.pct)}%</span></div>
                 <div className="progress"><i style={{ transform: `scaleX(${exp.pct / 100})` }} /></div>
                 <p className="small muted">{exp.fast ? "Rendering every frame at full quality, faster than real time." : "It plays through once in real time to record. Keep this tab open and in front."}</p></>) : (
                 <div className="export-ready"><div className="panel-head mb-0"><h2>Ready{fast ? ` · rendered ${fast}× faster than real time` : ""}</h2>
                   <button className="btn ghost icon sm" aria-label="Close" onClick={() => setExp(null)}>&times;</button></div>
                   <div className="row"><a className="btn primary" href={exp.url} download={`${name}.${exp.ext}`}><Icon name="download" />Download video (.{exp.ext})</a>
-                    <a className="btn" href={exp.still} download={`${name} cover.jpg`}>Download cover</a></div>
+                    <a className="btn" href={exp.still} download={`${name} cover.jpg`}>Download cover</a>
+                    {canFastExport() && <button className="btn ghost" onClick={() => void exportShapes()}>Make every shape</button>}</div>
                   {a.scenes.some((x) => x.image?.includes(":img:ai:")) && <p className="alert info small"><Icon name="alert" /><span>This animation has
                     AI-made pictures. Switch on the platform&apos;s AI label when you post it.</span></p>}</div>)}
+            </section>
+          )}
+          {shapes && (
+            <section className="panel" aria-live="polite">
+              <div className="panel-head"><h2>Every shape is ready</h2><button className="btn ghost icon sm" aria-label="Close" onClick={() => setShapes(null)}>&times;</button></div>
+              <div className="row">{shapes.map((x) => <a key={x.f} className="btn" href={x.url} download={`${name} - ${FORMATS[x.f].name.toLowerCase()} ${x.f.replace(":", "x")}.mp4`}>
+                <Icon name="download" />{x.f} {FORMATS[x.f].name}</a>)}</div>
             </section>
           )}
           {err && <div className="alert err" role="alert"><Icon name="alert" /><span>{err}</span></div>}

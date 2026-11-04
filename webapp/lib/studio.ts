@@ -101,11 +101,18 @@ export function planScenes(text: string): Scene[] {
       const items: string[] = [];
       while (i < units.length && bullet(units[i]) && items.length < 5) items.push(units[i++].replace(/^([-*•]|\d+[.)])\s+/, ""));
       const head = out.length && out[out.length - 1].kind === "statement" && out[out.length - 1].text.endsWith(":") ? out.pop()!.text.replace(/:$/, "") : "";
-      push({ kind: "list", text: head || "In short", items });
+      // "Reels: 12" lines are numbers: a bar chart says them better than a list
+      if (items.length >= 2 && items.every((x) => /:\s*[$£€]?\d[\d,.]*\s*%?$/.test(x))) push({ kind: "bars", text: head || "By the numbers", items });
+      else push({ kind: "list", text: head || "In short", items });
       continue;
     }
     const words = u.split(/\s+/).length;
     const q = u.match(/^["“](.+)["”]\s*(?:[-—–]\s*(.+))?$/);
+    const fromTo = u.match(/^(.*?)\b(?:went|grew|jumped|rose|climbed|fell|dropped|went up|went down)?\s*from\s+(.+?)\s+to\s+(.+?)[.!]?$/i);
+    if (fromTo && NUM.test(fromTo[2]) && NUM.test(fromTo[3]) && words <= 16) {
+      const head = fromTo[1].replace(/\b(went|grew|jumped|rose|climbed|fell|dropped)\s*$/i, "").trim();
+      push({ kind: "compare", text: head, items: [fromTo[2], fromTo[3]], say: u }); i++; continue;
+    }
     const cmp = u.match(/^from\s+(.+?)\s+to\s+(.+?)[.!]?$/i) ?? u.match(/^(.+?)\s+(?:vs\.?|versus|→|->|instead of)\s+(.+?)[.!]?$/i);
     const nextU = units[i + 1];
     // "It took 3 hours. Now it takes 20 minutes." -> before and after
