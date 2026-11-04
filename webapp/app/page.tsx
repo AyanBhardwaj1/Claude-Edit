@@ -18,10 +18,14 @@ const FEATURES = [
   { h: "Subtitles on every word", p: "Two or three words at a time, timed to your voice, in five styles and any Google Font. Numbers you say become digits, and you can fix any word it misheard.", pic: "w240", frag: "caps" },
   { h: "Pictures that miss your face", p: "Name an app, a brand or a place and its logo or photo appears on those words: from your own files first, then open-licence pictures it finds and credits. They sit above your head, beside you or in a phone, never across your eyes and mouth.", pic: "w320", frag: "frame" },
   { h: "Music under your voice", p: "It listens to your songs, picks one by mood, starts it a beat before the first hit, dips it under every word and lifts it in the pauses.", pic: "w180", frag: "music" },
+  { h: "One long video, five reels", p: "Drop in a podcast, a talk or a long take. Your AI editor reads all of it, ranks the moments that stand on their own and turns each into its own finished reel.", pic: "w320", frag: "clips" },
+  { h: "Subtitles in 16 languages", p: "Translate the subtitles into Spanish, Hindi, Japanese and 13 more, line by line on the words they cover, then fix any line. A subtitle file comes with every export.", pic: "w180", frag: "lang" },
   { h: "A caption ready to post", p: "A hook line people search for, a sentence of context, credits for every picture and exactly five hashtags. The cover is the frame where your face says the most.", pic: "w240", frag: "post" },
 ] as const;
 
 const FAQ: [string, string][] = [
+  ["Can I make a video without filming?", "Yes. In Animate, type or paste anything and Motion Studio turns it into an animated video: kinetic type, counters, lists, charts and a closing card in your colours, with music and an AI voice if you want them."],
+  ["Can it turn a podcast into clips?", "Yes. Drop in the long video and press Find the best clips: your AI editor ranks the moments that stand on their own, and each becomes its own edited reel."],
   ["Does my video get uploaded?", "No. Cutmind runs in your browser and keeps your videos in its storage on your computer. With OpenAI listening, only the sound goes to OpenAI to be transcribed; with in-browser listening, nothing leaves at all."],
   ["Do I need an API key?", "No. Without one you still get the cut and the subtitles. An Anthropic or OpenAI key adds the AI editor: best takes, hook title, pictures, music, notes and your caption."],
   ["What does it cost?", "Cutmind is free. Your provider bills your key for what you use: transcription with OpenAI is about $0.006 a minute, and an edit is a few cents."],
@@ -45,14 +49,14 @@ export default function Landing() {
         <div className="talk">
           <a className="wordmark" href="/" translate="no"><Mark />Cutmind</a>
           <div className="say">
-            <p>Drop in your raw takes. Cutmind keeps your best take of every line and hands back a captioned reel.</p>
+            <p>Drop in your raw takes, or just type. Cutmind keeps your best take of every line and hands back a finished reel.</p>
             <div className="acts"><a className="act" href="/login?mode=signup">Make your first reel<Arrow /></a>
               <a className="textlink" href="/login?mode=signup&amp;next=%2Fapp%23sample">or try the sample video first</a></div>
           </div>
         </div>
         <div className="wide">
           <nav aria-label="Main">
-            <a href="#how">How it cuts</a><a href="#looks">Five looks</a><a href="#price">Price</a><a className="signin" href="/login">Sign in</a>
+            <a href="#how">How it cuts</a><a href="#animate">Animate</a><a href="#price">Price</a><a className="signin" href="/login">Sign in</a>
           </nav>
           <h1><span className="ln"><span>You talk.</span></span><span className="ln"><span>It cuts.</span></span></h1>
           <div className="shot">
@@ -97,12 +101,45 @@ export default function Landing() {
                     <div className="song"><i />late-drive.wav<em>driving</em></div><div className="song"><i />rain-room.mp3<em>gentle</em></div>
                     <div className="lvl" aria-hidden="true">{[70, 74, 30, 26, 28, 72, 75, 31, 27, 70, 68, 29, 25, 26, 74, 78].map((h, i) =>
                       <i key={i} className={h < 40 ? "" : "v"} style={{ height: `${h}%` }} />)}</div></div>}
+                  {f.frag === "clips" && <div className="frag-clips">{[["9", "The 3 hour edit I quit", "0:48"], ["8", "Why intros lose viewers", "0:36"], ["7", "My Sunday batching day", "1:02"]].map(([sc, t, d]) => (
+                    <div key={t} className="clip"><b>{sc}</b><span>{t}<em>{d} · ready to edit</em></span></div>))}</div>}
+                  {f.frag === "lang" && <div className="frag-lang"><div className="c">THE ONE HABIT</div><div className="c es">EL ÚNICO HÁBITO</div><div className="c hi">एक आदत</div><div className="c ja">たった一つの習慣</div></div>}
                   {f.frag === "post" && <div className="frag-post"><div className="box">The 20 minute edit that replaced my 3 hour one. I talk once,
                     it keeps my best take and adds the rest. Try it on your next video.<br /><br /><span className="tags">#reelsediting #talkinghead
                     #contentcreatortips #videoworkflow #smallcreator</span></div></div>}
                 </div>
               </article>
             ))}
+          </div>
+        </section>
+
+        <section className="styles-sec" id="motion" aria-labelledby="motion-h">
+          <div className="say">
+            <h2 id="motion-h" data-reveal>Seven styles that move</h2>
+            <p data-reveal style={d(1)}>Karaoke words, bounces, typewriters, whip pans, glitch cuts, colour grades and pictures that slide in. One click
+              applies a whole style; your AI editor picks one to fit the video.</p>
+          </div>
+          <div className="strip">
+            {[["style-karaoke", "Karaoke", "The spoken word lit on a colour box"], ["style-neon", "Neon", "Pink highlights and a glitch cut"],
+              ["style-punchy", "Punchy", "Heavy words that bounce in"], ["style-cinematic", "Cinematic", "A teal grade, typewriter words"]].map(([f, n, alt], i) => (
+              <figure key={f} className="t" data-reveal style={d(i)}><img src={`/shots/${f}.webp`} width={540} height={960} loading="lazy"
+                alt={`A frame in the ${n} style: ${alt.toLowerCase()}, on Cutmind's drawn sample presenter`} /><figcaption>{n}</figcaption></figure>))}
+          </div>
+        </section>
+
+        <section className="anim-sec" id="animate" aria-labelledby="anim-h">
+          <div className="grid">
+            <div className="say">
+              <h2 id="anim-h" data-reveal>Or skip the camera</h2>
+              <p data-reveal style={d(1)}>Type a script, a launch or five bullet points. Motion Studio turns it into kinetic type, counters, lists, charts and a
+                closing card, in your colours, read by an AI voice if you like.</p>
+              <div data-reveal style={d(2)}><a className="act ink" href="/login?mode=signup&amp;next=%2Fapp%23animate">Animate some text<Arrow /></a></div>
+            </div>
+            <figure className="t big"><LoopVideo src="/shots/anim-loop.mp4" poster="/shots/anim-loop.webp" width={720} height={720}
+              label="An animation Motion Studio made from five lines of text" /><figcaption>Made from 7 lines of text</figcaption></figure>
+            {[["anim-title", "A title with an accent sweep"], ["anim-number", "A milestone, counted"], ["anim-list", "A list that ticks in"],
+              ["anim-compare", "Before and after"], ["anim-paper", "The Paper palette"], ["anim-electric", "The Electric palette"]].map(([f, alt]) => (
+              <figure key={f} className="t"><img src={`/shots/${f}.webp`} width={540} height={960} loading="lazy" alt={`Motion Studio: ${alt.toLowerCase()}`} /></figure>))}
           </div>
         </section>
 
@@ -207,7 +244,7 @@ export default function Landing() {
 
       <footer className="foot on-dark">
         <div className="cols">
-          <ul><li>Cutmind</li><li><a href="#how">How it cuts</a></li><li><a href="#looks">Five looks</a></li><li><a href="#price">Price</a></li></ul>
+          <ul><li>Cutmind</li><li><a href="#how">How it cuts</a></li><li><a href="#motion">Styles</a></li><li><a href="#animate">Animate</a></li><li><a href="#looks">Five looks</a></li><li><a href="#price">Price</a></li></ul>
           <ul><li>Account</li><li><a href="/login">Sign in</a></li><li><a href="/login?mode=signup">Create an account</a></li></ul>
           <ul><li>Privacy</li><li>Videos stay in your browser</li><li>Keys go straight to your provider</li><li><a href="/privacy">How your data is kept</a></li></ul>
           <ul><li>Source</li><li><a href="https://github.com/AyanBhardwaj1/Claude-Edit">GitHub</a></li><li>Editing doctrine adapted from Reel Studio (MIT)</li></ul>
@@ -231,5 +268,9 @@ const PLAN_ROWS: [string, string, string, string][] = [
   ["Hook title, pictures, zooms, music", "Not included", "Planned for every line", "Planned for every line"],
   ["Changes by note", "Edit it yourself", "Write a note, get a version", "Write a note, get a version"],
   ["Post caption", "Not included", "Written, with 5 hashtags", "Written, with 5 hashtags"],
+  ["Animate any text", "Your lines become scenes", "The AI plans the scenes", "The AI plans the scenes and can voice them"],
+  ["Clips from long videos", "Not included", "Ranked and edited", "Ranked and edited"],
+  ["Subtitles in other languages", "Not included", "16 languages", "16 languages"],
+  ["AI pictures from a description", "Not included", "Not included", "A few cents a picture"],
   ["What leaves your computer", "Nothing", "The transcript text, to Anthropic", "The sound and transcript, to OpenAI"],
 ];

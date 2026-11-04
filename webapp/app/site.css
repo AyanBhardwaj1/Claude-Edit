@@ -160,6 +160,35 @@ body:has(.site) { background: #ffffff; color: #000000; }
 .frag-post .box { padding: 14px; border-radius: 10px; background: var(--u-s2); line-height: 1.5; }
 .frag-post .tags { color: #ffa070; }
 
+.frag-clips { display: grid; gap: 10px; padding: 20px; height: 100%; align-content: center; }
+.frag-clips .clip { display: flex; gap: 12px; align-items: center; padding: 12px; border-radius: 10px; background: var(--u-s2); font-size: 14px; }
+.frag-clips .clip b { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; background: var(--u-acc); color: #1c0b02; flex: none; }
+.frag-clips .clip em { display: block; font-style: normal; font-size: 12px; color: var(--u-2); }
+.frag-lang { display: grid; place-content: center; gap: 10px; padding: 16px; background: #0d0d0d; height: 100%; text-align: center; }
+.frag-lang .c { font: 900 18px/1.1 Montserrat, "Noto Sans", sans-serif; color: #fff; }
+.frag-lang .c.es { color: #ffd84d; } .frag-lang .c.hi, .frag-lang .c.ja { font-weight: 700; color: #cfcfcf; }
+
+/* ---------- motion styles and Motion Studio: full-bleed colour pages ---------- */
+.styles-sec { background: var(--f2); color: #000; display: grid; grid-template-columns: var(--axis) 1fr; }
+.styles-sec .say { padding: 56px var(--m); display: grid; align-content: space-between; gap: 28px; }
+.styles-sec h2 { font-size: var(--head); }
+.styles-sec .say p { max-width: 30ch; }
+.styles-sec .strip { display: grid; grid-template-columns: repeat(4, 1fr); }
+.styles-sec .t, .anim-sec .t { position: relative; margin: 0; overflow: hidden; }
+.styles-sec .t img, .anim-sec .t img, .anim-sec .t video { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 1.2s var(--ease); }
+.styles-sec .t:hover img, .anim-sec .t:hover img { transform: scale(1.03); }
+.styles-sec figcaption { top: 0; bottom: auto !important; }
+.styles-sec figcaption, .anim-sec figcaption { position: absolute; left: 0; bottom: 0; padding: 8px 12px; background: #000; color: #fff; font-size: 15px; }
+.anim-sec { background: var(--f1); color: #000; }
+.anim-sec .grid { display: grid; grid-template-columns: repeat(6, 1fr); grid-auto-rows: minmax(0, 32vw); }
+.anim-sec .say { grid-column: span 2; padding: 40px var(--m); display: grid; align-content: space-between; gap: 24px; }
+.anim-sec .say h2 { font-size: var(--head); }
+.anim-sec .say p { max-width: 30ch; }
+.anim-sec .big { grid-column: span 2; }
+.anim-sec .t:not(.big) { grid-column: span 1; }
+.anim-sec .grid > .t:nth-child(n+5) { grid-row: 2; }
+.anim-sec .grid > .t:nth-child(n+7) { grid-column: span 2; }
+
 /* ---------- five looks: a full-bleed colour page with a gutterless mosaic ---------- */
 .looks { background: var(--f3); color: #000; }
 .looks .grid { display: grid; grid-template-columns: repeat(6, 1fr); grid-auto-rows: minmax(0, 28vw); }
@@ -319,7 +348,7 @@ html.js .site .hero .shot { opacity: 0; transform: translateY(40px); animation: 
   .hero .talk .say { margin: 22px var(--m) 0; order: 3; }
   .hero .talk .say p { font-size: 18px; max-width: none; }
   .hero .talk .say .act { width: 100%; }
-  .hero .shot { order: 4; margin: 72px 0 0; height: auto; min-height: 0; }
+  .hero .shot { order: 4; margin: 120px 0 0; height: auto; min-height: 0; }
   .hero .shot .ui { position: relative; height: auto; min-height: 0; }
   .hero .fact { width: 60%; margin-top: -40px; left: var(--m); padding: 14px 16px; }
   .hero .fact b { font-size: 30px; }
@@ -344,6 +373,14 @@ html.js .site .hero .shot { opacity: 0; transform: translateY(40px); animation: 
   .feat .row .pic.w320 { width: 70%; justify-self: end; aspect-ratio: 4 / 5; }
   .feat .row .pic.w180 { width: 78%; }
   .looks .grid { grid-template-columns: repeat(2, 1fr); grid-auto-rows: minmax(0, 62vw); }
+  .styles-sec { grid-template-columns: 1fr; }
+  .styles-sec .say { padding: 40px var(--m); }
+  .styles-sec .strip { grid-template-columns: repeat(2, 1fr); }
+  .anim-sec .grid { grid-template-columns: repeat(2, 1fr); grid-auto-rows: minmax(0, 88vw); }
+  .anim-sec .say, .anim-sec .big { grid-column: span 2; }
+  .anim-sec .say { padding: 72px var(--m) 40px; }
+  .anim-sec .grid > .t:nth-child(n+5) { grid-row: auto; }
+  .anim-sec .grid > .t:nth-child(n+7) { grid-column: span 1; }
   .looks .say, .looks .f { grid-column: span 2; padding: 32px var(--m); }
   .looks .a, .looks .e { grid-column: span 2; }
   .looks .b, .looks .c, .looks .d { grid-column: span 1; }
