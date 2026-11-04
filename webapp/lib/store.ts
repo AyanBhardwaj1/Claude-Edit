@@ -4,10 +4,12 @@
 // shared by everyone in this browser.
 
 import { createStore, del, get, keys, set } from "idb-keyval";
+import type { Anim } from "./studio";
 import type { Project, Settings, StyleRule } from "./types";
 
 const media = () => createStore("cutmind-media", "files");
 const projects = () => createStore("cutmind-projects", "projects");
+const anims = () => createStore("cutmind-anims", "anims");
 
 let owner: string | null = null;
 /** The signed-in account; everything below reads and writes that account's data. */
@@ -34,6 +36,21 @@ export async function listProjects(): Promise<Project[]> {
 export async function deleteProject(p: Project) {
   await del(p.id, projects());
   await Promise.all([...p.sources.map((s) => s.mediaKey), ...p.library.map((a) => a.key)].map((k) => del(k, media())));
+}
+
+export async function saveAnim(a: Anim) {
+  a.updatedAt = new Date().toISOString();
+  if (!a.owner && owner) a.owner = owner;
+  await set(a.id, JSON.parse(JSON.stringify(a)), anims());
+}
+export async function listAnims(): Promise<Anim[]> {
+  const ks = await keys(anims());
+  const all = await Promise.all(ks.map((k) => get(k, anims()) as Promise<Anim>));
+  return all.filter((a) => a && (!a.owner || !owner || a.owner === owner)).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+}
+export async function deleteAnim(a: Anim) {
+  await del(a.id, anims());
+  await Promise.all([a.music, ...Object.values(a.voice?.keys ?? {})].filter(Boolean).map((k) => del(k!, media())));
 }
 
 export const DEFAULT_SETTINGS: Settings = {

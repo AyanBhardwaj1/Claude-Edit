@@ -123,3 +123,21 @@ test("motion: defaults for old edits, validation of AI answers, templates", asyn
   assert.equal(cutFx("flash", [5], 5.5), null);
   assert.equal(cutFx("punch", [5], 5), null);
 });
+
+test("motion studio: the offline planner reads the shape of the text", async () => {
+  const { planScenes, cleanScenes, narration } = await import("../lib/studio");
+  const sc = planScenes("Cutmind turns raw takes into finished reels.\nIt keeps your best take of every line.\nEditing used to take 3 hours. Now it takes 20 minutes.\n- Subtitles on every word\n- Pictures that miss your face\n- Music under your voice\nTry it on your next video.");
+  const kinds = sc.map((s) => s.kind);
+  assert.equal(kinds[0], "title");
+  assert.ok(kinds.includes("list") && kinds.includes("compare"), kinds.join(","));
+  assert.equal(kinds[kinds.length - 1], "cta");
+  assert.deepEqual(sc.find((s) => s.kind === "compare")!.items, ["3 hours", "20 minutes"]);
+  const two = planScenes("Why your videos stop getting views.\nA slow intro loses 65% of them.\nOpen with the payoff.");
+  const num = two.find((s) => s.kind === "number")!;
+  assert.equal(num.value, 65); assert.equal(num.suffix, "%");
+  assert.deepEqual(sc.find((s) => s.kind === "list")!.items, ["Subtitles on every word", "Pictures that miss your face", "Music under your voice"]);
+  assert.ok(sc.every((s) => s.duration >= 2.4 && s.duration <= 7));
+  const cleaned = cleanScenes([{ kind: "wobble", text: "Hi" }, { kind: "number", text: "users", value: "12", duration: 99 }, { kind: "list" }]);
+  assert.equal(cleaned[0].kind, "statement"); assert.equal(cleaned[1].value, 12); assert.equal(cleaned[1].duration, 8); assert.equal(cleaned.length, 2);
+  assert.match(narration({ id: "x", kind: "number", text: "hours saved", value: 3, duration: 3 }), /3 hours saved/);
+});
