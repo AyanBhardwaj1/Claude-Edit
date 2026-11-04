@@ -7,8 +7,9 @@ import { Library } from "@/components/Library";
 import { NewVideo } from "@/components/NewVideo";
 import { Settings } from "@/components/Settings";
 import { Script, StyleRules } from "@/components/Small";
-import { currentUser, initials, signOut, type User } from "@/lib/auth";
+import { getUser, initials, signOut, type User } from "@/lib/auth";
 import { createSample } from "@/lib/demo";
+import { startSync, stopSync } from "@/lib/sync";
 import { DEFAULT_SETTINGS, listProjects, loadProject, loadSettings, saveSettings, setOwner } from "@/lib/store";
 import { applyTheme, getTheme, setTheme, THEMES, type ThemeId } from "@/lib/theme";
 import type { Project, Settings as S } from "@/lib/types";
@@ -69,17 +70,23 @@ export default function App() {
   }, [sample]);
 
   useEffect(() => {
-    const u = currentUser();
-    if (!u) { location.replace(`/login?next=${encodeURIComponent("/app" + location.hash)}`); return; }
-    setOwner(u.id);
-    setUser(u);
-    setSettings(loadSettings());
-    setThemeState(getTheme());
-    applyTheme(getTheme());
-    void route(location.hash);
+    let gone = false;
     const on = () => void route(location.hash);
+    void (async () => {
+      const u = await getUser();
+      if (gone) return;
+      if (!u) { location.replace(`/login?next=${encodeURIComponent("/app" + location.hash)}`); return; }
+      setOwner(u.id);
+      await startSync();                                   // server accounts: bring this user's preferences to this device
+      if (gone) return;
+      setUser(u);
+      setSettings(loadSettings());
+      setThemeState(getTheme());
+      applyTheme(getTheme());
+      void route(location.hash);
+    })();
     window.addEventListener("hashchange", on);
-    return () => window.removeEventListener("hashchange", on);
+    return () => { gone = true; window.removeEventListener("hashchange", on); };
   }, [route]);
 
   useEffect(() => { if (user) void listProjects().then((ps) => setCount(ps.length)); }, [user, screen]);
@@ -95,7 +102,7 @@ export default function App() {
   const go = (s: Screen) => { location.hash = s === "home" ? "" : s; if (s === "home") void route(""); };
   const open = (p: Project, s?: string) => { setProject(p); setSummary(s); location.hash = `video/${encodeURIComponent(p.id)}`; };
   const pickTheme = (id: ThemeId) => { setTheme(id); setThemeState(id); };
-  const leave = () => { signOut(); location.href = "/"; };
+  const leave = async () => { stopSync(); await signOut(); location.href = "/"; };
 
   if (!user) return (
     <div className="app" aria-busy="true" aria-label="Loading Cutmind">

@@ -1,7 +1,7 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { listModels } from "@/lib/ai";
-import { AuthError, changePassword, rename, type User } from "@/lib/auth";
+import { accountMode, AuthError, changePassword, rename, type Mode, type User } from "@/lib/auth";
 import { THEMES, type ThemeId } from "@/lib/theme";
 import type { Settings as S } from "@/lib/types";
 import { Icon } from "./Icons";
@@ -21,6 +21,8 @@ export function Settings({ settings, user, theme, onTheme, onUser, onSignOut, on
   const [pw, setPw] = useState({ cur: "", next: "" });
   const [pwMsg, setPwMsg] = useState<Note>(null);
   const [pwBusy, setPwBusy] = useState(false);
+  const [where, setWhere] = useState<Mode>("local");
+  useEffect(() => { void accountMode().then(setWhere); }, []);
   const set = (k: Partial<S>) => { setS({ ...s, ...k }); setSaved(null); };
   const dirty = JSON.stringify(s) !== JSON.stringify(settings);
 
@@ -130,9 +132,10 @@ export function Settings({ settings, user, theme, onTheme, onUser, onSignOut, on
         </section>
 
         <section className="set-sec" aria-labelledby="acct-h">
-          <div><h2 id="acct-h">Account</h2><p>Your account lives in this browser and keeps your videos, keys and style apart from anyone else who uses it.</p></div>
+          <div><h2 id="acct-h">Account</h2><p>{where === "server" ? "Your account works on any device: your settings, style and look follow you. Videos and API keys stay in each browser."
+            : "Your account lives in this browser and keeps your videos, keys and style apart from anyone else who uses it."}</p></div>
           <div className="stack">
-            <form className="stack" onSubmit={(e) => { e.preventDefault(); try { onUser(rename(user.id, name)); setAcct({ ok: true, text: "Name saved." }); }
+            <form className="stack" onSubmit={async (e) => { e.preventDefault(); try { onUser(await rename(user.id, name)); setAcct({ ok: true, text: "Name saved." }); }
               catch (err) { setAcct({ ok: false, text: (err as Error).message }); } }}>
               <div className="field"><label htmlFor="acct-name">Name</label>
                 <input id="acct-name" name="name" className="input" autoComplete="name" value={name} onChange={(e) => { setName(e.target.value); setAcct(null); }} /></div>

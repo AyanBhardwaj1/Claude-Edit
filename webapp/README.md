@@ -8,8 +8,11 @@ vertical reel with a cover and a post caption, then change it by typing notes. E
 
 ## Pages
 - `/`: the landing page, with a live demo of the cut (Cutmind's real first-pass rules run on a take you type).
-- `/login`: email and password sign-in and sign-up (no Google). Accounts are local to the browser, like the videos: a salted
-  PBKDF2 hash of the password is kept, never the password, and each account sees only its own videos, keys and style.
+- `/login`: email and password sign-in and sign-up (no Google). With a database connected (`DATABASE_URL`), accounts live on
+  the server and work on any device: a scrypt password hash, sessions in an httpOnly cookie, and the user's settings (never
+  API keys), style rules and look synced (`app/api/account`, `lib/server/db.ts`, `lib/sync.ts`). Without one, accounts live in
+  the browser (a salted PBKDF2 hash). Either way each account sees only its own videos, which stay in the browser.
+- A **sample project** (a drawn presenter and a computer voice, with its first edit made) to try everything without footage.
 - `/app`: the home dashboard (drop zone, numbers, setup checklist, recent videos, your editor, your style), My videos,
   New video, the editor, Write a script, My style and Settings.
 - Five looks for the app, picked in the sidebar or Settings: **Studio** (dark), **Radiant** (bright), **Terminal**,
@@ -29,7 +32,8 @@ vertical reel with a cover and a post caption, then change it by typing notes. E
 6. **Notes**: "music too loud at the start" makes Version 2. Lasting preferences are offered for **My style**
    ("Remember this for next time?") and apply to every future video.
 7. **Edit it myself**: click words to cut or restore them, subtitle look, music and level, pictures, cover, caption.
-8. **Export**: MP4 (WebM in browsers that can't record MP4), the cover, and the caption text.
+8. **Export**: MP4 (WebM in browsers that can't record MP4) in four shapes (9:16 reel, 4:5 feed, 1:1 square, 16:9 wide),
+   the cover, and the caption text.
 9. **Write a script** before filming: hook, what to say, words on screen.
 
 ## Privacy and keys
@@ -42,7 +46,13 @@ vertical reel with a cover and a post caption, then change it by typing notes. E
 
 ## Deploy
 Click the button above, or: Vercel → Add New Project → this repository → **Root Directory `webapp`** → Deploy.
-No environment variables are needed. Locally:
+No environment variables are needed: accounts then live in each browser.
+
+**Accounts on any device (optional):** in the Vercel project, **Storage → Create Database → Neon (Postgres)** → connect it to
+the project (this adds `DATABASE_URL`), then **Redeploy**. Cutmind creates its three tables (`cm_users`, `cm_sessions`,
+`cm_data`) on first use. `POSTGRES_URL` works too. Accounts made in a browser before the database was added stay in that browser.
+
+Locally:
 ```bash
 cd webapp && npm install && npm run dev        # http://localhost:3000
 npm run build && npm start                      # production
@@ -63,7 +73,10 @@ timeouts, a ~4.5 MB request limit), so all media work runs client-side:
 | `lib/compositor.ts` | draws each frame: reframe, zooms, the picture treatments, labels, captions |
 | `lib/player.ts` | live playback with two video elements per take swapped at cuts, Web Audio mix, MediaRecorder export |
 | `app/api/search`, `app/api/image` | licensed picture search and a fixed-host image fetch |
-| `lib/auth.ts`, `lib/theme.ts` | local email + password accounts; the five looks |
+| `lib/auth.ts`, `lib/sync.ts` | email + password accounts (server or browser) and preference sync |
+| `app/api/account`, `lib/server/` | server accounts: Postgres, scrypt, sessions, same-origin checks, a rate limit |
+| `lib/theme.ts` | the five looks |
+| `lib/demo.ts`, `scripts/make_demo.py` | the sample project (a drawn presenter, a computer voice) |
 | `lib/livecut.ts` | the landing page's live demo of the first-pass cut |
 
 Everything is anchored to transcript word ids, so a re-cut never breaks a picture, a zoom or a music lift.
@@ -79,7 +92,8 @@ Everything is anchored to transcript word ids, so a re-cut never breaks a pictur
 ```bash
 npm test                                         # unit tests: timeline, analysis, caption text, AI-answer validation, live cut, passwords
 npm run build && npx next start -p 3200 &
-python3 tests/e2e.py <take.mp4> <transcript.json> <out_dir>   # sign up, then the whole workflow in Chromium, both APIs mocked
+python3 tests/e2e.py <take.mp4> <transcript.json> <out_dir>   # sign up, the whole workflow, every shape, the sample (APIs mocked)
+DATABASE_URL=postgres://... npx next start -p 3200 & python3 tests/accounts.py   # server accounts across two browsers
 ```
 
 The editing doctrine is adapted from Reel Studio's editor prompts (MIT, see `../THIRD_PARTY.md`).

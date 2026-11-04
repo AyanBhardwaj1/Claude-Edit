@@ -1,6 +1,8 @@
-// Email + password accounts that live in this browser. Cutmind has no server-side database (videos and keys never
-// leave the browser), so an account is a local profile: it separates the videos, settings and style of everyone
-// who uses this browser. Passwords are never stored: only a PBKDF2-SHA-256 hash with a random salt.
+// Email + password accounts, in one of two modes:
+//   server  when the site has a database (app/api/account, lib/server/db.ts): sign in on any device; settings without
+//           API keys, style rules and the look sync (lib/sync.ts). Videos and keys still never leave the browser.
+//   local   without one: an account is a profile in this browser that separates the videos, settings and style of
+//           everyone who uses it. Passwords are never stored: only a PBKDF2-SHA-256 hash with a random salt.
 
 export type Account = { id: string; email: string; name: string; salt: string; hash: string; createdAt: string };
 export type User = { id: string; email: string; name: string; createdAt: string };
@@ -37,7 +39,7 @@ export function passwordProblem(p: string): string | null {
   return null;
 }
 
-export async function signUp(name: string, email: string, password: string, remember: boolean): Promise<User> {
+async function localSignUp(name: string, email: string, password: string, remember: boolean): Promise<User> {
   if (!name.trim()) throw new AuthError("Tell us what to call you.", "name");
   if (!validEmail(email)) throw new AuthError("Enter an email like you@example.com.", "email");
   const bad = passwordProblem(password);
@@ -52,7 +54,7 @@ export async function signUp(name: string, email: string, password: string, reme
   return publicUser(a);
 }
 
-export async function signIn(email: string, password: string, remember: boolean): Promise<User> {
+async function localSignIn(email: string, password: string, remember: boolean): Promise<User> {
   if (!validEmail(email)) throw new AuthError("Enter an email like you@example.com.", "email");
   if (!password) throw new AuthError("Enter your password.", "password");
   const a = accounts().find((x) => x.email === normEmail(email));
@@ -68,7 +70,7 @@ function startSession(id: string, remember: boolean) {
   (remember ? localStorage : sessionStorage).setItem(SESSION, v);
 }
 
-export function currentUser(): User | null {
+export function localUser(): User | null {
   if (typeof window === "undefined") return null;
   try {
     const s = JSON.parse(sessionStorage.getItem(SESSION) || localStorage.getItem(SESSION) || "null") as { id: string } | null;
@@ -77,9 +79,9 @@ export function currentUser(): User | null {
   } catch { return null; }
 }
 
-export function signOut() { localStorage.removeItem(SESSION); sessionStorage.removeItem(SESSION); }
+function localSignOut() { localStorage.removeItem(SESSION); sessionStorage.removeItem(SESSION); }
 
-export function rename(id: string, name: string): User {
+function localRename(id: string, name: string): User {
   if (!name.trim()) throw new AuthError("Your name can't be empty.", "name");
   const all = accounts();
   const a = all.find((x) => x.id === id);
@@ -89,7 +91,7 @@ export function rename(id: string, name: string): User {
   return publicUser(a);
 }
 
-export async function changePassword(id: string, current: string, next: string) {
+async function localChangePassword(id: string, current: string, next: string) {
   const all = accounts();
   const a = all.find((x) => x.id === id);
   if (!a || (await derive(current, unhex(a.salt))) !== a.hash) throw new AuthError("Your current password isn't right.", "password");
@@ -101,3 +103,68 @@ export async function changePassword(id: string, current: string, next: string) 
 }
 
 export const initials = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join("") || "?";
+
+// ------------------------------------------------------------------ the mode-independent API the app uses
+
+export type Mode = "local" | "server";
+let modeP: Promise<Mode> | null = null;
+let serverUser: User | null | undefined;
+
+async function call(body: Record<string, unknown>): Promise<{ user?: User }> {
+  let r: Response;
+  try {
+    r = await fetch("/api/account", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body),
+      credentials: "same-origin" });
+  } catch { throw new AuthError("Couldn't reach Cutmind. Check your connection and try again."); }
+  const d = await r.json().catch(() => ({})) as { user?: User; error?: string; field?: AuthError["field"] };
+  if (!r.ok) throw new AuthError(d.error ?? `Something went wrong (${r.status}). Try again.`, d.field);
+  return d;
+}
+
+/** Server accounts when this site has a database, else accounts in this browser. Asked once per page. */
+export function accountMode(): Promise<Mode> {
+  modeP ??= fetch("/api/account", { credentials: "same-origin", cache: "no-store" })
+    .then(async (r) => {
+      if (r.status === 404) return "local" as Mode;
+      const d = await r.json().catch(() => ({})) as { mode?: Mode; user?: User | null };
+      if (d.mode === "server") serverUser = d.user ?? null;
+      return d.mode === "server" ? "server" : "local";
+    })
+    .catch(() => "local" as Mode);
+  return modeP;
+}
+
+export async function getUser(): Promise<User | null> {
+  return (await accountMode()) === "server" ? serverUser ?? null : localUser();
+}
+
+export async function signUp(name: string, email: string, password: string, remember: boolean): Promise<User> {
+  if ((await accountMode()) === "local") return localSignUp(name, email, password, remember);
+  if (!name.trim()) throw new AuthError("Tell us what to call you.", "name");
+  if (!validEmail(email)) throw new AuthError("Enter an email like you@example.com.", "email");
+  const bad = passwordProblem(password);
+  if (bad) throw new AuthError(bad, "password");
+  return (serverUser = (await call({ action: "signup", name, email, password, remember })).user!);
+}
+
+export async function signIn(email: string, password: string, remember: boolean): Promise<User> {
+  if ((await accountMode()) === "local") return localSignIn(email, password, remember);
+  if (!validEmail(email)) throw new AuthError("Enter an email like you@example.com.", "email");
+  if (!password) throw new AuthError("Enter your password.", "password");
+  return (serverUser = (await call({ action: "signin", email, password, remember })).user!);
+}
+
+export async function signOut() {
+  localSignOut();
+  if ((await accountMode()) === "server") { await call({ action: "signout" }).catch(() => undefined); serverUser = null; }
+}
+
+export async function rename(id: string, name: string): Promise<User> {
+  if ((await accountMode()) === "local") return localRename(id, name);
+  return (serverUser = (await call({ action: "rename", name })).user!);
+}
+
+export async function changePassword(id: string, current: string, next: string) {
+  if ((await accountMode()) === "local") return localChangePassword(id, current, next);
+  await call({ action: "password", current, next });
+}

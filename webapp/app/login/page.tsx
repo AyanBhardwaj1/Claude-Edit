@@ -1,13 +1,14 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { Mark } from "@/components/Icons";
-import { AuthError, currentUser, passwordProblem, signIn, signUp, validEmail } from "@/lib/auth";
+import { accountMode, AuthError, getUser, passwordProblem, signIn, signUp, validEmail, type Mode } from "@/lib/auth";
 import "../site.css";
 
 type Field = "name" | "email" | "password";
 
 export default function Login() {
   const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const [where, setWhere] = useState<Mode | null>(null);
   const [next, setNext] = useState("/app");
   const [show, setShow] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -18,7 +19,10 @@ export default function Login() {
     const q = new URLSearchParams(location.search);
     const n = q.get("next");
     const safe = n && n.startsWith("/app") ? n : "/app";
-    if (currentUser()) { location.replace(safe); return; }
+    void (async () => {
+      if (await getUser()) { location.replace(safe); return; }
+      setWhere(await accountMode());
+    })();
     setNext(safe);
     setMode(q.get("mode") === "signup" ? "signup" : "signin");
     document.title = q.get("mode") === "signup" ? "Create your account · Cutmind" : "Sign in · Cutmind";
@@ -102,8 +106,11 @@ export default function Login() {
               </button>
             </form>
             <p className="fine" aria-live="polite">
-              {up ? "Your account lives in this browser, like your videos. Cutmind has no server copy of your videos, keys or password; it stores only a salted hash of the password here."
-                : "Forgot your password? Accounts live only in this browser, so there is no reset email: create a new account to keep going."}
+              {where === "server"
+                ? (up ? "Your account works on any device. Cutmind keeps your email, name, a scrambled copy of your password and your settings; your videos and API keys stay in your browser."
+                  : "Forgot your password? Reset by email isn't set up on this site yet: ask whoever runs it, or make a new account.")
+                : (up ? "Your account lives in this browser, like your videos. Cutmind has no server copy of your videos, keys or password; it stores only a salted hash of the password here."
+                  : "Forgot your password? Accounts live only in this browser, so there is no reset email: create a new account to keep going.")}
             </p>
           </main>
           <a className="back textlink" href="/">Back to the home page</a>
