@@ -1,9 +1,10 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { postText } from "@/lib/edit";
+import { FORMATS } from "@/lib/compositor";
 import { Player } from "@/lib/player";
 import { loadRules, saveProject, saveRules } from "@/lib/store";
-import type { Edit, Project, Settings } from "@/lib/types";
+import type { Edit, Format, Project, Settings } from "@/lib/types";
 import { addToLibrary, applyUserNote, mediaUrls, saveManual } from "@/lib/workflow";
 import { Drawer } from "./Drawer";
 import { Icon } from "./Icons";
@@ -100,7 +101,10 @@ export function Editor({ project, settings, firstSummary, onBack }: { project: P
   const e = version?.edit;
   const pics = e?.broll.filter((b) => b.treatment !== "text-pop").length ?? 0, cards = e ? e.broll.length - pics : 0;
   const song = e?.music.asset ? p.library.find((a) => a.key === e.music.asset) : undefined;
-  const base = p.title.replace(/[\\/:*?"<>|]+/g, "").slice(0, 80) + ` - Version ${p.current}`;
+  const fmt: Format = p.format ?? "9:16";
+  const shape = FORMATS[fmt];
+  const base = p.title.replace(/[\\/:*?"<>|]+/g, "").slice(0, 80) + ` - Version ${p.current}` + (fmt === "9:16" ? "" : ` (${shape.name.toLowerCase()} ${fmt.replace(":", "x")})`);
+  const reshape = async (f: Format) => { if (f === fmt || recording) return; p.format = f; await saveProject(p); setExp(null); setP({ ...p }); };
   const recording = !!exp && exp.pct < 100;
   const did: [boolean, string][] = e ? [
     [true, `Kept your best takes · ${clock(dur)} long`],
@@ -120,14 +124,26 @@ export function Editor({ project, settings, firstSummary, onBack }: { project: P
         <button className="btn primary" onClick={exportVideo} disabled={recording}><Icon name="download" />Export</button>
       </div>
 
-      <div className="ed-grid">
+      {p.sample && <div className="alert info sample-note"><Icon name="spark" /><span>This is the sample: a drawn presenter and a computer voice, not a
+        real person. Play it, open &ldquo;Edit it myself&rdquo;, change its shape and export it. Notes need an AI key in Settings.</span></div>}
+      <div className={`ed-grid ${shape.w > shape.h ? "wide" : ""}`}>
         <div className="preview">
-          <div className="phone"><canvas ref={canvas} aria-label={`Preview of ${p.title}, version ${p.current}`} role="img" /></div>
+          <div className={`phone ${shape.w >= shape.h ? "flat" : ""}`}><canvas ref={canvas} style={{ aspectRatio: `${shape.w} / ${shape.h}` }}
+            aria-label={`Preview of ${p.title}, version ${p.current}, ${shape.name.toLowerCase()} ${fmt}`} role="img" /></div>
           <div className="transport">
             <button className="play" onClick={toggle} disabled={recording} aria-label={playing ? "Pause" : "Play"}><Icon name={playing ? "pause" : "play"} /></button>
             <input type="range" className="scrub" min={0} max={dur || 1} step={0.01} value={t} aria-label="Position"
               onChange={(ev) => { const v = +ev.target.value; setT(v); void player.current?.seek(v); }} />
             <span className="time">{clock(t)} / {clock(dur)}</span>
+          </div>
+          <div className="shape">
+            <span className="label">Shape</span>
+            <div className="seg" role="group" aria-label="Shape">
+              {(Object.keys(FORMATS) as Format[]).map((f) => (
+                <button key={f} aria-pressed={f === fmt} disabled={recording} title={FORMATS[f].for} onClick={() => reshape(f)}>
+                  {f} {FORMATS[f].name}</button>))}
+            </div>
+            <span className="hint">{shape.for}</span>
           </div>
           <div className="versions" role="group" aria-label="Versions">
             {p.versions.map((v) => (

@@ -142,6 +142,21 @@ with sync_playwright() as pw:
         page.get_by_role("link", name="Download cover").click()
     dl2.value.save_as(out / "cover.jpg")
     page.screenshot(path=str(out / "3-exported.png"))
+    # other shapes: the preview redraws at the new size, still lit
+    for name, size in [("16:9 Wide", [1920, 1080]), ("1:1 Square", [1080, 1080]), ("4:5 Feed", [1080, 1350])]:
+        page.get_by_role("button", name=name).click()
+        page.wait_for_timeout(1500)
+        assert page.evaluate("[document.querySelector('canvas').width, document.querySelector('canvas').height]") == size, name
+        assert lit() > 0.3, f"{name} preview looks empty ({lit():.2f})"
+    page.screenshot(path=str(out / "4-square-feed.png"))
+
+    # the sample project opens with its first edit, no key needed
+    page.goto(URL + "app#sample")
+    page.get_by_text("This is the sample").wait_for(timeout=60000)
+    page.wait_for_timeout(1500)
+    assert page.get_by_text("Added music: sunday pad.m4a").is_visible()
+    assert lit() > 0.3, f"sample preview looks empty ({lit():.2f})"
+    page.screenshot(path=str(out / "5-sample.png"))
     assert not errors, errors
     b.close()
 

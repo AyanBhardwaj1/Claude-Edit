@@ -267,6 +267,8 @@ p { margin: 0; text-wrap: pretty; }
 .thumb .ph svg { width: 36px; height: 36px; }
 .thumb .badge { position: absolute; left: 10px; top: 10px; background: #000a; color: #fff; }
 .thumb .badge.good { background: var(--good); color: #fff; }
+.thumb .badge.sample { left: auto; right: 10px; background: var(--accent); color: var(--accent-ink); }
+.toast .spin { margin-right: 10px; vertical-align: -3px; }
 .thumb .len { position: absolute; right: 10px; bottom: 10px; padding: 2px 7px; border-radius: var(--r-sm); background: #000b; color: #fff; font-size: 12px;
   font-variant-numeric: tabular-nums; }
 .tile:hover .thumb { transform: translateY(-3px); }
@@ -315,12 +317,18 @@ p { margin: 0; text-wrap: pretty; }
 
 /* ---------- editor ---------- */
 .ed-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+.sample-note { margin: -6px 0 20px; }
 .ed-head h1 { font-size: clamp(1.3rem, 1rem + 1vw, 1.75rem); min-width: 0; }
 .ed-grid { display: grid; grid-template-columns: minmax(300px, 400px) minmax(0, 1fr); gap: 28px; align-items: start; }
+.ed-grid.wide { grid-template-columns: minmax(0, 1.35fr) minmax(320px, 1fr); }
 .preview { position: sticky; top: 20px; display: grid; gap: 12px; }
 .phone { background: var(--preview-bg); border-radius: 30px; padding: 9px; box-shadow: 0 0 0 1px var(--line); }
 [data-theme="terminal"] .phone { border-radius: 0; }
 .phone canvas { width: 100%; aspect-ratio: 9 / 16; border-radius: 22px; background: #000; }
+.phone.flat { border-radius: 18px; padding: 7px; }
+.phone.flat canvas { border-radius: 12px; }
+.shape { display: grid; gap: 8px; }
+.shape .seg button { padding: 0 10px; }
 [data-theme="terminal"] .phone canvas { border-radius: 0; }
 .transport { display: flex; align-items: center; gap: 12px; }
 .play { width: 44px; height: 44px; flex: none; display: grid; place-items: center; border: 0; border-radius: 50%; background: var(--accent); color: var(--accent-ink);
@@ -418,7 +426,8 @@ p { margin: 0; text-wrap: pretty; }
   .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 900px) {
-  .ed-grid { grid-template-columns: 1fr; }
+  .ed-grid, .ed-grid.wide { grid-template-columns: 1fr; }
+  .ed-grid.wide .preview { max-width: none; }
   .preview { position: static; max-width: 420px; width: 100%; margin: 0 auto; }
   .start { grid-template-columns: 1fr; }
   .set-sec { grid-template-columns: 1fr; gap: 16px; padding: 18px; }

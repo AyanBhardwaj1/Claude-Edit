@@ -16,8 +16,8 @@ function greeting(name: string) {
   return `${part}, ${name.split(/\s+/)[0]}`;
 }
 
-export function Dashboard({ user, settings, theme, onNew, onOpen, onGo }: { user: User; settings: Settings; theme: ThemeId;
-  onNew: (files?: File[]) => void; onOpen: (p: Project) => void; onGo: (s: Go) => void }) {
+export function Dashboard({ user, settings, theme, onNew, onOpen, onGo, onSample }: { user: User; settings: Settings; theme: ThemeId;
+  onSample: () => void; onNew: (files?: File[]) => void; onOpen: (p: Project) => void; onGo: (s: Go) => void }) {
   const [ps, setPs] = useState<Project[] | null>(null);
   const [rules, setRules] = useState<StyleRule[]>([]);
   const [over, setOver] = useState(false);
@@ -75,7 +75,8 @@ export function Dashboard({ user, settings, theme, onNew, onOpen, onGo }: { user
               <h2>From take to post in one pass</h2>
               <p>Cutmind keeps your last good take of every line, cuts the pauses, adds subtitles, a hook title, pictures, zooms and music,
                 then writes your caption. Change anything by typing a note.</p>
-              <p className="small faint">Your video stays in this browser.</p>
+              <div className="row"><button className="btn" onClick={onSample}><Icon name="play" />Open the sample video</button></div>
+              <p className="small faint">No footage yet? The sample has a drawn presenter, a computer voice and a first edit to play with.</p>
             </div>
           </section>
 
@@ -93,7 +94,8 @@ export function Dashboard({ user, settings, theme, onNew, onOpen, onGo }: { user
                 See all {ps.length}<Icon name="arrowRight" /></a>}
             </div>
             {!ps && <div className="tiles" aria-busy="true">{[0, 1, 2, 3].map((i) => <div key={i} className="skel tile-skel" />)}</div>}
-            {ps && !ps.length && <p className="muted">Your reels show up here. Drop a take above to make the first one.</p>}
+            {ps && !ps.length && <p className="muted">Your reels show up here. Drop a take above, or <button className="link" onClick={onSample}>open
+              the sample video</button> to see an edit first.</p>}
             {ps && ps.length > 0 && <div className="tiles">{ps.slice(0, 4).map((p) => <VideoTile key={p.id} p={p} onOpen={() => onOpen(p)} />)}</div>}
           </section>
         </div>

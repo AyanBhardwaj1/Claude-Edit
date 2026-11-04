@@ -75,8 +75,12 @@ export type Project = {
   library: Asset[]; versions: Version[]; current: number;
   faces?: FaceSample[];
   owner?: string;                 // the local account that made it (lib/auth.ts)
+  sample?: boolean;               // the built-in sample project (lib/demo.ts)
+  format?: Format;                // the shape it plays and exports in (default 9:16)
   status: "new" | "transcribed" | "edited";
 };
+
+export type Format = "9:16" | "4:5" | "1:1" | "16:9";
 
 export type Settings = {
   provider: "anthropic" | "openai";

@@ -8,6 +8,7 @@ import { NewVideo } from "@/components/NewVideo";
 import { Settings } from "@/components/Settings";
 import { Script, StyleRules } from "@/components/Small";
 import { currentUser, initials, signOut, type User } from "@/lib/auth";
+import { createSample } from "@/lib/demo";
 import { DEFAULT_SETTINGS, listProjects, loadProject, loadSettings, saveSettings, setOwner } from "@/lib/store";
 import { applyTheme, getTheme, setTheme, THEMES, type ThemeId } from "@/lib/theme";
 import type { Project, Settings as S } from "@/lib/types";
@@ -37,8 +38,26 @@ export default function App() {
   const [count, setCount] = useState<number | null>(null);
   const [theme, setThemeState] = useState<ThemeId>("studio");
   const [menu, setMenu] = useState(false);
+  const [loading, setLoading] = useState("");
+
+  const sample = useCallback(async () => {
+    setLoading("Getting the sample video…");
+    try {
+      const { project: p, summary: s } = await createSample((m) => setLoading(m === "Ready" ? "" : `${m}…`));
+      setProject(p); setSummary(s);
+      history.replaceState(null, "", `#video/${encodeURIComponent(p.id)}`);
+      setScreen("editor");
+    } catch (e) {
+      setLoading((e as { userMessage?: string }).userMessage ?? "The sample video couldn't load.");
+      setTimeout(() => setLoading(""), 4000);
+      history.replaceState(null, "", "#"); setScreen("home");
+      return;
+    }
+    setLoading("");
+  }, []);
 
   const route = useCallback(async (hash: string) => {
+    if (hash.replace(/^#/, "") === "sample") { await sample(); return; }
     const r = parse(hash);
     if (r.screen === "editor" && r.id) {
       const p = await loadProject(r.id);
@@ -47,7 +66,7 @@ export default function App() {
     }
     setScreen(r.screen);
     window.scrollTo({ top: 0 });
-  }, []);
+  }, [sample]);
 
   useEffect(() => {
     const u = currentUser();
@@ -133,9 +152,9 @@ export default function App() {
       </header>
 
       <main className="main" id="main" tabIndex={-1}>
-        {screen === "home" && <Dashboard user={user} settings={settings} theme={theme} onNew={(files) => { setPending(files ?? []); go("new"); }}
+        {screen === "home" && <Dashboard user={user} settings={settings} theme={theme} onSample={sample} onNew={(files) => { setPending(files ?? []); go("new"); }}
           onOpen={(p) => open(p)} onGo={(s) => go(s)} />}
-        {screen === "videos" && <Library onOpen={(p) => open(p)} onNew={() => go("new")} />}
+        {screen === "videos" && <Library onOpen={(p) => open(p)} onNew={() => go("new")} onSample={sample} />}
         {screen === "new" && <NewVideo settings={settings} initial={pending} onSettings={() => go("settings")}
           onDone={(p, s) => { setPending([]); open(p, s); }} />}
         {screen === "editor" && project && (project.versions.length
@@ -156,6 +175,7 @@ export default function App() {
               onClick={(e) => { e.preventDefault(); go(s); }}><Icon name={icon} />{label}</a>
           ))}
       </nav>
+      {loading && <div className="toast" role="status"><span className="spin" aria-hidden="true" />{loading}</div>}
     </div>
   );
 }

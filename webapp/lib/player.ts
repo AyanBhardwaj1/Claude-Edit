@@ -3,7 +3,7 @@
 // segment, so cuts land without a seek stall. Audio runs through Web Audio: a light voice clean-up, the song
 // set a measured gap under the voice, dipping under words and lifting in pauses, and a whoosh on picture entrances.
 
-import { buildScene, drawFrame, H, W, type Scene } from "./compositor";
+import { buildScene, drawFrame, H, setFormat, W, type Scene } from "./compositor";
 import { buildTimeline, spanOf, type Timeline } from "./timeline";
 import type { Edit, Project } from "./types";
 
@@ -35,6 +35,7 @@ export class Player {
 
   constructor(private canvas: HTMLCanvasElement, public project: Project, public edit: Edit,
               private urls: Map<string, string>) {
+    setFormat(project.format);
     canvas.width = W; canvas.height = H;
     this.g = canvas.getContext("2d")!;
   }
@@ -295,10 +296,10 @@ export class Player {
     this.scene = saved;
     if (e.cover.text) {
       const g = this.g;
-      let size = 0.13 * W;
+      let size = 0.13 * Math.min(W, H);
       g.font = `900 ${size}px Montserrat, Arial, sans-serif`;
       const text = e.cover.text.toUpperCase();
-      while (g.measureText(text).width > W * 0.88 && size > 0.05 * W) { size *= 0.9; g.font = `900 ${size}px Montserrat, Arial, sans-serif`; }
+      while (g.measureText(text).width > W * 0.88 && size > 0.05 * Math.min(W, H)) { size *= 0.9; g.font = `900 ${size}px Montserrat, Arial, sans-serif`; }
       g.save(); g.translate(W / 2, 0.22 * H); g.rotate((-4 * Math.PI) / 180);
       g.textAlign = "center"; g.textBaseline = "middle"; g.lineJoin = "round";
       g.lineWidth = 0.18 * size; g.strokeStyle = "#000"; g.strokeText(text, 0, 0); g.fillStyle = "#fff"; g.fillText(text, 0, 0);

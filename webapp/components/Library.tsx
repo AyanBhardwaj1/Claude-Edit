@@ -7,7 +7,7 @@ import { VideoTile } from "./Tiles";
 
 type Filter = "all" | "ready" | "unfinished";
 
-export function Library({ onOpen, onNew }: { onOpen: (p: Project) => void; onNew: () => void }) {
+export function Library({ onOpen, onNew, onSample }: { onOpen: (p: Project) => void; onNew: () => void; onSample: () => void }) {
   const [ps, setPs] = useState<Project[] | null>(null);
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
@@ -37,7 +37,8 @@ export function Library({ onOpen, onNew }: { onOpen: (p: Project) => void; onNew
           <h2>No videos yet</h2>
           <p>Drop in a raw take, fumbles and all. You get a cut, subtitles, a hook title, pictures, music, a cover and a caption, then change
             anything by typing a note.</p>
-          <button className="btn primary" onClick={onNew}><Icon name="plus" />Make your first reel</button>
+          <div className="row"><button className="btn primary" onClick={onNew}><Icon name="plus" />Make your first reel</button>
+            <button className="btn" onClick={onSample}><Icon name="play" />Open the sample video</button></div>
         </div>
       )}
       {ps && ps.length > 0 && !shown.length && <p className="muted">Nothing matches &ldquo;{q}&rdquo;.</p>}

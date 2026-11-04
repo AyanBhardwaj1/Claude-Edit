@@ -49,6 +49,7 @@ function Thumb({ p }: { p: Project }) {
       {url ? <video ref={v} src={`${url}#t=1`} muted playsInline loop preload="metadata" aria-hidden="true" tabIndex={-1} />
         : <span className="ph"><Icon name="film" /></span>}
       <span className={`badge ${ready ? "good" : ""}`}>{ready ? `Version ${p.current}` : "Not finished"}</span>
+      {p.sample && <span className="badge sample">Sample</span>}
       {ready && <span className="len">{clock(keptSeconds(p))}</span>}
     </div>
   );

@@ -46,7 +46,8 @@ export default function Landing() {
           <a className="wordmark" href="/" translate="no"><Mark />Cutmind</a>
           <div className="say">
             <p>Drop in your raw takes. Cutmind keeps your best take of every line and hands back a captioned reel.</p>
-            <div><a className="act" href="/login?mode=signup">Make your first reel<Arrow /></a></div>
+            <div className="acts"><a className="act" href="/login?mode=signup">Make your first reel<Arrow /></a>
+              <a className="textlink" href="/login?mode=signup&amp;next=%2Fapp%23sample">or try the sample video first</a></div>
           </div>
         </div>
         <div className="wide">
