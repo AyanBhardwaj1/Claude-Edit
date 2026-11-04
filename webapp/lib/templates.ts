@@ -1,7 +1,7 @@
 // One-click styles: a subtitle look plus a motion set, applied to the current edit as a new version.
 
 import { DEFAULT_MOTION, motionOf } from "./edit";
-import type { Captions, Edit, Motion } from "./types";
+import type { Brand, Captions, Edit, Motion } from "./types";
 
 export type Template = { id: string; name: string; line: string; captions: Partial<Captions>; motion: Partial<Motion> };
 
@@ -28,6 +28,12 @@ export const TEMPLATES: Template[] = [
     captions: { preset: "minimal", textCase: "upper", maxWords: 3, size: 90, font: "Montserrat" },
     motion: { captionAnim: "fade", accent: "#FFFFFF", emphasis: false, transition: "fade", look: "mono", brollIn: "slide", progress: false } },
 ];
+
+/** "My brand": the user's font and colour on the karaoke look. */
+export const brandTemplate = (b: Brand): Template => ({ id: "brand", name: b.name.trim() ? b.name.trim().slice(0, 18) : "My brand",
+  line: "Your font and your colour on every word.",
+  captions: { preset: "studio", textCase: "upper", maxWords: 3, size: 105, font: b.font || "Montserrat" },
+  motion: { captionAnim: "karaoke", accent: b.accent, emphasis: true, transition: "punch", look: "natural", brollIn: "pop", progress: false } });
 
 export function applyTemplate(e: Edit, t: Template): Edit {
   return { ...structuredClone(e), captions: { ...e.captions, ...t.captions, enabled: true }, motion: { ...DEFAULT_MOTION, ...motionOf(e), ...t.motion } };

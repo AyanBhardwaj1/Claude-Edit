@@ -1,6 +1,7 @@
 // Draws one output frame of an edit (1080x1920 for a reel; 4:5, 1:1 and 16:9 too): the face-following reframe with punch-in zooms, b-roll in
 // Reel Studio's treatments placed clear of the eyes-to-chin zone, text cards, then captions on top of everything.
 
+import { drawWatermark } from "./brand";
 import { motionOf } from "./edit";
 import { faceAt } from "./face";
 import { clamp01, cutFx, ease, enter, LOOK_FILTER, lookOverlay, lightColour, rnd } from "./motion";
@@ -196,6 +197,7 @@ export function drawFrame(g: CanvasRenderingContext2D, p: Project, e: Edit, scen
   drawCaptions(g, e, scene, t, !!split);
   if (fx?.kind === "flash") { g.fillStyle = `rgba(255,255,255,${(0.85 * fx.k ** 1.5).toFixed(3)})`; g.fillRect(0, 0, W, H); }
   if (fx?.kind === "fade") { g.fillStyle = `rgba(0,0,0,${(0.92 * fx.k ** 1.2).toFixed(3)})`; g.fillRect(0, 0, W, H); }
+  drawWatermark(g, W, H);
   if (m.progress && scene.tl.duration > 0) {
     const h = Math.max(6, 0.006 * H);
     g.fillStyle = "rgba(255,255,255,0.22)"; g.fillRect(0, 0, W, h);

@@ -344,6 +344,20 @@ p { margin: 0; text-wrap: pretty; }
 .play svg { width: 18px; height: 18px; }
 .time { font-size: 13px; color: var(--ink-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .scrub { flex: 1; min-width: 0; accent-color: var(--accent); }
+.track { position: relative; display: grid; gap: 3px; padding: 6px; border-radius: var(--r-md); background: var(--surface-2); cursor: pointer; user-select: none; touch-action: none; }
+.track .lane { position: relative; height: 18px; }
+.track .lane.thin { height: 6px; }
+.track i { position: absolute; top: 0; bottom: 0; border-radius: 3px; }
+.track .seg { background: var(--surface-3); box-shadow: inset 0 0 0 1px var(--line-strong); }
+.track .seg.alt { background: var(--line-strong); }
+.track .lay { background: var(--accent); overflow: hidden; }
+.track .lay.txt { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
+.track .lay span { display: block; padding: 0 4px; font-size: 10px; line-height: 18px; font-style: normal; font-weight: 600; white-space: nowrap; color: var(--accent-ink); }
+.track .lay.txt span { color: var(--ink); }
+.track .zm { background: var(--good); }
+.track .head { position: absolute; top: 2px; bottom: 2px; width: 2px; margin-left: -1px; background: var(--ink); border-radius: 1px; pointer-events: none; }
+.keys { margin-top: -4px; }
+@media (pointer: coarse) { .keys { display: none; } }
 .versions { display: flex; gap: 6px; flex-wrap: wrap; }
 .ed-col { display: grid; gap: 16px; min-width: 0; }
 .did { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
@@ -393,6 +407,10 @@ p { margin: 0; text-wrap: pretty; }
 .dot-btn { width: 32px; height: 32px; border-radius: 50%; border: 0; cursor: pointer; box-shadow: inset 0 0 0 1px #0003; transition: transform .15s ease; }
 .dot-btn:hover { transform: scale(1.08); }
 .dot-btn[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--ink); }
+.color.big { width: 64px; height: 42px; }
+.brand-preview { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-radius: var(--r-md); background: #111; color: #fff; font-size: 22px; }
+.brand-preview img { width: 48px; height: 48px; object-fit: contain; }
+.brand-preview em { font-style: normal; font-size: 15px; padding: 3px 9px; border-radius: 6px; color: #111; margin-left: 8px; }
 .color { width: 44px; height: 34px; padding: 0; border: 0; background: none; cursor: pointer; }
 .chip[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
 

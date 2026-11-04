@@ -3,7 +3,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { FORMATS } from "@/lib/compositor";
 import { uid } from "@/lib/media";
 import { deleteAnim, getMedia, listAnims, putMedia, saveAnim } from "@/lib/store";
-import { FONTS, KIND_NAME, newAnim, PALETTES, planScenes, readTime, total, type Anim, type FontId, type PaletteId, type Scene, type SceneKind } from "@/lib/studio";
+import { hasBrand, applyBrand } from "@/lib/brand";
+import { FONTS, fontOf, KIND_NAME, newAnim, paletteOf, PALETTES, planScenes, readTime, total, type Anim, type FontId, type PaletteId, type Scene, type SceneKind } from "@/lib/studio";
 import { narration, planWithAi, speak, voicedDuration, VOICES, type Tone } from "@/lib/studioAi";
 import { StudioPlayer } from "@/lib/studioPlay";
 import type { Format, Settings } from "@/lib/types";
@@ -15,6 +16,9 @@ const EXAMPLES = [
   { name: "Editing tips", text: "Why your videos stop getting views.\nMost viewers decide in the first 2 seconds.\nA slow intro loses 65% of them.\nOpen with the payoff, not the setup.\nCut every pause longer than half a second.\nFollow for one editing tip a day." },
   { name: "Milestone", text: "We just hit 10,000 creators.\nThank you for every video, note and idea.\nFrom 12 people in a group chat to 10,000 makers.\nNext month: four new styles and team folders.\nJoin the community." },
 ];
+const palIdsFor = (brand: boolean): PaletteId[] => [...(brand ? ["brand" as PaletteId] : []), ...(Object.keys(PALETTES) as PaletteId[])];
+const fontIdsFor = (brand: boolean): FontId[] => [...(Object.keys(FONTS) as FontId[]), ...(brand ? ["brand" as FontId] : [])];
+
 const TONES: [Tone, string][] = [["explainer", "Explainer"], ["promo", "Promo"], ["story", "Story"], ["announcement", "Announcement"]];
 
 export function Studio({ settings, onSettings }: { settings: Settings; onSettings: () => void }) {
@@ -31,6 +35,10 @@ export function Studio({ settings, onSettings }: { settings: Settings; onSetting
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
   const aiKey = settings.provider === "anthropic" ? settings.anthropicKey : settings.openaiKey;
+  const branded = hasBrand(settings.brand);
+  const palIds = palIdsFor(branded), fontIds = fontIdsFor(branded);
+  const [, setBrandReady] = useState(0);
+  useEffect(() => { void applyBrand(settings.brand).then(() => setBrandReady((n) => n + 1)); }, [settings.brand]);
   const refresh = useCallback(() => void listAnims().then(setList), []);
   useEffect(refresh, [refresh]);
 
@@ -95,16 +103,16 @@ export function Studio({ settings, onSettings }: { settings: Settings; onSetting
           <h2>Look and sound</h2>
           <div className="field"><span className="label">Colours</span>
             <div className="palettes" role="group" aria-label="Colours">
-              {(Object.keys(PALETTES) as PaletteId[]).map((k) => (
-                <button key={k} className="pal" aria-pressed={palette === k} onClick={() => setPalette(k)} title={PALETTES[k].name}>
-                  <span style={{ background: PALETTES[k].bg }}><i style={{ background: PALETTES[k].accent }} /><i style={{ background: PALETTES[k].accent2 }} /></span>
-                  {PALETTES[k].name}</button>))}
+              {palIds.map((k) => (
+                <button key={k} className="pal" aria-pressed={palette === k} onClick={() => setPalette(k)} title={paletteOf(k).name}>
+                  <span style={{ background: paletteOf(k).bg }}><i style={{ background: paletteOf(k).accent }} /><i style={{ background: paletteOf(k).accent2 }} /></span>
+                  {paletteOf(k).name}</button>))}
             </div>
             {aiKey && <span className="hint">The AI may pick colours and type that suit the subject; change them after.</span>}
           </div>
           <div className="field"><span className="label">Type</span>
-            <div className="seg" role="group" aria-label="Type">{(Object.keys(FONTS) as FontId[]).map((k) => (
-              <button key={k} aria-pressed={font === k} onClick={() => setFont(k)} style={{ fontFamily: FONTS[k].family }}>{FONTS[k].name}</button>))}</div>
+            <div className="seg" role="group" aria-label="Type">{fontIds.map((k) => (
+              <button key={k} aria-pressed={font === k} onClick={() => setFont(k)} style={{ fontFamily: fontOf(k).family }}>{fontOf(k).name}</button>))}</div>
           </div>
           <div className="field"><span className="label">Shape</span>
             <div className="seg" role="group" aria-label="Shape">{(Object.keys(FORMATS) as Format[]).map((f) => (
@@ -129,7 +137,7 @@ export function Studio({ settings, onSettings }: { settings: Settings; onSetting
           <div className="anim-list">
             {list.map((x) => (
               <div key={x.id} className="anim-row">
-                <span className="sw" style={{ background: PALETTES[x.palette].bg }}><i style={{ background: PALETTES[x.palette].accent }} /></span>
+                <span className="sw" style={{ background: paletteOf(x.palette).bg }}><i style={{ background: paletteOf(x.palette).accent }} /></span>
                 <button className="grow anim-open" onClick={() => setA(x)}><b className="trunc">{x.title}</b>
                   <span className="small faint">{x.scenes.length} scenes · {clock(total(x))} · {x.format} · {ago(x.updatedAt)}</span></button>
                 <button className="btn ghost sm" onClick={async () => { if (confirm(`Delete "${x.title}"?`)) { await deleteAnim(x); refresh(); } }}><Icon name="trash" />Delete</button>
@@ -154,6 +162,8 @@ function StudioEditor({ anim, settings, onBack, onVoice }: { anim: Anim; setting
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
   const dur = total(a);
+  const branded = hasBrand(settings.brand);
+  const palIds = palIdsFor(branded), fontIds = fontIdsFor(branded);
 
   const urlsFor = useCallback(async (x: Anim) => {
     const m = new Map<string, string>();
@@ -166,7 +176,7 @@ function StudioEditor({ anim, settings, onBack, onVoice }: { anim: Anim; setting
   useEffect(() => {
     let live = true;
     void (async () => {
-      await document.fonts.load(`800 80px ${FONTS[a.font].family}`).catch(() => undefined);
+      await document.fonts.load(`800 80px ${fontOf(a.font).family}`).catch(() => undefined);
       const urls = await urlsFor(a);
       if (!live || !canvas.current) return;
       const pl = new StudioPlayer(canvas.current, a, urls);
@@ -181,7 +191,7 @@ function StudioEditor({ anim, settings, onBack, onVoice }: { anim: Anim; setting
 
   const update = useCallback((next: Anim) => {
     setA(next);
-    void document.fonts.load(`800 80px ${FONTS[next.font].family}`).catch(() => undefined).then(() => player.current?.setAnim(next));
+    void document.fonts.load(`800 80px ${fontOf(next.font).family}`).catch(() => undefined).then(() => player.current?.setAnim(next));
     void saveAnim(next);
   }, []);
   const scene = (id: string, k: Partial<Scene>) => update({ ...a, scenes: a.scenes.map((s) => (s.id === id ? { ...s, ...k } : s)) });
@@ -301,14 +311,14 @@ function StudioEditor({ anim, settings, onBack, onVoice }: { anim: Anim; setting
                   <input id="anim-title" className="input" value={a.title} onChange={(e) => update({ ...a, title: e.target.value })} /></div>
                 <div className="field"><span className="label">Colours</span>
                   <div className="palettes" role="group" aria-label="Colours">
-                    {(Object.keys(PALETTES) as PaletteId[]).map((k) => (
+                    {palIds.map((k) => (
                       <button key={k} className="pal" aria-pressed={a.palette === k} onClick={() => update({ ...a, palette: k })}>
-                        <span style={{ background: PALETTES[k].bg }}><i style={{ background: PALETTES[k].accent }} /><i style={{ background: PALETTES[k].accent2 }} /></span>
-                        {PALETTES[k].name}</button>))}
+                        <span style={{ background: paletteOf(k).bg }}><i style={{ background: paletteOf(k).accent }} /><i style={{ background: paletteOf(k).accent2 }} /></span>
+                        {paletteOf(k).name}</button>))}
                   </div></div>
                 <div className="field"><span className="label">Type</span>
-                  <div className="seg" role="group" aria-label="Type">{(Object.keys(FONTS) as FontId[]).map((k) => (
-                    <button key={k} aria-pressed={a.font === k} onClick={() => update({ ...a, font: k })} style={{ fontFamily: FONTS[k].family }}>{FONTS[k].name}</button>))}</div></div>
+                  <div className="seg" role="group" aria-label="Type">{fontIds.map((k) => (
+                    <button key={k} aria-pressed={a.font === k} onClick={() => update({ ...a, font: k })} style={{ fontFamily: fontOf(k).family }}>{fontOf(k).name}</button>))}</div></div>
                 <div className="field"><span className="label">Shape</span>
                   <div className="seg" role="group" aria-label="Shape">{(Object.keys(FORMATS) as Format[]).map((f) => (
                     <button key={f} aria-pressed={a.format === f} disabled={recording} onClick={() => update({ ...a, format: f })}>{f} {FORMATS[f].name}</button>))}</div></div>
