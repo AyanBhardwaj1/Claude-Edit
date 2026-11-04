@@ -7,6 +7,7 @@ import { Library } from "@/components/Library";
 import { NewVideo } from "@/components/NewVideo";
 import { Settings } from "@/components/Settings";
 import { Studio } from "@/components/Studio";
+import { Command } from "@/components/Command";
 import { Script, StyleRules } from "@/components/Small";
 import { getUser, initials, signOut, type User } from "@/lib/auth";
 import { createSample } from "@/lib/demo";
@@ -131,6 +132,7 @@ export default function App() {
         <a className="brand" href="/" translate="no"><Mark />Cutmind</a>
         <button className="btn primary new" onClick={() => go("new")}><Icon name="plus" />New video</button>
         <nav className="nav">{NAV.map(link)}</nav>
+        <button className="cmd-hint" onClick={() => window.dispatchEvent(new Event("cutmind:command"))}><Icon name="search" />Go anywhere<kbd>⌘K</kbd></button>
         <div className="side-foot">
           <a className="status" href="#settings" onClick={(e) => { e.preventDefault(); go("settings"); }}>
             <span className={`dot ${key ? "on" : ""}`} />{key ? "AI editor connected" : "No AI editor connected"}
@@ -193,6 +195,7 @@ export default function App() {
               onClick={(e) => { e.preventDefault(); go(s); }}><Icon name={icon} />{label}</a>
           ))}
       </nav>
+      <Command go={(h) => { location.hash = h; if (!h) void route(""); }} onTheme={pickTheme} onSample={sample} />
       {loading && <div className="toast" role="status"><span className="spin" aria-hidden="true" />{loading}</div>}
     </div>
   );

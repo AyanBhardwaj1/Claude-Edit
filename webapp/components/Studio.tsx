@@ -4,9 +4,10 @@ import { FORMATS } from "@/lib/compositor";
 import { uid } from "@/lib/media";
 import { deleteAnim, getMedia, listAnims, putMedia, saveAnim } from "@/lib/store";
 import { hasBrand, applyBrand } from "@/lib/brand";
-import { FONTS, fontOf, KIND_NAME, newAnim, paletteOf, PALETTES, planScenes, readTime, total, type Anim, type FontId, type PaletteId, type Scene, type SceneKind } from "@/lib/studio";
+import { FONTS, fontOf, KIND_NAME, newAnim, PACE_NAME, paletteOf, PALETTES, planScenes, readTime, total, type Anim, type FontId, type Pace, type PaletteId, type Scene, type SceneKind } from "@/lib/studio";
 import { narration, planWithAi, speak, voicedDuration, VOICES, type Tone } from "@/lib/studioAi";
 import { StudioPlayer } from "@/lib/studioPlay";
+import { canFastExport, exportAnimFast } from "@/lib/fastExport";
 import { aiPicture } from "@/lib/images";
 import type { Format, Settings } from "@/lib/types";
 import { Icon } from "./Icons";
@@ -30,6 +31,7 @@ export function Studio({ settings, onSettings, openId }: { settings: Settings; o
   const [palette, setPalette] = useState<PaletteId>("midnight");
   const [font, setFont] = useState<FontId>("grotesk");
   const [format, setFormat] = useState<Format>("9:16");
+  const [pace, setPace] = useState<Pace>("normal");
   const [voiceOn, setVoiceOn] = useState(false);
   const [voice, setVoice] = useState<string>("nova");
   const [song, setSong] = useState<File | null>(null);
@@ -54,7 +56,7 @@ export function Studio({ settings, onSettings, openId }: { settings: Settings; o
       if (aiKey) plan = await planWithAi(settings, text, tone, format);
       else plan = { title: "", scenes: planScenes(text) };
       if (!plan.scenes.length) throw Object.assign(new Error("empty"), { userMessage: "Write a little more: a line or two is enough." });
-      const anim = newAnim(text, plan.scenes, { title: plan.title || undefined, palette: plan.palette ?? palette, font: plan.font ?? font, format });
+      const anim = newAnim(text, plan.scenes, { title: plan.title || undefined, palette: plan.palette ?? palette, font: plan.font ?? font, format, pace });
       if (!plan.title) anim.title = plan.scenes[0].text.slice(0, 60);
       if (song) { const key = `anim:${anim.id}:music`; await putMedia(key, song); anim.music = key; }
       if (aiPics && settings.openaiKey) {
@@ -145,6 +147,11 @@ export function Studio({ settings, onSettings, openId }: { settings: Settings; o
             <div className="seg" role="group" aria-label="Shape">{(Object.keys(FORMATS) as Format[]).map((f) => (
               <button key={f} aria-pressed={format === f} onClick={() => setFormat(f)}>{f} {FORMATS[f].name}</button>))}</div>
           </div>
+          <div className="field"><span className="label">Pace</span>
+            <div className="seg" role="group" aria-label="Pace">{(Object.keys(PACE_NAME) as Pace[]).map((v) => (
+              <button key={v} aria-pressed={pace === v} onClick={() => setPace(v)}>{PACE_NAME[v]}</button>))}</div>
+            <span className="hint">Hype puts one huge word on screen at a time, the colours flipping on the key words.</span>
+          </div>
           <label className="check"><input type="checkbox" checked={voiceOn} disabled={!settings.openaiKey} onChange={(e) => setVoiceOn(e.target.checked)} />
             <span>Read it aloud{settings.openaiKey ? "" : " (needs an OpenAI key)"}<span className="hint block">A natural AI voice reads each scene, and the scenes
               take as long as the voice.</span></span></label>
@@ -188,7 +195,8 @@ function StudioEditor({ anim, settings, onBack, onVoice }: { anim: Anim; setting
   const [t, setT] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [tab, setTab] = useState<"Scenes" | "Look">("Scenes");
-  const [exp, setExp] = useState<{ pct: number; url?: string; ext?: string; still?: string } | null>(null);
+  const [exp, setExp] = useState<{ pct: number; url?: string; ext?: string; still?: string; fast?: boolean } | null>(null);
+  const [fast, setFast] = useState<number | null>(null);
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
   const dur = total(a);
@@ -236,7 +244,15 @@ function StudioEditor({ anim, settings, onBack, onVoice }: { anim: Anim; setting
     const pl = player.current; if (!pl) return;
     setExp({ pct: 0 }); setPlaying(true);
     try {
-      const { blob, ext } = await pl.record((pct) => setExp((x) => ({ ...x!, pct })));
+      let out: { blob: Blob; ext: string } | null = null;
+      if (canFastExport()) {
+        pl.pause();
+        const t0 = performance.now();
+        try { out = { blob: await exportAnimFast(a, await urlsFor(a), (pct) => setExp((x) => ({ ...x!, pct, fast: true }))), ext: "mp4" }; }
+        catch (e) { console.warn("fast export fell back to recording", e); }
+        if (out) setFast(+((dur * 1000) / (performance.now() - t0)).toFixed(1));
+      }
+      const { blob, ext } = out ?? await pl.record((pct) => setExp((x) => ({ ...x!, pct })));
       const still = await pl.still();
       setExp({ pct: 100, url: URL.createObjectURL(blob), ext, still: URL.createObjectURL(still) });
     } catch (e) { setErr(String(e)); setExp(null); }
@@ -288,8 +304,8 @@ function StudioEditor({ anim, settings, onBack, onVoice }: { anim: Anim; setting
             <section className="panel" aria-live="polite">
               {exp.pct < 100 ? (<><div className="panel-head"><h2>Making the video</h2><span className="small faint num">{Math.round(exp.pct)}%</span></div>
                 <div className="progress"><i style={{ transform: `scaleX(${exp.pct / 100})` }} /></div>
-                <p className="small muted">It plays through once in real time to record. Keep this tab open and in front.</p></>) : (
-                <div className="export-ready"><div className="panel-head mb-0"><h2>Ready</h2>
+                <p className="small muted">{exp.fast ? "Rendering every frame at full quality, faster than real time." : "It plays through once in real time to record. Keep this tab open and in front."}</p></>) : (
+                <div className="export-ready"><div className="panel-head mb-0"><h2>Ready{fast ? ` · rendered ${fast}× faster than real time` : ""}</h2>
                   <button className="btn ghost icon sm" aria-label="Close" onClick={() => setExp(null)}>&times;</button></div>
                   <div className="row"><a className="btn primary" href={exp.url} download={`${name}.${exp.ext}`}><Icon name="download" />Download video (.{exp.ext})</a>
                     <a className="btn" href={exp.still} download={`${name} cover.jpg`}>Download cover</a></div>
@@ -375,6 +391,9 @@ function StudioEditor({ anim, settings, onBack, onVoice }: { anim: Anim; setting
                 <div className="field"><span className="label">Shape</span>
                   <div className="seg" role="group" aria-label="Shape">{(Object.keys(FORMATS) as Format[]).map((f) => (
                     <button key={f} aria-pressed={a.format === f} disabled={recording} onClick={() => update({ ...a, format: f })}>{f} {FORMATS[f].name}</button>))}</div></div>
+                <div className="field"><span className="label">Pace</span>
+                  <div className="seg" role="group" aria-label="Pace">{(Object.keys(PACE_NAME) as Pace[]).map((v) => (
+                    <button key={v} aria-pressed={(a.pace ?? "normal") === v} onClick={() => update({ ...a, pace: v })}>{PACE_NAME[v]}</button>))}</div></div>
                 <div className="field"><label htmlFor="anim-song2">Music</label>
                   <input id="anim-song2" type="file" accept="audio/*" className="input" onChange={async (e) => {
                     const f = e.target.files?.[0]; if (!f) return; const key = `anim:${a.id}:music:${uid()}`; await putMedia(key, f);
