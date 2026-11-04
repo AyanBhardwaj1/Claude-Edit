@@ -70,7 +70,7 @@ export function NewVideo({ settings, initial = [], onDone, onSettings }: { setti
                 <span className="tick">{i < at ? <Icon name="check" /> : null}</span>{s}
               </li>))}
           </ol>
-          {err && <div className="stack" style={{ marginTop: 16 }}>
+          {err && <div className="stack mt-16">
             <div className="alert err" role="alert"><Icon name="alert" /><span>{err}</span></div>
             <div className="row"><button className="btn primary" onClick={go}>Try again</button>
               <button className="btn ghost" onClick={() => setBusy(false)}>Back to my files</button></div>

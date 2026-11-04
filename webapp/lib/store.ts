@@ -54,9 +54,13 @@ export function saveSettings(s: Settings) {
   const { anthropicKey, openaiKey, ...rest } = s;
   localStorage.setItem(k("ce.settings"), JSON.stringify(s.rememberKeys ? s : rest));
   sessionStorage.setItem(k("ce.keys"), JSON.stringify({ anthropicKey, openaiKey }));
+  changed();
 }
 
 export function loadRules(): StyleRule[] {
   try { return JSON.parse(read("ce.style") || "[]"); } catch { return []; }
 }
-export function saveRules(r: StyleRule[]) { localStorage.setItem(k("ce.style"), JSON.stringify(r)); }
+export function saveRules(r: StyleRule[]) { localStorage.setItem(k("ce.style"), JSON.stringify(r)); changed(); }
+
+/** Tells lib/sync.ts that a preference changed (it pushes them when server accounts are on). */
+function changed() { if (typeof window !== "undefined") window.dispatchEvent(new Event("cutmind:prefs")); }

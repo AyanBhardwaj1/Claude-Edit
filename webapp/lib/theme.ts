@@ -29,6 +29,7 @@ export function getTheme(): ThemeId {
 export function setTheme(id: ThemeId) {
   try { localStorage.setItem(THEME_KEY, id); } catch { /* private mode: the look lasts for this page only */ }
   applyTheme(id);
+  window.dispatchEvent(new Event("cutmind:prefs"));
 }
 
 export function applyTheme(id: ThemeId) {

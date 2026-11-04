@@ -91,3 +91,17 @@ test("password rules for local accounts", async () => {
   assert.equal(passwordProblem("reels4ever!"), null);
   assert.ok(validEmail("a@b.co") && !validEmail("a@b") && !validEmail("nope"));
 });
+
+test("the sample project's first edit is valid against its own transcript", async () => {
+  const { readFileSync } = await import("node:fs");
+  const d = JSON.parse(readFileSync(new URL("../public/demo/demo.json", import.meta.url), "utf8"));
+  const ws: Word[] = d.words.map((w: { w: string; s: number; e: number }, i: number) => ({ id: `w${i}`, src: 0, s: w.s, e: w.e, w: w.w }));
+  const p = project(ws);
+  p.library = [{ key: "card", name: "hook list.png", kind: "image", width: 1200, height: 900 }, { key: "song", name: "pad.m4a", kind: "music", feel: "gentle" }];
+  const { edit, problems } = fromAi(p, defaultEdit(p), d.edit);
+  assert.deepEqual(problems, []);
+  const text = buildTimeline(ws, edit, [d.source.duration]).words.map((w) => w.w).join(" ");
+  assert.ok(!/let me try that again/i.test(text) && !/^Okay so/.test(text), text);
+  assert.ok(/I never move it/.test(text) && !/I I never/.test(text), "stutter cut");
+  assert.equal(edit.broll.filter((b) => b.treatment === "text-pop").length, 5);   // hook title + 4 labels
+});

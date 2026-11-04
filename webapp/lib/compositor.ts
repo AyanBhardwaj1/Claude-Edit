@@ -1,13 +1,27 @@
-// Draws one output frame (1080x1920) of an edit: the face-following 9:16 reframe with punch-in zooms, b-roll in
+// Draws one output frame of an edit (1080x1920 for a reel; 4:5, 1:1 and 16:9 too): the face-following reframe with punch-in zooms, b-roll in
 // Reel Studio's treatments placed clear of the eyes-to-chin zone, text cards, then captions on top of everything.
 
 import { faceAt } from "./face";
 import { captionWords, chunk, type Cue } from "./text";
 import { spanOf, type Timeline } from "./timeline";
-import type { Asset, Broll, Edit, Project } from "./types";
+import type { Asset, Broll, Edit, Format, Project } from "./types";
 
-export const W = 1080, H = 1920;
-const SAFE_TOP = 0.17 * H, SIDE = 0.035 * W;
+export const FORMATS: Record<Format, { w: number; h: number; name: string; for: string }> = {
+  "9:16": { w: 1080, h: 1920, name: "Reel", for: "Reels, TikTok, Shorts" },
+  "4:5": { w: 1080, h: 1350, name: "Feed", for: "Instagram and Facebook feed" },
+  "1:1": { w: 1080, h: 1080, name: "Square", for: "Feeds and LinkedIn" },
+  "16:9": { w: 1920, h: 1080, name: "Wide", for: "YouTube and websites" },
+};
+
+// The frame being drawn. Every size below is relative to it; U (the short side, 1080 in every format) keeps type and
+// cards at the same readable size whichever shape is chosen.
+export let W = 1080, H = 1920;
+let U = 1080, SAFE_TOP = 0.17 * H, SIDE = 0.035 * W;
+export function setFormat(f: Format = "9:16") {
+  const d = FORMATS[f] ?? FORMATS["9:16"];
+  W = d.w; H = d.h; U = Math.min(W, H);
+  SAFE_TOP = (H > W ? 0.17 : 0.08) * H; SIDE = 0.035 * W;
+}
 
 export type Layer = {
   b: Broll; start: number; end: number; asset?: Asset;
@@ -79,11 +93,11 @@ function placeLayer(p: Project, tl: Timeline, L: Layer): Layer["place"] {
   const phone = t === "phone-card";
   const aspect = phone ? 9 / 19.5 : aw / ah;
   const kind = L.asset?.credit?.source === "simple-icons" ? "logo" : "photo";
-  const minW = (kind === "logo" ? 0.22 : 0.3) * W;
+  const minW = (kind === "logo" ? 0.22 : 0.3) * U;
   const capTop = 0.75 * H - 1.35 * 105;
   const still = L.asset?.kind === "image" && !phone;
   const core = face?.core ?? { x0: W * 0.3, x1: W * 0.7, y0: H * 0.3, y1: H * 0.5 };
-  const fit = (zw: number, zh: number) => { const w = Math.min(zw, zh * aspect, 0.88 * W); return { w, h: w / aspect }; };
+  const fit = (zw: number, zh: number) => { const w = Math.min(zw, zh * aspect, 0.88 * W, 0.88 * U * Math.max(1, aspect)); return { w, h: w / aspect }; };
   if (t === "card-above-head") {
     const top = SAFE_TOP, bottom = core.y0 - 0.01 * H;
     if (bottom - top > 0.06 * H) {
@@ -102,7 +116,7 @@ function placeLayer(p: Project, tl: Timeline, L: Layer): Layer["place"] {
     const [x0, x1] = sides[k];
     const top = SAFE_TOP, bottom = capTop - 0.01 * H;
     const { w, h } = fit(x1 - x0, bottom - top);
-    if (w >= (phone ? 0.28 * W : Math.min(minW, 0.22 * W))) {
+    if (w >= (phone ? 0.28 * U : Math.min(minW, 0.22 * U))) {
       const cy = Math.min(Math.max(face?.cy ?? H * 0.4, top + h / 2), bottom - h / 2);
       return { x: (x0 + x1) / 2 - w / 2, y: cy - h / 2, w, h, tilt: still ? (k === "left" ? 2 : -2) : 0, mode: phone ? "phone" : "card" };
     }
@@ -192,7 +206,7 @@ function drawLayer(g: CanvasRenderingContext2D, L: Layer, t: number) {
     g.fillStyle = "#000"; rounded(g, -P.w * 0.15, -P.h / 2 + P.w * 0.035, P.w * 0.3, P.w * 0.085, P.w * 0.05); g.fill();
   } else {
     const r = Math.min(P.w, P.h) * 0.06;
-    g.shadowColor = "rgba(0,0,0,0.38)"; g.shadowBlur = 0.45 * Math.max(10, 0.03 * W) * 2; g.shadowOffsetY = 12;
+    g.shadowColor = "rgba(0,0,0,0.38)"; g.shadowBlur = 0.45 * Math.max(10, 0.03 * U) * 2; g.shadowOffsetY = 12;
     g.fillStyle = "#fff"; rounded(g, -P.w / 2, -P.h / 2, P.w, P.h, r); g.fill();
     g.shadowColor = "transparent";
     g.save(); rounded(g, -P.w / 2, -P.h / 2, P.w, P.h, r); g.clip();
@@ -217,12 +231,12 @@ function wrap(g: CanvasRenderingContext2D, text: string, maxW: number): string[]
 function drawTextPop(g: CanvasRenderingContext2D, L: Layer, t: number) {
   const label = L.b.style !== "pop";
   const text = label ? (L.b.text ?? "") : (L.b.text ?? "").toUpperCase();
-  let size = label ? 0.075 * W : 0.11 * W;
+  let size = label ? 0.075 * U : 0.11 * U;
   let lines: string[] = [];
   for (let i = 0; i < 12; i++) {
     g.font = `${label ? 700 : 900} ${size}px Montserrat, Inter, Arial, sans-serif`;
     lines = wrap(g, text, W * 0.82);
-    if (lines.every((l) => g.measureText(l).width <= W * 0.86) || size < 0.045 * W) break;
+    if (lines.every((l) => g.measureText(l).width <= W * 0.86) || size < 0.045 * U) break;
     size *= 0.9;
   }
   const lh = size * 1.12;

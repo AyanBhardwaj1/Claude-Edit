@@ -1,9 +1,10 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { postText } from "@/lib/edit";
+import { FORMATS } from "@/lib/compositor";
 import { Player } from "@/lib/player";
 import { loadRules, saveProject, saveRules } from "@/lib/store";
-import type { Edit, Project, Settings } from "@/lib/types";
+import type { Edit, Format, Project, Settings } from "@/lib/types";
 import { addToLibrary, applyUserNote, mediaUrls, saveManual } from "@/lib/workflow";
 import { Drawer } from "./Drawer";
 import { Icon } from "./Icons";
@@ -100,7 +101,10 @@ export function Editor({ project, settings, firstSummary, onBack }: { project: P
   const e = version?.edit;
   const pics = e?.broll.filter((b) => b.treatment !== "text-pop").length ?? 0, cards = e ? e.broll.length - pics : 0;
   const song = e?.music.asset ? p.library.find((a) => a.key === e.music.asset) : undefined;
-  const base = p.title.replace(/[\\/:*?"<>|]+/g, "").slice(0, 80) + ` - Version ${p.current}`;
+  const fmt: Format = p.format ?? "9:16";
+  const shape = FORMATS[fmt];
+  const base = p.title.replace(/[\\/:*?"<>|]+/g, "").slice(0, 80) + ` - Version ${p.current}` + (fmt === "9:16" ? "" : ` (${shape.name.toLowerCase()} ${fmt.replace(":", "x")})`);
+  const reshape = async (f: Format) => { if (f === fmt || recording) return; p.format = f; await saveProject(p); setExp(null); setP({ ...p }); };
   const recording = !!exp && exp.pct < 100;
   const did: [boolean, string][] = e ? [
     [true, `Kept your best takes · ${clock(dur)} long`],
@@ -120,14 +124,26 @@ export function Editor({ project, settings, firstSummary, onBack }: { project: P
         <button className="btn primary" onClick={exportVideo} disabled={recording}><Icon name="download" />Export</button>
       </div>
 
-      <div className="ed-grid">
+      {p.sample && <div className="alert info sample-note"><Icon name="spark" /><span>This is the sample: a drawn presenter and a computer voice, not a
+        real person. Play it, open &ldquo;Edit it myself&rdquo;, change its shape and export it. Notes need an AI key in Settings.</span></div>}
+      <div className={`ed-grid ${shape.w > shape.h ? "wide" : ""}`}>
         <div className="preview">
-          <div className="phone"><canvas ref={canvas} aria-label={`Preview of ${p.title}, version ${p.current}`} role="img" /></div>
+          <div className={`phone ${shape.w >= shape.h ? "flat" : ""}`}><canvas ref={canvas} style={{ aspectRatio: `${shape.w} / ${shape.h}` }}
+            aria-label={`Preview of ${p.title}, version ${p.current}, ${shape.name.toLowerCase()} ${fmt}`} role="img" /></div>
           <div className="transport">
             <button className="play" onClick={toggle} disabled={recording} aria-label={playing ? "Pause" : "Play"}><Icon name={playing ? "pause" : "play"} /></button>
             <input type="range" className="scrub" min={0} max={dur || 1} step={0.01} value={t} aria-label="Position"
               onChange={(ev) => { const v = +ev.target.value; setT(v); void player.current?.seek(v); }} />
             <span className="time">{clock(t)} / {clock(dur)}</span>
+          </div>
+          <div className="shape">
+            <span className="label">Shape</span>
+            <div className="seg" role="group" aria-label="Shape">
+              {(Object.keys(FORMATS) as Format[]).map((f) => (
+                <button key={f} aria-pressed={f === fmt} disabled={recording} title={FORMATS[f].for} onClick={() => reshape(f)}>
+                  {f} {FORMATS[f].name}</button>))}
+            </div>
+            <span className="hint">{shape.for}</span>
           </div>
           <div className="versions" role="group" aria-label="Versions">
             {p.versions.map((v) => (
@@ -145,7 +161,7 @@ export function Editor({ project, settings, firstSummary, onBack }: { project: P
                 <div className="progress"><i style={{ transform: `scaleX(${exp.pct / 100})` }} /></div>
                 <p className="small muted">It plays through once in real time to record. Keep this tab open and in front.</p></>) : (
                 <div className="export-ready">
-                  <div className="panel-head" style={{ marginBottom: 0 }}><h2>Ready to post</h2>
+                  <div className="panel-head mb-0"><h2>Ready to post</h2>
                     <button className="btn ghost icon sm" aria-label="Close" onClick={() => setExp(null)}>&times;</button></div>
                   <div className="row">
                     <a className="btn primary" href={exp.video} download={`${base}.${exp.ext}`}><Icon name="download" />Download video (.{exp.ext})</a>
@@ -176,7 +192,7 @@ export function Editor({ project, settings, firstSummary, onBack }: { project: P
                   {m.rule && (
                     <div className="ask">
                       <div className="small">Remember this for next time? &ldquo;{m.rule}&rdquo;</div>
-                      <div className="row" style={{ marginTop: 8 }}>
+                      <div className="row mt-8">
                         <button className="btn sm primary" onClick={() => { addRule(m.rule!); setMsgs((x) => x.map((y, k) => (k === i ? { ...y, rule: undefined, text: y.text + "\nSaved to My style." } : y))); }}>Yes, remember it</button>
                         <button className="btn sm ghost" onClick={() => setMsgs((x) => x.map((y, k) => (k === i ? { ...y, rule: undefined } : y)))}>No, just this video</button>
                       </div>
@@ -186,14 +202,16 @@ export function Editor({ project, settings, firstSummary, onBack }: { project: P
               ))}
               {busy && <div className="msg ed busy"><span className="spin" aria-hidden="true" />{busy}</div>}
             </div>
-            {err && <div className="alert err" role="alert" style={{ marginTop: 12 }}><Icon name="alert" /><span>{err}</span></div>}
+            {err && <div className="alert err mt-12" role="alert"><Icon name="alert" /><span>{err}</span></div>}
             <div className="composer">
               <label className="sr-only" htmlFor="note">Note for your editor</label>
-              <textarea id="note" rows={1} value={note} placeholder="Tell your editor what to change, e.g. “music too loud at the start”…"
+              <textarea id="note" rows={1} value={note} placeholder="Tell your editor what to change…" aria-describedby="note-hint"
                 autoComplete="off" onChange={(ev) => setNote(ev.target.value)}
                 onKeyDown={(ev) => { if (ev.key === "Enter" && !ev.shiftKey && !ev.nativeEvent.isComposing) { ev.preventDefault(); void send(); } }} />
               <button className="btn primary" onClick={send} disabled={!!busy || !note.trim()}><Icon name="send" />Send</button>
             </div>
+            <p className="hint note-hint" id="note-hint">For example: &ldquo;music too loud at the start&rdquo;, &ldquo;show the Spotify logo when I say
+              Spotify&rdquo;, &ldquo;cut the part about my cat&rdquo;. Enter sends, Shift+Enter starts a new line.</p>
             <label className="attach">
               <Icon name="paperclip" />Add a song, picture or clip your editor can use
               <input type="file" multiple accept="audio/*,image/*,video/*"

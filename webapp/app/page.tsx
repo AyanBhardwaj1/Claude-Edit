@@ -26,7 +26,7 @@ const FAQ: [string, string][] = [
   ["Do I need an API key?", "No. Without one you still get the cut and the subtitles. An Anthropic or OpenAI key adds the AI editor: best takes, hook title, pictures, music, notes and your caption."],
   ["What does it cost?", "Cutmind is free. Your provider bills your key for what you use: transcription with OpenAI is about $0.006 a minute, and an edit is a few cents."],
   ["Is my key safe?", "It goes straight from your browser to Anthropic or OpenAI, never to Cutmind’s server. It is forgotten when you close the tab unless you tick “Remember my keys”."],
-  ["What is an account here?", "A profile that lives in this browser. It keeps your videos, keys and style apart from anyone else who uses the same computer. Clearing the browser’s data removes it."],
+  ["Does my account work on other devices?", "Yes: sign in anywhere and your settings, style rules and look come with you. Your videos and API keys stay in the browser you made them in. On a copy of Cutmind with no database, accounts live in one browser instead."],
   ["Which browsers work?", "Chrome, Edge and Safari export MP4. Firefox works too and exports WebM. Export plays the reel once in real time, so a 60-second reel takes about a minute."],
   ["Will it cut my jokes?", "It shouldn’t: asides and opinions are the video. If it does, write “it cut my joke” and the next version puts it back."],
   ["Can I use my own music and pictures?", "Yes, drop them in with your take or add them later. Only use music and pictures you own or are licensed to use."],
@@ -46,7 +46,8 @@ export default function Landing() {
           <a className="wordmark" href="/" translate="no"><Mark />Cutmind</a>
           <div className="say">
             <p>Drop in your raw takes. Cutmind keeps your best take of every line and hands back a captioned reel.</p>
-            <div><a className="act" href="/login?mode=signup">Make your first reel<Arrow /></a></div>
+            <div className="acts"><a className="act" href="/login?mode=signup">Make your first reel<Arrow /></a>
+              <a className="textlink" href="/login?mode=signup&amp;next=%2Fapp%23sample">or try the sample video first</a></div>
           </div>
         </div>
         <div className="wide">

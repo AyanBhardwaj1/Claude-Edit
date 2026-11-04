@@ -16,8 +16,8 @@ function greeting(name: string) {
   return `${part}, ${name.split(/\s+/)[0]}`;
 }
 
-export function Dashboard({ user, settings, theme, onNew, onOpen, onGo }: { user: User; settings: Settings; theme: ThemeId;
-  onNew: (files?: File[]) => void; onOpen: (p: Project) => void; onGo: (s: Go) => void }) {
+export function Dashboard({ user, settings, theme, onNew, onOpen, onGo, onSample }: { user: User; settings: Settings; theme: ThemeId;
+  onSample: () => void; onNew: (files?: File[]) => void; onOpen: (p: Project) => void; onGo: (s: Go) => void }) {
   const [ps, setPs] = useState<Project[] | null>(null);
   const [rules, setRules] = useState<StyleRule[]>([]);
   const [over, setOver] = useState(false);
@@ -50,7 +50,7 @@ export function Dashboard({ user, settings, theme, onNew, onOpen, onGo }: { user
   return (
     <div className="page">
       <div className="page-head hello">
-        <div><p className="faint small" style={{ marginTop: 0 }}>{today}</p><h1>{greeting(user.name)}</h1></div>
+        <div><p className="faint small">{today}</p><h1>{greeting(user.name)}</h1></div>
         <div className="row">
           <button className="btn" onClick={() => onGo("script")}><Icon name="pen" />Write a script</button>
           <button className="btn primary" onClick={() => onNew()}><Icon name="plus" />New video</button>
@@ -67,7 +67,7 @@ export function Dashboard({ user, settings, theme, onNew, onOpen, onGo }: { user
               <div>
                 <Icon name="upload" />
                 <b>Drop your raw takes here</b>
-                <p className="small muted" style={{ marginTop: 6 }}>MP4, MOV or WebM. Fumbles and retakes are fine.</p>
+                <p className="small muted mt-6">MP4, MOV or WebM. Fumbles and retakes are fine.</p>
               </div>
               <input ref={input} type="file" multiple hidden accept="video/*,audio/*,image/*" onChange={(e) => drop(e.target.files)} />
             </div>
@@ -75,7 +75,8 @@ export function Dashboard({ user, settings, theme, onNew, onOpen, onGo }: { user
               <h2>From take to post in one pass</h2>
               <p>Cutmind keeps your last good take of every line, cuts the pauses, adds subtitles, a hook title, pictures, zooms and music,
                 then writes your caption. Change anything by typing a note.</p>
-              <p className="small faint">Your video stays in this browser.</p>
+              <div className="row"><button className="btn" onClick={onSample}><Icon name="play" />Open the sample video</button></div>
+              <p className="small faint">No footage yet? The sample has a drawn presenter, a computer voice and a first edit to play with.</p>
             </div>
           </section>
 
@@ -93,7 +94,8 @@ export function Dashboard({ user, settings, theme, onNew, onOpen, onGo }: { user
                 See all {ps.length}<Icon name="arrowRight" /></a>}
             </div>
             {!ps && <div className="tiles" aria-busy="true">{[0, 1, 2, 3].map((i) => <div key={i} className="skel tile-skel" />)}</div>}
-            {ps && !ps.length && <p className="muted">Your reels show up here. Drop a take above to make the first one.</p>}
+            {ps && !ps.length && <p className="muted">Your reels show up here. Drop a take above, or <button className="link" onClick={onSample}>open
+              the sample video</button> to see an edit first.</p>}
             {ps && ps.length > 0 && <div className="tiles">{ps.slice(0, 4).map((p) => <VideoTile key={p.id} p={p} onOpen={() => onOpen(p)} />)}</div>}
           </section>
         </div>
@@ -104,7 +106,7 @@ export function Dashboard({ user, settings, theme, onNew, onOpen, onGo }: { user
               <div className="panel-head"><h2 id="setup-h">Get set up</h2><span className="small faint num">{doneCount} of {steps.length}</span></div>
               <div className="meter" role="progressbar" aria-valuemin={0} aria-valuemax={steps.length} aria-valuenow={doneCount} aria-label="Setup">
                 <i style={{ transform: `scaleX(${doneCount / steps.length})` }} /></div>
-              <ul className="setup" style={{ marginTop: 10 }}>
+              <ul className="setup mt-10">
                 {steps.map((s) => (
                   <li key={s.what} className={s.done ? "done" : ""}>
                     <span className="tick">{s.done ? <Icon name="check" /> : null}</span>

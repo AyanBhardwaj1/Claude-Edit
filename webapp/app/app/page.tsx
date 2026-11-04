@@ -7,7 +7,9 @@ import { Library } from "@/components/Library";
 import { NewVideo } from "@/components/NewVideo";
 import { Settings } from "@/components/Settings";
 import { Script, StyleRules } from "@/components/Small";
-import { currentUser, initials, signOut, type User } from "@/lib/auth";
+import { getUser, initials, signOut, type User } from "@/lib/auth";
+import { createSample } from "@/lib/demo";
+import { startSync, stopSync } from "@/lib/sync";
 import { DEFAULT_SETTINGS, listProjects, loadProject, loadSettings, saveSettings, setOwner } from "@/lib/store";
 import { applyTheme, getTheme, setTheme, THEMES, type ThemeId } from "@/lib/theme";
 import type { Project, Settings as S } from "@/lib/types";
@@ -37,8 +39,26 @@ export default function App() {
   const [count, setCount] = useState<number | null>(null);
   const [theme, setThemeState] = useState<ThemeId>("studio");
   const [menu, setMenu] = useState(false);
+  const [loading, setLoading] = useState("");
+
+  const sample = useCallback(async () => {
+    setLoading("Getting the sample video…");
+    try {
+      const { project: p, summary: s } = await createSample((m) => setLoading(m === "Ready" ? "" : `${m}…`));
+      setProject(p); setSummary(s);
+      history.replaceState(null, "", `#video/${encodeURIComponent(p.id)}`);
+      setScreen("editor");
+    } catch (e) {
+      setLoading((e as { userMessage?: string }).userMessage ?? "The sample video couldn't load.");
+      setTimeout(() => setLoading(""), 4000);
+      history.replaceState(null, "", "#"); setScreen("home");
+      return;
+    }
+    setLoading("");
+  }, []);
 
   const route = useCallback(async (hash: string) => {
+    if (hash.replace(/^#/, "") === "sample") { await sample(); return; }
     const r = parse(hash);
     if (r.screen === "editor" && r.id) {
       const p = await loadProject(r.id);
@@ -47,20 +67,26 @@ export default function App() {
     }
     setScreen(r.screen);
     window.scrollTo({ top: 0 });
-  }, []);
+  }, [sample]);
 
   useEffect(() => {
-    const u = currentUser();
-    if (!u) { location.replace(`/login?next=${encodeURIComponent("/app" + location.hash)}`); return; }
-    setOwner(u.id);
-    setUser(u);
-    setSettings(loadSettings());
-    setThemeState(getTheme());
-    applyTheme(getTheme());
-    void route(location.hash);
+    let gone = false;
     const on = () => void route(location.hash);
+    void (async () => {
+      const u = await getUser();
+      if (gone) return;
+      if (!u) { location.replace(`/login?next=${encodeURIComponent("/app" + location.hash)}`); return; }
+      setOwner(u.id);
+      await startSync();                                   // server accounts: bring this user's preferences to this device
+      if (gone) return;
+      setUser(u);
+      setSettings(loadSettings());
+      setThemeState(getTheme());
+      applyTheme(getTheme());
+      void route(location.hash);
+    })();
     window.addEventListener("hashchange", on);
-    return () => window.removeEventListener("hashchange", on);
+    return () => { gone = true; window.removeEventListener("hashchange", on); };
   }, [route]);
 
   useEffect(() => { if (user) void listProjects().then((ps) => setCount(ps.length)); }, [user, screen]);
@@ -76,9 +102,14 @@ export default function App() {
   const go = (s: Screen) => { location.hash = s === "home" ? "" : s; if (s === "home") void route(""); };
   const open = (p: Project, s?: string) => { setProject(p); setSummary(s); location.hash = `video/${encodeURIComponent(p.id)}`; };
   const pickTheme = (id: ThemeId) => { setTheme(id); setThemeState(id); };
-  const leave = () => { signOut(); location.href = "/"; };
+  const leave = async () => { stopSync(); await signOut(); location.href = "/"; };
 
-  if (!user) return <div className="app" aria-busy="true" />;
+  if (!user) return (
+    <div className="app" aria-busy="true" aria-label="Loading Cutmind">
+      <aside className="side"><div className="skel boot-skel" /><div className="skel boot-skel" /><div className="skel boot-skel" /></aside>
+      <main className="main"><div className="page"><div className="skel boot-head" /><div className="skel boot-body" /></div></main>
+    </div>
+  );
   const key = settings.provider === "anthropic" ? settings.anthropicKey : settings.openaiKey;
   const here = screen === "editor" ? "videos" : screen;
   const link = (n: (typeof NAV)[number]) => (
@@ -133,9 +164,9 @@ export default function App() {
       </header>
 
       <main className="main" id="main" tabIndex={-1}>
-        {screen === "home" && <Dashboard user={user} settings={settings} theme={theme} onNew={(files) => { setPending(files ?? []); go("new"); }}
+        {screen === "home" && <Dashboard user={user} settings={settings} theme={theme} onSample={sample} onNew={(files) => { setPending(files ?? []); go("new"); }}
           onOpen={(p) => open(p)} onGo={(s) => go(s)} />}
-        {screen === "videos" && <Library onOpen={(p) => open(p)} onNew={() => go("new")} />}
+        {screen === "videos" && <Library onOpen={(p) => open(p)} onNew={() => go("new")} onSample={sample} />}
         {screen === "new" && <NewVideo settings={settings} initial={pending} onSettings={() => go("settings")}
           onDone={(p, s) => { setPending([]); open(p, s); }} />}
         {screen === "editor" && project && (project.versions.length
@@ -156,6 +187,7 @@ export default function App() {
               onClick={(e) => { e.preventDefault(); go(s); }}><Icon name={icon} />{label}</a>
           ))}
       </nav>
+      {loading && <div className="toast" role="status"><span className="spin" aria-hidden="true" />{loading}</div>}
     </div>
   );
 }

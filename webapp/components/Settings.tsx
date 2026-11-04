@@ -1,7 +1,7 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { listModels } from "@/lib/ai";
-import { AuthError, changePassword, rename, type User } from "@/lib/auth";
+import { accountMode, AuthError, changePassword, rename, type Mode, type User } from "@/lib/auth";
 import { THEMES, type ThemeId } from "@/lib/theme";
 import type { Settings as S } from "@/lib/types";
 import { Icon } from "./Icons";
@@ -21,6 +21,8 @@ export function Settings({ settings, user, theme, onTheme, onUser, onSignOut, on
   const [pw, setPw] = useState({ cur: "", next: "" });
   const [pwMsg, setPwMsg] = useState<Note>(null);
   const [pwBusy, setPwBusy] = useState(false);
+  const [where, setWhere] = useState<Mode>("local");
+  useEffect(() => { void accountMode().then(setWhere); }, []);
   const set = (k: Partial<S>) => { setS({ ...s, ...k }); setSaved(null); };
   const dirty = JSON.stringify(s) !== JSON.stringify(settings);
 
@@ -47,7 +49,7 @@ export function Settings({ settings, user, theme, onTheme, onUser, onSignOut, on
     const list = models[p];
     const model = p === "anthropic" ? s.anthropicModel : s.openaiModel;
     return (
-      <div className="stack" style={{ gap: 12 }}>
+      <div className="stack tight">
         <div className="field">
           <label htmlFor={`${p}-key`}>{label} API key {s.provider === p && <span className="badge good">Your editor</span>}</label>
           <div className="key-row">
@@ -119,27 +121,28 @@ export function Settings({ settings, user, theme, onTheme, onUser, onSignOut, on
               computer: free and private, one download of about 150&nbsp;MB, slower. Anthropic keys don&apos;t include speech to text, so with only an
               Anthropic key use &ldquo;In my browser&rdquo;.</p>
             <label className="check"><input type="checkbox" checked={s.rememberKeys} onChange={(e) => set({ rememberKeys: e.target.checked })} />
-              <span>Remember my keys on this computer<span className="hint" style={{ display: "block" }}>Off: keys are forgotten when you close this tab.
+              <span>Remember my keys on this computer<span className="hint block">Off: keys are forgotten when you close this tab.
                 On: kept in this browser&apos;s storage. Don&apos;t turn it on for a shared computer.</span></span></label>
             <div className="row">
               <button className="btn primary" disabled={!dirty} onClick={() => { onSave(s); setSaved({ ok: true, text: "Settings saved." }); }}>Save settings</button>
-              {saved && <span className="small" role="status" style={{ color: "var(--good)" }}>{saved.text}</span>}
+              {saved && <span className="small say-ok" role="status">{saved.text}</span>}
               {dirty && !saved && <span className="small faint">Unsaved changes</span>}
             </div>
           </div>
         </section>
 
         <section className="set-sec" aria-labelledby="acct-h">
-          <div><h2 id="acct-h">Account</h2><p>Your account lives in this browser and keeps your videos, keys and style apart from anyone else who uses it.</p></div>
+          <div><h2 id="acct-h">Account</h2><p>{where === "server" ? "Your account works on any device: your settings, style and look follow you. Videos and API keys stay in each browser."
+            : "Your account lives in this browser and keeps your videos, keys and style apart from anyone else who uses it."}</p></div>
           <div className="stack">
-            <form className="stack" onSubmit={(e) => { e.preventDefault(); try { onUser(rename(user.id, name)); setAcct({ ok: true, text: "Name saved." }); }
+            <form className="stack" onSubmit={async (e) => { e.preventDefault(); try { onUser(await rename(user.id, name)); setAcct({ ok: true, text: "Name saved." }); }
               catch (err) { setAcct({ ok: false, text: (err as Error).message }); } }}>
               <div className="field"><label htmlFor="acct-name">Name</label>
                 <input id="acct-name" name="name" className="input" autoComplete="name" value={name} onChange={(e) => { setName(e.target.value); setAcct(null); }} /></div>
               <div className="field"><label htmlFor="acct-email">Email</label>
                 <input id="acct-email" className="input" type="email" value={user.email} readOnly spellCheck={false} /></div>
               <div className="row"><button className="btn" disabled={name.trim() === user.name}>Save name</button>
-                {acct && <span className="small" role="status" style={{ color: acct.ok ? "var(--good)" : "var(--bad-text)" }}>{acct.text}</span>}</div>
+                {acct && <span className={`small ${acct.ok ? "say-ok" : "say-bad"}`} role="status">{acct.text}</span>}</div>
             </form>
             <form className="stack" onSubmit={async (e) => {
               e.preventDefault(); setPwBusy(true); setPwMsg(null);
@@ -156,7 +159,7 @@ export function Settings({ settings, user, theme, onTheme, onUser, onSignOut, on
                   onChange={(e) => setPw({ ...pw, next: e.target.value })} />
                 <span className="hint">At least 8 characters, with a number or a symbol.</span></div>
               <div className="row"><button className="btn" disabled={!pw.cur || !pw.next || pwBusy}>{pwBusy ? <><span className="spin" />Changing…</> : "Change password"}</button>
-                {pwMsg && <span className="small" role="status" style={{ color: pwMsg.ok ? "var(--good)" : "var(--bad-text)" }}>{pwMsg.text}</span>}</div>
+                {pwMsg && <span className={`small ${pwMsg.ok ? "say-ok" : "say-bad"}`} role="status">{pwMsg.text}</span>}</div>
             </form>
             <div><button className="btn danger" onClick={onSignOut}><Icon name="out" />Sign out</button></div>
           </div>
