@@ -8,7 +8,7 @@ import { kindOf } from "@/lib/workflow";
 import { Icon } from "./Icons";
 import { fmtDur, keptSeconds, rawSeconds, VideoTile } from "./Tiles";
 
-type Go = "videos" | "script" | "style" | "settings";
+type Go = "videos" | "animate" | "script" | "style" | "settings";
 
 function greeting(name: string) {
   const h = new Date().getHours();
@@ -52,6 +52,7 @@ export function Dashboard({ user, settings, theme, onNew, onOpen, onGo, onSample
       <div className="page-head hello">
         <div><p className="faint small">{today}</p><h1>{greeting(user.name)}</h1></div>
         <div className="row">
+          <button className="btn" onClick={() => onGo("animate")}><Icon name="wand" />Animate text</button>
           <button className="btn" onClick={() => onGo("script")}><Icon name="pen" />Write a script</button>
           <button className="btn primary" onClick={() => onNew()}><Icon name="plus" />New video</button>
         </div>

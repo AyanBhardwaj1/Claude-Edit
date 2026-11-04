@@ -35,7 +35,7 @@ function anthropicHeaders(key: string): Record<string, string> {
     "content-type": "application/json" };
 }
 
-async function callJson(s: Settings, system: string, user: string, schema: Json, name: string): Promise<Json> {
+export async function callJson(s: Settings, system: string, user: string, schema: Json, name: string): Promise<Json> {
   const anthropic = s.provider === "anthropic";
   const key = anthropic ? s.anthropicKey : s.openaiKey;
   if (!key) throw new AiError("no key", `Add your ${anthropic ? "Anthropic" : "OpenAI"} API key in Settings first.`);

@@ -6,6 +6,7 @@ import { Icon, Mark, type IconName } from "@/components/Icons";
 import { Library } from "@/components/Library";
 import { NewVideo } from "@/components/NewVideo";
 import { Settings } from "@/components/Settings";
+import { Studio } from "@/components/Studio";
 import { Script, StyleRules } from "@/components/Small";
 import { getUser, initials, signOut, type User } from "@/lib/auth";
 import { createSample } from "@/lib/demo";
@@ -14,19 +15,19 @@ import { DEFAULT_SETTINGS, listProjects, loadProject, loadSettings, saveSettings
 import { applyTheme, getTheme, setTheme, THEMES, type ThemeId } from "@/lib/theme";
 import type { Project, Settings as S } from "@/lib/types";
 
-type Screen = "home" | "videos" | "new" | "editor" | "script" | "style" | "settings";
+type Screen = "home" | "videos" | "new" | "editor" | "animate" | "script" | "style" | "settings";
 const NAV: { s: Screen; label: string; icon: IconName }[] = [
-  { s: "home", label: "Home", icon: "home" }, { s: "videos", label: "My videos", icon: "film" },
+  { s: "home", label: "Home", icon: "home" }, { s: "videos", label: "My videos", icon: "film" }, { s: "animate", label: "Animate", icon: "wand" },
   { s: "script", label: "Write a script", icon: "pen" }, { s: "style", label: "My style", icon: "spark" },
   { s: "settings", label: "Settings", icon: "sliders" },
 ];
-const TITLES: Record<Screen, string> = { home: "Home", videos: "My videos", new: "New video", editor: "Editor", script: "Write a script",
+const TITLES: Record<Screen, string> = { home: "Home", videos: "My videos", new: "New video", editor: "Editor", animate: "Animate", script: "Write a script",
   style: "My style", settings: "Settings" };
 
 function parse(hash: string): { screen: Screen; id?: string } {
   const h = hash.replace(/^#/, "");
   if (h.startsWith("video/")) return { screen: "editor", id: decodeURIComponent(h.slice(6)) };
-  return { screen: (["videos", "new", "script", "style", "settings"].includes(h) ? h : "home") as Screen };
+  return { screen: (["videos", "new", "animate", "script", "style", "settings"].includes(h) ? h : "home") as Screen };
 }
 
 export default function App() {
@@ -174,6 +175,7 @@ export default function App() {
           : <div className="page narrow"><div className="empty"><h2>This video didn&apos;t finish</h2>
               <p>Something stopped it before the first edit. Delete it from My videos and make it again from New video.</p>
               <button className="btn" onClick={() => go("videos")}><Icon name="arrowLeft" />My videos</button></div></div>)}
+        {screen === "animate" && <Studio settings={settings} onSettings={() => go("settings")} />}
         {screen === "script" && <Script settings={settings} />}
         {screen === "style" && <StyleRules />}
         {screen === "settings" && <Settings settings={settings} user={user} theme={theme} onTheme={pickTheme} onUser={setUser} onSignOut={leave}
@@ -181,7 +183,7 @@ export default function App() {
       </main>
 
       <nav className="tabbar" aria-label="Main">
-        {([["home", "Home", "home"], ["videos", "Videos", "film"], ["new", "New", "plus"], ["script", "Script", "pen"], ["style", "Style", "spark"]] as const)
+        {([["home", "Home", "home"], ["videos", "Videos", "film"], ["new", "New", "plus"], ["animate", "Animate", "wand"], ["script", "Script", "pen"], ["style", "Style", "spark"]] as const)
           .map(([s, label, icon]) => (
             <a key={s} href={s === "home" ? "#" : `#${s}`} aria-current={here === s ? "page" : undefined}
               onClick={(e) => { e.preventDefault(); go(s); }}><Icon name={icon} />{label}</a>
