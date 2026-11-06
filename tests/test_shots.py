@@ -216,3 +216,5 @@ def test_dev_addresses_on_screen_are_flagged(tmp_path):
     report = shots.shots({"base": tmp_path.as_uri() + "/", "gl": "off", "settle": 0.5,
                           "shots": [{"name": "letter", "url": "letter.html", "wait": 1}]}, tmp_path / "out")
     assert report["shots"][0]["dev_text"] == ["localhost:5173"]       # only what's in view, only dev addresses
+    (x, y, w, h), = report["shots"][0]["dev_boxes"]                  # where it is, to blur it in the video
+    assert 0 < x < 0.6 and y < 0.2 and 0 < w < 0.5 and 0 < h < 0.1

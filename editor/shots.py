@@ -479,18 +479,27 @@ async def _run(spec: dict, out_dir: Path, record: bool, headed: bool) -> dict:
 DEV_PATTERN = (r"(localhost(:\d+)?|127\.0\.0\.1|0\.0\.0\.0|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+"
                r"|\b[\w.-]+:(3000|3001|5173|5174|8000|8080|8787)\b)")
 DEV_TEXT_JS = """(pat) => {
-  const re = new RegExp(pat, 'gi'), hits = new Set();
-  const inView = (el) => { const r = el.getBoundingClientRect();
-    return r.width > 0 && r.height > 0 && r.bottom > 0 && r.right > 0 && r.top < innerHeight && r.left < innerWidth; };
+  const re = new RegExp(pat, 'gi'), hits = new Set(), boxes = [];
+  const inView = (r) => r.width > 0 && r.height > 0 && r.bottom > 0 && r.right > 0 && r.top < innerHeight && r.left < innerWidth;
+  const box = (r) => { const x = Math.max(0, r.left) / innerWidth, y = Math.max(0, r.top) / innerHeight;
+    boxes.push([x, y, Math.min(1 - x, r.width / innerWidth), Math.min(1 - y, r.height / innerHeight)].map((v) => +v.toFixed(4))); };
   const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
   for (let n = walker.nextNode(); n; n = walker.nextNode()) {
-    const t = n.nodeValue; if (!t || !n.parentElement || !inView(n.parentElement)) continue;
-    for (const m of t.matchAll(re)) hits.add(m[0]);
+    const t = n.nodeValue; if (!t || !n.parentElement || !inView(n.parentElement.getBoundingClientRect())) continue;
+    for (const m of t.matchAll(re)) {
+      hits.add(m[0]);
+      const rg = document.createRange(); rg.setStart(n, m.index); rg.setEnd(n, m.index + m[0].length);
+      for (const r of rg.getClientRects()) if (inView(r)) box(r);
+    }
   }
   for (const el of document.querySelectorAll('input,textarea')) {
-    if (inView(el)) for (const m of String(el.value || '').matchAll(re)) hits.add(m[0]);
+    const r = el.getBoundingClientRect();
+    if (!inView(r)) continue;
+    let hit = false;
+    for (const m of String(el.value || '').matchAll(re)) { hits.add(m[0]); hit = true; }
+    if (hit) box(r);
   }
-  return [...hits].slice(0, 10);
+  return { hits: [...hits].slice(0, 10), boxes: boxes.slice(0, 20) };
 }"""
 
 
@@ -611,9 +620,11 @@ async def _one_shot(s, spec, page, cdp, js, guard, out_dir, rec, t_start) -> dic
             entry["failed"].append({"action": "focus", "error": type(e).__name__})
 
     try:   # dev addresses visible on the page would end up in the video: flag them (blur, or capture the live site)
-        found = await guard(page.evaluate(DEV_TEXT_JS, DEV_PATTERN), 15)
+        res = await guard(page.evaluate(DEV_TEXT_JS, DEV_PATTERN), 15) or {}
+        found = res.get("hits") or []
         if found:
             entry["dev_text"] = found
+            entry["dev_boxes"] = res.get("boxes") or []     # where on screen (0-1): a piece's "redact": "dev" blurs them
             log(f"shots: {name}: WARNING dev address on screen: {', '.join(found[:3])} "
                 "(blur it in the still, or capture the deployed site)")
     except Exception:  # noqa: BLE001 - a busy page only skips the check

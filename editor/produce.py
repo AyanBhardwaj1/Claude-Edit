@@ -192,9 +192,11 @@ class Spec:
 
 PIECE_KEYS = {
     "video": {"src", "in", "out", "speed", "fit", "pad", "crop_y", "grade", "bloom", "z0", "z1", "fx", "fy", "push",
-              "fade_in", "fade_out", "ramp_waits", "from_shot"},
-    "framed": {"src", "dur", "in", "z0", "z1", "fx", "fy", "punch", "flash", "scale", "radius", "backdrop", "focus_from"},
-    "still": {"src", "dur", "in", "z0", "z1", "fx", "fy", "punch", "flash", "scale", "radius", "backdrop", "focus_from"},
+              "fade_in", "fade_out", "ramp_waits", "from_shot", "redact"},
+    "framed": {"src", "dur", "in", "z0", "z1", "fx", "fy", "punch", "flash", "scale", "radius", "backdrop", "focus_from",
+               "redact"},
+    "still": {"src", "dur", "in", "z0", "z1", "fx", "fy", "punch", "flash", "scale", "radius", "backdrop", "focus_from",
+              "redact"},
     "sequence": {"srcs", "dur", "framed", "z1"},
     "freeze": {"from", "dur", "blur", "darken", "blur_at", "fade_out"},
     "color": {"color", "dur"},
@@ -272,6 +274,17 @@ def validate(spec: "Spec") -> tuple[list[str], list[str]]:
                     spec.t(x[k])
                 except EditorError as e:
                     errors.append(f"extras {x.get('name')}: {e}")
+    for pc in spec.pieces:                          # dev addresses / personal data on a captured screen
+        r, shot = pc.get("redact"), _shot_entry(spec, pc)
+        if r == "dev" and not (shot or {}).get("dev_boxes"):
+            warnings.append(f"piece {pc['name']}: redact \"dev\" but its shot has no recorded dev addresses")
+        elif r and r != "dev" and (not isinstance(r, list) or any(
+                not isinstance(b, list) or len(b) != 4 or not all(isinstance(v, (int, float)) and 0 <= v <= 1 for v in b)
+                for b in r)):
+            errors.append(f"piece {pc['name']}: redact is \"dev\" or a list of [x, y, w, h] boxes, 0-1 of the frame")
+        if (shot or {}).get("dev_text") and not r:
+            warnings.append(f"piece {pc['name']}: its shot shows {', '.join(shot['dev_text'][:2])}: add "
+                            f"\"redact\": \"dev\" (or capture the deployed site)")
     if spec.data.get("brief") and not spec.p(spec.data["brief"]).exists():
         warnings.append(f"brief not found: {spec.data['brief']}")
     if not spec.data.get("brief"):
@@ -356,6 +369,65 @@ def ramp_shimmers(spec: "Spec") -> list[dict]:
 
 # ---------------------------------------------------------------- pieces
 
+def _shot_entry(spec: Spec, pc: dict) -> dict | None:
+    """The `capture shots` entry a piece came from (focus_from / from_shot), if any."""
+    ref = pc.get("focus_from") or pc.get("from_shot")
+    if not ref:
+        return None
+    path, _, name = str(ref).partition("#")
+    try:
+        data = json.loads(spec.p(path).read_text())
+    except (OSError, ValueError):
+        return None
+    return next((x for x in data.get("shots", []) if x.get("name") == (name or pc["name"])), None)
+
+
+def redact_boxes(spec: Spec, pc: dict) -> list[list[float]]:
+    """The regions to blur in a piece's source, 0-1 of its frame: a list of [x, y, w, h], or "dev" for the dev
+    addresses `capture shots` found on that shot. Each box grows a little so no edge of the text shows."""
+    r = pc.get("redact")
+    if not r:
+        return []
+    if r == "dev":
+        r = (_shot_entry(spec, pc) or {}).get("dev_boxes") or []
+    out = []
+    for x, y, w, h in r:
+        m = 0.008
+        x0, y0 = max(0.0, x - m), max(0.0, y - m)
+        x1, y1 = min(1.0, x + w + m), min(1.0, y + h + m)
+        out.append([round(x0, 4), round(y0, 4), round(x1 - x0, 4), round(y1 - y0, 4)])
+    return out
+
+
+def _redact_graph(boxes: list[list[float]], inp: str, out: str) -> str:
+    """ffmpeg graph blurring each box of [inp] (0-1 of the frame) into [out]: a heavy box blur, text unreadable."""
+    parts, cur = [], inp
+    for i, (x, y, w, h) in enumerate(boxes):
+        nxt = out if i == len(boxes) - 1 else f"rd{i}"
+        parts.append(f"[{cur}]split[ra{i}][rb{i}];[rb{i}]crop=iw*{w}:ih*{h}:iw*{x}:ih*{y},"
+                     f"boxblur=luma_radius='min(w,h)/3':luma_power=3:chroma_radius='min(cw,ch)/3':chroma_power=3[bl{i}];"
+                     f"[ra{i}][bl{i}]overlay=main_w*{x}:main_h*{y}[{nxt}]")
+        cur = nxt
+    return ";".join(parts)
+
+
+def _redacted_src(spec: Spec, src: Path, boxes: list[list[float]]) -> Path:
+    """A copy of an image or clip with the boxes blurred (cached by content)."""
+    image = src.suffix.lower() in (".png", ".jpg", ".jpeg", ".webp", ".bmp")
+    out = spec.work / "redact" / f"{src.stem}.{_hash(str(src), _mtime(src), boxes)}{'.png' if image else '.mp4'}"
+    if not out.exists():
+        out.parent.mkdir(parents=True, exist_ok=True)
+        tmp = out.with_name(out.stem + ".part" + out.suffix)
+        graph = _redact_graph(boxes, "0:v", "o")
+        if image:
+            run(["ffmpeg", "-y", "-v", "error", "-i", str(src), "-filter_complex", graph, "-map", "[o]",
+                 "-frames:v", "1", str(tmp)])
+        else:
+            run(["ffmpeg", "-y", "-v", "error", "-i", str(src), "-filter_complex", graph, "-map", "[o]", *ENC, str(tmp)])
+        tmp.replace(out)
+    return out
+
+
 def _video_filter(spec: Spec, pc: dict, n: int) -> str:
     W, H, fps = spec.w, spec.h, spec.fps
     speed = float(pc.get("speed", 1.0))
@@ -412,10 +484,17 @@ def _render_piece(spec: Spec, pc: dict, out: Path) -> None:
     if kind == "video":
         src = spec.p(pc["src"])
         a, b = float(pc.get("in", 0)), float(pc.get("out"))
+        graph = _video_filter(spec, pc, n)
+        boxes = redact_boxes(spec, pc)
+        if boxes:                                   # blur first, on the source frame, so every move keeps it hidden
+            graph = _redact_graph(boxes, "0:v", "rdv") + ";" + graph.replace("[0:v]", "[rdv]")
         run(["ffmpeg", "-y", "-ss", f"{a}", "-to", f"{b}", "-i", str(src), "-filter_complex",
-             _video_filter(spec, pc, n), "-map", "[v]", "-frames:v", str(n), *ENC, str(out)])
+             graph, "-map", "[v]", "-frames:v", str(n), *ENC, str(out)])
     elif kind in ("framed", "still"):
         src = spec.p(pc["src"])
+        boxes = redact_boxes(spec, pc)
+        if boxes:
+            src = _redacted_src(spec, src, boxes)
         punch = tuple(pc["punch"]) if pc.get("punch") else None
         fr = spec.data.get("frame", {})
         scale = float(pc.get("scale", fr.get("scale", 0.92) if kind == "framed" else 1.0))

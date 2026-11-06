@@ -124,6 +124,8 @@ preference in the note with `editor style note`, and `editor style learn produce
 
 ## 6. Rules
 - Never fake model output, app features or numbers; label scripted demos; tag a model only where it produced the moment.
+- No dev addresses or other people's personal data on screen: `"redact": "dev"` (the spots `capture shots` recorded)
+  or `"redact": [[x, y, w, h]]` on the piece blurs them in the source, so every push and punch-in keeps them hidden.
 - Numbers exactly as in the brief or read off the recorded screen (write them down when you capture).
 - Captions on every spoken line; nothing over the length cap; no spinner on screen > 1 s.
 - You can't hear: report LUFS/peaks and ask the user to listen, especially dialogue over music.

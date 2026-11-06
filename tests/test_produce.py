@@ -314,6 +314,29 @@ def test_estimate_counts_only_what_will_render(tmp_path):
     assert again["pieces_to_render"] == ["b", "c"] and again["stages"]["review"] == 60.0
 
 
+def test_redact_blurs_only_the_boxes_and_dev_uses_the_recorded_spots(tmp_path):
+    import numpy as np
+    from PIL import Image
+    rng = np.random.default_rng(1)
+    img = (rng.random((200, 400)) > 0.5).astype(np.uint8) * 255          # sharp noise: "text" everywhere
+    Image.fromarray(img).convert("RGB").save(tmp_path / "shot.png")
+    (tmp_path / "shots.json").write_text(json.dumps({"shots": [
+        {"name": "letter", "file": "shot.png", "focus": {"x": 0.5, "y": 0.5, "w": 0.2, "h": 0.1}, "dev_text": ["localhost:5173"], "dev_boxes": [[0.5, 0.0, 0.5, 0.5]]}]}))
+    spec = base_spec(pieces=[{"name": "letter", "type": "framed", "src": "shot.png", "dur": 1, "focus_from": "shots.json",
+                              "fx": 0.5, "fy": 0.5, "punch": [0.5, 1.2, 0.5, 0.5]}])
+    s = produce.Spec(write_spec(tmp_path, spec))
+    assert any("redact" in w and "localhost:5173" in w for w in produce.validate(s)[1])     # flagged until redacted
+    s.pieces[0]["redact"] = "dev"
+    assert not [w for w in produce.validate(s)[1] if "redact" in w]
+    boxes = produce.redact_boxes(s, s.pieces[0])
+    assert boxes == [[0.492, 0.0, 0.508, 0.508]]                          # a margin so no edge of the text shows
+    out = np.asarray(Image.open(produce._redacted_src(s, tmp_path / "shot.png", boxes)).convert("L"), dtype=float)
+    inside, outside = out[10:90, 220:390], out[110:190, 10:180]
+    assert inside.std() < 25 and outside.std() > 100                     # blurred flat there, untouched elsewhere
+    s.pieces[0]["redact"] = [[0.1, 0.2, 2, 0.1]]
+    assert any("redact is" in e for e in produce.validate(s)[0])
+
+
 def test_a_script_line_nobody_said_in_that_voice_is_reported_not_hidden():
     heard = [("the", 1.0, 1.2), ("shadiest", 1.25, 1.8), ("route", 1.85, 2.2), ("he", 3.0, 3.1), ("asked", 3.15, 3.5),
              ("out", 3.55, 3.7), ("loud", 3.75, 4.1)]
