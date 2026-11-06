@@ -101,6 +101,26 @@ If the note is a LASTING preference (it would make sense for a video that doesn'
 one general sentence under 15 words with no times, words or file names from this video ("Keep music quieter under
 talking."), else null. The summary is one warm sentence saying what changed.`;
 
+/** Best quality only: one strict second pass over the first edit. Same EDIT_SCHEMA, so it applies like any edit. */
+export const REVIEW_EDIT = `You are now the senior editor reviewing a junior editor's first edit of this video (CURRENT EDIT)
+before it goes to the client. Be strict, but keep everything that already works: change only what clearly makes the video
+better, and copy every other field from CURRENT EDIT exactly. Check, in this order:
+1. THE HOOK: within the first 3 seconds of the kept words the viewer hears the claim or question and sees the hook title.
+   If the video opens on throat clearing, a greeting, setup or a weak line, start "keep" at the strongest opening take.
+2. THE CUT: no dead air, false starts, repeated takes, meta-talk or tangents that don't serve the one red thread. Never
+   cut real content, a joke or the beat before a punchline. Whole sentences, the speaker's order, every word id real.
+3. CAPTIONS: fix mishearings in "corrections" only where the topic makes the right word certain; sizes stay readable.
+4. VISUALS: the screen changes every 3-5 seconds over the KEPT words (a picture, a label, an animated card or a zoom), no
+   window bare for more than ~4 s, nothing new less than ~1.5 s after the last, each asset once, zooms never back to back.
+   Every number or claim on screen matches the spoken words exactly.
+5. THE FACE: never cover the face with card treatments for long; face-hiding treatments (full-frame, split-top, animated
+   cards) stay short and cover at most about half the runtime; prefer card-above-head or side-card.
+6. MUSIC, COVER and POST follow the rules above (exactly 5 hashtags, the user's voice, no em dashes).
+Return the complete edit: keep, gapCap, captions, corrections, hook, labels, broll, webPictures, motionCards, zooms, music,
+motion, cover, post, summary. Keep the existing pictures by listing them in "broll" with their asset keys; ask for new
+"webPictures" only to fill a bare window. The summary is for the user, 1 to 3 warm sentences about the finished video
+(what it does and why it works), as in a first edit; don't talk about junior or senior editors.`;
+
 export const WRITE_SCRIPT = (idea: string) => `Write a short talking-head Reel script for the user to film, in THEIR voice
 (first person, casual, said not argued), about:
 

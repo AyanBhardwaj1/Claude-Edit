@@ -114,6 +114,7 @@ export type Settings = {
   anthropicModel: string; openaiModel: string;
   transcriber: "openai" | "browser";
   rememberKeys: boolean;
+  effort: "fast" | "balanced" | "best";   // speed vs quality (lib/effort.ts); missing on old saved settings: balanced
 };
 
 export type StyleRule = { id: string; text: string; at: string };

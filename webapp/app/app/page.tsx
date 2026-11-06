@@ -179,7 +179,7 @@ export default function App() {
           onOpen={(p) => open(p)} onGo={(s) => go(s)} />}
         {screen === "videos" && <Library onOpen={(p) => open(p)} onNew={() => go("new")} onSample={sample} />}
         {screen === "new" && <NewVideo settings={settings} initial={pending} onSettings={() => go("settings")}
-          onDone={(p, s) => { setPending([]); open(p, s); }} />}
+          onSaveSettings={(s) => { saveSettings(s); setSettings(s); }} onDone={(p, s) => { setPending([]); open(p, s); }} />}
         {screen === "editor" && project && (project.versions.length
           ? <Editor key={project.id} project={project} settings={settings} firstSummary={summary} onBack={() => go("videos")}
             onOpenProject={(p, s) => open(p, s)} onOpenAnim={(id) => { location.hash = `animate/${encodeURIComponent(id)}`; }} />

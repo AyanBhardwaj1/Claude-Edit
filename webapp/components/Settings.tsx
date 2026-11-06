@@ -3,10 +3,13 @@ import { useEffect, useState } from "react";
 import { listModels } from "@/lib/ai";
 import { accountMode, AuthError, changePassword, rename, type Mode, type User } from "@/lib/auth";
 import { brandOf } from "@/lib/brand";
+import { effortOf } from "@/lib/effort";
 import { uid } from "@/lib/media";
 import { getMedia, putMedia } from "@/lib/store";
 import { THEMES, type ThemeId } from "@/lib/theme";
+import { estimate, estimateText } from "@/lib/timings";
 import type { Brand, Settings as S } from "@/lib/types";
+import { EffortPicker } from "./EffortPicker";
 import { Icon } from "./Icons";
 
 type Note = { ok: boolean; text: string } | null;
@@ -156,6 +159,22 @@ export function Settings({ settings, user, theme, onTheme, onUser, onSignOut, on
             {keyField("anthropic")}
             {keyField("openai")}
             {msg && <div className={`alert ${msg.ok ? "ok" : "err"}`} role="status"><Icon name={msg.ok ? "check" : "alert"} /><span>{msg.text}</span></div>}
+          </div>
+        </section>
+
+        <section className="set-sec" aria-labelledby="effort-h">
+          <div><h2 id="effort-h">Speed vs quality</h2><p>How much time the editor takes on a new video. You can still pick for each video. Times are
+            learned from the videos you make on this device.</p></div>
+          <div className="stack">
+            <EffortPicker legend="Default speed vs quality" value={effortOf(s)} onChange={(effort) => set({ effort })} time={(e) => {
+              const est = estimate(e, 60, { transcriber: s.transcriber, ai: !!(s.provider === "anthropic" ? s.anthropicKey : s.openaiKey) });
+              return estimateText(est, "for a 1-min video");
+            }} />
+            <div className="row">
+              <button className="btn primary" disabled={!dirty} onClick={() => { onSave(s); setSaved({ ok: true, text: "Settings saved." }); }}>Save settings</button>
+              {saved && <span className="small say-ok" role="status">{saved.text}</span>}
+              {dirty && !saved && <span className="small faint">Unsaved changes</span>}
+            </div>
           </div>
         </section>
 
