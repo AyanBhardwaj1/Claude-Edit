@@ -88,6 +88,7 @@ timeouts, a ~4.5 MB request limit), so all media work runs client-side:
 | `lib/timeline.ts`, `lib/text.ts` | cut ranges to segments with a gap cap; captions: corrections, numbers as digits, 2-3 word cues |
 | `lib/face.ts` | MediaPipe face detector (wasm from a CDN) for the reframe and the protected face zone |
 | `lib/compositor.ts` | draws each frame: reframe, zooms, the picture treatments, labels, captions |
+| `lib/framed.ts` | the framed treatment for app screens (92% on a backdrop, rounded, shadow, Ken Burns, punch-in) and the screenshot check |
 | `lib/player.ts` | live playback with two video elements per take swapped at cuts, Web Audio mix, MediaRecorder export |
 | `app/api/search`, `app/api/image` | licensed picture search and a fixed-host image fetch |
 | `lib/auth.ts`, `lib/sync.ts` | email + password accounts (server or browser) and preference sync |

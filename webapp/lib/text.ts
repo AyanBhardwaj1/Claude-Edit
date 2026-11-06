@@ -105,3 +105,50 @@ export function captionWords(words: OutWord[], corrections: { from: string; to: 
   const cw = words.map((w) => ({ id: w.id, text: w.w.trim(), os: w.os, oe: w.oe, seg: w.seg }));
   return digits(applyCorrections(cw, corrections));
 }
+
+// ------------------------------------------------------------------ boxed subtitles: a phrase at a time
+
+/** Break a phrase into at most `maxLines` lines of at most `maxChars` characters, as evenly as it will go (a single word
+ *  longer than a line stays whole). Returns null when the phrase doesn't fit. */
+export function boxedLines(text: string, maxChars = 42, maxLines = 2): string[] | null {
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  if (!words.length) return [];
+  const one = words.join(" ");
+  if (one.length <= maxChars || words.length === 1) return [one];
+  if (maxLines < 2) return null;
+  let best: string[] | null = null, bestD = Infinity;
+  for (let k = 1; k < words.length; k++) {
+    const a = words.slice(0, k).join(" ");
+    const rest = boxedLines(words.slice(k).join(" "), maxChars, maxLines - 1);
+    if (a.length > maxChars || !rest) continue;
+    const lens = [a.length, ...rest.map((l) => l.length)];
+    const d = Math.max(...lens) - Math.min(...lens) + (a.length <= rest[0].length ? 0 : 0.5);   // on a tie, the shorter line on top
+    if (d < bestD) { best = [a, ...rest]; bestD = d; }
+  }
+  return best;
+}
+
+/** Phrase cues for the boxed style: as many words as fit in `maxLines` lines of `maxChars`; a new cue at a sentence end,
+ *  a long pause or a cut, and at a comma once a line is full. */
+export function boxedCues(words: CapWord[], maxChars = 42, maxLines = 2): Cue[] {
+  const cues: Cue[] = [];
+  for (const w of words) {
+    const c = cues[cues.length - 1];
+    const prev = c?.words[c.words.length - 1];
+    const sofar = c ? c.words.map((x) => x.text).join(" ") : "";
+    const boundary = !prev || !boxedLines(`${sofar} ${w.text}`, maxChars, maxLines) || w.os - prev.oe > 0.8 ||
+      /[.!?]["')\]]?$/.test(prev.text.trim()) || (w.seg !== prev.seg && w.os - prev.oe > 0.15) ||
+      (/[,;:]$/.test(prev.text.trim()) && sofar.length >= maxChars);
+    if (boundary) cues.push({ start: w.os, end: w.oe, words: [w] });
+    else { c.words.push(w); c.end = w.oe; }
+  }
+  cues.forEach((c, k) => {
+    const next = cues[k + 1];
+    if (next && next.start - c.end < 1.2) c.end = next.start - 0.02; else c.end += 0.3;
+    c.end = Math.max(c.end, c.start + 0.6);
+  });
+  return cues;
+}
+
+/** How many characters a boxed line holds in this frame at this type size (42 where it fits, fewer on a narrow reel). */
+export const boxedChars = (frameW: number, size: number) => Math.max(18, Math.min(42, Math.floor((0.86 * frameW) / (0.5 * size))));

@@ -1,5 +1,7 @@
 // Media helpers that run in the browser: probe a video, decode audio, measure loudness and a song's feel.
 
+import { looksLikeScreen } from "./framed";
+
 export async function probeVideo(url: string): Promise<{ duration: number; width: number; height: number }> {
   const v = document.createElement("video");
   v.preload = "metadata";
@@ -17,6 +19,33 @@ export async function probeImage(url: string): Promise<{ width: number; height: 
   img.src = url;
   await img.decode();
   return { width: img.naturalWidth, height: img.naturalHeight };
+}
+
+/** Does this picture or clip look like an app / website screen? One small frame (160 px wide; a clip's frame at 1 s),
+ *  judged by lib/framed.ts looksLikeScreen. Cheap, and never fails an upload: false when it can't tell. */
+export async function looksLikeScreenAt(url: string, kind: "image" | "video"): Promise<boolean> {
+  try {
+    let el: HTMLImageElement | HTMLVideoElement, w: number, h: number;
+    if (kind === "image") {
+      const img = new Image(); img.src = url; await img.decode();
+      el = img; w = img.naturalWidth; h = img.naturalHeight;
+    } else {
+      const v = document.createElement("video");
+      v.muted = true; v.playsInline = true; v.preload = "auto"; v.src = url;
+      await new Promise<void>((ok, bad) => { v.onloadeddata = () => ok(); v.onerror = () => bad(new Error("no frame")); setTimeout(() => bad(new Error("slow")), 6000); });
+      v.currentTime = Math.min(1, (v.duration || 0) / 2);
+      await new Promise<void>((ok) => { v.onseeked = () => ok(); setTimeout(ok, 3000); });
+      el = v; w = v.videoWidth; h = v.videoHeight;
+    }
+    if (!w || !h) return false;
+    const sw = Math.min(160, w), sh = Math.max(1, Math.round((h * sw) / w));
+    const c = document.createElement("canvas"); c.width = sw; c.height = sh;
+    const g = c.getContext("2d", { willReadFrequently: true })!;
+    g.drawImage(el, 0, 0, sw, sh);
+    const ok = looksLikeScreen(g.getImageData(0, 0, sw, sh).data, sw, sh, w, h);
+    if (el instanceof HTMLVideoElement) el.removeAttribute("src");
+    return ok;
+  } catch { return false; }
 }
 
 /** Decode a file's audio to mono at the given rate (16 kHz for speech recognition). */

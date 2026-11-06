@@ -19,7 +19,7 @@ export const TEMPLATES: Template[] = [
     captions: { preset: "white", textCase: "upper", maxWords: 3, size: 96, font: "Montserrat" },
     motion: { captionAnim: "typewriter", accent: "#F2C14E", emphasis: true, transition: "fade", look: "cinematic", brollIn: "slide", progress: false } },
   { id: "neon", name: "Neon", line: "Pink karaoke, glitch cuts, cool colour. Loud on purpose.",
-    captions: { preset: "boxed", textCase: "upper", maxWords: 2, size: 112, font: "Montserrat" },
+    captions: { preset: "block", textCase: "upper", maxWords: 2, size: 112, font: "Montserrat" },
     motion: { captionAnim: "karaoke", accent: "#FF3D9A", emphasis: true, transition: "glitch", look: "cool", brollIn: "spin", progress: true } },
   { id: "podcast", name: "Podcast", line: "Warm picture, words that appear as said, whip cuts between points.",
     captions: { preset: "white", textCase: "as-is", maxWords: 4, size: 96, font: "Montserrat" },

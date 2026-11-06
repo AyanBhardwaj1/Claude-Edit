@@ -6,7 +6,7 @@ import { defaultEdit, describe, fromAi, type AiEdit } from "./edit";
 import { aiChoice, effortOf, EFFORT, type AiChoice } from "./effort";
 import { trackFaces } from "./face";
 import { findPicture } from "./images";
-import { activeRms, decodeMono, musicFeel, probeImage, probeVideo, uid } from "./media";
+import { activeRms, decodeMono, looksLikeScreenAt, musicFeel, probeImage, probeVideo, uid } from "./media";
 import { getMedia, putMedia, saveProject } from "./store";
 import { record } from "./timings";
 import { transcribe } from "./transcribe";
@@ -50,9 +50,10 @@ export async function addToLibrary(p: Project, files: File[], onProgress: Progre
     const url = URL.createObjectURL(f);
     const a: Asset = { key, name: f.name, kind };
     try {
-      if (kind === "image") Object.assign(a, await probeImage(url));
-      else if (kind === "video") Object.assign(a, await probeVideo(url));
-      else {
+      if (kind === "image" || kind === "video") {
+        Object.assign(a, kind === "image" ? await probeImage(url) : await probeVideo(url));
+        if (await looksLikeScreenAt(url, kind)) a.screen = true;       // the AI then reads "screenshot" / "screen recording"
+      } else {
         onProgress(`Listening to ${f.name}`);
         const x = await decodeMono(f, 16000);
         const feel = musicFeel(x);
