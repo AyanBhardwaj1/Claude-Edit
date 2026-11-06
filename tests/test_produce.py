@@ -244,3 +244,23 @@ def test_script_lines_become_captions_timed_on_misheard_words():
     assert float(cards[1]["t_out"].split(":")[1]) == pytest.approx(7.95, abs=0.01)
     fixed = produce.scripted_words(words, 0, 20, "Meta's SAM 3.1 finds the trees, the pavement and the sky.")
     assert fixed[0]["text"] == "Meta's" and fixed[-1]["start"] == pytest.approx(7.29)
+
+
+def test_validation_catches_problems_before_rendering(tmp_path):
+    spec = base_spec(pieces=[
+        {"name": "a", "type": "framed", "src": "missing.png", "dur": 2, "punhc": [0.5, 1.5, 0.2, 0.2]},
+        {"name": "b", "type": "video", "src": "voice.wav", "in": 3, "out": 1},
+        {"name": "c", "type": "freeze", "from": "nope", "dur": 1},
+        {"name": "d", "type": "framed", "src": "voice.wav", "dur": 1, "punch": [1, 2]}])
+    spec["audio"]["sfx"] = [{"src": "boing", "at": "a"}, {"src": "pop", "at": "zz+1"}]
+    (tmp_path / "voice.wav").write_bytes(b"")
+    path = write_spec(tmp_path, spec)
+    s = produce.Spec(path)
+    errors, warnings = produce.validate(s)
+    text = "\n".join(errors)
+    assert "file not found: missing.png" in text and "out must be after in" in text
+    assert "freezes 'nope'" in text and "punch needs 4 numbers" in text
+    assert "file not found: boing" in text and "no piece named 'zz'" in text
+    assert any("punhc" in w for w in warnings)                       # a typo is a warning
+    with pytest.raises(EditorError, match="nothing rendered"):
+        produce.produce(path)

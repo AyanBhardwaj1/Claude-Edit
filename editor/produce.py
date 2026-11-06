@@ -145,6 +145,86 @@ class Spec:
         return "\n".join(rows)
 
 
+PIECE_KEYS = {
+    "video": {"src", "in", "out", "speed", "fit", "pad", "crop_y", "grade", "bloom", "z0", "z1", "fx", "fy", "push",
+              "fade_in", "fade_out", "ramp_waits"},
+    "framed": {"src", "dur", "in", "z0", "z1", "fx", "fy", "punch", "flash", "scale", "radius", "backdrop"},
+    "still": {"src", "dur", "in", "z0", "z1", "fx", "fy", "punch", "flash", "scale", "radius", "backdrop"},
+    "sequence": {"srcs", "dur", "framed", "z1"},
+    "freeze": {"from", "dur", "blur", "darken", "blur_at", "fade_out"},
+    "color": {"color", "dur"},
+}
+COMMON_KEYS = {"name", "type", "chapter", "note", "notes", "todo", "label"}
+
+
+def validate(spec: "Spec") -> tuple[list[str], list[str]]:
+    """(errors, warnings) before anything renders: missing files, unknown fields (typos), bad references,
+    malformed punches and overlay elements. Errors stop a render."""
+    errors, warnings = [], []
+    names = {pc["name"] for pc in spec.pieces}
+    for pc in spec.pieces:
+        kind, where = pc.get("type", "video"), f"piece {pc['name']}"
+        allowed = PIECE_KEYS.get(kind)
+        if allowed is None:
+            errors.append(f"{where}: unknown type {kind!r} ({', '.join(PIECE_KEYS)})")
+            continue
+        extra = sorted(k for k in pc if not k.startswith("_") and k not in allowed | COMMON_KEYS)
+        if extra:
+            warnings.append(f"{where}: unknown field(s) {', '.join(extra)} (typo? see spec.md)")
+        for src in ([pc["src"]] if isinstance(pc.get("src"), str) else []) + list(pc.get("srcs", [])):
+            if not spec.p(src).exists():
+                errors.append(f"{where}: file not found: {src}")
+        for k, n in (("punch", 4), ("push", 5)):
+            if pc.get(k) is not None and (not isinstance(pc[k], list) or len(pc[k]) != n):
+                errors.append(f"{where}: {k} needs {n} numbers")
+        if kind == "freeze" and pc.get("from") not in names:
+            errors.append(f"{where}: freezes {pc.get('from')!r}, which isn't a piece")
+        if kind == "video" and "out" in pc and float(pc["out"]) <= float(pc.get("in", 0)):
+            errors.append(f"{where}: out must be after in")
+    from .compose import fx as _fx
+    builtin = set(getattr(_fx, "SFX", {})) | {"whoosh", "whoosh_rev", "whip", "click", "pop", "thud", "shutter", "paper",
+                                              "ding"}
+    a = spec.data.get("audio", {})
+    for group in ("voices", "music", "sfx", "beds"):
+        for i, item in enumerate(a.get(group, [])):
+            where = f"audio {group}[{i}]" + (f" ({item['name']})" if item.get("name") else "")
+            src = item.get("src")
+            if isinstance(src, str) and not spec.p(src).exists() and not (group == "sfx" and src in builtin):
+                errors.append(f"{where}: file not found: {src}")
+            try:
+                at = spec.t(item.get("at", 0))
+                if at > spec.total + 0.01:
+                    warnings.append(f"{where}: starts at {at:.2f} s, after the video ends")
+            except EditorError as e:
+                errors.append(f"{where}: {e}")
+            for t, _ in item.get("automation", []) or []:
+                try:
+                    spec.t(t)
+                except EditorError as e:
+                    errors.append(f"{where} automation: {e}")
+    try:
+        ov = spec.data.get("overlay")
+        if ov:
+            ov = json.loads(spec.p(ov).read_text()) if isinstance(ov, str) else ov
+            ov = spec.resolve({**ov, "elements": list(ov.get("elements", [])) + auto_captions(spec)})
+            from .overlay import validate as ov_validate
+            e2, w2 = ov_validate(ov)
+            errors += [f"overlay: {x}" for x in e2]
+            warnings += [f"overlay: {x}" for x in w2]
+    except EditorError as e:
+        errors.append(f"overlay: {e}")
+    for x in spec.data.get("extras", []):
+        for k in ("from", "to"):
+            if k in x:
+                try:
+                    spec.t(x[k])
+                except EditorError as e:
+                    errors.append(f"extras {x.get('name')}: {e}")
+    if spec.data.get("brief") and not spec.p(spec.data["brief"]).exists():
+        warnings.append(f"brief not found: {spec.data['brief']}")
+    return errors, warnings
+
+
 def _hash(*parts) -> str:
     h = hashlib.sha1()
     for x in parts:
@@ -1201,6 +1281,11 @@ def produce(spec_path: str | Path, only: str | None = None, jobs: int = 4, want_
             effort: str = "standard") -> dict:
     from . import effort as eff
     spec = Spec(spec_path)
+    errors, warnings = validate(spec)
+    for w in warnings:
+        log(f"produce: warning: {w}")
+    if errors and only not in ("review", "post", "extras"):
+        raise EditorError("the spec has problems (nothing rendered):\n  " + "\n  ".join(errors))
     spec.work.mkdir(parents=True, exist_ok=True)
     stages = [only] if only else ["pieces", "overlay", "mix", "composite", "extras", "post", "review"]
     res, timing = {"total": spec.total}, {}
@@ -1282,6 +1367,11 @@ def main(argv=None) -> int:
     spec = Spec(a.spec)
     if a.plan:
         print(spec.table())
+        errors, warnings = validate(spec)
+        for x in errors:
+            print(f"ERROR   {x}")
+        for x in warnings:
+            print(f"warning {x}")
         ov = spec.data.get("overlay")
         auto = auto_captions(spec)
         for card in spec.resolve(auto):

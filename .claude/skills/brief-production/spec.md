@@ -12,6 +12,8 @@ python3 -m editor produce projects/<name>/produce.json --preview --note "<note>"
 python3 -m editor produce projects/<name>/produce.json --only mix|overlay|composite|extras|post|review
 ```
 Stages: pieces → overlay → mix → composite → extras → post → review (rush skips review; polish encodes slower).
+The spec is validated first (missing files, unknown fields, bad references, malformed punches, overlay elements):
+errors stop the render before anything is drawn; `--plan` lists them.
 
 ## Top level
 | key | meaning |
