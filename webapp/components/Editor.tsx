@@ -29,6 +29,8 @@ import { clock } from "./Tiles";
 import { changeItems, type Change } from "@/lib/changes";
 import { attention, spotsNote, zoomsFor, type Attention } from "@/lib/attention";
 import { openWith, strongestLine, type Line } from "@/lib/coldopen";
+import { swears } from "@/lib/bleep";
+import { maskWord } from "@/lib/text";
 import { cutWarmUp, LOOP_HEAD, LOOP_TAIL, loopCheck, SCROLL_SECONDS, scrollTest, type ScrollLine } from "@/lib/scrolltest";
 import { clearPosition, PLATFORM_NAMES, subtitlesCovered, ZONES, type Platform } from "@/lib/safezones";
 import { Shortcuts } from "./Shortcuts";
@@ -102,6 +104,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
   const [hooks, setHooks] = useState<string[] | null>(null);
   const [hookBusy, setHookBusy] = useState(false);
   const [hookDraft, setHookDraft] = useState("");
+  const [swore, setSwore] = useState<{ id: string; w: string; at: number }[]>([]);   // swear words said (lib/bleep.ts)
   const [recapBusy, setRecapBusy] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [wave, setWave] = useState<number[] | null>(null);
@@ -191,6 +194,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
     canvas.current!.dataset.cuts = pl.scene.cuts.map((c) => c.toFixed(3)).join(",");   // for tests and tools
     setCheck(reelCheck(p, edit, pl.tl));
     setAttn(attention(pl.tl, edit));
+    setSwore(swears(pl.tl).map((w) => ({ id: w.id, w: w.w.trim(), at: w.os })));
     setScroll({ ...scrollTest(pl.tl, edit), loop: loopCheck(pl.tl), cold: strongestLine(pl.tl) }); setShownTest(null);
     void waveform(p, pl.tl).then((w) => { if (gen === mounts.current) setWave(w); });
     setTrack({ segs: pl.tl.segments.map((x) => [x.outStart, x.outEnd]), zooms: pl.scene.zooms.map((z) => [z.s, z.e]),
@@ -685,6 +689,28 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
             </section>
           )}
 
+          {version && swore.length > 0 && (() => {
+            const on = new Set(version.edit.bleeps ?? []);
+            const all = swore.every((x) => on.has(x.id));
+            const list = [...new Set(swore.map((x) => maskWord(x.w).replace(/[^\p{L}*]/gu, "").toLowerCase()))].slice(0, 4).join(", ");
+            return (
+              <section className="panel" aria-labelledby="bleep-h">
+                <div className="panel-head"><h2 id="bleep-h">Strong language</h2>
+                  <button className="btn sm" disabled={recording} onClick={async () => {
+                    const before = version.edit;
+                    const fixed = { ...before, bleeps: all ? [] : [...new Set([...(before.bleeps ?? []), ...swore.map((x) => x.id)])] };
+                    await saveManual(p, fixed, all ? "bleeps removed" : `bleeped ${swore.length} word${swore.length > 1 ? "s" : ""}`); setP({ ...p });
+                    setMsgs((m) => [...m, { who: "ed", v: p.current, text: all ? `Version ${p.current}: no bleeps; every word plays as said.`
+                      : `Version ${p.current}: ${swore.length} word${swore.length > 1 ? "s are" : " is"} bleeped: a tone over the voice, and the subtitles show ${list}.`,
+                      changes: changeItems(p, before, fixed) }]);
+                  }}>{all ? "Unbleep" : "Bleep them"}</button></div>
+                <p className="small muted">{swore.length} strong word{swore.length > 1 ? "s" : ""} ({list}){" "}
+                  {all ? "bleeped." : "said. Platforms limit ads on strong language, and many brands won’t sponsor it."}</p>
+                <div className="chips mt-8">{swore.slice(0, 8).map((x) => (
+                  <button key={x.id + x.at} type="button" className="chip" onClick={() => { const v = Math.max(0, x.at - 0.6); setT(v); void player.current?.seek(v); }}>
+                    {clock(x.at)} {on.has(x.id) ? maskWord(x.w) : x.w}</button>))}</div>
+              </section>);
+          })()}
           {version && p.words.length > 0 && (
             <section className="panel" aria-labelledby="hook-h" id="hook-panel">
               <div className="panel-head"><h2 id="hook-h">Hook title</h2>

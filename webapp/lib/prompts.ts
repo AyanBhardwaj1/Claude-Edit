@@ -78,6 +78,8 @@ heartfelt or calm -> fade, fade transitions, warm; explainer or tutorial -> kara
 story or cinematic -> typewriter or fade, fade, cinematic. Never more than one flashy thing per second.
 
 MIRROR: set "mirror": true only if the user says the video is mirrored or backwards.
+BLEEP: set "bleep": true only if the user asks to bleep, censor or beep the swearing (every strong swear word gets a tone and
+masked subtitles); "bleep": false if they ask to remove the bleeps. Never bleep on your own.
 
 The user's saved style rules (always follow; they override the defaults):
 {{rules}}
@@ -102,7 +104,7 @@ motionCards on those words; "show X when I say X" -> a webPicture or
 library picture anchored on X; "wrong place / bigger / beside me" -> change that visual's treatment or anchor; "zoom into the button / show the
 screen properly" -> that screen framed with focus (and a punch on the words); "calmer / normal subtitles" -> captions boxed; "cut the
 part about X" -> drop those words from keep; "it cut my joke" -> restore the words or a larger gapCap; "the caption
-says X but I said Y" -> a correction; "zoom in when I say X" -> a zoom on those words; "it's mirrored" -> mirror true; "make the captions pop / karaoke / bouncy" -> motion.captionAnim; "add transitions /
+says X but I said Y" -> a correction; "zoom in when I say X" -> a zoom on those words; "it's mirrored" -> mirror true; "bleep the swearing" -> bleep true; "make the captions pop / karaoke / bouncy" -> motion.captionAnim; "add transitions /
 smoother cuts" -> motion.transition; "make it look cinematic / warmer / black and white" -> motion.look; "highlight in
 pink" -> motion.accent.
 If the note is a LASTING preference (it would make sense for a video that doesn't exist yet), also return "styleRule":
@@ -185,6 +187,7 @@ export const EDIT_SCHEMA = {
     post: { type: "object", properties: { caption: { type: "string" }, hashtags: { type: "array", items: { type: "string" } },
       keywords: { type: "array", items: { type: "string" } } } },
     mirror: { type: "boolean" },
+    bleep: { type: "boolean" },
     motion: { type: "object", properties: {
       captionAnim: { type: "string", enum: ["pop", "karaoke", "bounce", "words", "typewriter", "fade", "none"] },
       accent: { type: "string" }, emphasis: { type: "boolean" },

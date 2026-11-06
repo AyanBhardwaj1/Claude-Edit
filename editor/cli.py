@@ -737,6 +737,18 @@ def cmd_attach(args):
     print(attach(args.file, args.project, args.name)["path"])
 
 
+def _bleeps(work: Path) -> list[tuple[float, float]]:
+    """The EDL's "bleep" (true: every strong swear word; a list: those word ids) as output-time spans."""
+    from .bleep import spans
+    edl = load_json(work / "edl.json")
+    if not edl.get("bleep") or not (work / "cut_words.json").exists():
+        return []
+    sp = spans(load_json(work / "cut_words.json")["words"], edl["bleep"])
+    if sp:
+        log(f"bleep: {len(sp)} word(s) bleeped")
+    return sp
+
+
 def cmd_pacing(args):
     from .anchors import load_words, resolve_work
     from .review import pacing, punch_cuts
@@ -1117,7 +1129,7 @@ def cmd_auto(args):
                    music_start=edl_music.get("start", "auto"), automation=edl_music.get("automation"),
                    fade_out=float(edl_music.get("fade_out", 0.6)),
                    level=None if (args.music_db_given or "db" in edl_music) else edl_music.get("level", "under-voice"),
-                   first_word=_first_word(work))
+                   first_word=_first_word(work), bleeps=_bleeps(work))
         elif stage == "track":
             if args.fit == "crop":
                 from .track import track
@@ -1134,7 +1146,8 @@ def cmd_auto(args):
                 build(work / "cut_words.json", work / "captions.ass", width=w, height=h, style=args.style,
                       position=args.position, title=args.title or edl.get("title"),
                       emphasis=edl.get("emphasis", []), chapters=edl.get("chapters"),
-                      duration=load_json(work / "cut_meta.json")["duration"], look=_caption_look(edl, args.font))
+                      duration=load_json(work / "cut_meta.json")["duration"], look=_caption_look(edl, args.font),
+                      bleep=edl.get("bleep"))
         elif stage == "render":
             ns = argparse.Namespace(**vars(args), work_dir=str(work), out=str(out_file))
             ns.no_captions = args.style == "none"

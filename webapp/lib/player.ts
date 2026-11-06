@@ -6,6 +6,7 @@
 import { buildScene, drawFrame, H, setFormat, W, type Scene } from "./compositor";
 import { LEVEL_GAP } from "./mix";
 import { clipTimeAt } from "./screenrec";
+import { bleepSpans } from "./bleep";
 import { buildTimeline, spanOf, type Timeline } from "./timeline";
 import type { Edit, Project } from "./types";
 
@@ -33,7 +34,11 @@ export class Player {
   private raf = 0;
   private recDest?: MediaStreamAudioDestinationNode;
   private speakers?: GainNode;
-  private stopRec?: () => void;            // ends an export in progress (see record)
+  private stopRec?: () => void;
+  private voiceGate?: GainNode;
+  private toneGain?: GainNode;
+  private bleeps: [number, number][] = [];
+  private bleeping = false;            // ends an export in progress (see record)
   private silent = false;
   private woosh?: AudioBuffer;
   private fired = new Set<string>();
@@ -71,6 +76,7 @@ export class Player {
     this.edit = edit;
     this.tl = buildTimeline(this.project.words, edit, this.project.sources.map((s) => s.duration));
     this.scene = buildScene(this.project, edit, this.tl, this.media);
+    this.bleeps = bleepSpans(this.tl, edit.bleeps);
   }
 
   private ensureAudio() {
@@ -89,7 +95,12 @@ export class Player {
     limit.connect(this.recDest);
     const voice = ctx.createBiquadFilter(); voice.type = "highpass"; voice.frequency.value = 80;
     const presence = ctx.createBiquadFilter(); presence.type = "peaking"; presence.frequency.value = 3500; presence.gain.value = 2; presence.Q.value = 1.2;
-    voice.connect(presence); presence.connect(this.master);
+    // bleeps: the voice passes a gate that closes on a bleeped word while a 1 kHz tone opens (lib/bleep.ts)
+    this.voiceGate = ctx.createGain();
+    voice.connect(presence); presence.connect(this.voiceGate); this.voiceGate.connect(this.master);
+    const tone = ctx.createOscillator(); tone.frequency.value = 1000;
+    this.toneGain = ctx.createGain(); this.toneGain.gain.value = 0;
+    tone.connect(this.toneGain); this.toneGain.connect(this.master); tone.start();
     for (const [i, s] of this.project.sources.entries()) {
       const mk = () => { const v = document.createElement("video"); v.playsInline = true; v.preload = "auto"; v.src = this.urls.get(s.mediaKey)!; return v; };
       const a = mk(), b = mk();
@@ -168,6 +179,7 @@ export class Player {
 
   private halt() {
     this.playing = false;
+    this.setBleep(false);
     cancelAnimationFrame(this.raf);
     this.cur?.pause();
     this.music?.pause();
@@ -205,6 +217,7 @@ export class Player {
     this.t = Math.min(t, this.tl.duration);
     this.syncLayers(this.t);
     this.mixMusic(this.t);
+    this.mixBleep(this.t);
     if (this.cur.readyState >= 2 && !this.cur.seeking)              // else hold the last frame: never flash black at a cut
       drawFrame(this.g, this.project, this.edit, this.scene, this.t, this.cur, this.tl.segments[this.seg].src,
         this.tl.segments[this.seg].start + (this.t - this.tl.segments[this.seg].outStart));
@@ -240,6 +253,18 @@ export class Player {
   }
 
   /** The song: a measured gap under the voice, dipping under words, lifting in pauses, plus word-anchored lifts. */
+  private mixBleep(t: number) {
+    this.setBleep(this.bleeps.some(([a, b]) => t >= a && t < b));
+  }
+
+  private setBleep(on: boolean) {
+    if (on === this.bleeping || !this.ctx || !this.voiceGate || !this.toneGain) return;
+    this.bleeping = on;
+    const now = this.ctx.currentTime;
+    this.voiceGate.gain.setTargetAtTime(on ? 0 : 1, now, 0.004);
+    this.toneGain.gain.setTargetAtTime(on ? 0.16 : 0, now, 0.004);
+  }
+
   private mixMusic(t: number) {
     if (!this.musicGain || !this.ctx) return;
     const e = this.edit;

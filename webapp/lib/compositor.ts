@@ -39,7 +39,7 @@ const boxedSize = (e: Edit) => e.captions.size * 0.56 * (U / 1080);
 export type Scene = { tl: Timeline; cues: Cue[]; layers: Layer[]; zooms: { s: number; e: number; scale: number }[]; cuts: number[]; emph: Set<string> };
 
 export function buildScene(p: Project, e: Edit, tl: Timeline, media: Map<string, HTMLImageElement | HTMLVideoElement>): Scene {
-  const cw = e.captions.enabled ? captionWords(tl.words, e.corrections) : [];
+  const cw = e.captions.enabled ? captionWords(tl.words, e.corrections, e.bleeps) : [];
   let cues = e.captions.preset === "boxed" ? boxedCues(cw, boxedChars(W, boxedSize(e))) : chunk(cw, e.captions.maxWords);
   if (e.captions.enabled && e.translation?.lines.length) {
     // translated subtitles: one cue per phrase, the whole line as one "word" (drawn wrapped, see drawCaptions)

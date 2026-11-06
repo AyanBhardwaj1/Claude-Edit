@@ -40,6 +40,13 @@ Shorts, YouTube all normalise near there; louder only gets turned down).
   ask for it, compose an original, royalty-free bed offline with `editor compose bed` (music-library skill),
   or generate one (`editor gen music`, ai-generate skill).
 
+## Bleeps
+On request only ("bleep the swearing", "make it brand safe"): EDL `"bleep": true` bleeps every strong swear word on the
+cut (the f-word, s-word, c-word, b-word, "asshole", "motherfucker"...; mild "damn", "hell", "crap" stay), or
+`"bleep": ["w12", "w40"]` bleeps those word ids (`editor words <work>`). The audio stage mutes the voice under a 1 kHz
+tone (word edges padded 30 ms) and the captions show "f***"; re-run from `audio` (and `captions`). Never bleep on
+your own: it changes what the speaker said. Cutmind has the same as a "Strong language" panel.
+
 ## Sound effects
 **Real recordings sound best**: put the user's own / licensed files (or ones made with
 `editor gen sfx "<prompt>" --type whoosh`, ai-generate skill) in `library/sfx/<type>/`, e.g.

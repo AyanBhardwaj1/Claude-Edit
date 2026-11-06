@@ -42,6 +42,10 @@ export function changeItems(p: Project, a: Edit, b: Edit): Change[] {
     if (back.length) add(`Brought back ${back.slice(0, 3).map((x) => q(x.text)).join(", ")}${back.length > 3 ? ` and ${back.length - 3} more` : ""}`, back[0].id);
     if (a.gapCap !== b.gapCap) add(`Pauses kept up to ${b.gapCap.toFixed(2)} s (was ${a.gapCap.toFixed(2)} s)`);
   }
+  const ba = new Set(a.bleeps ?? []), bb = new Set(b.bleeps ?? []);
+  const bleeped = [...bb].filter((x) => !ba.has(x) && tb.byId.has(x)), unbleeped = [...ba].filter((x) => !bb.has(x) && tb.byId.has(x));
+  if (bleeped.length) add(`Bleeped ${bleeped.length} word${bleeped.length > 1 ? "s" : ""}`, bleeped[0]);
+  if (unbleeped.length) add(`Unbleeped ${unbleeped.length} word${unbleeped.length > 1 ? "s" : ""}`, unbleeped[0]);
   const ca = a.captions, cb = b.captions;
   if (ca.enabled !== cb.enabled) add(cb.enabled ? "Subtitles on" : "Subtitles off");
   const capBits: string[] = [];
