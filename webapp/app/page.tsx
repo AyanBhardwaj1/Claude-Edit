@@ -20,6 +20,7 @@ const FEATURES = [
   { h: "Music under your voice", p: "It listens to your songs, picks one by mood, starts it a beat before the first hit, dips it under every word and lifts it in the pauses. No song? Make music composes an original one in your browser, in four moods, with a final chord that rings out as your video ends.", pic: "w180", frag: "music" },
   { h: "Your app, framed", p: "Record your screen right in Cutmind (it speeds through the loading waits), or drop in screenshots, and Cutmind recognises them: each one sits on a soft backdrop with rounded corners, pushes in slowly and punches in on the button you're talking about. On a reel it takes the top of the frame, above you, never over your face.", pic: "w240", frag: "screens" },
   { h: "Fast, or your best", p: "Pick Fast when you need it now, Balanced for the full edit, or Best quality for a second pass where your AI editor reviews its own cut like a senior editor. Each shows how long it takes on your computer, and the estimate learns from every video you make.", pic: "w180", frag: "speed" },
+  { h: "Notes, the way you'd give them", p: "Type or say what to change, like \u201cat 0:12, music down\u201d. Your editor finds those words, makes a new version and lists exactly what changed, measured, so you can trust it. Compare plays the version before from the same word, Undo takes you back, and a change you keep making becomes your style.", pic: "w240", frag: "notes" },
   { h: "One long video, five reels", p: "Drop in a podcast, a talk or a long take. Your AI editor reads all of it, ranks the moments that stand on their own and turns each into its own finished reel.", pic: "w320", frag: "clips" },
   { h: "Subtitles in 16 languages", p: "Translate the subtitles into Spanish, Hindi, Japanese and 13 more, line by line on the words they cover, then fix any line. A subtitle file comes with every export.", pic: "w180", frag: "lang" },
   { h: "A score before you post", p: "The reel check grades the hook, the pace, how often the picture changes, the length, the subtitles and the caption, out of 100, and says exactly what to fix.", pic: "w180", frag: "score" },
@@ -109,6 +110,9 @@ export default function Landing() {
                     <i className="btn" /><span className="ring" aria-hidden="true" /></div><div className="cap">tap Plan my walk</div></div>}
                   {f.frag === "speed" && <div className="frag-speed">{[["Fast", "about 1 min", ""], ["Balanced", "about 3 min", "on"], ["Best quality", "about 5 min", ""]].map(([n, t, on]) => (
                     <div key={n} className={`opt ${on}`}><i />{n}<em>{t} on this computer</em></div>))}</div>}
+                  {f.frag === "notes" && <div className="frag-notes"><div className="you">At 0:12, music down</div>
+                    <div className="ed"><b>Version 3</b><span><i aria-hidden="true">✓</i> Music turned down in 1 place</span></div>
+                    <div className="acts"><span className="on">Compare</span><span>Undo</span></div></div>}
                   {f.frag === "clips" && <div className="frag-clips">{[["9", "The 3 hour edit I quit", "0:48"], ["8", "Why intros lose viewers", "0:36"], ["7", "My Sunday batching day", "1:02"]].map(([sc, t, d]) => (
                     <div key={t} className="clip"><b>{sc}</b><span>{t}<em>{d} · ready to edit</em></span></div>))}</div>}
                   {f.frag === "lang" && <div className="frag-lang"><div className="c">THE ONE HABIT</div><div className="c es">EL ÚNICO HÁBITO</div><div className="c hi">एक आदत</div><div className="c ja">たった一つの習慣</div></div>}

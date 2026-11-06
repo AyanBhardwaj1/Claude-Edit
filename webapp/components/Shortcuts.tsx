@@ -9,6 +9,7 @@ export const SHORTCUTS: [string[], string][] = [
   [[",", "."], "One frame back or forward"],
   [["Home", "End"], "Jump to the start or the end"],
   [["N"], "Write a note to your editor"],
+  [["M"], "Say a note (M again to stop)"],
   [["C"], "Compare with the version before"],
   [["⌘ or Ctrl", "Z"], "Back to the previous version"],
   [["⌘ or Ctrl", "Shift", "Z"], "Forward to the next version"],
