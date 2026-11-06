@@ -147,6 +147,10 @@ def music_add(src: str, mood: str, tags: list[str] | None = None, title: str | N
         if not srcp.exists():
             raise EditorError(f"{src} not found")
         file = dest / srcp.name
+        k = 1
+        while file.exists() and file.resolve() != srcp.resolve():   # another song with that name: never overwrite it
+            file = dest / f"{srcp.stem}-{k}{srcp.suffix}"
+            k += 1
         if srcp.resolve() != file.resolve():
             shutil.copy2(srcp, file)
         title = title or srcp.stem
@@ -241,9 +245,12 @@ def broll_add(files: list[str], category: str, tags: list[str] | None = None, de
         if not src.exists():
             raise EditorError(f"{f} not found")
         target = dest / src.name
-        if target.exists() and target.resolve() != src.resolve():
-            target = dest / f"{src.stem}-{len(db['clips'])}{src.suffix}"
-        shutil.copy2(src, target)   # copy, never move: raw/ is read-only by rule
+        k = len(db["clips"])
+        while target.exists() and target.resolve() != src.resolve():
+            target = dest / f"{src.stem}-{k}{src.suffix}"
+            k += 1
+        if target.resolve() != src.resolve():          # re-indexing a file already in the library: nothing to copy
+            shutil.copy2(src, target)   # copy, never move: raw/ is read-only by rule
         info = probe(target)
         v = info.get("video", {})
         clip = {"id": _unique_id({c["id"] for c in db["clips"]}, _slug(src.stem)), "file": str(target.relative_to(ROOT)),

@@ -23,6 +23,9 @@ TONEMAP = ("zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709,tonemap=tone
 FADE = 0.03  # 30 ms audio fade at every cut: no pops (video-use hard rule), no audible dip
 
 
+
+LAST_CACHED = False
+
 def cut(edl_path: str | Path, out_dir: str | Path, transcript: str | Path | None = None) -> Path:
     edl_path = Path(edl_path)
     out_dir = Path(out_dir)
@@ -63,6 +66,8 @@ def cut(edl_path: str | Path, out_dir: str | Path, transcript: str | Path | None
     # one encode per distinct file: a range used twice (a cold open repeating a line) shares its cache file, and two
     # jobs writing it at once collided on the temp file
     todo = list({j[-1]: j for j in jobs if not j[-1].exists()}.values())
+    global LAST_CACHED
+    LAST_CACHED = not todo              # every segment reused: this run says nothing about how fast cutting is
     log(f"cut: {len(jobs)} segments ({len(jobs) - len(todo)} cached), {t:.2f}s at {fps} fps, {width}x{height}")
     workers = max(1, (os.cpu_count() or 2) // 2)
     with ThreadPoolExecutor(max_workers=workers) as pool:

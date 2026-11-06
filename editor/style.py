@@ -134,7 +134,10 @@ def observe(profile: dict, scope: str, key: str, value, signal: str, source: str
         votes[v] = round(votes.get(v, 0.0) + w, 4)
         pref["weight"] = round(sum(votes.values()), 4)
     else:
-        value = float(value)
+        try:
+            value = float(value)
+        except (TypeError, ValueError):
+            raise EditorError(f"{key} takes a number, not {value!r}") from None
         W = pref.get("weight", 0.0) * DECAY
         mean = pref.get("mean", value)
         pref["mean"] = round((mean * W + value * w) / (W + w), 4)

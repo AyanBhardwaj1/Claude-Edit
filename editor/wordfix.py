@@ -108,7 +108,10 @@ def _number_run(tokens: list[str], raws: list[str] | None = None) -> tuple[int, 
         i += 1
     if not used or (used < len(tokens) and tokens[used] == "point"):
         return None
-    return total + cur, used, False
+    value = total + cur
+    # "two thousand (and) twenty four" is a year: 2024, not 2,024
+    year = 2001 <= value <= 2099 and tokens[:2] == ["two", "thousand"] and used > 2
+    return value, used, year
 
 
 def _fmt(n: int) -> str:

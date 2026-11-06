@@ -40,3 +40,11 @@ test("boxed subtitle cues don't run into the next phrase either", async () => {
   const cues = boxedCues(cw, 40);
   assert.ok(cues.length >= 2 && cues[0].end <= cues[1].start);
 });
+
+test("spoken years and 'hundred and fifty' come out as people write them", () => {
+  const say = (t: string) => digits(t.split(" ").map((w, i) => ({ id: `w${i}`, text: w, os: i, oe: i + 0.5, seg: 0 }))).map((w) => w.text).join(" ");
+  assert.equal(say("in two thousand twenty four we"), "in 2024 we");
+  assert.equal(say("back in two thousand and nineteen"), "back in 2019");
+  assert.equal(say("two hundred and fifty people"), "250 people");
+  assert.equal(say("I paid two thousand dollars"), "I paid $2,000");
+});
