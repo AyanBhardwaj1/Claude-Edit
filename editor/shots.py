@@ -466,6 +466,25 @@ async def _run(spec: dict, out_dir: Path, record: bool, headed: bool) -> dict:
     return report
 
 
+# localhost, loopback and private-network addresses, and dev-server ports, in the visible text or a link
+DEV_PATTERN = (r"(localhost(:\d+)?|127\.0\.0\.1|0\.0\.0\.0|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+"
+               r"|\b[\w.-]+:(3000|3001|5173|5174|8000|8080|8787)\b)")
+DEV_TEXT_JS = """(pat) => {
+  const re = new RegExp(pat, 'gi'), hits = new Set();
+  const inView = (el) => { const r = el.getBoundingClientRect();
+    return r.width > 0 && r.height > 0 && r.bottom > 0 && r.right > 0 && r.top < innerHeight && r.left < innerWidth; };
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+    const t = n.nodeValue; if (!t || !n.parentElement || !inView(n.parentElement)) continue;
+    for (const m of t.matchAll(re)) hits.add(m[0]);
+  }
+  for (const el of document.querySelectorAll('input,textarea')) {
+    if (inView(el)) for (const m of String(el.value || '').matchAll(re)) hits.add(m[0]);
+  }
+  return [...hits].slice(0, 10);
+}"""
+
+
 async def _one_shot(s, spec, page, cdp, js, guard, out_dir, rec, t_start) -> dict:
     name = s["name"]
     t0 = time.monotonic()
@@ -571,6 +590,15 @@ async def _one_shot(s, spec, page, cdp, js, guard, out_dir, rec, t_start) -> dic
             log(f"shots: {name}: read {json.dumps(entry['read'])[:200]}")
         except Exception as e:  # noqa: BLE001
             entry["failed"].append({"action": "read", "error": type(e).__name__})
+
+    try:   # dev addresses visible on the page would end up in the video: flag them (blur, or capture the live site)
+        found = await guard(page.evaluate(DEV_TEXT_JS, DEV_PATTERN), 15)
+        if found:
+            entry["dev_text"] = found
+            log(f"shots: {name}: WARNING dev address on screen: {', '.join(found[:3])} "
+                "(blur it in the still, or capture the deployed site)")
+    except Exception:  # noqa: BLE001 - a busy page only skips the check
+        pass
 
     shot = s.get("shot", True)
     if shot:

@@ -18,11 +18,13 @@ Check, in this order, with timecodes:
 1. The first 3 seconds: would a judge keep watching? Is the problem clear without sound?
 2. The brief's hard rules: length cap, numbers exactly as given, honest labels on AI/model moments and scripted
    demos, captions on every spoken line, no spinner on screen > 1 s, competitors shown neutrally.
-3. Readability: every caption, tag, number and card readable at phone size; nothing over a face; nothing cut off
+3. Leaks: localhost / 127.0.0.1 / private IPs / dev ports, other people's personal data, API keys, test
+   accounts on screen.
+4. Readability: every caption, tag, number and card readable at phone size; nothing over a face; nothing cut off
    by the frame; no two graphics fighting for the same spot.
-4. Pacing: any shot held with nothing new for > 5 s; any demo beat where the viewer can't tell what to look at.
-5. Story: does each segment earn its time? What would you cut to make it 10% shorter and better?
-6. Polish: grade consistency within a scene, jumpy Ken Burns, punch-ins landing late, end card legibility.
+5. Pacing: any shot held with nothing new for > 5 s; any demo beat where the viewer can't tell what to look at.
+6. Story: does each segment earn its time? What would you cut to make it 10% shorter and better?
+7. Polish: grade consistency within a scene, jumpy Ken Burns, punch-ins landing late, end card legibility.
 
 Answer with:
 - a one-line verdict (would this win, place, or not, and why)

@@ -205,3 +205,14 @@ def test_stills_from_choppy_recording(tmp_path):
                           "--max", "3"], cwd=ROOT, capture_output=True, text=True)
     assert cli.returncode == 0, cli.stderr
     assert len(list((tmp_path / "cli").glob("still_*.png"))) == 3
+
+
+@needs_chromium
+def test_dev_addresses_on_screen_are_flagged(tmp_path):
+    page = tmp_path / "letter.html"
+    page.write_text("<html><body style='font:20px sans-serif'><p>See it planted: "
+                    "http://localhost:5173/demo?plant=Robert</p><p style='margin-top:3000px'>192.168.0.9 below the fold"
+                    "</p><input value='walk-free.vercel.app'></body></html>")
+    report = shots.shots({"base": tmp_path.as_uri() + "/", "gl": "off", "settle": 0.5,
+                          "shots": [{"name": "letter", "url": "letter.html", "wait": 1}]}, tmp_path / "out")
+    assert report["shots"][0]["dev_text"] == ["localhost:5173"]       # only what's in view, only dev addresses
