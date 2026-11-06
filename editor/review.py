@@ -202,10 +202,8 @@ def stronger_opening(words: list[dict]) -> str | None:
             f'a cold open? (editor coldopen <work>)') if best else None
 
 
-def strongest_line(words: list[dict]) -> dict | None:
-    """A later line that grips more than the one the cut opens with (a number, a strong word, "you", a question,
-    short), as a cold-open suggestion; lines that lean on what came before ("Step two", "Then") never count. The
-    same rule as Cutmind's lib/coldopen.ts."""
+def spoken_lines(words: list[dict]) -> list[list[dict]]:
+    """The cut's spoken lines: split at sentence ends and pauses over 0.7 s (as Cutmind's sentences())."""
     lines, cur, prev = [], [], None
     for w in words:
         t = str(w.get("text", "")).strip()
@@ -221,20 +219,31 @@ def strongest_line(words: list[dict]) -> dict | None:
             cur = []
     if cur:
         lines.append(cur)
+    return lines
 
-    def score(line: list[dict]) -> tuple[int, list[str]]:
-        text = " ".join(str(w["text"]).strip() for w in line)
-        why, sc = [], 0
-        if _NUMBER.search(text):
-            sc, why = sc + 2, why + ["a number"]
-        strong = next((x for x in re.sub(r"[^a-z' ]", " ", text.lower()).split() if x in _STRONG), None)
-        if strong:
-            sc, why = sc + 2, why + [f'a strong word ("{strong}")']
-        if re.search(r"\byou(r|'re|'ll)?\b", text, re.I):
-            sc, why = sc + 1, why + ['it talks to "you"']
-        if re.search(r"\?[\"')]*$", text):
-            sc, why = sc + 1, why + ["a question"]
-        return sc + (1 if len(line) <= 12 else 0), why
+
+def grip(line: list[dict]) -> tuple[int, list[str]]:
+    """How much a line grips (the cold open's rules): a number, a strong word, "you", a question, short."""
+    text = " ".join(str(w["text"]).strip() for w in line)
+    why, sc = [], 0
+    if _NUMBER.search(text):
+        sc, why = sc + 2, why + ["a number"]
+    strong = next((x for x in re.sub(r"[^a-z' ]", " ", text.lower()).split() if x in _STRONG), None)
+    if strong:
+        sc, why = sc + 2, why + [f'a strong word ("{strong}")']
+    if re.search(r"\byou(r|'re|'ll)?\b", text, re.I):
+        sc, why = sc + 1, why + ['it talks to "you"']
+    if re.search(r"\?[\"')]*$", text):
+        sc, why = sc + 1, why + ["a question"]
+    return sc + (1 if len(line) <= 12 else 0), why
+
+
+def strongest_line(words: list[dict]) -> dict | None:
+    """A later line that grips more than the one the cut opens with (a number, a strong word, "you", a question,
+    short), as a cold-open suggestion; lines that lean on what came before ("Step two", "Then") never count. The
+    same rule as Cutmind's lib/coldopen.ts."""
+    lines = spoken_lines(words)
+    score = grip
     if len(lines) < 2:
         return None
     opener, _ = score(lines[0])
@@ -265,6 +274,19 @@ def _strong(words: list[dict], edl: dict) -> str | None:
         return None
     first = ", ".join(f"{mask(str(w['text']).strip())} at {float(w['start']):.1f}s" for w in said[:3])
     return f"{len(said)} strong word(s) ({first}): if the user wants it brand-safe, EDL \"bleep\": true"
+
+
+def _habits(words: list[dict]) -> str | None:
+    """Words said out of habit in the cut (two or more): "basically" x3, "you know" x1. Cutting them is the user's
+    call (editor habits)."""
+    from .habits import find
+    out = [{**w, "src": 0} for w in words if "start" in w and "end" in w]
+    found = find(out, [{"src": 0, "start": float("-inf"), "end": float("inf")}])
+    total = sum(len(f["hits"]) for f in found)
+    if total < 2:
+        return None
+    said = ", ".join(f'"{f["name"]}" x{len(f["hits"])}' for f in found[:4])
+    return f"{said}: offer to cut them (editor habits <work> --only ... --apply)"
 
 
 def stillness_zooms(gaps: list[str], words: list[dict], every: float = 6.0, limit: int | None = None) -> list[dict]:
@@ -413,5 +435,5 @@ def pacing(edl: dict, words: list[dict], duration: float, cuts: list[float] | No
             "visuals_under_1_2s": too_short, "named_not_shown": names[:20],
             "broll_moments": None if len(broll) >= want else f"{len(broll)} (hand edits carry about {round(duration / 6)})",
             "first_word_after_0_6s": late, "no_hook_title": None if has_title else "nothing to read in the first second",
-            "strong_language": _strong(words, edl),
+            "strong_language": _strong(words, edl), "habit_words": _habits(words),
             "opens_with_warm_up": warm, "stronger_line_for_a_cold_open": stronger_opening(words), "hook_too_quick_to_read": quick, "loop_seam": loop}

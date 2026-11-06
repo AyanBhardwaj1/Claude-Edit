@@ -146,6 +146,8 @@ p { margin: 0; text-wrap: pretty; }
   font-size: 13px; cursor: pointer; transition: background-color .15s ease, color .15s ease; }
 .takes { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 10px; }
 .take-text { margin: 4px 2px 0; overflow-wrap: anywhere; }
+.fit-plan { display: grid; gap: 8px; justify-items: start; margin-top: 8px; }
+.fit-drop { margin: 0; padding-left: 18px; display: grid; gap: 4px; overflow-wrap: anywhere; }
 .seg button:hover { color: var(--ink); }
 .seg button[aria-pressed="true"] { background: var(--bg); color: var(--ink); box-shadow: 0 1px 2px #0000001f; }
 [data-theme="terminal"] .seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); box-shadow: none; }

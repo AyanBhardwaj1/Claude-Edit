@@ -47,6 +47,7 @@ import { namedNotShown, type Name } from "@/lib/names";
 import { chapterMarks, chapterText, chapterTitles, type Chapter } from "@/lib/chapters";
 import { findPicture, webKey } from "@/lib/images";
 import { maskWord } from "@/lib/text";
+import { crutches } from "@/lib/crutch";
 import { cutWarmUp, LOOP_HEAD, LOOP_TAIL, loopCheck, SCROLL_SECONDS, scrollTest, type ScrollLine } from "@/lib/scrolltest";
 import { clearPosition, PLATFORM_NAMES, subtitlesCovered, ZONES, type Platform } from "@/lib/safezones";
 import { Shortcuts } from "./Shortcuts";
@@ -706,6 +707,8 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
                       ...(names.length ? [[false, `${names.length} name${names.length > 1 ? "s" : ""} said, not shown`] as [boolean, string]] : []),
                       ...(swore.length ? [[swore.every((x) => bleeped.has(x.id)), swore.every((x) => bleeped.has(x.id)) ? "Strong language bleeped" : `${swore.length} strong word${swore.length > 1 ? "s" : ""}, not bleeped`] as [boolean, string]] : []),
                     ];
+                    const habit = crutches(p, version.edit.keep).reduce((n, c) => n + c.hits.length, 0);
+                    if (habit >= 2) items.push([false, `${habit} words said out of habit (Edit it myself → Cut)`]);
                     const todo = items.filter(([ok]) => !ok).length;
                     // the fixes that don't change what is said or shown (lib/autofix.ts); bleeps, logos, the cold open stay yours
                     const fix = todo ? fixWhatICan(p, version.edit, fmt === "9:16") : null;

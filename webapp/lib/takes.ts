@@ -1,6 +1,7 @@
 // Pick a take: for each line said more than once (the analysis's retake groups), which take plays now, and a cut
 // that plays another one in its place. The cut's order is kept: the new take plays where the old one did.
 import { FILLERS } from "./analyze";
+import { isSwear } from "./bleep";
 import { bare } from "./text";
 import { indexOf } from "./timeline";
 import type { Edit, Project, Range, RetakeGroup } from "./types";
@@ -107,5 +108,12 @@ export function pickTake(p: Project, e: Edit, line: TakeLine, n: number): Edit {
   next.translation?.lines.forEach((l) => fix(l));
   next.chapters?.forEach((c) => { c.from = move(c.from); });
   if (next.cover.word) next.cover.word = move(next.cover.word);
+  // a bleep on the old take: the new take's swears are bleeped too (they can sit anywhere in it)
+  const bleeped = new Set(e.bleeps ?? []);
+  const oldBleep = olds.some(([a, b]) => p.words.slice(a, b + 1).some((w) => bleeped.has(w.id)));
+  if (oldBleep) {
+    const add = p.words.slice(na, nb + 1).filter((w) => isSwear(w.w)).map((w) => w.id);
+    next.bleeps = [...new Set([...(e.bleeps ?? []), ...add])];
+  }
   return next;
 }

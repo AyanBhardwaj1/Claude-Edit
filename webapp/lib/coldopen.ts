@@ -13,7 +13,7 @@ const STRONG = ["never", "always", "only", "biggest", "best", "worst", "mistake"
   "everyone", "free", "wrong", "truth", "problem", "hack", "quit", "fired", "broke", "lost", "doubled", "tripled", "nothing"];
 
 /** The spoken sentences of the edited reel (output order), split at sentence ends and long pauses. */
-function sentences(tl: Timeline): { ids: string[]; text: string; at: number }[] {
+export function sentences(tl: Timeline): { ids: string[]; text: string; at: number }[] {
   const out: { ids: string[]; text: string; at: number }[] = [];
   let cur: typeof out[number] | null = null, prevEnd = 0;
   for (const w of tl.words) {
@@ -31,19 +31,25 @@ function sentences(tl: Timeline): { ids: string[]; text: string; at: number }[] 
 // a line that leans on what came before ("Step two", "Then", "And so") makes no sense as the first thing said
 const LEANS = /^(step|tip|part|number|first(ly)?|second(ly)?|third(ly)?|next|then|and|but|so|also|finally|plus|or|because|which|that|this|it|he|she|they|same|another)\b/i;
 
+/** How much a sentence grips (the cold open's rules): a number, a strong word, "you", a question, short. */
+export function grip(text: string, words: number): { score: number; why: string[] } {
+  const why: string[] = [];
+  let score = 0;
+  if (NUMBER.test(text)) { score += 2; why.push("a number"); }
+  const strong = text.toLowerCase().replace(/[^a-z' ]/g, " ").split(/\s+/).find((x) => STRONG.includes(x));
+  if (strong) { score += 2; why.push(`a strong word (“${strong}”)`); }
+  if (/\byou(r|'re|'ll)?\b/i.test(text)) { score += 1; why.push("it talks to “you”"); }
+  if (/\?["')]*$/.test(text)) { score += 1; why.push("a question"); }
+  if (words <= 12) score += 1;
+  return { score, why };
+}
+
 export function strongestLine(tl: Timeline): Line | null {
   let best: Line | null = null, opener = 0;
   sentences(tl).forEach((s, k) => {
     const n = s.ids.length;
     if (k > 0 && (n < 4 || n > 16 || LEANS.test(s.text.replace(/^[^a-z]+/i, "")))) return;
-    const why: string[] = [];
-    let score = 0;
-    if (NUMBER.test(s.text)) { score += 2; why.push("a number"); }
-    const strong = s.text.toLowerCase().replace(/[^a-z' ]/g, " ").split(/\s+/).find((x) => STRONG.includes(x));
-    if (strong) { score += 2; why.push(`a strong word (“${strong}”)`); }
-    if (/\byou(r|'re|'ll)?\b/i.test(s.text)) { score += 1; why.push("it talks to “you”"); }
-    if (/\?["')]*$/.test(s.text)) { score += 1; why.push("a question"); }
-    if (n <= 12) score += 1;
+    const { score, why } = grip(s.text, n);
     if (k === 0) { opener = score; return; }               // what already opens the reel
     if (score >= 3 && (!best || score > best.score)) best = { ...s, score, why };
   });

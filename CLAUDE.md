@@ -16,6 +16,9 @@ Claude makes the editorial calls and checks the result visually.
 - Anchor everything on words (`"on": "twenty bucks"` / `"words": "w44-w49"`, `editor words <work>`), name a
   treatment for face-aware b-roll (card-above-head, side-card, phone-card, split-top, full-frame, text-pop,
   post-wall, icon-wall), draft with `--draft`, check `editor pacing`, save each note as `editor version --note`.
+- Rough-cut tools (all list first, write only with `--apply`, then re-run from `cut`): `editor takes` (play another
+  take of a line), `editor habits` (basically / "you know," …), `editor fit --under 60` (lines that grip least),
+  `editor coldopen` (open on the strongest line). Editorial calls: offer them.
 - Every `auto` check ends with **before you post** (`out/before_post.json`): start there. Safe fixes the CLI makes
   itself: `editor pacing --fix` (zooms in bare-face stretches), `editor names --logos --apply` (logos for apps and
   brands said but never shown). The user's calls, offered never applied unasked: a cold open (pacing names the

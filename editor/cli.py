@@ -263,6 +263,11 @@ def main(argv=None):
     p.add_argument("--only", help="cut only these, comma-separated (e.g. basically,you know)")
     p.add_argument("--apply", action="store_true", help="cut them from edl.json's segments; re-run from cut")
 
+    p = sub.add_parser("fit", help="fit the cut to a length: cut the lines that grip least (hook and ending stay)")
+    p.add_argument("work_dir")
+    p.add_argument("--under", type=float, required=True, help="seconds, e.g. 60")
+    p.add_argument("--apply", action="store_true", help="write the segments to edl.json; re-run from cut")
+
     p = sub.add_parser("triage", help="classify raw/ clips: a-roll (founder-to-camera) vs reusable / one-off b-roll")
     p.add_argument("project")
 
@@ -1063,6 +1068,33 @@ def cmd_habits(args):
     after = sum(s["end"] - s["start"] for s in edl["segments"])
     save_json(edl_path, edl)
     log(f"habits: cut {sum(len(f['hits']) for f in found)} ({before - after:.1f} s) from {edl_path}: re-run from cut")
+    return 0
+
+
+def cmd_fit(args):
+    """Fit to a length: list the lines that grip least until the cut fits (--apply cuts them)."""
+    from .anchors import load_words
+    from .fit import plan_fit
+    work = Path(args.work_dir)
+    edl_path = work / "edl.json"
+    edl = load_json(edl_path)
+    plan = plan_fit(edl, load_words(work), load_json(work / "transcript.json")["words"], args.under)
+    if not plan["drop"]:
+        print(f"it's {plan['now']:.1f} s: " + ("already under that" if plan["reached"] else
+              "no line can go (the hook, the ending, list items and three lines stay): re-plan with a smaller --max-gap, "
+              "or --speed 1.1, or pick a line to cut yourself"))
+        return 0
+    print(f"{plan['now']:.1f} s -> {plan['after']:.1f} s by cutting the {'lines that grip' if len(plan['drop']) > 1 else 'line that grips'} least:")
+    for d in plan["drop"]:
+        print(f"  {fmt_ts(d['start'])} ({d['seconds']:.1f} s, {d['ids']}) {d['text'][:80]!r}")
+    if not plan["reached"]:
+        print("  still over: hook, ending and three lines stay. A smaller --max-gap or --speed 1.1 can do the rest.")
+    if args.apply:
+        edl["segments"] = plan["segments"]
+        save_json(edl_path, edl)
+        log(f"fit: {edl_path} updated: re-run from cut; anything placed by seconds may need moving")
+    else:
+        print("cut them: editor fit <work> --under N --apply (it's an editorial call: offer it)")
     return 0
 
 

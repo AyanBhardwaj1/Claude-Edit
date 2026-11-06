@@ -304,3 +304,59 @@ def test_habits_found_in_safe_forms_and_cut(tmp_path, capsys):
     out = json.loads((work / "edl.json").read_text())["segments"]
     # "basically," is 0.4-0.7: cut from the middle of each pause around it
     assert [(s["start"], s["end"]) for s in out] == [(0.0, 0.35), (0.75, 12.0)]
+
+
+def test_fit_cuts_the_least_gripping_lines_never_hook_ending_or_list(tmp_path, capsys):
+    import json
+    from editor.cli import main
+    lines = ["I lost 4000 dollars on one bad habit.", "It was a normal week at the office and nothing much happened at all.",
+             "The first one is batching your posts.", "The weather was fine and the coffee was fine too and so on.",
+             "Here is the secret you need to know.", "Follow for part two."]
+    tr, t = [], 0.0
+    for line in lines:
+        for w in line.split():
+            tr.append({"src": 0, "start": round(t, 3), "end": round(t + 0.4, 3), "text": w})
+            t += 0.5
+        t += 0.35
+    work = tmp_path / "w"
+    work.mkdir()
+    (work / "transcript.json").write_text(json.dumps({"words": tr}))
+    (work / "cut_words.json").write_text(json.dumps({"words": [{"id": f"w{i}", **w} for i, w in enumerate(tr)]}))
+    (work / "edl.json").write_text(json.dumps({"segments": [{"src": 0, "start": 0.0, "end": round(t, 3)}]}))
+    assert main(["fit", str(work), "--under", "22", "--apply"]) == 0
+    out = capsys.readouterr().out
+    assert "normal week" in out and "weather" in out and "first one" not in out and "secret" not in out
+    segs = json.loads((work / "edl.json").read_text())["segments"]
+    assert sum(s["end"] - s["start"] for s in segs) <= 22.05
+    kept = [w["text"] for w in tr if any(s["start"] <= (w["start"] + w["end"]) / 2 <= s["end"] for s in segs)]
+    assert kept[:3] == ["I", "lost", "4000"] and kept[-1] == "two." and "batching" in kept and "secret" in kept
+    # run again before re-cutting (cut_words.json is stale): lines already cut aren't proposed again
+    assert main(["fit", str(work), "--under", "5"]) == 0
+    out = capsys.readouterr().out
+    assert "normal week" not in out and "weather" not in out and "still over" in out
+
+
+def test_pacing_reports_habit_words_from_two():
+    from editor.review import _habits
+    say = lambda text: [{"id": f"w{i}", "text": t, "start": i * 0.4, "end": i * 0.4 + 0.3} for i, t in enumerate(text.split())]  # noqa: E731
+    assert _habits(say("It is basically done, you know, and it works.")) == \
+        '"basically" x1, "you know" x1: offer to cut them (editor habits <work> --only ... --apply)'
+    assert _habits(say("It is basically done and it works.")) is None
+
+
+def test_fit_cuts_a_line_whole_and_honours_segment_speed():
+    from editor.fit import _duration, plan_fit
+    lines = ["I lost 4000 dollars on one bad habit.", "The weather was fine and calm.", "Here is the secret you need to know.",
+             "Batch your posts and you will never miss a day.", "Follow for part two."]
+    tr, t = [], 0.0
+    for k, line in enumerate(lines):
+        for w in line.split():
+            tr.append({"src": 0, "start": round(t, 3), "end": round(t + 0.4, 3), "text": w})
+            t += 0.95 if k == 1 else 0.5                # 0.55 s pauses inside the weather line
+        t += 0.35
+    cut_words = [{"id": f"w{i}", **w} for i, w in enumerate(tr)]
+    edl = {"segments": [{"src": 0, "start": 0.0, "end": round(t, 3)}]}
+    plan = plan_fit(edl, cut_words, tr, _duration(edl["segments"]) - 3)
+    assert [d["text"] for d in plan["drop"]] == ["The weather was fine and calm."]
+    assert len(plan["segments"]) == 2                    # one cut for the line: no silent slivers left inside it
+    assert _duration([{"start": 0, "end": 2, "speed": 2.0}, {"start": 2, "end": 4}], 1.0) == 3.0

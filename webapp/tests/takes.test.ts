@@ -73,3 +73,14 @@ test("what's placed on the line moves to the picked take: the hook title still s
   assert.ok(spanOf(tl, next.broll[0].anchor), "the hook title has a place in the new cut");
   assert.notEqual(e.broll[0].anchor.from, next.broll[0].anchor.from);   // the old edit is untouched
 });
+
+test("a bleep on the old take bleeps the swear in the picked one", () => {
+  const ws = [..."so this shit is the best way to edit.".split(" "), ..."this shit is the best way to edit a reel.".split(" ")]
+    .map((w, i) => ({ id: `w${i}`, src: 0, s: i < 9 ? i * 0.4 : 5 + (i - 9) * 0.4, e: (i < 9 ? i * 0.4 : 5 + (i - 9) * 0.4) + 0.3, w }));
+  const p = { id: "p", words: ws, library: [], versions: [], sources: [{ id: 0, name: "a", mediaKey: "k", duration: 12, width: 1080, height: 1920 }],
+    analysis: analyze(ws) } as unknown as Project;
+  const e = { ...defaultEdit(p), keep: p.analysis!.defaultKeep, bleeps: ["w10"] };
+  const L = takeLines(p, e.keep)[0];
+  const next = pickTake(p, e, L, 0);
+  assert.ok(next.bleeps!.includes("w2"), JSON.stringify(next.bleeps));
+});

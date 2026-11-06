@@ -34,8 +34,19 @@ export function crutches(p: Project, keep: Range[]): Crutch[] {
 /** The cut without these words, in the same order. */
 export function cutWords(p: Project, keep: Range[], ids: string[]): Range[] {
   const idx = indexOf(p.words);
-  const out = new Set(ids.map((id) => idx.get(id)));
-  return ranges(p, played(p, keep, idx).filter((i) => !out.has(i)));
+  return ranges(p, played(p, keep, idx).filter((i) => !withBlanks(p, ids.map((id) => idx.get(id))).has(i)));
+}
+
+/** These word indices and the blank words after each: a pasted script's word can hold the sound of the empty words
+ *  that follow it (lib/retext.ts), so they're cut and brought back with it, as clicking the word does. */
+function withBlanks(p: Project, at: (number | undefined)[]): Set<number> {
+  const out = new Set<number>();
+  for (const i of at) {
+    if (i == null) continue;
+    out.add(i);
+    for (let j = i + 1; j < p.words.length && !p.words[j].w.trim() && p.words[j].src === p.words[i].src; j++) out.add(j);
+  }
+  return out;
 }
 
 /** Every place the words of `query` are said, in order (its last word may be the start of one: "sub" finds
@@ -62,13 +73,23 @@ export function findWords(p: Project, query: string): string[][] {
 export function restoreWords(p: Project, keep: Range[], ids: string[]): Range[] {
   const idx = indexOf(p.words);
   const seq = played(p, keep, idx);
-  const add = [...new Set(ids.map((id) => idx.get(id)).filter((i): i is number => i != null))].sort((a, b) => a - b);
+  const on = new Set(seq);
+  const add = [...withBlanks(p, ids.map((id) => idx.get(id)))].filter((i) => !on.has(i)).sort((a, b) => a - b);
+  // whole runs of consecutive words go back together, next to the word said before or after the run
+  const runs: number[][] = [];
   for (const i of add) {
-    if (seq.includes(i)) continue;
-    const before = seq.indexOf(i - 1), after = seq.indexOf(i + 1);
-    if (before >= 0 && p.words[i - 1].src === p.words[i].src) seq.splice(before + 1, 0, i);
-    else if (after >= 0 && p.words[i + 1].src === p.words[i].src) seq.splice(after, 0, i);
-    else { const at = seq.findIndex((x) => x > i); seq.splice(at < 0 ? seq.length : at, 0, i); }
+    const r = runs[runs.length - 1];
+    if (r && r[r.length - 1] === i - 1 && p.words[i - 1].src === p.words[i].src) r.push(i); else runs.push([i]);
+  }
+  for (const r of runs) {
+    const a = r[0], b = r[r.length - 1];
+    const before = a > 0 && p.words[a - 1].src === p.words[a].src ? seq.indexOf(a - 1) : -1;
+    const after = b + 1 < p.words.length && p.words[b + 1].src === p.words[b].src ? seq.indexOf(b + 1) : -1;
+    let at: number;
+    if (before >= 0) at = before + 1;
+    else if (after >= 0) at = after;
+    else { at = seq.findIndex((x) => x > b); if (at < 0) at = seq.length; }
+    seq.splice(at, 0, ...r);
   }
   return ranges(p, seq);
 }
