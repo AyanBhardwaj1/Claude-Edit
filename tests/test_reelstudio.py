@@ -215,6 +215,11 @@ def test_pacing_checks():
     assert "of nothing after the last word" in rep["loop_seam"]            # the words end long before 30 s
     end = ws[-1]["end"]
     assert pacing(edl, ws, end + 0.3)["loop_seam"] is None
+    from editor.review import punch_cuts
+    meta = {"timeline": [{"start": 0.0}, {"start": 4.0}, {"start": 8.5}]}
+    assert punch_cuts({"auto_punch_in": 1.0}, meta) == [] and punch_cuts({"auto_punch_in": 1.12}, meta) == [4.0, 8.5]
+    cut = pacing({"broll": [], "zooms": []}, ws, 12.0, punch_cuts({"auto_punch_in": 1.12}, meta))
+    assert cut["face_only_over_4_5s"] == []                                # a punch-in every 4-4.5 s keeps it moving
     bye = words("here is the trick thanks for watching")
     assert "sign-off" in pacing(edl, bye, bye[-1]["end"] + 0.2)["loop_seam"]
 

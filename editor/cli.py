@@ -739,11 +739,11 @@ def cmd_attach(args):
 
 def cmd_pacing(args):
     from .anchors import load_words, resolve_work
-    from .review import pacing
+    from .review import pacing, punch_cuts
     work = Path(args.work_dir)
     meta = load_json(work / "cut_meta.json")
     edl = resolve_work(load_json(meta["edl"]), work)
-    rep = pacing(edl, load_words(work), meta["duration"])
+    rep = pacing(edl, load_words(work), meta["duration"], punch_cuts(edl, meta))
     for k, v in rep.items():
         print(f"{'!!' if v else 'ok'}  {k}: {v if v else '-'}")
 
