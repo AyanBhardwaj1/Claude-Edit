@@ -106,7 +106,7 @@ vertical reel with a cover and a post caption, then change it by typing notes. E
 29. **Scroll test**: plays the first 3 seconds with the sound off, the way most people meet a reel, then says what a
     scroller got from them: a hook on screen, words to read, the picture moving, an opening that is the point, each
     with its fix (`lib/scrolltest.ts`). The speakers are muted; an export keeps its sound. **Loop test** plays the last
-    2.5 seconds straight into the first 2, as the apps replay a reel, and flags dead air or a sign-off at the end.
+    2.5 seconds straight into the first 2, as the apps replay a reel, and flags dead air or a goodbye at the end (a call to action like "follow for more" is a choice, not flagged).
     Findings fix in one click where they can: **Cut “so um”** removes a warm-up opener (moving anything anchored
     there, like the hook title, onto the new first word), **Add a zoom there** moves a still opening, **Turn subtitles
     on**. Keys: T runs the scroll test, L the loop test.

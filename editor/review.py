@@ -304,7 +304,7 @@ def pacing(edl: dict, words: list[dict], duration: float, cuts: list[float] | No
     spoken = [w for w in words if str(w.get("text", "")).strip()]
     air = duration - float(spoken[-1]["end"]) if spoken else 0.0
     tail = " ".join(str(w["text"]).strip() for w in spoken if float(w["start"]) >= duration - 3)
-    bye = re.search(r"\b(bye|see you|thanks for watching|that's it|peace|follow for more|subscribe)\b", tail, re.I)
+    bye = re.search(r"\b(bye|see you|thanks for watching|that's it|peace out)\b", tail, re.I)   # a CTA is a choice
     loop = (f"ends on \"{bye.group(0)}\": a sign-off tells people to swipe instead of watching again" if bye else
             f"{air:.1f}s of nothing after the last word before it replays" if air > 0.6 else None)
     return {"face_only_over_4_5s": gaps, "zooms_only_over_10s": zoom_only,
