@@ -116,7 +116,8 @@ at that moment, so you change the right entry. Then change the spec (the smalles
 caption), check just that stretch with
 `editor produce produce.json --range d7b d7c.end` (720p, seconds: only changed pieces and that stretch's overlay
 render), then re-render with
-`editor produce produce.json --preview --note "<the user's note>"` (only changed pieces re-render; each note is
+`editor produce produce.json --preview --note "<the user's note>"` (only changed pieces re-render, and a sound-only
+note (a level, a dip, a new bed) keeps the encoded picture and swaps in the new mix: seconds, not minutes; each note is
 saved as out/versions/<name>.vN.mp4 with the spec and a line in project.md; `--versions` lists them). Before
 rendering, `--changes` lists what the spec edit changed since the last version, in plain words, and which stages
 re-render: check it touched only what the note asked, and use its lines to tell the user what changed. Record any

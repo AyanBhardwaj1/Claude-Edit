@@ -833,14 +833,16 @@ def estimate(spec: Spec, effort: str = "standard") -> dict:
     plan = _overlay_plan(spec)
     ov_media = spec.total if plan and not plan[1].exists() else 0.0
     stages, learned = {}, 0
+    remux = _same_picture(spec, e)
     for st, media in (("pieces", todo_media), ("overlay", ov_media), ("mix", spec.total), ("composite", spec.total)):
         r, was = eff.rate(st, e, data)
-        stages[st] = round(r * media / 60.0, 1)
+        stages[st] = round(r * media / 60.0, 1) if not (st == "composite" and remux) else 3.0
         learned += was
     if e != "rush":
         stages["review"] = 60.0                       # contact sheets and checks, about a minute (effort.md)
     return {"effort": e, "stages": stages, "seconds": round(sum(stages.values()), 1), "learned": learned,
-            "pieces_to_render": [pc["name"] for pc in todo], "overlay_cached": bool(plan) and not ov_media}
+            "pieces_to_render": [pc["name"] for pc in todo], "overlay_cached": bool(plan) and not ov_media,
+            "remux": remux}
 
 
 def overlay(spec: Spec, jobs: int = 3, span: tuple[float, float] | None = None) -> Path | None:
@@ -1026,19 +1028,48 @@ def _loudnorm(src: Path, out: Path, lufs: float, tp: float, total: float | None 
 ENCODE = {"rush": "veryfast", "standard": "veryfast", "polish": "slow"}    # final composite x264 preset by effort
 
 
+def _picture_key(spec: Spec, ov: Path | None, effort: str) -> str:
+    """The final picture as content: the pieces, how they join, the overlay, the encode settings."""
+    o = spec.data.get("output", {})
+    return _hash([_piece_key(spec, pc) for pc in spec.pieces], [pc.get("transition") for pc in spec.pieces],
+                 ov.name if ov else None, spec.w, spec.h, spec.fps, round(spec.total, 3), o.get("bitrate", "16M"),
+                 o.get("preset", ENCODE.get(effort, "veryfast")), {k: o.get(k) for k in ("maxrate", "bufsize")})
+
+
+def _same_picture(spec: Spec, effort: str) -> bool:
+    plan = _overlay_plan(spec)
+    stamp = spec.file.with_name(spec.file.name + ".picture")
+    return spec.file.exists() and stamp.exists() and stamp.read_text() == _picture_key(spec, plan[1] if plan else None,
+                                                                                         effort)
+
+
 def composite(spec: Spec, base: Path, ov: Path | None, audio: Path, out: Path | None = None,
               effort: str = "standard") -> Path:
     o = spec.data.get("output", {})
     out = out or spec.file
     out.parent.mkdir(parents=True, exist_ok=True)
     br = o.get("bitrate", "16M")
+    preset = o.get("preset", ENCODE.get(effort, "veryfast"))
+    # Same picture as last time (an audio-only note: a level, a dip, a new bed) -> keep the encoded video and swap in
+    # the new mix (seconds, not minutes)
+    picture = _picture_key(spec, ov, effort)
+    stamp = out.with_name(out.name + ".picture")
+    if out.exists() and stamp.exists() and stamp.read_text() == picture:
+        tmp = out.with_name(out.stem + ".remux" + out.suffix)
+        run(["ffmpeg", "-y", "-i", str(out), "-i", str(audio), "-map", "0:v", "-map", "1:a", "-t", f"{spec.total}",
+             "-c:v", "copy", "-c:a", "aac", "-b:a", o.get("audio_bitrate", "320k"), "-movflags", "+faststart", str(tmp)])
+        tmp.replace(out)
+        log("produce: composite: same picture as last time, new sound only (remuxed, no re-encode)")
+        return out
+    stamp.unlink(missing_ok=True)
     vf = (["-filter_complex", "[0:v][1:v]overlay=0:0:format=auto,format=yuv420p[v]", "-map", "[v]"] if ov
           else ["-map", "0:v"])
     run(["ffmpeg", "-y", "-i", str(base), *(["-i", str(ov)] if ov else []), "-i", str(audio), *vf,
-         "-map", f"{2 if ov else 1}:a", "-t", f"{spec.total}", "-c:v", "libx264",
-         "-preset", o.get("preset", ENCODE.get(effort, "veryfast")),
+         "-map", f"{2 if ov else 1}:a", "-t", f"{spec.total}", "-c:v", "libx264", "-preset", preset,
          "-b:v", br, "-maxrate", o.get("maxrate", "20M"), "-bufsize", o.get("bufsize", "32M"), "-r", str(spec.fps),
          "-c:a", "aac", "-b:a", o.get("audio_bitrate", "320k"), "-movflags", "+faststart", str(out)])
+    if out == spec.file:
+        stamp.write_text(picture)
     return out
 
 
@@ -1993,7 +2024,9 @@ def main(argv=None) -> int:
                  f"{est['learned']} of 4 stages learned here, the rest are first guesses") + ")")
         for st, sec in est["stages"].items():
             print(f"  {st:<10} {fmt_secs(sec):>8}" + (f"  {n} of {len(spec.pieces)} pieces to render" if st == "pieces"
-                                                     else "  cached" if st == "overlay" and est["overlay_cached"] else ""))
+                                                     else "  cached" if st == "overlay" and est["overlay_cached"]
+                                                     else "  same picture: new sound only" if st == "composite"
+                                                     and est.get("remux") else ""))
         return 0
     if a.at:
         for x in a.at:

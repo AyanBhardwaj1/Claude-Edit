@@ -337,6 +337,27 @@ def test_redact_blurs_only_the_boxes_and_dev_uses_the_recorded_spots(tmp_path):
     assert any("redact is" in e for e in produce.validate(s)[0])
 
 
+def test_an_audio_only_note_keeps_the_encoded_picture(tmp_path):
+    subprocess.run(["ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i", "sine=frequency=440:duration=4",
+                    str(tmp_path / "voice.wav")], check=True)
+    spec = base_spec()
+    spec["audio"]["music"] = [{"src": {"compose": {"mood": "warm", "seed": 1}}, "at": 0, "gain": -10}]
+    path = write_spec(tmp_path, spec)
+    md5 = lambda f, m: subprocess.run(["ffmpeg", "-v", "error", "-i", str(f), "-map", m, "-c", "copy", "-f", "md5", "-"],  # noqa: E731
+                                      capture_output=True, text=True).stdout
+    out = Path(produce.produce(path, effort="rush")["file"])
+    v1, a1 = md5(out, "0:v"), md5(out, "0:a")
+    spec["audio"]["music"][0]["gain"] = -20                                # the note: "music quieter"
+    path.write_text(json.dumps(spec))
+    assert produce.estimate(produce.Spec(path), "rush")["remux"] is True
+    produce.produce(path, effort="rush")
+    assert md5(out, "0:v") == v1 and md5(out, "0:a") != a1                 # same video stream, new sound
+    spec["pieces"][1]["color"] = "green"                                   # a picture change encodes again
+    path.write_text(json.dumps(spec))
+    produce.produce(path, effort="rush")
+    assert md5(out, "0:v") != v1
+
+
 def test_a_script_line_nobody_said_in_that_voice_is_reported_not_hidden():
     heard = [("the", 1.0, 1.2), ("shadiest", 1.25, 1.8), ("route", 1.85, 2.2), ("he", 3.0, 3.1), ("asked", 3.15, 3.5),
              ("out", 3.55, 3.7), ("loud", 3.75, 4.1)]
