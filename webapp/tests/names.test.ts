@@ -26,3 +26,9 @@ test("curly apostrophes don't make a name", () => {
   const tl = buildTimeline(ws, { keep: [{ from: "w0", to: `w${ws.length - 1}` }], gapCap: 0.4 }, [30]);
   assert.deepEqual(namedNotShown(tl, { broll: [] }).map((x) => x.text), ["Notion"]);
 });
+
+test("a name that opens a sentence is kept whole, not cut to its second word", () => {
+  const ws = say("Claude Code changed how I work. New York is where Notion started. So Figma helps. The end.");
+  const tl = buildTimeline(ws, { keep: [{ from: "w0", to: `w${ws.length - 1}` }], gapCap: 0.4 }, [30]);
+  assert.deepEqual(namedNotShown(tl, { broll: [] }).map((x) => x.text), ["Claude Code", "New York", "Notion", "Figma"]);
+});

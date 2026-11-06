@@ -305,6 +305,11 @@ def _wnum(w: dict) -> int:
     return int(m.group(1)) if m else -1
 
 
+_OPENERS = {"the", "a", "an", "i", "so", "and", "but", "my", "our", "your", "this", "that", "then", "now", "when", "if", "it",
+            "we", "you", "he", "she", "they", "what", "how", "why", "here", "there", "today", "yesterday", "also", "just", "okay",
+            "ok", "well", "yes", "no", "hey", "hi", "use", "try", "get", "with", "in", "on", "at", "for", "from", "after", "before"}
+
+
 def named_not_shown(edl: dict, words: list[dict]) -> list[dict]:
     """Names said but never shown: a capitalised word mid-sentence (or a run, "Claude Code") that isn't a common word,
     with no picture on screen as it's said (a text card counts only if it spells the name), at any of its mentions.
@@ -322,13 +327,21 @@ def named_not_shown(edl: dict, words: list[dict]) -> list[dict]:
     while i < len(spoken):
         w, prev = spoken[i], spoken[i - 1] if i else None
         start = prev is None or str(prev["text"]).rstrip().endswith((".", "!", "?")) or float(w["start"]) - float(prev["end"]) > 1.0
-        if start or not capital(w["text"]):
+        if not capital(w["text"]):
             i += 1
             continue
         run = [w]
         while i + 1 < len(spoken) and capital(spoken[i + 1]["text"]) and not str(run[-1]["text"]).rstrip().endswith((".", "!", "?", ",", ";", ":")):
             i += 1
             run.append(spoken[i])
+        if start:   # any word is capitalised here: a name only when it runs on ("Claude Code changed..."), less "The"/"So"
+            if core(run[0]["text"]).lower() in _OPENERS:
+                run = run[1:]
+            elif len(run) < 2:
+                run = []
+            if not run:
+                i += 1
+                continue
         name, t = " ".join(core(x["text"]) for x in run), float(run[0]["start"])
         covered = any(a <= t <= b and (pic or name.lower() in text) for a, b, pic, text in on)
         mentions.append({"name": name, "start": round(t, 2), "words": f"{run[0].get('id', '')}-{run[-1].get('id', '')}", "covered": covered})

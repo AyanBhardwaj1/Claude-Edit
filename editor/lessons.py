@@ -25,7 +25,10 @@ def add(text: str, video: str | None = None, tag: str | None = None, path: Path 
         raise EditorError("a lesson needs text")
     line = f"- {'[' + tag + '] ' if tag else ''}{text}"
     today = date.today().isoformat()
-    heading = f"## {today} {video or 'Notes'}"
+    name = (video or "Notes").strip()
+    # a heading copied whole ("2026-11-06 Notes", "## 2026-11-06 Notes") names that section, not a new one
+    name = re.sub(r"^#*\s*", "", name)
+    heading = f"## {name}" if re.match(r"\d{4}-\d{2}-\d{2}\b", name) else f"## {today} {name}"
     body = path.read_text() if path.exists() else "# Lessons from real productions\n\n"
     if line in body:
         log("lessons: already recorded")

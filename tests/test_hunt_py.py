@@ -213,6 +213,75 @@ def test_coldopen_moves_the_kept_line_first(tmp_path):
     assert main(["coldopen", str(work), "--apply"]) == 0
     segs = json.loads((work / "edl.json").read_text())["segments"]
     # "I lost 4000 dollars on one bad habit." is w8-w15 (4.0-7.9 s): its kept parts first, the 5.4-6.0 pause still out
-    assert [(s["start"], s["end"]) for s in segs[:2]] == [(3.95, 5.4), (6.0, 8.05)]
+    # it ends where the next word ("Here", 8.0) starts: never a clipped syllable of it
+    assert [(s["start"], s["end"]) for s in segs[:2]] == [(3.95, 5.4), (6.0, 8.0)]
     assert segs[0]["text"].startswith("I lost 4000") and segs[2] == {"src": 0, "start": 0.0, "end": 3.95}
     assert sum(s["end"] - s["start"] for s in segs) == pytest.approx(5.4 + 4.0)
+
+
+def test_takes_plays_another_take_in_its_place(tmp_path, capsys):
+    import json
+    from editor.cli import main
+    from editor.takes import take_lines
+    work = tmp_path / "w"
+    work.mkdir()
+
+    def said(text, t0):
+        return [{"src": 0, "start": round(t0 + i * 0.4, 3), "end": round(t0 + i * 0.4 + 0.3, 3), "text": t}
+                for i, t in enumerate(text.split())]
+    tr = (said("So the best way to edit a reel is this.", 0.0) + said("The best way to edit a reel is this one.", 5.0)
+          + said("You add the captions after the cut.", 10.0))
+    (work / "transcript.json").write_text(json.dumps({"words": tr}))
+    plan_segs = [{"src": 0, "start": 4.94, "end": 9.0}, {"src": 0, "start": 9.94, "end": 12.8}]
+    (work / "edl.json").write_text(json.dumps({"segments": plan_segs}))
+    lines = take_lines(tr, plan_segs)
+    assert len(lines) == 1 and lines[0]["playing"] == 1 and len(lines[0]["takes"]) == 2
+    assert main(["takes", str(work)]) == 0
+    assert "* take 2" in capsys.readouterr().out
+    assert main(["takes", str(work), "--use", "1:1", "--apply"]) == 0
+    segs = json.loads((work / "edl.json").read_text())["segments"]
+    assert [(s["start"], s["end"]) for s in segs] == [(0.0, 4.0), (9.94, 12.8)]       # take 1 plays where take 2 did
+    assert main(["takes", str(work), "--use", "1:2", "--apply"]) == 0
+    segs = json.loads((work / "edl.json").read_text())["segments"]
+    assert [(s["start"], s["end"]) for s in segs] == [(4.94, 9.0), (9.94, 12.8)]
+    # a re-ordered cut keeps its order: the last line opens, the line's take follows it
+    (work / "edl.json").write_text(json.dumps({"segments": [plan_segs[1], plan_segs[0]]}))
+    assert main(["takes", str(work), "--use", "1:1", "--apply"]) == 0
+    segs = json.loads((work / "edl.json").read_text())["segments"]
+    assert [(s["start"], s["end"]) for s in segs] == [(9.94, 12.8), (0.0, 4.0)]
+    assert main(["takes", str(work), "--use", "3:1"]) != 0                            # no line 3: an error, nothing written
+
+
+def test_lessons_add_under_a_heading_given_whole(tmp_path):
+    from editor.lessons import add
+    path = tmp_path / "lessons.md"
+    path.write_text("# Lessons\n\n## 2026-11-01 Demo\n- one\n")
+    add("two", video="2026-11-01 Demo", path=path)
+    add("three", video="## 2026-11-01 Demo", path=path)
+    body = path.read_text()
+    assert body.count("## 2026-11-01 Demo") == 1 and "- one\n- two\n- three" in body
+    add("four", video="Launch", path=path)
+    assert "Launch\n- four" in path.read_text() and "## 2026-11-01 Demo" in path.read_text()
+
+
+def test_named_not_shown_keeps_a_name_that_opens_a_sentence():
+    from editor.review import named_not_shown
+    text = "Claude Code changed how I work. New York is where Notion started. So Figma helps. The end."
+    words = [{"id": f"w{i}", "text": t, "start": i * 0.4, "end": i * 0.4 + 0.3} for i, t in enumerate(text.split())]
+    assert [m["name"] for m in named_not_shown({"broll": []}, words)] == ["Claude Code", "New York", "Notion", "Figma"]
+
+
+def test_with_take_places_and_pads_only_by_real_words():
+    from editor.takes import take_lines, with_take
+    def said(text, t0, step=0.4):
+        return [{"src": 0, "start": round(t0 + i * step, 3), "end": round(t0 + i * step + 0.3, 3), "text": t}
+                for i, t in enumerate(text.split())]
+    # intro, take 1 (dropped) right after it, other talk, take 2 (played)
+    tr = (said("Hi there.", 0.0) + said("The best way to edit a reel is this.", 0.75)
+          + said("Some other talk here today.", 5.0) + said("The best way to edit a reel is this one.", 8.0))
+    segs = [{"src": 0, "start": 0.0, "end": 0.7}, {"src": 0, "start": 4.94, "end": 6.75}, {"src": 0, "start": 7.94, "end": 12.0}]
+    line = take_lines(tr, segs)[0]
+    assert line["playing"] == 1
+    out = with_take(segs, line, 0)
+    # take 1 plays where take 2 did (after the other talk), and its pads stop at the intro's last word
+    assert [(s["start"], s["end"]) for s in out] == [(0.0, 0.7), (4.94, 6.75), (0.7, 4.35)]
