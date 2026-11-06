@@ -12,7 +12,7 @@ import { LANGUAGES, translateSubtitles } from "@/lib/translate";
 import { formatTime, playedLength, waitSavings, WAIT_SPEED } from "@/lib/screenrec";
 import { pickTake, takeLines, type Take } from "@/lib/takes";
 import { crutches, cutWords, findWords, restoreWords } from "@/lib/crutch";
-import { applyFit, FIT_TARGETS, planFit } from "@/lib/fit";
+import { applyFit, FIT_TARGETS, planFit, repeats } from "@/lib/fit";
 import type { Asset, Broll, BrollIn, CaptionAnim, CaptionPreset, Edit, Look, Motion, Project, Range, Settings, Transition } from "@/lib/types";
 
 const ANIM_NAME: Record<CaptionAnim, string> = { pop: "Pop", karaoke: "Karaoke", bounce: "Bounce", words: "Word by word", typewriter: "Typewriter",
@@ -92,6 +92,7 @@ export function Drawer({ project: p, edit, onApply, settings, onMakeMusic, onWor
     const n = cutTl.words.filter((w) => w.w.trim()).length;
     return cutTl.duration > 5 && n > 10 ? Math.round(n / (cutTl.duration / 60)) : 0;
   }, [cutTl]);
+  const twice = useMemo(() => repeats(p, e), [p, e]);
   const fit = useMemo(() => (fitTo && fitTo < length ? planFit(p, e, fitTo) : null), [p, e, fitTo, length]);
   const found = useMemo(() => findWords(p, find), [p, find]);
   const hit = useMemo(() => new Set(found.flat()), [found]);
@@ -190,6 +191,21 @@ export function Drawer({ project: p, edit, onApply, settings, onMakeMusic, onWor
                   </li>
                 ))}
               </ul>
+            </div>
+          )}
+          {twice.length > 0 && (
+            <div className="field"><span className="label" id="twice-h">Lines you say twice</span>
+              <span className="hint">The same line plays again later. Saying it once usually lands harder.</span>
+              <ul className="takes" aria-labelledby="twice-h">
+                {twice.slice(0, 5).map((r) => (
+                  <li key={r.again.ids[0]} className="row">
+                    <span className="grow">“{r.again.text}” <span className="muted small num">at {formatTime(r.first.at)} and {formatTime(r.again.at)}</span></span>
+                    <button type="button" className="btn sm" onClick={() => setE({ ...e, keep: cutWords(p, e.keep, r.again.ids) })}>
+                      Cut the one at {formatTime(r.again.at)}</button>
+                  </li>
+                ))}
+              </ul>
+              {twice.length > 5 && <span className="hint">And {twice.length - 5} more: cut these and the next ones show.</span>}
             </div>
           )}
           {habits.length > 0 && (
