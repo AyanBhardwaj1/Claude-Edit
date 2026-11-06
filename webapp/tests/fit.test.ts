@@ -103,3 +103,9 @@ test("said twice means the same sentence, not the same opening", async () => {
   assert.equal(sameSentence("Um, follow for part two.", "Follow for part two!"), true);
   assert.equal(sameSentence("Here is the one secret you really need to know.", "Here is the secret you really need to know."), true);
 });
+
+test("same sentence agrees with the CLI on fillers and money signs", async () => {
+  const { sameSentence } = await import("../lib/fit");
+  assert.equal(sameSentence("Uhm, follow for part two.", "Follow for part two!"), true);
+  assert.equal(sameSentence("It costs $20 a month now.", "It costs 20 a month now."), true);
+});

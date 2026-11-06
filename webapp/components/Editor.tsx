@@ -1,4 +1,5 @@
 "use client";
+import { aiReady } from "@/lib/ai";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { postText } from "@/lib/edit";
 import { FORMATS } from "@/lib/compositor";
@@ -299,7 +300,8 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
         if (mic && !mic.disabled) { ev.preventDefault(); mic.click(); }
         return;
       }
-      if ((ev.key === "[" || ev.key === "]") && !mod && !ev.altKey) {   // previous / next cut: check each join
+      // previous / next cut: check each join ("[" is AltGr+8 or Option+5 on many keyboards: only a plain Cmd/Ctrl rules it out)
+      if ((ev.key === "[" || ev.key === "]") && !ev.metaKey && (!ev.ctrlKey || ev.altKey)) {
         ev.preventDefault();
         // land just before each cut, so playing from there shows the join; compare landings, not cuts
         const lands = pl.tl.segments.slice(1).map((x) => Math.max(0, x.outStart - 0.5));
@@ -337,7 +339,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
     const text = (given ?? note).trim();
     if (!text) return;
     if ((exp && exp.pct < 100) || exportingRef.current) { setToast("Wait for the export to finish: a new version now would stop it"); return; }
-    const hasKey = settings.provider === "anthropic" ? !!settings.anthropicKey : !!settings.openaiKey;
+    const hasKey = aiReady(settings);
     setMsgs((m) => [...m, { who: "you", text }]);
     if (given === undefined) setNote("");
     if (!hasKey) { setMsgs((m) => [...m, { who: "ed", text: "I can't change the video from a note without an AI editor. Add your key in Settings, or use \"Edit it myself\"." }]); return; }
@@ -818,7 +820,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
                           setMsgs((m) => [...m, { who: "ed", v: p.current, text: `Version ${p.current}: I added zooms at ${clock(sp.from)}–${clock(sp.to)} so the picture keeps changing.`,
                             changes: changeItems(p, before, fixed) }]);
                         }}><Icon name="wand" />Add zooms there</button>)}</li>))}</ul>
-                  {(settings.provider === "anthropic" ? settings.anthropicKey : settings.openaiKey) &&
+                  {aiReady(settings) &&
                     <button type="button" className="btn sm" disabled={recording || cmp} onClick={() => void send(spotsNote(attn.spots))}><Icon name="wand" />Ask your editor to fix these</button>}
                   <p className="small faint">The red marks under the timeline. A guide from what is on screen and said, not a forecast.</p>
                 </div>)}
@@ -831,7 +833,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
             return (
               <section className="panel" aria-labelledby="ch-h">
                 <div className="panel-head"><h2 id="ch-h">YouTube chapters</h2>
-                  {(settings.provider === "anthropic" ? settings.anthropicKey : settings.openaiKey) &&
+                  {aiReady(settings) &&
                     <button className="btn sm" disabled={chBusy || recording} onClick={async () => {
                       setChBusy(true); setErr("");
                       try {
@@ -913,7 +915,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
           {version && p.words.length > 0 && (
             <section className="panel" aria-labelledby="hook-h" id="hook-panel">
               <div className="panel-head"><h2 id="hook-h">Hook title</h2>
-                <button className="btn sm" disabled={hookBusy || !(settings.provider === "anthropic" ? settings.anthropicKey : settings.openaiKey)} onClick={async () => {
+                <button className="btn sm" disabled={hookBusy || !aiReady(settings)} onClick={async () => {
                   setHookBusy(true); setErr("");
                   try { const pl = player.current; if (pl) setHooks(await hookIdeas(settings, pl.tl, hookOf(version.edit))); }
                   catch (e) { setErr((e as { userMessage?: string }).userMessage ?? String(e)); }
@@ -941,12 +943,12 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
           {!p.parent && (p.words.length > 120 || clips) && (
             <section className="panel" aria-labelledby="clips-h">
               <div className="panel-head"><h2 id="clips-h">Short clips from this video</h2>
-                {!clips && <button className="btn sm" disabled={!!clipBusy || !(settings.provider === "anthropic" ? settings.anthropicKey : settings.openaiKey)}
+                {!clips && <button className="btn sm" disabled={!!clipBusy || !aiReady(settings)}
                   onClick={async () => { setClipBusy("Reading the whole video…"); setErr("");
                     try { setClips(await findClips(settings, p)); } catch (e) { setErr((e as { userMessage?: string }).userMessage ?? String(e)); }
                     setClipBusy(""); }}>{clipBusy ? <><span className="spin" />{clipBusy}</> : <><Icon name="scissors" />Find the best clips</>}</button>}</div>
               {!clips && <p className="small muted">Your AI editor reads the whole video and picks the moments that stand on their own as 20 to 75 second reels.
-                Each one becomes its own edited video.{!(settings.provider === "anthropic" ? settings.anthropicKey : settings.openaiKey) && " Needs an AI key in Settings."}</p>}
+                Each one becomes its own edited video.{!aiReady(settings) && " Needs an AI key in Settings."}</p>}
               {clips && !clips.length && <p className="small muted">No moment stood on its own. Longer videos with clear points work best.</p>}
               {clips && clips.length > 0 && <div className="stack tight">{clips.map((c) => (
                 <div key={c.from} className="clip-row">

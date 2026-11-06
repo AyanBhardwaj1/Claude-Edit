@@ -158,6 +158,12 @@ vertical reel with a cover and a post caption, then change it by typing notes. E
     is cut (`lib/fit.ts`; the CLI's `editor fit`).
 43. **Lines you say twice**: the Cut tab lists lines the cut plays twice (the same line said again later, not a dropped
     retake) with both times; one click cuts the later one (`repeats` in `lib/fit.ts`).
+44. **Use your Claude or ChatGPT plan (no API key)**: Settings → AI editor → "Your Claude or ChatGPT plan". At each AI
+    step (first edit, notes, hooks, chapter titles, clips, translations, scripts, animations) a window shows the exact
+    request: copy it into a chat on claude.ai, chatgpt.com or any chat AI, paste the reply back, and Cutmind checks and
+    applies it. Claude Pro/Max and ChatGPT Plus/Pro don't offer third-party apps a sign-in, so Cutmind never asks for
+    the account; it sends nothing anywhere itself (`lib/relay.ts`, `components/Relay.tsx`). Voice-overs, OpenAI
+    transcription and AI pictures still need an OpenAI key.
 
 ## Privacy and keys
 - Videos never leave the browser: they're processed on the user's computer and kept in IndexedDB.

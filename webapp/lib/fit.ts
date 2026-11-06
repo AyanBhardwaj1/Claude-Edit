@@ -13,8 +13,11 @@ import type { Edit, Project } from "./types";
 /** The same sentence said again: near-identical whole lines (not just the same opening, as a retake test allows).
  *  Lines of four core words or fewer must match exactly; longer ones must share the last word and 85% of their words
  *  in order. "So I use Notion." / "And I use Figma." and "I love this." / "I love you." are different lines. */
+const MORE_FILLERS = new Set(["uhm", "ahh", "hm", "mhm"]);     // in editor/plan.py's FILLERS, not in analysis's
+
 export function sameSentence(a: string, b: string): boolean {
-  const core = (t: string) => t.split(/\s+/).map(bare).filter((w) => w && !FILLERS.has(w));
+  // the same words as the CLI's same_sentence: its filler list, and $ % € £ left out
+  const core = (t: string) => t.split(/\s+/).map((w) => bare(w).replace(/[%$€£]/g, "")).filter((w) => w && !FILLERS.has(w) && !MORE_FILLERS.has(w));
   const x = core(a), y = core(b);
   if (!x.length || !y.length) return false;
   if (x.join(" ") === y.join(" ")) return true;

@@ -1,4 +1,5 @@
 "use client";
+import { aiReady } from "@/lib/ai";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { indexOf } from "@/lib/timeline";
 import { parseTags } from "@/lib/text";
@@ -50,7 +51,7 @@ export function Drawer({ project: p, edit, onApply, settings, onMakeMusic, onWor
   const [imgBusy, setImgBusy] = useState(false);
   const [imgErr, setImgErr] = useState("");
   const [card, setCard] = useState<{ kind: keyof typeof CARD_NAME; text: string; value: string; items: string }>({ kind: "number", text: "", value: "", items: "" });
-  const hasKey = !!settings && (settings.provider === "anthropic" ? !!settings.anthropicKey : !!settings.openaiKey);
+  const hasKey = aiReady(settings);
   const idx = useMemo(() => indexOf(p.words), [p.words]);
   const kept = useMemo(() => {
     const s = new Set<string>();

@@ -1,0 +1,47 @@
+// Your Claude or ChatGPT plan as the AI editor, by copy and paste. Claude Pro/Max and ChatGPT Plus/Pro plans have no
+// sign-in a web app like this may use, so Cutmind never touches the account: it writes the exact request, you paste it
+// into claude.ai or chatgpt.com (your plan, your chat), and paste the answer back. Every AI step goes through here
+// when Settings → AI editor is "Your Claude or ChatGPT plan"; nothing is sent anywhere by Cutmind itself.
+type Json = Record<string, unknown>;
+
+export type RelayAsk = { name: string; system: string; user: string; schema: Json };
+type Relay = (ask: RelayAsk) => Promise<Json>;
+
+let relay: Relay | null = null;
+/** The dialog that shows the request and takes the answer registers itself here (components/Relay.tsx). */
+export function setRelay(fn: Relay | null) { relay = fn; }
+export function relayReady() { return !!relay; }
+export async function askByRelay(ask: RelayAsk): Promise<Json> {
+  if (!relay) throw new Error("The copy-and-paste window isn't open: reload the page.");
+  return relay(ask);
+}
+
+/** The whole request as one message to paste into a chat: the editor's instructions, the material, and the exact
+ *  JSON shape to answer in. */
+export function relayPrompt(ask: RelayAsk): string {
+  return [
+    "You are helping me edit a video in Cutmind. Follow these instructions exactly.",
+    "", "## Instructions", ask.system.trim(),
+    "", "## Material", ask.user.trim(),
+    "", "## How to answer",
+    `Reply with ONE JSON object and nothing else (no explanation before or after). It must match this JSON Schema ("${ask.name}"):`,
+    "```json", JSON.stringify(ask.schema), "```",
+  ].join("\n");
+}
+
+/** The JSON object in a pasted answer: inside a ```json fence or not, with text around it or not. Null when there's
+ *  none to read. */
+export function parseRelayAnswer(text: string): Json | null {
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  const body = (fenced ? fenced[1] : text).trim();
+  const tries = [body];
+  const a = body.indexOf("{"), b = body.lastIndexOf("}");
+  if (a >= 0 && b > a) tries.push(body.slice(a, b + 1));
+  for (const t of tries) {
+    try {
+      const v = JSON.parse(t.replace(/[“”]/g, '"'));
+      if (v && typeof v === "object" && !Array.isArray(v)) return v as Json;
+    } catch { /* the next try */ }
+  }
+  return null;
+}

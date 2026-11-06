@@ -1,4 +1,5 @@
 "use client";
+import { aiReady } from "@/lib/ai";
 import { useEffect, useRef, useState } from "react";
 import { EFFORT, effortOf, type Effort } from "@/lib/effort";
 import { probeVideo } from "@/lib/media";
@@ -45,7 +46,7 @@ export function NewVideo({ settings, initial = [], film = false, onFilmOpened, o
   const alive = useRef(true);
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   const filmBtn = useRef<HTMLButtonElement>(null);
-  const hasKey = settings.provider === "anthropic" ? !!settings.anthropicKey : !!settings.openaiKey;
+  const hasKey = aiReady(settings);
   const canListen = settings.transcriber === "browser" || !!settings.openaiKey;
 
   const [skipped, setSkipped] = useState("");
