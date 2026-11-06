@@ -30,6 +30,8 @@ import { changeItems, type Change } from "@/lib/changes";
 import { attention, spotsNote, zoomsFor, type Attention } from "@/lib/attention";
 import { openWith, strongestLine, type Line } from "@/lib/coldopen";
 import { swears } from "@/lib/bleep";
+import { namedNotShown, type Name } from "@/lib/names";
+import { findPicture } from "@/lib/images";
 import { maskWord } from "@/lib/text";
 import { cutWarmUp, LOOP_HEAD, LOOP_TAIL, loopCheck, SCROLL_SECONDS, scrollTest, type ScrollLine } from "@/lib/scrolltest";
 import { clearPosition, PLATFORM_NAMES, subtitlesCovered, ZONES, type Platform } from "@/lib/safezones";
@@ -104,6 +106,8 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
   const [hooks, setHooks] = useState<string[] | null>(null);
   const [hookBusy, setHookBusy] = useState(false);
   const [hookDraft, setHookDraft] = useState("");
+  const [names, setNames] = useState<Name[]>([]);           // apps and brands said but never shown (lib/names.ts)
+  const [logoBusy, setLogoBusy] = useState<string | null>(null);
   const [swore, setSwore] = useState<{ id: string; w: string; at: number }[]>([]);   // swear words said (lib/bleep.ts)
   const [recapBusy, setRecapBusy] = useState(false);
   const [renaming, setRenaming] = useState(false);
@@ -194,6 +198,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
     canvas.current!.dataset.cuts = pl.scene.cuts.map((c) => c.toFixed(3)).join(",");   // for tests and tools
     setCheck(reelCheck(p, edit, pl.tl));
     setAttn(attention(pl.tl, edit));
+    setNames(namedNotShown(pl.tl, edit));
     setSwore(swears(pl.tl).map((w) => ({ id: w.id, w: w.w.trim(), at: w.os })));
     setScroll({ ...scrollTest(pl.tl, edit), loop: loopCheck(pl.tl), cold: strongestLine(pl.tl) }); setShownTest(null);
     void waveform(p, pl.tl).then((w) => { if (gen === mounts.current) setWave(w); });
@@ -689,6 +694,30 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
             </section>
           )}
 
+          {version && names.length > 0 && (
+            <section className="panel" aria-labelledby="names-h">
+              <div className="panel-head"><h2 id="names-h">Names you say</h2></div>
+              <p className="small muted">You name {names.length === 1 ? "this" : "these"} but never show {names.length === 1 ? "it" : "them"}. A logo on the name helps people remember it.</p>
+              <ul className="name-list">{names.map((n) => (
+                <li key={n.from}>
+                  <button type="button" className="linkish" onClick={() => { const v = Math.max(0, n.at - 0.6); setT(v); void player.current?.seek(v); }}>
+                    <span className="num">{clock(n.at)}</span> {n.text}</button>
+                  <button type="button" className="btn sm" disabled={!!logoBusy || recording} onClick={async () => {
+                    setLogoBusy(n.from);
+                    try {
+                      const hit = p.library.find((a) => a.key === `web:${n.text}`) ? null : await findPicture(n.text, "logo").catch(() => null);
+                      const asset = p.library.find((a) => a.key === `web:${n.text}`) ?? hit?.asset;
+                      if (!asset) { setToast(`No open-licence logo found for ${n.text}: add your own picture with “Add a song, picture or clip”`); return; }
+                      if (!p.library.some((a) => a.key === asset.key)) p.library.push(asset);
+                      const before = version.edit;
+                      const fixed = { ...before, broll: [...before.broll, { id: `name-${Date.now().toString(36)}`, anchor: { from: n.from, to: n.to }, treatment: "card-above-head" as const, asset: asset.key }] };
+                      await saveManual(p, fixed, `the ${n.text} logo`); setP({ ...p });
+                      setMsgs((m) => [...m, { who: "ed", v: p.current, text: `Version ${p.current}: the ${n.text} logo shows when you say it (${asset.credit?.creator ?? "credited"}, ${asset.credit?.license ?? "open licence"}).`,
+                        changes: changeItems(p, before, fixed) }]);
+                    } finally { setLogoBusy(null); }
+                  }}>{logoBusy === n.from ? <><span className="spin" />Finding it…</> : "Show its logo"}</button>
+                </li>))}</ul>
+            </section>)}
           {version && swore.length > 0 && (() => {
             const on = new Set(version.edit.bleeps ?? []);
             const all = swore.every((x) => on.has(x.id));
