@@ -50,7 +50,7 @@ export function srt(p: Project, e: Edit, tl: Timeline): string {
     cues = e.translation.lines.map((l) => { const a = tl.byId.get(l.from), b = tl.byId.get(l.to); return a && b ? { s: a.os, e: b.oe + 0.1, text: l.text } : null; })
       .filter(Boolean) as typeof cues;
   } else {
-    cues = chunk(captionWords(tl.words, e.corrections), Math.max(e.captions.maxWords, 6)).map((c) => ({ s: c.start, e: c.end, text: c.words.map((w) => w.text).join(" ") }));
+    cues = chunk(captionWords(tl.words, e.corrections, e.bleeps), Math.max(e.captions.maxWords, 6)).map((c) => ({ s: c.start, e: c.end, text: c.words.map((w) => w.text).join(" ") }));
   }
   return cues.map((c, i) => `${i + 1}\n${stamp(c.s)} --> ${stamp(c.e)}\n${c.text}\n`).join("\n");
 }

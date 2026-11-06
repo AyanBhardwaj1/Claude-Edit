@@ -53,7 +53,8 @@ def master(src: str | Path, out: str | Path, preset: str = "phone", target_lufs:
            true_peak: float = -1.0, music: str | None = None, music_db: float = -20.0,
            duck: bool = True, rnnoise_model: str | None = None, music_start: float | str = 0.0,
            fill: str | Path | None = None, automation: list[dict] | None = None, fade_out: float = 0.6,
-           level: str | None = None, first_word: float = 0.0) -> Path:
+           level: str | None = None, first_word: float = 0.0,
+           bleeps: list[tuple[float, float]] | None = None) -> Path:
     info = probe(src)
     if not info["has_audio"]:
         raise EditorError(f"{src} has no audio")
@@ -95,6 +96,11 @@ def master(src: str | Path, out: str | Path, preset: str = "phone", target_lufs:
             graph += "[key]anullsink;[voice][mus]amix=inputs=2:duration=first:normalize=0"
     else:
         graph = f"{voice_in},{','.join(chain)}"
+    if bleeps:  # the voice muted on each bleeped word, a 1 kHz tone in its place (editor/bleep.py)
+        on = "+".join(f"between(t,{a:.3f},{b:.3f})" for a, b in bleeps)
+        graph = graph.replace(",".join(chain), ",".join(chain) + f",volume=volume=0:enable='{on}'", 1)
+        graph += (f"[pre];aevalsrc='0.2*sin(2*PI*1000*t)*gt({on},0)':s=48000:d={duration:.3f},"
+                  f"aformat=channel_layouts=stereo[tone];[pre][tone]amix=inputs=2:duration=first:normalize=0")
     if fill:   # room tone under the cuts, mixed in before the chain so it is processed like the voice
         fi = 2 if music else 1
         inputs += ["-i", str(fill)]
@@ -122,7 +128,7 @@ def master(src: str | Path, out: str | Path, preset: str = "phone", target_lufs:
         log(f"audio: loudness was reached with dynamic normalisation (the take is quiet with loud peaks): music fades "
             f"and ducking get flattened a little; a limiter before mastering, or a louder recording, avoids it")
     log(f"mastered audio ({preset}{', +music' if music else ''}{', +room tone' if fill else ''}"
-        f"{', +RNNoise' if rnnoise_model else ''}) "
+        f"{', +RNNoise' if rnnoise_model else ''}{f', {len(bleeps)} bleep(s)' if bleeps else ''}) "
         f"{m['input_i']} LUFS -> {target_lufs} LUFS: {out}")
     return out
 

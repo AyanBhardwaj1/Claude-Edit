@@ -20,7 +20,7 @@ Claude makes the editorial calls and checks the result visually.
   fal / Replicate / Gemini Veo / OpenAI / ElevenLabs keys in `.env`; dry-run and a yes first, AI labelled),
   transitions (`"transitions"` in the EDL, b-roll `"in"`/`"out"`: broll-motion), custom caption fonts
   (`editor fonts add`, EDL `"captions"`: captions), pro sound (room tone, RNNoise, `studio`/`podcast`,
-  b-roll `"nat"`, real SFX in `library/sfx/<type>/`: audio-polish).
+  b-roll `"nat"`, real SFX in `library/sfx/<type>/`, bleeps with EDL `"bleep": true`: audio-polish).
 - **Speed vs quality** is the user's call: "we have 10 minutes" / "hurry" → rush, "take your time" / "best" → polish
   (`.claude/skills/edit-reel/effort.md`; `editor effort show --budget <min>`, `editor auto --effort|--budget`).
   Answer "how long?" before starting. Timings are learned per machine (`library/style/timings.json`).

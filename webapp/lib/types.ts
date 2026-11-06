@@ -81,6 +81,7 @@ export type Edit = {
   sfx: boolean;
   motion?: Motion;                // missing on edits made before motion existed: DEFAULT_MOTION applies
   translation?: Translation;      // subtitles in another language (lib/translate.ts)
+  bleeps?: string[];              // word ids bleeped: voice muted under a tone, subtitles masked (lib/bleep.ts)
 };
 
 /** Subtitles in another language: one translated line per spoken phrase, timed by the words it covers. */

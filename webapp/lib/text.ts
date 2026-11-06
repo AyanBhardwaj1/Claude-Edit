@@ -125,8 +125,17 @@ export function chunk(words: CapWord[], maxWords: number): Cue[] {
   return cues;
 }
 
-export function captionWords(words: OutWord[], corrections: { from: string; to: string }[]): CapWord[] {
-  return digits(applyCorrections(spokenWords(words), corrections));
+export function captionWords(words: OutWord[], corrections: { from: string; to: string }[], bleeps?: string[]): CapWord[] {
+  const out = digits(applyCorrections(spokenWords(words), corrections));
+  if (!bleeps?.length) return out;
+  const hide = new Set(bleeps);
+  return out.map((w) => (hide.has(w.id) ? { ...w, text: maskWord(w.text) } : w));
+}
+
+/** A bleeped word as subtitles show it: the first letter, then stars ("fucking," -> "f******,"). */
+export function maskWord(text: string): string {
+  let first = true;
+  return text.replace(/\p{L}/gu, (c) => { if (first) { first = false; return c; } return "*"; });
 }
 
 /** One caption word per written word. A pasted script (lib/retext.ts) can leave a heard word holding several script words

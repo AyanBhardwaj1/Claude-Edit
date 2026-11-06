@@ -117,10 +117,13 @@ def _groups(words: list[dict], max_words: int, max_chars: int) -> list[list[dict
 def build(words_path: str | Path, out: str | Path, width: int = 1080, height: int = 1920, style: str = "bold",
           position: str = "low", title: str | None = None, title_dur: float = 3.0,
           emphasis: list[str] | None = None, srt: bool = True, chapters: list[dict] | None = None,
-          duration: float | None = None, look: dict | None = None) -> Path:
+          duration: float | None = None, look: dict | None = None, bleep=None) -> Path:
     st, look = _with_look(STYLES[style], look or {})
     from .wordfix import fix
+    from .bleep import chosen, mask
     words = fix([dict(w) for w in load_json(words_path)["words"]], look)
+    for w in chosen(words, bleep):      # bleeped words show as "f***" (editor/bleep.py)
+        w["text"] = mask(w["text"])
     extra = {e.lower() for e in (emphasis or [])}
     for w in words:
         bare = "".join(ch for ch in w["text"].lower() if ch.isalnum() or ch == "'")
