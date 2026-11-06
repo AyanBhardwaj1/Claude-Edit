@@ -7,6 +7,7 @@ import { faceAt } from "./face";
 import { clamp01, cutFx, ease, enter, LOOK_FILTER, lookOverlay, lightColour, rnd } from "./motion";
 import { activeBrand, hasBrand } from "./brand";
 import { backdropFor, framedLayout, framedView, type FaceZone, type FramedLayout } from "./framed";
+import { clipPlan, type Piece } from "./screenrec";
 import { drawBackground, drawScene, type Anim, type Scene as CardScene } from "./studio";
 import { boxedChars, boxedCues, boxedLines, captionWords, chunk, type Cue } from "./text";
 import { spanOf, type Timeline } from "./timeline";
@@ -28,6 +29,7 @@ export function setFormat(f: Format = "9:16") {
 export type Layer = {
   b: Broll; start: number; end: number; asset?: Asset;
   el?: HTMLImageElement | HTMLVideoElement;
+  plan?: Piece[] | null;          // a trimmed / sped-through clip: shot time -> clip time (lib/screenrec.ts), followed by the player
   place?: { x: number; y: number; w: number; h: number; tilt: number; mode: "card" | "split" | "phone" | "framed"; frame?: FramedLayout };
 };
 
@@ -56,7 +58,7 @@ export function buildScene(p: Project, e: Edit, tl: Timeline, media: Map<string,
     let start = span![0], end = Math.max(span![1] + (b.treatment === "text-pop" ? 0.15 : 0.05), start + (isVideo ? 0.6 : 2.0));
     const next = sorted[k + 1]?.span;
     if (next && next[0] < end && next[0] > start + 0.3) end = next[0];              // the next visual cuts this one short
-    const layer: Layer = { b, start, end: Math.min(end, tl.duration), asset, el: b.asset ? media.get(b.asset) : undefined };
+    const layer: Layer = { b, start, end: Math.min(end, tl.duration), asset, el: b.asset ? media.get(b.asset) : undefined, plan: clipPlan(asset) };
     layer.place = placeLayer(p, tl, layer);
     layers.push(layer);
   });

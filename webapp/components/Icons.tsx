@@ -37,6 +37,7 @@ const P = {
   eyeOff: <><path d="M4 4l16 16M10 6.3A9.3 9.3 0 0 1 12 6c5.7 0 9 6 9 6a15 15 0 0 1-2.6 3.3M6.5 7.6C4.2 9.2 3 12 3 12s3.3 6 9 6c1.4 0 2.6-.3 3.7-.9" /></>,
   search: <><circle cx="11" cy="11" r="6" /><path d="m20 20-4.5-4.5" /></>,
   menu: <><path d="M4 7h16M4 12h16M4 17h16" /></>,
+  screen: <><rect x="3.5" y="4.5" width="17" height="11.5" rx="2" /><path d="M9 20h6M12 16v4" /><circle cx="12" cy="10.25" r="2.25" fill="currentColor" stroke="none" /></>,
 };
 
 export type IconName = keyof typeof P;

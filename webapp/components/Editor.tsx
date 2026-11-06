@@ -20,6 +20,7 @@ import { addToLibrary, applyUserNote, mediaUrls, saveManual } from "@/lib/workfl
 import { Drawer } from "./Drawer";
 import { MusicMaker } from "./MusicMaker";
 import { Icon } from "./Icons";
+import { RecordScreen } from "./ScreenRecorder";
 import { clock } from "./Tiles";
 
 type Msg = { who: "you" | "ed"; text: string; rule?: string };
@@ -425,6 +426,8 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
                     setMsgs((m) => [...m, { who: "ed", text: `Added ${n.join(", ")}. Tell me where to use ${n.length > 1 ? "them" : "it"}.` }]); }} />
               </label>
               <button className="attach-btn" aria-expanded={maker} aria-controls="make-music" disabled={!version || !dur} onClick={() => setMaker(true)}><Icon name="music" />No song? Make music</button>
+              <RecordScreen onAdd={async (f) => { const n = await addToLibrary(p, [f]); await saveProject(p); setP({ ...p });
+                setMsgs((m) => [...m, { who: "ed", text: `Added ${n.join(", ")} as a screen recording. Tell me where to show it, for example "show my screen recording when I talk about the app", or place it yourself in Edit it myself, Pictures.` }]); }} />
             </div>
           </section>
 
