@@ -187,3 +187,17 @@ def test_init_drafts_a_spec_from_an_inventory(tmp_path):
     assert s.total == pytest.approx(1.9 + 3.4 + 6.0)
     assert produce.auto_captions(s)[0]["text"] == "Hello there."
     assert any("placeholder" in t for t in spec["todo"])
+
+
+def test_versions_keep_each_note(tmp_path):
+    spec = base_spec()
+    path = write_spec(tmp_path, spec)
+    s = produce.Spec(path)
+    s.file.parent.mkdir(parents=True, exist_ok=True)
+    s.file.write_bytes(b"fake video")
+    v1 = produce.save_version(s, "first draft", [str(s.file)])
+    v2 = produce.save_version(s, "music quieter under the skit", [str(s.file)])
+    assert (v1["n"], v2["n"]) == (1, 2)
+    assert Path(v2["files"][0]).name == "x.v2.mp4" and Path(v2["files"][0]).exists()
+    assert (s.file.parent / "versions" / "spec.v2.json").exists()
+    assert "v2" in (tmp_path / "project.md").read_text() and "music quieter" in (tmp_path / "project.md").read_text()

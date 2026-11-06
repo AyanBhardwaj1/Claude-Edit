@@ -783,6 +783,36 @@ def init_spec(folder: str | Path, out: str | Path, inventory_dir: str | Path | N
     return spec
 
 
+# ---------------------------------------------------------------- versions (one per note)
+
+def save_version(spec: Spec, note: str, files: list[str]) -> dict:
+    """out/versions/<name>.vN.mp4 (+ extras), the spec as it was, and a line in project.md."""
+    import shutil
+    from datetime import datetime
+    vdir = spec.file.parent / "versions"
+    vdir.mkdir(parents=True, exist_ok=True)
+    log_path = vdir / "versions.json"
+    hist = json.loads(log_path.read_text()) if log_path.exists() else []
+    n = len(hist) + 1
+    kept = []
+    for f in files:
+        f = Path(f)
+        if f.exists():
+            dst = vdir / f"{f.stem}.v{n}{f.suffix}"
+            shutil.copy2(f, dst)
+            kept.append(str(dst))
+    shutil.copy2(spec.path, vdir / f"{spec.path.stem}.v{n}.json")
+    entry = {"n": n, "note": note, "at": datetime.now().isoformat(timespec="seconds"), "files": kept,
+             "duration": round(spec.total, 2)}
+    hist.append(entry)
+    log_path.write_text(json.dumps(hist, indent=1))
+    pm = spec.root / "project.md"
+    with pm.open("a") as fh:
+        fh.write(f"- v{n} ({entry['at'][:16]}): {note}\n")
+    log(f"produce: saved version {n}: {note}")
+    return entry
+
+
 # ---------------------------------------------------------------- driver
 
 def produce(spec_path: str | Path, only: str | None = None, jobs: int = 4, want_preview: bool = False,
@@ -842,6 +872,8 @@ def main(argv=None) -> int:
     ap.add_argument("-j", "--jobs", type=int, default=4)
     ap.add_argument("--preview", action="store_true", help="also write a 720p preview")
     ap.add_argument("--effort", default="standard", help="for the learned timings (rush, standard, polish)")
+    ap.add_argument("--note", help="save this render as the next version (out/versions/), with the user's note")
+    ap.add_argument("--versions", action="store_true", help="list the saved versions")
     if argv and argv[0] == "init":
         ip = argparse.ArgumentParser(prog="editor produce init",
                                      description="a starting spec from a footage folder (runs inventory first)")
@@ -869,6 +901,13 @@ def main(argv=None) -> int:
             late = [e for e in els if float(e.get("t_out", e.get("t_in", 0)) or 0) > spec.total + 0.01]
             print(f"overlay: {len(els)} elements" + (f", {len(late)} end after the video" if late else ""))
         return 0
+    if a.versions:
+        vlog = spec.file.parent / "versions" / "versions.json"
+        for v in json.loads(vlog.read_text()) if vlog.exists() else []:
+            print(f"v{v['n']}  {v['at']}  {v['duration']} s  {v['note']}")
+        return 0
     res = produce(a.spec, a.only, a.jobs, a.preview, a.effort)
+    if a.note and res.get("file"):
+        res["version"] = save_version(spec, a.note, [res["file"], *res.get("extras", []), res.get("preview", "")])
     print(json.dumps(res, indent=1))
     return 0

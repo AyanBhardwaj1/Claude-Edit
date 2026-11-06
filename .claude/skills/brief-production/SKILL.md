@@ -82,6 +82,11 @@ numbers. Send a 720p preview (`crf 24`) as soon as a complete draft exists, with
 couldn't do (and why), then iterate on notes with the smallest re-render. Final: the named export plus any extra
 cuts the brief asks for (e.g. a 1080×1080 of the key segment: `crop=1080:1080`).
 
+Notes loop: change the spec (the smallest edit: one piece, one gain, one caption), re-render with
+`editor produce produce.json --preview --note "<the user's note>"` (only changed pieces re-render; each note is
+saved as out/versions/<name>.vN.mp4 with the spec and a line in project.md; `--versions` lists them). Record any
+preference in the note with `editor style note`, and `editor style learn produce.json` when they approve.
+
 ## 6. Rules
 - Never fake model output, app features or numbers; label scripted demos; tag a model only where it produced the moment.
 - Numbers exactly as in the brief or read off the recorded screen (write them down when you capture).
