@@ -102,7 +102,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
   const stopScan = () => { if (scan) scanSkip.current.add(scan.key); scanCtl.current?.abort(); setScanSay("Stopped looking for waits."); };
   const findWaitsFor = (key: string) => { scanSkip.current.delete(key); setScanTick((n) => n + 1); };
 
-  const mount = useCallback(async (edit: Edit) => {
+  const mount = useCallback(async (edit: Edit, keep?: { word?: string; t: number }) => {
     const gen = ++mounts.current;
     player.current?.dispose();
     await applyBrand(settings.brand);
@@ -122,10 +122,26 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
     setTrack({ segs: pl.tl.segments.map((x) => [x.outStart, x.outEnd]), zooms: pl.scene.zooms.map((z) => [z.s, z.e]),
       layers: pl.scene.layers.map((L) => ({ s: L.start, e: L.end, text: L.b.treatment === "text-pop", label: L.b.text ?? L.b.card?.text ?? p.library.find((x) => x.key === L.b.asset)?.name ?? "Picture" })) });
     setDur(pl.tl.duration); setT(0); setPlaying(false);
+    if (keep) {                                            // the same moment in the other version: on the same word
+      const w = keep.word ? pl.tl.byId.get(keep.word) : undefined;
+      const at = Math.max(0, Math.min(pl.tl.duration, w ? w.os + 0.01 : keep.t));
+      setT(at); await pl.seek(at);
+    }
     setWpm(pl.tl.duration > 3 ? (pl.tl.words.length / pl.tl.duration) * 60 : null);
   }, [p, settings.brand]);
 
-  useEffect(() => { if (version) void mount(version.edit); return () => player.current?.dispose(); }, [version, mount]);
+  // Compare: the version before this one, played from the same moment (C or the Compare button)
+  const prevN = (() => { const ns = p.versions.map((v) => v.n); const i = ns.indexOf(version?.n ?? -1); return i > 0 ? ns[i - 1] : null; })();
+  const [cmp, setCmp] = useState(false);
+  const shown = cmp && prevN !== null ? p.versions.find((v) => v.n === prevN) ?? version : version;
+  const here = () => { const pl = player.current; if (!pl) return undefined;
+    const w = pl.tl.words.find((x) => x.os <= pl.t && pl.t <= x.oe + 0.3) ?? pl.tl.words.find((x) => x.os >= pl.t);
+    return { word: w?.id, t: pl.t }; };
+  const keepAt = useRef<{ word?: string; t: number } | undefined>(undefined);
+  const flipCompare = () => { if (prevN === null) return; keepAt.current = here(); setCmp((c) => !c); };
+  useEffect(() => { setCmp(false); }, [version?.n]);
+  useEffect(() => { if (shown) { const k = keepAt.current; keepAt.current = undefined; void mount(shown.edit, k); }
+    return () => player.current?.dispose(); }, [shown, mount]);
   useEffect(() => { chat.current?.scrollTo({ top: chat.current.scrollHeight, behavior: "smooth" }); }, [msgs, busy]);
   useEffect(() => { if (!toast) return; const id = setTimeout(() => setToast(""), 2200); return () => clearTimeout(id); }, [toast]);
   useEffect(() => {
@@ -143,6 +159,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
       const pl = player.current; if (!pl) return;
       const mod = ev.metaKey || ev.ctrlKey;
       if (ev.key === "?" && !mod) { ev.preventDefault(); setKeys(true); return; }
+      if ((ev.key === "c" || ev.key === "C") && !mod && !ev.altKey && prevN !== null) { ev.preventDefault(); flipCompare(); return; }
       if ((ev.key === "n" || ev.key === "N") && !mod && !ev.altKey) { ev.preventDefault(); document.getElementById("note")?.focus(); return; }
       if ((ev.key === "Home" || ev.key === "End") && !mod) { ev.preventDefault(); const v = ev.key === "Home" ? 0 : dur; setT(v); void pl.seek(v); return; }
       if (ev.key === " " && !mod) { ev.preventDefault(); void toggle(); return; }
@@ -285,20 +302,23 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
           setRecapBusy(false);
         }}>{recapBusy ? <><span className="spin" />Animating…</> : <><Icon name="wand" />Animated recap</>}</button>
         <button className="btn" aria-pressed={drawer} onClick={() => setDrawer(!drawer)}><Icon name="scissors" />{drawer ? "Close the editor" : "Edit it myself"}</button>
-        <button className="btn primary" onClick={exportVideo} disabled={recording}><Icon name="download" />Export</button>
+        <button className="btn primary" onClick={exportVideo} disabled={recording || cmp} title={cmp ? "Go back to the current version to export it" : undefined}><Icon name="download" />Export</button>
       </div>
 
       {p.sample && <div className="alert info sample-note"><Icon name="spark" /><span>This is the sample: a drawn presenter and a computer voice, not a
         real person. Play it, open &ldquo;Edit it myself&rdquo;, change its shape and export it. Notes need an AI key in Settings.</span></div>}
       <div className={`ed-grid ${shape.w > shape.h ? "wide" : ""}`}>
         <div className="preview">
-          <div className={`phone ${shape.w >= shape.h ? "flat" : ""}`}><canvas ref={canvas} style={{ aspectRatio: `${shape.w} / ${shape.h}` }}
-            aria-label={`Preview of ${p.title}, version ${p.current}, ${shape.name.toLowerCase()} ${fmt}`} role="img" /></div>
+          <div className={`phone ${shape.w >= shape.h ? "flat" : ""} ${cmp ? "comparing" : ""}`}>{cmp && <span className="cmp-badge" role="status">Version {prevN}, before your last change</span>}<canvas ref={canvas} style={{ aspectRatio: `${shape.w} / ${shape.h}` }}
+            aria-label={`Preview of ${p.title}, version ${shown?.n ?? p.current}, ${shape.name.toLowerCase()} ${fmt}`} role="img" /></div>
           <div className="transport">
             <button className="play" onClick={toggle} disabled={recording} aria-label={playing ? "Pause" : "Play"}><Icon name={playing ? "pause" : "play"} /></button>
             <input type="range" className="scrub" min={0} max={dur || 1} step={0.01} value={t} aria-label="Position"
               onChange={(ev) => { const v = +ev.target.value; setT(v); void player.current?.seek(v); }} />
             <span className="time">{clock(t)} / {clock(dur)}</span>
+            {prevN !== null && <button className="btn ghost sm cmp-btn" aria-pressed={cmp} onClick={flipCompare} disabled={recording}
+              title={cmp ? `Back to version ${version?.n} (C)` : `Play version ${prevN} from this moment (C)`}
+              aria-label={`Compare with version ${prevN}, the one before`}>Compare</button>}
             <button className="btn ghost icon sm keys-btn" onClick={() => setKeys(true)} aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)"
               aria-haspopup="dialog"><kbd aria-hidden="true">?</kbd></button>
           </div>
