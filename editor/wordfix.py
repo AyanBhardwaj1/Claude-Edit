@@ -78,13 +78,14 @@ def _number_run(tokens: list[str], raws: list[str] | None = None) -> tuple[int, 
     raws = raws or []
     total, cur, used, last = 0, 0, 0, None
     before_and = None          # the run as it stood before an "and": "two hundred and three hundred" is two numbers
+    last_scale = and_scale = 0
     i = 0
     while i < len(tokens):
         t, k = tokens[i], _kind(tokens[i])
         if i > 0 and re.search(r"[,.;:!?]$", raws[i - 1] if i - 1 < len(raws) else ""):
             break
         if t == "and" and last == "scale" and i + 1 < len(tokens) and _kind(tokens[i + 1]) in ("ones", "teen", "tens"):
-            before_and = (total, cur, used)
+            before_and, and_scale = (total, cur, used), last_scale
             i += 1                                    # "two hundred and fifty"
             used += 1
             continue
@@ -99,12 +100,14 @@ def _number_run(tokens: list[str], raws: list[str] | None = None) -> tuple[int, 
                     nxt = tokens[i + rest[1]] if i + rest[1] < len(tokens) else ""
                     return None if nxt == "point" else (cur * 100 + rest[0], used + rest[1], True)
             break
-        if k == "scale" and before_and is not None:   # "...and three hundred": the "and" joined two numbers
+        # "...and three hundred": the "and" joined two numbers; "...and fifty thousand" (a bigger scale) is one
+        if k == "scale" and before_and is not None and SCALES[t] <= and_scale:
             total, cur, used = before_and
             break
         if k == "scale" and SCALES[t] < 1000 and cur >= SCALES[t]:   # "two hundred three hundred": a new number
             break
         if k == "scale":
+            last_scale = SCALES[t]
             cur = max(cur, 1) * SCALES[t]
             if SCALES[t] >= 1000:
                 total, cur = total + cur, 0

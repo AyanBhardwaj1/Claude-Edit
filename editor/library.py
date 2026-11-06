@@ -244,6 +244,20 @@ def broll_add(files: list[str], category: str, tags: list[str] | None = None, de
         src = Path(f)
         if not src.exists():
             raise EditorError(f"{f} not found")
+        listed = next((c for c in db["clips"] if (ROOT / c.get("file", "")).resolve() == src.resolve()), None)
+        if listed:                                     # a clip already in the library: re-file it, never list it twice
+            if listed.get("category") != _slug(category):
+                moved = dest / src.name
+                n = 1
+                while moved.exists():
+                    moved = dest / f"{src.stem}-{n}{src.suffix}"
+                    n += 1
+                shutil.move(str(src), moved)
+                listed["file"] = str(moved.relative_to(ROOT))
+            listed.update({"category": _slug(category), "tags": tags or listed.get("tags", []),
+                           "description": description or listed.get("description", "")})
+            added.append(listed)
+            continue
         target = dest / src.name
         k = len(db["clips"])
         while target.exists() and target.resolve() != src.resolve():

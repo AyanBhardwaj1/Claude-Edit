@@ -220,7 +220,8 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
     setCheck(reelCheck(p, edit, pl.tl));
     setAttn(attention(pl.tl, edit));
     setNames(namedNotShown(pl.tl, edit));
-    setChapters(chapterMarks(pl.tl));
+    // titles carry over by sentence (an AI-named chapter keeps its name after a new version or a note)
+    setChapters((prev) => chapterMarks(pl.tl).map((m) => ({ ...m, title: prev.find((c) => c.from === m.from)?.title ?? m.title })));
     setSwore(swears(pl.tl).map((w) => ({ id: w.id, w: w.w.trim(), at: w.os })));
     setScroll({ ...scrollTest(pl.tl, edit), loop: loopCheck(pl.tl), cold: strongestLine(pl.tl) }); setShownTest(null);
     void waveform(p, pl.tl).then((w) => { if (gen === mounts.current) setWave(w); });
@@ -805,7 +806,10 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
                   {(settings.provider === "anthropic" ? settings.anthropicKey : settings.openaiKey) &&
                     <button className="btn sm" disabled={chBusy || recording} onClick={async () => {
                       setChBusy(true); setErr("");
-                      try { const pl = player.current; if (pl) setChapters(await chapterTitles(settings, pl.tl, chapters)); }
+                      try {
+                        const pl = player.current;
+                        if (pl) { const named = await chapterTitles(settings, pl.tl, chapters); if (player.current === pl) setChapters(named); }
+                      }
                       catch (e) { setErr((e as { userMessage?: string }).userMessage ?? String(e)); }
                       setChBusy(false); }}>{chBusy ? <><span className="spin" />Naming…</> : <><Icon name="spark" />Name them</>}</button>}</div>
                 <p className="small muted">In the description, these become chapters people can jump to.</p>
