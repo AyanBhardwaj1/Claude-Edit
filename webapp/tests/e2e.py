@@ -158,7 +158,7 @@ with sync_playwright() as pw:
     page.get_by_role("button", name="Try 5 hooks").click()
     page.get_by_role("button", name="3 tools, zero editing").click()
     page.get_by_role("button", name="Version 6").wait_for(timeout=15000)
-    assert page.get_by_text("“3 tools, zero editing”").is_visible()
+    assert page.get_by_text("“3 tools, zero editing”", exact=True).first.is_visible()
 
     page.get_by_role("button", name="Export").click()
     page.get_by_text("Ready to post").wait_for(timeout=120000)
