@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { listModels } from "@/lib/ai";
 import { accountMode, AuthError, changePassword, rename, type Mode, type User } from "@/lib/auth";
+import { makeBackup, restoreBackup } from "@/lib/backup";
 import { brandOf } from "@/lib/brand";
 import { effortOf } from "@/lib/effort";
 import { uid } from "@/lib/media";
@@ -200,6 +201,13 @@ export function Settings({ settings, user, theme, onTheme, onUser, onSignOut, on
           </div>
         </section>
 
+        <section className="set-sec" aria-labelledby="backup-h">
+          <div><h2 id="backup-h">Your videos</h2><p>Videos live only in this browser. A backup is one file with every video, its
+            pictures and music, your animations and your style. Keep it somewhere safe, or restore it in another browser.
+            API keys are never in it.</p></div>
+          <Backup />
+        </section>
+
         <section className="set-sec" aria-labelledby="acct-h">
           <div><h2 id="acct-h">Account</h2><p>{where === "server" ? "Your account works on any device: your settings, style and look follow you. Videos and API keys stay in each browser."
             : "Your account lives in this browser and keeps your videos, keys and style apart from anyone else who uses it."}</p></div>
@@ -249,6 +257,46 @@ function Learned() {
         {rows.map((r) => <li key={r.stage}><span>{r.stage}</span><span className="num">{r.perMinute} s · {r.videos} video{r.videos === 1 ? "" : "s"}</span></li>)}
       </ul>
       <button className="btn sm ghost" onClick={() => { resetLearned(); setRows([]); }}>Forget these times</button>
+    </div>
+  );
+}
+
+function Backup() {
+  const [say, setSay] = useState<{ ok: boolean; text: string } | null>(null);
+  const [busy, setBusy] = useState("");
+  const backup = async () => {
+    setSay(null); setBusy("Packing your videos…");
+    try {
+      const { blob, stats } = await makeBackup((m) => setBusy(m));
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `Cutmind backup ${new Date().toISOString().slice(0, 10)}.cutmind`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 60_000);
+      setSay({ ok: true, text: `Backed up ${stats.projects} video${stats.projects === 1 ? "" : "s"}, ${stats.anims} animation${stats.anims === 1 ? "" : "s"} and ${stats.rules} style rule${stats.rules === 1 ? "" : "s"} (${(blob.size / 1e6).toFixed(1)} MB).` });
+    } catch (e) { setSay({ ok: false, text: (e as Error).message }); }
+    setBusy("");
+  };
+  const restore = async (f: File) => {
+    setSay(null); setBusy("Reading the backup…");
+    try {
+      const st = await restoreBackup(f, (m) => setBusy(m));
+      setSay({ ok: true, text: `Restored ${st.projects} video${st.projects === 1 ? "" : "s"} and ${st.anims} animation${st.anims === 1 ? "" : "s"}` +
+        (st.rules ? `, plus ${st.rules} style rule${st.rules === 1 ? "" : "s"}` : "") +
+        (st.skipped ? `. Kept ${st.skipped} you changed here more recently.` : ".") });
+    } catch (e) { setSay({ ok: false, text: (e as Error).message }); }
+    setBusy("");
+  };
+  return (
+    <div className="stack">
+      <div className="row">
+        <button className="btn" onClick={backup} disabled={!!busy}><Icon name="download" />Back up my videos</button>
+        <label className={`btn ghost ${busy ? "is-disabled" : ""}`}>Restore a backup
+          <input type="file" accept=".cutmind,application/zip" className="sr-only" disabled={!!busy}
+            onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void restore(f); }} /></label>
+      </div>
+      <p className="small" role="status" aria-live="polite">{busy ? <><span className="spin" aria-hidden="true" /> {busy}</> :
+        say ? <span className={say.ok ? "say-ok" : "say-bad"}>{say.text}</span> : null}</p>
     </div>
   );
 }

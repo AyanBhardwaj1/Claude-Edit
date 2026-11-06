@@ -429,6 +429,23 @@ def test_captions_from_a_brief_land_on_the_voice_that_says_them(tmp_path):
     assert cards[0]["t_in"] == pytest.approx(1.0) and cards[1]["t_in"] == pytest.approx(2.0 + 0.5)
 
 
+def test_a_brief_line_two_voices_both_match_goes_to_the_one_playing_near_its_time(tmp_path):
+    w = lambda t, a, b: {"text": t, "start": a, "end": b}  # noqa: E731
+    early = "not the only way back home".split()                       # plays at 0:00
+    late = "he asked the way home out loud".split()                     # plays at 0:59
+    (tmp_path / "e.json").write_text(json.dumps([w(t, 0.2 + i * 0.3, 0.45 + i * 0.3) for i, t in enumerate(early)]))
+    (tmp_path / "z.json").write_text(json.dumps([w(t, 0.2 + i * 0.3, 0.45 + i * 0.3) for i, t in enumerate(late)]))
+    spec = base_spec(pieces=[{"name": "a", "type": "color", "dur": 59}, {"name": "b", "type": "color", "dur": 5}])
+    spec["audio"]["voices"] = [{"name": "z_late", "src": "voice.wav", "in": 0, "out": 4, "at": "b"},
+                               {"name": "a_early", "src": "voice.wav", "in": 0, "out": 4, "at": "a"}]
+    spec["captions"] = {"voices": {"z_late": "z.json", "a_early": "e.json"}}
+    path = write_spec(tmp_path, spec)
+    brief = tmp_path / "brief.md"
+    brief.write_text("0:02 The way home?\n")                      # "way home": both voices said it
+    rep = produce.captions_from_brief(path, brief)
+    assert rep["assigned"].get("a_early") == 1 and not rep["assigned"].get("z_late")
+
+
 @pytest.mark.slow
 def test_a_vertical_production(tmp_path):
     subprocess.run(["ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i", "testsrc2=s=640x360:r=30:d=3", "-f", "lavfi",
