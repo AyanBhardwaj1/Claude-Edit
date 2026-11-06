@@ -48,8 +48,9 @@ export function learnFromExport(p: Project, rules: StyleRule[]): string | null {
   const book = load();
   const seen = signals(first.edit, cur.edit);
   for (const s of seen) {
-    const ids = (book[s] ?? []).filter((id) => id !== p.id);
-    book[s] = [...ids, p.id].slice(-8);
+    const own = p.id.replace(/-copy-\w+$/, "");         // a copy is the same video, not a second one
+    const ids = (book[s] ?? []).filter((id) => id !== own);
+    book[s] = [...ids, own].slice(-8);
   }
   writeLocal(KEY, JSON.stringify(book));
   const have = new Set(rules.map((r) => r.text.toLowerCase()));

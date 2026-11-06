@@ -45,7 +45,7 @@ async function measureLoudness(blob: Blob): Promise<{ lufs: number; peak: number
 }
 import { namedNotShown, type Name } from "@/lib/names";
 import { chapterMarks, chapterText, chapterTitles, type Chapter } from "@/lib/chapters";
-import { findPicture } from "@/lib/images";
+import { findPicture, webKey } from "@/lib/images";
 import { maskWord } from "@/lib/text";
 import { cutWarmUp, LOOP_HEAD, LOOP_TAIL, loopCheck, SCROLL_SECONDS, scrollTest, type ScrollLine } from "@/lib/scrolltest";
 import { clearPosition, PLATFORM_NAMES, subtitlesCovered, ZONES, type Platform } from "@/lib/safezones";
@@ -847,8 +847,9 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
                   <button type="button" className="btn sm" disabled={!!logoBusy || recording || cmp} onClick={async () => {
                     setLogoBusy(n.from);
                     try {
-                      const hit = p.library.find((a) => a.key === `web:${n.text}`) ? null : await findPicture(n.text, "logo").catch(() => null);
-                      const asset = p.library.find((a) => a.key === `web:${n.text}`) ?? hit?.asset;
+                      const have = p.library.find((a) => a.key === webKey(p.id, n.text) || a.key === `web:${n.text}`);
+                      const hit = have ? null : await findPicture(n.text, "logo", webKey(p.id, n.text)).catch(() => null);
+                      const asset = have ?? hit?.asset;
                       if (!asset) { setToast(`No open-licence logo found for ${n.text}: add your own picture with “Add a song, picture or clip”`); return; }
                       if (!p.library.some((a) => a.key === asset.key)) p.library.push(asset);
                       const before = version.edit;

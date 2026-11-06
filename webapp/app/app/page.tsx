@@ -83,7 +83,9 @@ export default function App() {
         setNotice("That video isn't in this browser. Videos stay where they were made: move them with Settings → Your videos.");
         return;
       }
-      setProject((cur) => (cur?.id === p.id ? cur : p));
+      // the saved copy wins unless the one in memory is as new: the editor works on copies, so the one held here goes
+      // stale after a note or a rename, and reopening it would build the next note on an old version
+      setProject((cur) => (cur?.id === p.id && cur.updatedAt >= p.updatedAt ? cur : p));
     }
     setScreen(r.screen);
     window.scrollTo({ top: 0 });

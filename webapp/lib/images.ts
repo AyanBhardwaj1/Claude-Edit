@@ -6,7 +6,11 @@ import type { Asset, Credit } from "./types";
 
 type Result = { url: string; title: string; creator: string; license: string; page: string; source: string; kind: "logo" | "photo" };
 
-export async function findPicture(query: string, kind: "logo" | "photo"): Promise<{ asset: Asset; blob: Blob } | null> {
+/** The library key for a web picture in one video: per video, so another video searching the same words never
+ *  overwrites this one's picture (its credit would then describe a different file). */
+export const webKey = (projectId: string, query: string) => `web:${projectId}:${query}`;
+
+export async function findPicture(query: string, kind: "logo" | "photo", key = `web:${query}`): Promise<{ asset: Asset; blob: Blob } | null> {
   const r = await fetch(`/api/search?${new URLSearchParams({ q: query, kind })}`);
   if (!r.ok) return null;
   const { results } = (await r.json()) as { results: Result[] };
@@ -18,7 +22,7 @@ export async function findPicture(query: string, kind: "logo" | "photo"): Promis
     const bmp = await createImageBitmap(blob).catch(() => null);
     if (!bmp) continue;
     const credit: Credit = { title: hit.title, creator: hit.creator, license: hit.license, page: hit.page, source: hit.source };
-    const asset: Asset = { key: `web:${query}`, name: hit.title, kind: "image", width: bmp.width, height: bmp.height, credit, web: true };
+    const asset: Asset = { key, name: hit.title, kind: "image", width: bmp.width, height: bmp.height, credit, web: true };
     bmp.close();
     await putMedia(asset.key, blob);
     return { asset, blob };

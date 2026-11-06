@@ -5,7 +5,7 @@ import { analyze } from "./analyze";
 import { defaultEdit, describe, fromAi, type AiEdit } from "./edit";
 import { aiChoice, effortOf, EFFORT, type AiChoice } from "./effort";
 import { trackFaces } from "./face";
-import { findPicture } from "./images";
+import { findPicture, webKey } from "./images";
 import { activeRms, decodeMono, looksLikeScreenAt, musicFeel, probeImage, probeVideo, uid } from "./media";
 import { getMedia, putMedia, saveProject } from "./store";
 import { applyScript, type ScriptResult } from "./retext";
@@ -152,10 +152,14 @@ export async function listen(p: Project, s: Settings, onProgress: Progress, scri
   delete p.wordsHeard;
   for (const src of p.sources) {
     const blob = (await getMedia(src.mediaKey))!;
+    // a take with no sound track (a GoPro or screen clip) has nothing to hear: it stays a picture, not an error
+    let audio: Float32Array | null = null;
+    try { audio = await decodeMono(blob, 16000); } catch { audio = null; }
+    if (!audio || !audio.length) { src.rms = undefined; continue; }   // not "a quiet take" in the reel check
     const ws = await transcribe(blob, src.id, p.words.length, s.transcriber, s.openaiKey,
-      (m, pct) => onProgress(p.sources.length > 1 ? `${m} (take ${src.id + 1})` : m, pct));
+      (m, pct) => onProgress(p.sources.length > 1 ? `${m} (take ${src.id + 1})` : m, pct), audio);
     p.words.push(...ws);
-    src.rms = activeRms(await decodeMono(blob, 16000));
+    src.rms = activeRms(audio);                          // decoded once: a long video isn't held twice
   }
   if (!p.words.length) throw new Error("I couldn't hear any speech in this video. Is the sound on?");
   onProgress("Finding your retakes", 40);
@@ -168,27 +172,33 @@ export async function listen(p: Project, s: Settings, onProgress: Progress, scri
   if (EFFORT[effort].faces) {
     onProgress("Finding your face", 45);
     const t1 = performance.now();
+    let urls: Map<string, string> | null = null;
     try {
-      const urls = await mediaUrls(p);
-      p.faces = await trackFaces(p.sources, p.sources.map((x) => urls.get(x.mediaKey)!), (pct) => onProgress("Finding your face", 45 + pct * 0.1));
-      urls.forEach((u) => URL.revokeObjectURL(u));
+      urls = await mediaUrls(p);
+      const u = urls;
+      p.faces = await trackFaces(p.sources, p.sources.map((x) => u.get(x.mediaKey)!), (pct) => onProgress("Finding your face", 45 + pct * 0.1));
       record("faces", effort, since(t1), footage(p));
     } catch { p.faces = []; }                       // the reframe falls back to the centre
+    finally { urls?.forEach((u) => URL.revokeObjectURL(u)); }   // freed whether or not the faces were found
   } else p.faces = [];                              // Fast: no face finding, the reframe stays centred
   p.status = "transcribed";
   await saveProject(p);
   return fixed;
 }
 
+/** The pictures the AI asked for, by query: each query fetched once (the same logo at two mentions is one picture,
+ *  placed twice), kept under this video's own key. */
 async function webPictures(p: Project, ai: AiEdit, onProgress: Progress, limit = 16): Promise<Map<string, Asset>> {
   const out = new Map<string, Asset>();
-  const want = (ai.webPictures ?? []).slice(0, limit);
+  const want = [...new Map((ai.webPictures ?? []).map((w) => [w.query, w])).values()].slice(0, limit);
   if (want.length) onProgress(`Finding ${want.length} pictures online`, 70);
   await Promise.all(want.map(async (w) => {
-    const existing = p.library.find((a) => a.key === `web:${w.query}`);
-    if (existing) { out.set(existing.key, existing); return; }
-    const hit = await findPicture(w.query, w.kind).catch(() => null);
-    if (hit) { out.set(hit.asset.key, hit.asset); p.library.push(hit.asset); }
+    const key = webKey(p.id, w.query);
+    const existing = p.library.find((a) => a.key === key || a.key === `web:${w.query}`);   // (older videos: the shared key)
+    if (existing) { out.set(w.query, existing); return; }
+    const hit = await findPicture(w.query, w.kind, key).catch(() => null);
+    if (hit && !p.library.some((a) => a.key === hit.asset.key)) p.library.push(hit.asset);
+    if (hit) out.set(w.query, hit.asset);
   }));
   return out;
 }
@@ -209,7 +219,7 @@ export async function makeFirstEdit(p: Project, s: Settings, rules: StyleRule[],
     const web = await webPictures(p, ai, onProgress, plan.pictures);
     const res = fromAi(p, base, ai, web);
     edit = res.edit;
-    const wanted = Math.min(plan.pictures, (ai.webPictures ?? []).length), found = web.size;
+    const wanted = Math.min(plan.pictures, new Set((ai.webPictures ?? []).map((w) => w.query)).size), found = web.size;   // by query
     summary = (ai.summary ?? "Here's your first edit.") + (wanted > found ? ` I couldn't find ${wanted - found} of the pictures online.` : "");
     if (res.problems.length) console.warn("edit problems", res.problems);
     if (plan.review) {
@@ -235,8 +245,11 @@ export async function makeFirstEdit(p: Project, s: Settings, rules: StyleRule[],
 /** New video, start to finish: copy the takes in, listen (applying the script to the subtitles), make the first edit.
  *  Dropped takes and takes filmed with "Film it here" both come through here. `steps` is for the tests. */
 export async function makeReel(takes: File[], extras: File[], script: string, s: Settings, rules: StyleRule[], onProgress: Progress,
-  steps = { createProject, listen, makeFirstEdit }): Promise<{ project: Project; summary: string }> {
-  const p = await steps.createProject(takes, extras, onProgress, script);
+  steps = { createProject, listen, makeFirstEdit }, again?: { made: Project | null; onMade: (p: Project) => void }):
+  Promise<{ project: Project; summary: string }> {
+  // "Try again" carries on with the video already made (its takes are copied in), instead of copying them again
+  const p = again?.made ?? await steps.createProject(takes, extras, onProgress, script);
+  again?.onMade(p);
   const fixed = await steps.listen(p, s, onProgress, script);
   const summary = await steps.makeFirstEdit(p, s, rules, onProgress);
   onProgress("Ready", 100);
