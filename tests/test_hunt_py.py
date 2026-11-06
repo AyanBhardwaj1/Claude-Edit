@@ -105,3 +105,19 @@ def test_fix_zooms_name_the_play_of_a_repeated_stretch():
     z = stillness_zooms(["12.5-18.5s"], ws)
     a, _ = find(ws, z[0])
     assert a["start"] >= 12.5, (z[0], a)
+
+
+def test_post_lists_youtube_chapters_when_youtube_would_take_them(tmp_path):
+    import json
+    from editor.versions import youtube_chapters, write_post
+    project = tmp_path / "p"
+    (project / "work").mkdir(parents=True)
+    (project / "work" / "cut_meta.json").write_text(json.dumps({"duration": 95.0}))
+    edl = {"chapters": [{"start": 0.4, "text": "Why I switched"}, {"start": 31.0, "text": "The setup"}, {"start": 62.5, "text": "What it costs"}]}
+    assert youtube_chapters(project, edl) == "0:00 Why I switched\n0:31 The setup\n1:02 What it costs"
+    assert youtube_chapters(project, {"chapters": edl["chapters"][:2]}) == ""                     # fewer than 3
+    short = {"chapters": [*edl["chapters"][:2], {"start": 36.0, "text": "Too close"}]}
+    assert youtube_chapters(project, short) == ""                                                # one under 10 s
+    (project / "work" / "edl.json").write_text(json.dumps(edl))
+    text = write_post(project, "Switching editors.", ["#a", "#b", "#c", "#d", "#e"]).read_text()
+    assert "0:00 Why I switched" in text and text.index("1:02") < text.index("#a")
