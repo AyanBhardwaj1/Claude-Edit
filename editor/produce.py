@@ -412,16 +412,51 @@ def auto_captions(spec: Spec) -> list[dict]:
     if not c:
         return []
     out = []
-    for name, path in c.get("voices", {}).items():
+    for name, src in c.get("voices", {}).items():
         v = spec.voices.get(name)
         if not v:
             raise EditorError(f"captions: no voice named {name!r}")
-        data = json.loads(spec.p(path).read_text())
+        cfg = src if isinstance(src, dict) else {"words": src}
+        data = json.loads(spec.p(cfg["words"]).read_text())
         words = data["words"] if isinstance(data, dict) else data
-        out += caption_cards(words, name, float(v.get("in", 0)), float(v.get("out", 1e9)),
-                             int(c.get("max_chars", 42)), int(c.get("lines", 2)), float(c.get("gap", 0.6)),
-                             c.get("replace"))
+        a, b = float(v.get("in", 0)), float(v.get("out", 1e9))
+        if cfg.get("lines"):                  # the script, one caption card per line, timed on the recognised words
+            out += script_cards(words, name, a, b, cfg["lines"])
+            continue
+        if cfg.get("script"):                 # the script as text: its words, the recogniser's timing
+            words = scripted_words(words, a, b, cfg["script"])
+        out += caption_cards(words, name, a, b, int(c.get("max_chars", 42)), int(c.get("lines", 2)),
+                             float(c.get("gap", 0.6)), c.get("replace"))
     return out
+
+
+def scripted_words(words: list[dict], a: float, b: float, script: str) -> list[dict]:
+    """Align what was meant (the script) to what was heard (timed words), keeping the timings (editor.retext)."""
+    from .retext import align
+    heard = [dict(w, text=str(w.get("text", w.get("word", "")))) for w in words if a <= float(w["start"]) < b]
+    return align(heard, script.split()) if heard else []
+
+
+def script_cards(words: list[dict], voice: str, a: float, b: float, lines: list[str]) -> list[dict]:
+    """One caption card per script line, timed by aligning the whole script onto the recognised words."""
+    tokens, owner = [], []
+    for i, line in enumerate(lines):
+        for t in str(line).split():
+            tokens.append(t)
+            owner.append(i)
+    timed = scripted_words(words, a, b, " ".join(tokens))
+    if len(timed) != len(tokens):
+        raise EditorError(f"captions for {voice}: couldn't align the script ({len(timed)} of {len(tokens)} words)")
+    cards = []
+    for i, line in enumerate(lines):
+        ws = [w for w, o in zip(timed, owner) if o == i]
+        if not ws:
+            continue
+        cards.append({"type": "caption", "text": str(line).strip(), "t_in": f"@{voice}:{float(ws[0]['start']):.2f}",
+                      "t_out": f"@{voice}:{min(float(ws[-1]['end']) + 0.15, b):.2f}"})
+    for x, y in zip(cards, cards[1:]):
+        x["t_out"] = min(x["t_out"], y["t_in"], key=lambda r: float(r.split(":")[1]))
+    return cards
 
 
 # ---------------------------------------------------------------- overlay

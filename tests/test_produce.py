@@ -212,3 +212,17 @@ def test_numbers_must_come_from_the_brief():
     e = {"type": "counter", "lines": [{"text": "4,375 trees"}, {"text": "+62,748 tree crowns"}]}
     assert produce._texts(e) == ["4,375 trees", "+62,748 tree crowns"]
     assert "2,300" in produce._texts({"type": "big_stat", "from": 0, "to": 2300, "label": "US heat deaths"})
+
+
+def test_script_lines_become_captions_timed_on_misheard_words():
+    # what Vosk heard for "Meta's SAM 3.1 finds the trees, the pavement and the sky"
+    heard = [("matter", 3.51, 3.8), ("sam", 3.85, 4.2), ("three", 4.29, 4.45), ("point", 4.5, 4.7),
+             ("one", 4.74, 4.9), ("five", 4.95, 5.3), ("the", 5.43, 5.5), ("trees", 5.52, 6.0), ("the", 6.18, 6.3),
+             ("pavement", 6.34, 6.9), ("and", 6.93, 7.1), ("the", 7.2, 7.28), ("sky", 7.29, 7.8)]
+    words = [{"text": t, "start": a, "end": b} for t, a, b in heard]
+    cards = produce.script_cards(words, "v6", 0, 20, ["Meta's SAM 3.1 finds the trees,", "the pavement and the sky."])
+    assert [c["text"] for c in cards] == ["Meta's SAM 3.1 finds the trees,", "the pavement and the sky."]
+    assert cards[0]["t_in"] == "@v6:3.51" and float(cards[1]["t_in"].split(":")[1]) == pytest.approx(6.18, abs=0.01)
+    assert float(cards[1]["t_out"].split(":")[1]) == pytest.approx(7.95, abs=0.01)
+    fixed = produce.scripted_words(words, 0, 20, "Meta's SAM 3.1 finds the trees, the pavement and the sky.")
+    assert fixed[0]["text"] == "Meta's" and fixed[-1]["start"] == pytest.approx(7.29)

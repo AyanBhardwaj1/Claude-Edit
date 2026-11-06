@@ -70,6 +70,11 @@ python3 -m editor produce projects/<name>/produce.json --only mix  # after an au
   original bed fitted to the length; `automation` [[t, dB], ...] for hard stops and dips under dialogue), `sfx`
   (built-in names like whoosh, pop, shutter, or files), `beds` (ambience and app audio that don't duck the music).
   Mastered to the output `lufs` (default −14) and `tp`.
+- **Captions** from word times: `"captions": {"voices": {"v3": "work/inventory/scene3.words.json"}}`. When the
+  brief has the script (it usually does), give each voice its lines: `{"v3": {"words": "...words.json", "lines":
+  ["He asked out loud, in Spanish.", "..."]}}`: one card per line, the brief's exact words, timed by aligning them
+  onto what the recogniser heard (so Vosk's "met his muse" still lands as "Meta's Muse"). `"script": "..."` does the
+  same but lets the cards break automatically.
 - **Overlay**: the overlay spec inline (or a path); every time in it may be a reference.
 - **Extras**: a crop, e.g. `{"name": "square", "from": "s3q", "to": "s4a", "size": [1080, 1080]}`, or a social cut of
   a 16:9 video that keeps the whole frame: `{"name": "vertical", "kind": "band", "size": [1080, 1920], "title": "..."}`
