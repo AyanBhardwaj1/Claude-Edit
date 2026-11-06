@@ -7,7 +7,7 @@ import { effortOf } from "@/lib/effort";
 import { uid } from "@/lib/media";
 import { getMedia, putMedia } from "@/lib/store";
 import { THEMES, type ThemeId } from "@/lib/theme";
-import { estimate, estimateText } from "@/lib/timings";
+import { estimate, estimateText, learnedSummary, resetLearned } from "@/lib/timings";
 import type { Brand, Settings as S } from "@/lib/types";
 import { EffortPicker } from "./EffortPicker";
 import { Icon } from "./Icons";
@@ -170,6 +170,7 @@ export function Settings({ settings, user, theme, onTheme, onUser, onSignOut, on
               const est = estimate(e, 60, { transcriber: s.transcriber, ai: !!(s.provider === "anthropic" ? s.anthropicKey : s.openaiKey) });
               return estimateText(est, "for a 1-min video");
             }} />
+            <Learned />
             <div className="row">
               <button className="btn primary" disabled={!dirty} onClick={() => { onSave(s); setSaved({ ok: true, text: "Settings saved." }); }}>Save settings</button>
               {saved && <span className="small say-ok" role="status">{saved.text}</span>}
@@ -233,6 +234,21 @@ export function Settings({ settings, user, theme, onTheme, onUser, onSignOut, on
           </div>
         </section>
       </div>
+    </div>
+  );
+}
+
+/** What Cutmind has learned about this device's speed: the estimates above come from these. */
+function Learned() {
+  const [rows, setRows] = useState(() => learnedSummary());
+  if (!rows.length) return <p className="small faint">Nothing learned yet: after your first video, the times above are measured on this device.</p>;
+  return (
+    <div className="learned">
+      <p className="small">Learned on this device from your videos (seconds of work per minute of footage):</p>
+      <ul className="small">
+        {rows.map((r) => <li key={r.stage}><span>{r.stage}</span><span className="num">{r.perMinute} s · {r.videos} video{r.videos === 1 ? "" : "s"}</span></li>)}
+      </ul>
+      <button className="btn sm ghost" onClick={() => { resetLearned(); setRows([]); }}>Forget these times</button>
     </div>
   );
 }
