@@ -4,8 +4,11 @@ import { FORMATS } from "@/lib/compositor";
 import { uid } from "@/lib/media";
 import { deleteAnim, getMedia, listAnims, putMedia, saveAnim } from "@/lib/store";
 import { hasBrand, applyBrand } from "@/lib/brand";
-import { FONTS, fontOf, KIND_NAME, newAnim, PACE_NAME, paletteOf, PALETTES, planScenes, readTime, total, type Anim, type FontId, type Pace, type PaletteId, type Scene, type SceneKind } from "@/lib/studio";
+import { busyFocus, demoScenes, FONTS, fontOf, KIND_NAME, newAnim, PACE_NAME, paletteOf, PALETTES, planScenes, readTime, screenScene, total,
+  type Anim, type FontId, type Pace, type PaletteId, type Scene, type SceneKind, type ScreenLook, type Shot } from "@/lib/studio";
+import { punchOf, SCREEN } from "@/lib/screenScene";
 import { narration, planWithAi, speak, voicedDuration, VOICES, type Tone } from "@/lib/studioAi";
+import { RecordScreen } from "./ScreenRecorder";
 import { StudioPlayer } from "@/lib/studioPlay";
 import { canFastExport, exportAnimFast } from "@/lib/fastExport";
 import { aiPicture } from "@/lib/images";
@@ -14,7 +17,9 @@ import { Icon } from "./Icons";
 import { ago, clock } from "./Tiles";
 
 /** Starting points: words to edit plus a look and a pace that suit them. */
-const EXAMPLES: { name: string; line: string; palette: PaletteId; font: FontId; pace: Pace; tone: Tone; text: string }[] = [
+const EXAMPLES: { name: string; line: string; palette: PaletteId; font: FontId; pace: Pace; tone: Tone; text: string; demo?: boolean }[] = [
+  { name: "Product demo", line: "Your app screens, zoomed in", palette: "paper", font: "grotesk", pace: "normal", tone: "promo", demo: true,
+    text: "Fluxboard keeps your team in flow.\nIt turns scattered notes, chats and tasks into one clear plan.\nThe dashboard shows every project and deadline at a glance.\nTeams save 6 hours a week on status meetings.\nIn settings, connect Slack, GitHub and your calendar in one click.\nTry Fluxboard free today." },
   { name: "Product launch", line: "Kinetic, confident", palette: "midnight", font: "grotesk", pace: "normal", tone: "promo",
     text: "Cutmind turns raw takes into finished reels.\nIt keeps your best take of every line.\nEditing used to take 3 hours. Now it takes 20 minutes.\n- Subtitles on every word\n- Pictures that miss your face\n- Music under your voice\nTry it on your next video." },
   { name: "Editing tips", line: "Clear, numbered", palette: "ocean", font: "grotesk", pace: "normal", tone: "explainer",
@@ -50,9 +55,30 @@ export function Studio({ settings, onSettings, openId }: { settings: Settings; o
   const [aiPics, setAiPics] = useState(true);
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
+  const [shots, setShots] = useState<{ id: string; file: File; url: string }[]>([]);
+  const [over, setOver] = useState(false);
+  const [grab, setGrab] = useState<File | null>(null);
+  const shotsRef = useRef<HTMLDivElement>(null);
   const aiKey = settings.provider === "anthropic" ? settings.anthropicKey : settings.openaiKey;
   const branded = hasBrand(settings.brand);
   const palIds = palIdsFor(branded), fontIds = fontIdsFor(branded);
+  const addShots = useCallback((files: Iterable<File> | null | undefined) => {
+    const pics = [...(files ?? [])].filter((f) => f.type.startsWith("image/"));
+    if (!pics.length) return false;
+    setShots((xs) => [...xs, ...pics.map((file) => ({ id: uid(), file, url: URL.createObjectURL(file) }))].slice(0, 8));
+    return true;
+  }, []);
+  // paste a screenshot anywhere on the page (Cmd/Ctrl+V straight after taking one)
+  useEffect(() => {
+    if (a) return;
+    const onPaste = (e: ClipboardEvent) => {
+      const files = [...(e.clipboardData?.items ?? [])].filter((x) => x.kind === "file" && x.type.startsWith("image/")).map((x) => x.getAsFile())
+        .filter((f): f is File => !!f).map((f, i) => (f.name && f.name !== "image.png" ? f : new File([f], `Pasted screen ${i + 1}.png`, { type: f.type })));
+      if (addShots(files)) e.preventDefault();
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  }, [a, addShots]);
   const [, setBrandReady] = useState(0);
   useEffect(() => { void applyBrand(settings.brand).then(() => setBrandReady((n) => n + 1)); }, [settings.brand]);
   const refresh = useCallback(() => void listAnims().then(setList), []);
@@ -62,11 +88,15 @@ export function Studio({ settings, onSettings, openId }: { settings: Settings; o
   async function create() {
     setErr(""); setBusy(aiKey ? "Planning the scenes…" : "Laying out the scenes…");
     try {
+      // a product demo: the screenshots are saved first, then woven into the plan as framed app screens
+      const id = uid();
+      const shotList: Shot[] = [];
+      for (const x of shots) { const key = `anim:${id}:shot:${uid()}`; await putMedia(key, x.file); shotList.push({ key, name: x.file.name }); }
       let plan: { title: string; palette?: PaletteId; font?: FontId; scenes: Scene[] };
-      if (aiKey) plan = await planWithAi(settings, text, tone, format);
-      else plan = { title: "", scenes: planScenes(text) };
+      if (aiKey) plan = await planWithAi(settings, text, tone, format, shotList);
+      else plan = { title: "", scenes: shotList.length ? demoScenes(text, shotList) : planScenes(text) };
       if (!plan.scenes.length) throw Object.assign(new Error("empty"), { userMessage: "Write a little more: a line or two is enough." });
-      const anim = newAnim(text, plan.scenes, { title: plan.title || undefined, palette: plan.palette ?? palette, font: plan.font ?? font, format, pace });
+      const anim = newAnim(text, plan.scenes, { id, title: plan.title || undefined, palette: plan.palette ?? palette, font: plan.font ?? font, format, pace });
       if (!plan.title) anim.title = plan.scenes[0].text.slice(0, 60);
       if (song) { const key = `anim:${anim.id}:music`; await putMedia(key, song); anim.music = key; }
       if (aiPics && settings.openaiKey) {
@@ -78,6 +108,7 @@ export function Studio({ settings, onSettings, openId }: { settings: Settings; o
       }
       if (voiceOn && settings.openaiKey) await addVoice(anim, voice, setBusy);
       await saveAnim(anim);
+      shots.forEach((x) => URL.revokeObjectURL(x.url)); setShots([]);
       setA(anim); refresh();
     } catch (e) { setErr((e as { userMessage?: string }).userMessage ?? String(e)); }
     setBusy("");
@@ -99,8 +130,11 @@ export function Studio({ settings, onSettings, openId }: { settings: Settings; o
   if (a) return <StudioEditor key={a.id} anim={a} settings={settings} onBack={() => { setA(null); refresh(); if (openId) history.replaceState(null, "", "#animate"); }}
     onVoice={async (anim, name, progress) => { await addVoice(anim, name, progress); }} />;
 
+  const dragging = (e: React.DragEvent) => [...e.dataTransfer.items].some((x) => x.kind === "file" && x.type.startsWith("image/"));
   return (
-    <div className="page">
+    <div className="page" onDragOver={(e) => { if (dragging(e)) { e.preventDefault(); setOver(true); } }}
+      onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOver(false); }}
+      onDrop={(e) => { if (e.dataTransfer.files.length) { e.preventDefault(); setOver(false); addShots(e.dataTransfer.files); } }}>
       <div className="page-head"><div><h1>Animate</h1><p>Turn any text into a polished animated video: kinetic type, counters, lists, charts and a closing
         card, in your colours. Paste a script, an announcement or a few bullet points.</p></div></div>
       <div className="studio-new">
@@ -125,9 +159,34 @@ export function Studio({ settings, onSettings, openId }: { settings: Settings; o
             <textarea id="anim-text" className="textarea" rows={9} value={text} onChange={(e) => setText(e.target.value)}
               placeholder={"Your idea, script or notes. Short lines work best. Numbers become counters, bullet points become lists…"} />
           </div>
+          <div className="field" ref={shotsRef} tabIndex={-1}>
+            <span className="label" id="shots-l">Screenshots of your app (optional)</span>
+            <div className={`shots-drop ${over ? "over" : ""}`} aria-labelledby="shots-l" aria-describedby="shots-h">
+              {shots.length > 0 && (
+                <ul className="shots" aria-label="Your screenshots">
+                  {shots.map((x, i) => (
+                    <li key={x.id} className="shot">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={x.url} alt={`Screenshot ${i + 1}: ${x.file.name}`} />
+                      <span className="small trunc">{x.file.name}</span>
+                      <button type="button" className="btn ghost icon sm" aria-label={`Remove ${x.file.name}`}
+                        onClick={() => { URL.revokeObjectURL(x.url); setShots((xs) => xs.filter((y) => y.id !== x.id)); }}>&times;</button>
+                    </li>))}
+                </ul>)}
+              <div className="attach-row">
+                <label className="attach"><Icon name="image" />{shots.length ? "Add more" : "Add screenshots"}
+                  <input type="file" accept="image/*" multiple onChange={(e) => { addShots(e.target.files); e.target.value = ""; }} /></label>
+                <RecordScreen onAdd={(f) => setGrab(f)} />
+              </div>
+              {grab && <FrameGrab file={grab} onUse={(f) => addShots([f])} onClose={() => setGrab(null)} />}
+            </div>
+            <span className="hint" id="shots-h">Drop, paste or pick 2 or more. Each one becomes a framed app screen that zooms in on the part your words
+              talk about. Name the files after the screen (dashboard.png, settings.png) and each lands next to the line that mentions it.</span>
+          </div>
           <div className="tpls" role="group" aria-label="Start from an example">
             {EXAMPLES.map((x) => (
-              <button key={x.name} className="tpl" onClick={() => { setText(x.text); setPalette(x.palette); setFont(x.font); setPace(x.pace); setTone(x.tone); }}>
+              <button key={x.name} className="tpl" onClick={() => { setText(x.text); setPalette(x.palette); setFont(x.font); setPace(x.pace); setTone(x.tone);
+                if (x.demo && !shots.length) shotsRef.current?.focus(); }}>
                 <span className="tpl-sw" style={{ background: paletteOf(x.palette).bg, color: paletteOf(x.palette).ink, fontFamily: fontOf(x.font).family }}>
                   <i style={{ background: paletteOf(x.palette).accent }} />Aa</span>
                 <span><b>{x.name}</b><span className="small faint block">{x.line}</span></span>
@@ -140,7 +199,7 @@ export function Studio({ settings, onSettings, openId }: { settings: Settings; o
           <div className="row">
             <button className="btn primary lg" disabled={!text.trim() || !!busy} onClick={create}>
               {busy ? <><span className="spin" />{busy}</> : <><Icon name="wand" />Animate it</>}</button>
-            <span className="small muted">{aiKey ? "Your AI plans the scenes and writes the voiceover lines." : <>No AI key: the scenes follow your lines. <button className="link" onClick={onSettings}>Add a key</button> for AI planning.</>}</span>
+            <span className="small muted">{aiKey ? `Your AI plans the scenes${shots.length ? ", places your screens and writes their callouts" : " and writes the voiceover lines"}.` : <>No AI key: the scenes follow your lines. <button className="link" onClick={onSettings}>Add a key</button> for AI planning.</>}</span>
           </div>
         </section>
         <section className="panel stack">
@@ -299,10 +358,16 @@ function StudioEditor({ anim, settings, onBack, onVoice }: { anim: Anim; setting
     setBusy("");
   }
 
-  async function setPicture(id: string, key: string) {
-    const next = { ...a, scenes: a.scenes.map((x) => (x.id === id ? { ...x, image: key } : x)) };
+  async function setPicture(id: string, key: string, more: Partial<Scene> = {}) {
+    const next = { ...a, scenes: a.scenes.map((x) => (x.id === id ? { ...x, image: key, ...more } : x)) };
     player.current?.setUrls(await urlsFor(next));
     update(next);
+  }
+  /** Show the moment an app screen change matters: just after its punch-in lands (or a second in). */
+  function peek(i: number, s: Scene) {
+    const start = a.scenes.slice(0, i).reduce((n, x) => n + x.duration, 0);
+    const p = punchOf(s);
+    player.current?.seek(start + Math.min(s.duration - 0.3, (p ? p.at + SCREEN.punchTime : 0.6) + 0.6));
   }
 
   const shape = FORMATS[a.format];
@@ -400,6 +465,9 @@ function StudioEditor({ anim, settings, onBack, onVoice }: { anim: Anim; setting
                             setBusy(""); }}>{busy === "Making the picture…" ? <><span className="spin" />Making it…</> : "Make it with AI"}</button>}
                         </div>
                       </div>)}
+                    {s.kind === "screen" && (
+                      <ScreenControls s={s} index={i} onChange={(k) => { scene(s.id, k); peek(i, { ...s, ...k }); }}
+                        onPicture={async (f) => { const key = `anim:${a.id}:shot:${uid()}`; await putMedia(key, f); await setPicture(s.id, key, { focus: undefined, focusAuto: true }); }} />)}
                     <div className="field">
                       <label htmlFor={`d-${s.id}`}>On screen for <span className="num">{s.duration.toFixed(1)} s</span>{a.voice?.keys[s.id] ? " (fits the voice)" : ""}</label>
                       <input id={`d-${s.id}`} className="range" type="range" min={1.8} max={10} step={0.1} value={s.duration} onChange={(e) => scene(s.id, { duration: +e.target.value })} />
@@ -409,6 +477,13 @@ function StudioEditor({ anim, settings, onBack, onVoice }: { anim: Anim; setting
                 <div className="row">
                   <button className="btn" onClick={() => { const s: Scene = { id: uid(), kind: "statement", text: "A new idea", duration: 3 }; s.duration = readTime(s);
                     update({ ...a, scenes: [...a.scenes.slice(0, -1), s, ...a.scenes.slice(-1)] }); }}><Icon name="plus" />Add a scene</button>
+                  <label className="btn"><Icon name="screen" />Add an app screen
+                    <input type="file" accept="image/*" className="sr-only" onChange={async (e) => {
+                      const f = e.target.files?.[0]; e.target.value = ""; if (!f) return;
+                      const key = `anim:${a.id}:shot:${uid()}`; await putMedia(key, f);
+                      const sc = screenScene({ key, name: f.name }, "");
+                      const next = { ...a, scenes: [...a.scenes.slice(0, -1), sc, ...a.scenes.slice(-1)] };
+                      player.current?.setUrls(await urlsFor(next)); update(next); }} /></label>
                 </div>
               </div>
             )}
@@ -432,6 +507,10 @@ function StudioEditor({ anim, settings, onBack, onVoice }: { anim: Anim; setting
                 <div className="field"><span className="label">Pace</span>
                   <div className="seg" role="group" aria-label="Pace">{(Object.keys(PACE_NAME) as Pace[]).map((v) => (
                     <button key={v} aria-pressed={(a.pace ?? "normal") === v} onClick={() => update({ ...a, pace: v })}>{PACE_NAME[v]}</button>))}</div></div>
+                {a.scenes.some((x) => x.kind === "screen") && <div className="field"><span className="label">App screens sit on</span>
+                  <div className="seg" role="group" aria-label="App screens sit on">{([["soft", "A soft light backdrop"], ["theme", "Your colours"]] as [ScreenLook, string][]).map(([v, n]) => (
+                    <button key={v} aria-pressed={(a.screenLook ?? "soft") === v} onClick={() => update({ ...a, screenLook: v })}>{n}</button>))}</div>
+                  <span className="hint">The soft backdrop is the classic product-video look, tinted with your accent colour.</span></div>}
                 <div className="field"><label htmlFor="anim-song2">Music</label>
                   <input id="anim-song2" type="file" accept="audio/*" className="input" onChange={async (e) => {
                     const f = e.target.files?.[0]; if (!f) return; const key = `anim:${a.id}:music:${uid()}`; await putMedia(key, f);
@@ -462,4 +541,104 @@ async function makePicture(key: string, a: Anim, prompt: string): Promise<string
   const k = `anim:${a.id}:img:ai:${uid()}`;
   await putMedia(k, blob);
   return k;
+}
+
+/** An object URL for a stored picture, revoked when it changes or the component goes. */
+function useMediaUrl(key?: string) {
+  const [url, setUrl] = useState("");
+  useEffect(() => {
+    let u = "", live = true;
+    setUrl("");
+    if (key) void getMedia(key).then((b) => { if (b && live) { u = URL.createObjectURL(b); setUrl(u); } });
+    return () => { live = false; if (u) URL.revokeObjectURL(u); };
+  }, [key]);
+  return url;
+}
+
+const ZOOMS: [number, string][] = [[1, "None"], [1.3, "A little"], [1.6, "Close"], [2, "Very close"]];
+const pct = (v: number) => `${Math.round(v * 100)}%`;
+
+/** An app screen's own controls: the screenshot with a crosshair on its focus (click it, or arrow keys), the callout,
+ *  how far and when it zooms in. With no pick, the focus is the busiest part of the screenshot. */
+function ScreenControls({ s, index, onChange, onPicture }: { s: Scene; index: number; onChange: (k: Partial<Scene>) => void; onPicture: (f: File) => Promise<void> }) {
+  const url = useMediaUrl(s.image);
+  const [auto, setAuto] = useState<{ x: number; y: number } | null>(null);
+  useEffect(() => {
+    if (!url) { setAuto(null); return; }
+    let live = true;
+    const img = new Image(); img.src = url;
+    void img.decode().then(() => { if (live) setAuto(busyFocus(img)); }).catch(() => undefined);
+    return () => { live = false; };
+  }, [url]);
+  const f = s.focus ?? auto ?? { x: 0.5, y: 0.5 };
+  const picked = !!s.focus && !s.focusAuto;
+  const set = (x: number, y: number) => onChange({ focus: { x: +Math.min(1, Math.max(0, x)).toFixed(3), y: +Math.min(1, Math.max(0, y)).toFixed(3) }, focusAuto: false });
+  const punch = punchOf(s);
+  const zoom = s.zoom ?? SCREEN.zoom;
+  return (
+    <div className="stack tight">
+      {url ? (
+        <div className="focus-pick">
+          <button type="button" className="focus-img" aria-describedby={`fh-${s.id}`}
+            aria-label={`Scene ${index + 1} focus point: ${pct(f.x)} across, ${pct(f.y)} down. Click the screenshot, or use the arrow keys, to move it.`}
+            onClick={(e) => { if (e.detail === 0) return; const r = e.currentTarget.getBoundingClientRect(); set((e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height); }}
+            onKeyDown={(e) => {
+              const step = e.shiftKey ? 0.01 : 0.05;
+              const d = ({ ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] } as Record<string, number[]>)[e.key];
+              if (d) { e.preventDefault(); set(f.x + d[0], f.y + d[1]); }
+            }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={url} alt="" draggable={false} />
+            <span className="cross" aria-hidden="true" style={{ left: pct(f.x), top: pct(f.y) }}><i /><i /><b /></span>
+          </button>
+          <p className="hint" id={`fh-${s.id}`}>{picked ? "Zooms in on your pick." : "Zooms in on the busiest part of the screen. Click where it should look instead."}
+            {picked && <> <button type="button" className="link" onClick={() => onChange({ focus: undefined, focusAuto: true })}>Pick for me</button></>}</p>
+        </div>
+      ) : <p className="small muted">Add a screenshot of your app for this scene.</p>}
+      <div className="row">
+        <label className="btn sm"><Icon name="image" />{s.image ? "Change screenshot" : "Add a screenshot"}
+          <input type="file" accept="image/*" className="sr-only" onChange={async (e) => { const file = e.target.files?.[0]; e.target.value = ""; if (file) await onPicture(file); }} /></label>
+      </div>
+      <input className="input" aria-label={`Scene ${index + 1} callout`} placeholder="Callout: a few words pointing at that spot (optional)…" maxLength={40}
+        value={s.callout ?? ""} onChange={(e) => onChange({ callout: e.target.value || undefined })} />
+      <div className="field"><span className="label">Zoom in on it</span>
+        <div className="seg" role="group" aria-label={`Scene ${index + 1} zoom`}>{ZOOMS.map(([v, n]) => (
+          <button key={v} type="button" aria-pressed={Math.abs(zoom - v) < 0.01} onClick={() => onChange({ zoom: v })}>{n}</button>))}</div>
+      </div>
+      {punch && <div className="field">
+        <label htmlFor={`p-${s.id}`}>Zooms in at <span className="num">{punch.at.toFixed(1)} s</span>{s.punch === undefined ? " (after the caption)" : ""}</label>
+        <input id={`p-${s.id}`} className="range" type="range" min={0.3} max={Math.max(0.4, s.duration - 0.6)} step={0.1} value={punch.at}
+          onChange={(e) => onChange({ punch: +e.target.value })} />
+      </div>}
+    </div>
+  );
+}
+
+/** A still from a screen recording: pause on the moment, then use that frame (at the video's own size) as a screenshot. */
+function FrameGrab({ file, onUse, onClose }: { file: File; onUse: (f: File) => void; onClose: () => void }) {
+  const video = useRef<HTMLVideoElement>(null);
+  const [url] = useState(() => URL.createObjectURL(file));
+  const [n, setN] = useState(0);
+  useEffect(() => () => URL.revokeObjectURL(url), [url]);
+  async function use() {
+    const v = video.current; if (!v?.videoWidth) return;
+    v.pause();
+    const c = document.createElement("canvas"); c.width = v.videoWidth; c.height = v.videoHeight;
+    c.getContext("2d")!.drawImage(v, 0, 0);
+    const blob = await new Promise<Blob | null>((ok) => c.toBlob(ok, "image/png"));
+    if (!blob) return;
+    onUse(new File([blob], `Frame at ${clock(v.currentTime).replace(":", ".")}.png`, { type: "image/png" }));
+    setN((x) => x + 1);
+  }
+  return (
+    <div className="grab">
+      <p className="small">Pause on the moment you want, then use that frame as a screenshot. Take as many as you like.</p>
+      <video ref={video} src={url} controls playsInline muted />
+      <div className="row">
+        <button type="button" className="btn primary sm" onClick={() => void use()}><Icon name="image" />Use this frame</button>
+        <button type="button" className="btn ghost sm" onClick={onClose}>Done</button>
+        {n > 0 && <span className="small muted" aria-live="polite">{n} frame{n > 1 ? "s" : ""} added</span>}
+      </div>
+    </div>
+  );
 }
