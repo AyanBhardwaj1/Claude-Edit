@@ -488,7 +488,23 @@ def cmd_doctor(_):
     from .transcribe import _api_key
     print(f"{'ok ' if _api_key('ELEVENLABS_API_KEY') else 'optional'} ElevenLabs Scribe key (hosted ASR)")
     node = shutil.which("node")
-    print(f"{'ok ' if node else 'optional'} node (HyperFrames / Remotion graphics)")
+    print(f"{'ok ' if node else 'optional'} node (HyperFrames / Remotion graphics, editor overlay, capture shots)")
+    try:
+        from .overlay import available
+        ov = available()
+        ov_ok = ov[0] if isinstance(ov, tuple) else bool(ov)
+        print(f"{'ok ' if ov_ok else 'optional'} overlay renderer (node + Playwright + Chromium: editor overlay, "
+              "produce overlays)" + ("" if ov_ok else f": {ov[1] if isinstance(ov, tuple) else 'not available'}"))
+    except Exception as e:  # noqa: BLE001
+        print(f"optional overlay renderer: {e}")
+    try:
+        import scipy  # noqa: F401
+        print("ok  python scipy (editor compose: original music and SFX)")
+    except ImportError:
+        print("optional python scipy: editor compose (pip install scipy)")
+    from . import effort as _eff
+    learned = _eff.load().get("machines", {}).get(_eff.machine(), {})
+    print(f"ok  effort timings: {len(learned)} stage rate(s) learned on {_eff.machine()} (editor effort show)")
     from .captions import STYLES, resolve_font
     print(f"ok  caption font (bold): {resolve_font(STYLES['bold']['fonts'])}")
     from .fonts import installed
