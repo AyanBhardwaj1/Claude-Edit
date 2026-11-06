@@ -389,3 +389,11 @@ def test_cut_plays_touching_pieces_of_one_take_as_one(tmp_path):
     meta = json.loads((tmp_path / "cut_meta.json").read_text())
     tl = meta.get("timeline") or meta.get("segments")
     assert [(s["src_start"], s["src_end"]) for s in tl] == [(0.2, 3.0), (3.2, 3.8)]     # one seamless piece, then a real cut
+
+
+def test_pacing_reports_lines_said_twice():
+    from editor.review import _said_twice
+    text = "Here is the secret you need. It works every day. Here is the secret you need. Yes. Yes."
+    words = [{"id": f"w{i}", "text": t, "start": i * 0.4, "end": i * 0.4 + 0.3} for i, t in enumerate(text.split())]
+    assert _said_twice(words) == '"Here is the secret you need." at 0.0s and 4.0s: cut the later one?'
+    assert _said_twice(words[:10]) is None
