@@ -48,6 +48,10 @@ a competitor-chips → "built for students" checklist, counters and a big statem
 - `editor compose` makes original royalty-free beds/SFX when no licensed track exists; say a human must listen.
 - Vosk (offline) mangles names and Spanish; correct from the script and the screen, and say which lines are guesses.
 
+**Afterwards (2026-11-06)**: the whole video was rebuilt from one `editor produce` spec
+(`projects/walkfree/produce.json`) in 7.5 min on the same 4-CPU machine, square cut included. Next brief: inventory,
+write the spec, `--plan`, render; notes are one-line spec edits that re-render only what changed.
+
 **Process under a deadline**
 - Parallel agents with hard deadlines worked for graphics and music; the demo-recording agents failed together on the
   same root cause (no GPU). When one agent's approach fails, change the approach, don't re-run it.

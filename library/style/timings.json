@@ -11,15 +11,20 @@
     "rate": 45.273,
     "runs": 1
    },
+   "composite:standard": {
+    "last": "2026-11-06",
+    "rate": 57.511,
+    "runs": 1
+   },
    "mix:standard": {
     "last": "2026-11-06",
-    "rate": 8.523,
-    "runs": 1
+    "rate": 10.268,
+    "runs": 2
    },
    "overlay:standard": {
     "last": "2026-11-06",
-    "rate": 56.761,
-    "runs": 1
+    "rate": 42.402,
+    "runs": 2
    },
    "pieces:standard": {
     "last": "2026-11-06",
