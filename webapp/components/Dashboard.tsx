@@ -137,8 +137,8 @@ export function Dashboard({ user, settings, theme, onNew, onOpen, onGo, onSample
                 <li><span className="what grow"><b>What really changed</b>: every version lists its changes, measured, and <b>Compare</b> (C) plays the one before.</span></li>
                 <li><span className="what grow"><b>Learns your taste</b>: a change you make before exporting two videos is offered as a style rule.</span>
                   <button className="btn sm" onClick={() => onGo("style")}>My style</button></li>
-                <li><span className="what grow"><b>Make music</b>, <b>Record my screen</b> and <b>Fast, Balanced or Best</b>: you choose how long the editor takes.</span>
-                  <button className="btn sm" onClick={() => onGo("settings")}>Choose</button></li>
+                <li><span className="what grow"><b>Back up your videos</b>: one file keeps every video safe, and moves it to another browser.</span>
+                  <button className="btn sm" onClick={() => onGo("settings")}>Back up</button></li>
               </ul>
             </section>
           )}
