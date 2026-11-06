@@ -109,7 +109,10 @@ real subtitles), `<name>_chapters.txt` for YouTube from pieces with a `"chapter"
 title], ...]; checked: starts at 0:00, at least 3, each 10 s or more), and with `"post": {"cover": {"at": "s9+6",
 "title": "..."}}` a cover from the clean picture (the sharpest moment within a second).
 
-Notes loop: change the spec (the smallest edit: one piece, one gain, one caption), check just that stretch with
+Notes loop: a note with a time ("at 1:23 the music drowns him out") starts with `editor produce produce.json --at 1:23`:
+the piece and its source second, the voices speaking, the music / beds / effects playing and the graphics on screen
+at that moment, so you change the right entry. Then change the spec (the smallest edit: one piece, one gain, one
+caption), check just that stretch with
 `editor produce produce.json --range d7b d7c.end` (720p, seconds: only changed pieces and that stretch's overlay
 render), then re-render with
 `editor produce produce.json --preview --note "<the user's note>"` (only changed pieces re-render; each note is
