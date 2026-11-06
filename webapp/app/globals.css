@@ -609,6 +609,16 @@ button.attach { background: none; border: 0; font: inherit; font-size: 13px; tex
 .rec-none { display: flex; gap: 8px; align-items: flex-start; }
 .rec-none svg { width: 16px; height: 16px; flex: none; margin-top: 2px; }
 .rec-extra { display: grid; gap: 4px; padding: 14px 16px; border-radius: var(--r-md); background: var(--surface); border: var(--panel-border); }
+/* "Have a script? Paste it" on New video, and "Paste your script" in Subtitles (components/ScriptFix.tsx) */
+.script-box { padding: 12px 16px; border-radius: var(--r-md); background: var(--surface); border: var(--panel-border); }
+.script-box summary { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-height: 28px; cursor: pointer; list-style: none;
+  font-weight: 600; color: var(--ink); border-radius: var(--r-sm); }
+.script-box summary::-webkit-details-marker { display: none; }
+.script-box summary::after { content: "+"; margin-left: auto; color: var(--ink-3); font-weight: 400; font-size: 18px; line-height: 1; }
+.script-box[open] summary::after { content: "−"; }
+.script-box summary svg { width: 18px; height: 18px; flex: none; color: var(--accent-text); }
+.script-box summary:focus-visible { outline: none; box-shadow: var(--focus); }
+.script-fix [role="status"]:empty { display: none; }
 .rec-extra .attach { color: var(--accent-text); font-weight: 600; font-size: 14px; }
 .rec-panel { margin-top: 8px; padding: 16px; border-radius: var(--r-md); background: var(--bg); border: 1px solid var(--line); animation: rise .25s ease-out; min-width: 0; }
 .rec-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }

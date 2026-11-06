@@ -433,7 +433,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
 
           {drawer && version && (
             <section className="panel" aria-label="Edit it myself">
-              <Drawer project={p} edit={version.edit} settings={settings} onMakeMusic={() => setMaker(true)} onApply={async (edit, what) => { await saveManual(p, edit, what); setP({ ...p }); setMsgs((m) => [...m, { who: "ed", text: `Version ${p.current}: ${what}` }]); }} />
+              <Drawer project={p} edit={version.edit} settings={settings} onMakeMusic={() => setMaker(true)} onWords={() => setP({ ...p })} onApply={async (edit, what) => { await saveManual(p, edit, what); setP({ ...p }); setMsgs((m) => [...m, { who: "ed", text: `Version ${p.current}: ${what}` }]); }} />
             </section>
           )}
 

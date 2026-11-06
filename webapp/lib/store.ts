@@ -93,5 +93,9 @@ export function writeLocal(base: string, value: string) {
   try { localStorage.setItem(k(base), value); } catch { /* storage full or off */ }
 }
 
+/** The last script written with "Write a script" (hook + what to say), offered with one click by "Paste your script". */
+export function saveLastScript(text: string) { writeLocal("ce.lastScript", text); }
+export function lastScript(): string { return readLocal("ce.lastScript") ?? ""; }
+
 /** Tells lib/sync.ts that a preference changed (it pushes them when server accounts are on). */
 function changed() { if (typeof window !== "undefined") window.dispatchEvent(new Event("cutmind:prefs")); }

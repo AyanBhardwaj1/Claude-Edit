@@ -8,6 +8,7 @@ import { trackFaces } from "./face";
 import { findPicture } from "./images";
 import { activeRms, decodeMono, looksLikeScreenAt, musicFeel, probeImage, probeVideo, uid } from "./media";
 import { getMedia, putMedia, saveProject } from "./store";
+import { applyScript, type ScriptResult } from "./retext";
 import { record } from "./timings";
 import { transcribe } from "./transcribe";
 import type { Asset, Edit, Project, Settings, StyleRule } from "./types";
@@ -97,11 +98,14 @@ async function choiceFor(s: Settings): Promise<AiChoice> {
   return aiChoice(s, effort, await known.get(key)!);
 }
 
-/** Transcript, retakes and (unless the effort is Fast) the face. `s.effort` is this video's effort. */
-export async function listen(p: Project, s: Settings, onProgress: Progress) {
+/** Transcript, retakes and (unless the effort is Fast) the face. `s.effort` is this video's effort. A pasted script puts
+ *  its words on the heard timing before anything reads them (lib/retext.ts), so the first edit already uses it. */
+export async function listen(p: Project, s: Settings, onProgress: Progress, script = ""): Promise<ScriptResult | null> {
   const effort = effortOf(s);
   const t0 = performance.now();
+  let fixed: ScriptResult | null = null;
   p.words = [];
+  delete p.wordsHeard;
   for (const src of p.sources) {
     const blob = (await getMedia(src.mediaKey))!;
     const ws = await transcribe(blob, src.id, p.words.length, s.transcriber, s.openaiKey,
@@ -112,6 +116,10 @@ export async function listen(p: Project, s: Settings, onProgress: Progress) {
   if (!p.words.length) throw new Error("I couldn't hear any speech in this video. Is the sound on?");
   onProgress("Finding your retakes", 40);
   p.analysis = analyze(p.words);
+  if (script.trim()) {
+    onProgress("Matching your script", 42);
+    fixed = applyScript(p, script);
+  }
   record("listen", effort, since(t0), footage(p), s.transcriber);
   if (EFFORT[effort].faces) {
     onProgress("Finding your face", 45);
@@ -125,6 +133,7 @@ export async function listen(p: Project, s: Settings, onProgress: Progress) {
   } else p.faces = [];                              // Fast: no face finding, the reframe stays centred
   p.status = "transcribed";
   await saveProject(p);
+  return fixed;
 }
 
 async function webPictures(p: Project, ai: AiEdit, onProgress: Progress, limit = 16): Promise<Map<string, Asset>> {

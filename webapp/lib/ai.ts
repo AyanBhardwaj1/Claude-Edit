@@ -97,7 +97,7 @@ export function transcriptText(p: Project): string {
   const lines: string[] = [];
   for (const ph of a?.phrases ?? []) {
     const i0 = p.words.findIndex((w) => w.id === ph.from), i1 = p.words.findIndex((w) => w.id === ph.to);
-    const ws = p.words.slice(i0, i1 + 1).map((w) => `${w.id}:${w.w.replace(/[<>]/g, "")}`).join(" ");
+    const ws = p.words.slice(i0, i1 + 1).filter((w) => w.w.trim()).map((w) => `${w.id}:${w.w.replace(/[<>]/g, "")}`).join(" ");
     lines.push(`[take ${ph.src + 1} ${ph.s.toFixed(1)}s] ${ws}`);
   }
   const parts = [`<transcript>\n${lines.join("\n")}\n</transcript>`];

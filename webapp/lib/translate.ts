@@ -13,7 +13,7 @@ export const LANGUAGES = ["Spanish", "Portuguese", "French", "German", "Italian"
 export function phrasesOf(tl: Timeline): { from: string; to: string; text: string }[] {
   const out: { from: string; to: string; text: string }[] = [];
   let cur: typeof tl.words = [];
-  const flush = () => { if (cur.length) out.push({ from: cur[0].id, to: cur[cur.length - 1].id, text: cur.map((w) => w.w).join(" ") }); cur = []; };
+  const flush = () => { if (cur.length) out.push({ from: cur[0].id, to: cur[cur.length - 1].id, text: cur.map((w) => w.w).filter(Boolean).join(" ") }); cur = []; };
   tl.words.forEach((w, i) => {
     cur.push(w);
     const next = tl.words[i + 1];

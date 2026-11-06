@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { writeScript } from "@/lib/ai";
-import { loadRules, saveRules } from "@/lib/store";
+import { loadRules, saveLastScript, saveRules } from "@/lib/store";
 import type { Settings, StyleRule } from "@/lib/types";
 import { Icon } from "./Icons";
 
@@ -17,7 +17,7 @@ export function Script({ settings }: { settings: Settings }) {
   const hasKey = settings.provider === "anthropic" ? !!settings.anthropicKey : !!settings.openaiKey;
   async function go() {
     setBusy(true); setErr("");
-    try { setRes(await writeScript(settings, idea, loadRules())); } catch (e) { setErr((e as { userMessage?: string }).userMessage ?? String(e)); }
+    try { const r = await writeScript(settings, idea, loadRules()); setRes(r); saveLastScript(`${r.hook}\n\n${r.script}`); } catch (e) { setErr((e as { userMessage?: string }).userMessage ?? String(e)); }
     setBusy(false);
   }
   return (
