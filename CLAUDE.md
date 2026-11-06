@@ -103,6 +103,7 @@ editor/            python package (python3 -m editor)
   review.py        inspect (video-use timeline view) + review of every cut and covered faces
   cover.py         cover/thumbnail from a clean reframed frame
   qa.py            spec/loudness check, contact sheet, frame grabs
+  safezone.py      captions under Reels / TikTok / Shorts UI (measured from captions.ass) + a zones sheet
   style.py         style memory: learned editing preferences (notes, draft -> approved changes) -> first drafts
   effort.py        speed vs quality: rush / standard / polish, learned per-machine timings, budget -> effort
   overlay/         designed overlay track from a JSON spec (captions, tags, counters, checklists...) -> alpha MOV;

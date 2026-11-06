@@ -40,6 +40,11 @@ python3 -m editor render projects/<n>/work -o projects/<n>/out/<n>_youtube.mp4 -
 5b. `python3 -m editor pacing projects/<n>/work`: bare face over 4.5 s, over 10 s with zooms only, more than 10
    zooms a minute, more than 2 big word cards, visuals under 1.2 s, names said but never shown, and too few b-roll
    moments for the length. `check` also fails black stretches of 0.5 s or more.
+5c. Vertical posts: `python3 -m editor safezone <file> --work projects/<n>/work` measures the captions from
+   captions.ass against Reels / TikTok / Shorts UI (right-side buttons, the caption/username block at the bottom,
+   the top bar) and writes `<file>_safezone_<platform>.png` with the zones drawn over real frames: Read one. A hit
+   means move the captions (`--position middle` on `editor auto` / `editor captions`) or the graphic; zones are
+   approximate, so look before changing.
 6. Report what you checked. If something can't be verified (e.g. how it sounds),
    say so plainly instead of implying it was checked.
 

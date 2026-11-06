@@ -376,6 +376,10 @@ def main(argv=None):
                             "(brief-production skill)")
     p.add_argument("produce_args", nargs=argparse.REMAINDER)
 
+    p = sub.add_parser("safezone", add_help=False, prefix_chars="+",
+                       help="captions under Reels / TikTok / Shorts UI? measured from captions.ass, plus a zones sheet")
+    p.add_argument("safezone_args", nargs=argparse.REMAINDER)
+
     p = sub.add_parser("overlay", add_help=False, prefix_chars="+",
                        help="designed overlay track: JSON spec -> transparent PNG-in-MOV (Node Playwright); "
                             "also `overlay frame OUT_DIR` / `overlay still SRC OUT` (screens on a rounded backdrop)")
@@ -992,6 +996,11 @@ def cmd_lessons(args):
 def cmd_inventory(args):
     from .inventory import main as inventory_main
     return inventory_main(args.inventory_args)
+
+
+def cmd_safezone(args):
+    from .safezone import main as safezone_main
+    return safezone_main(args.safezone_args)
 
 
 def cmd_produce(args):
