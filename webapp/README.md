@@ -143,6 +143,9 @@ vertical reel with a cover and a post caption, then change it by typing notes. E
 39. **Pick a take**: Edit it myself → Cut lists each line you said more than once. Cutmind plays the last complete
     take; one click plays another take in its place (where the line was in the cut, its edge "um" left out)
     (`lib/takes.ts`).
+40. **Words you say out of habit**: Edit it myself → Cut counts "basically", "literally", "honestly", "obviously",
+    "you know," and "I mean," (and "actually" or "like" set off by commas) in what the cut plays; one click cuts them
+    all. "Do you know", "it actually works" and "I like it" are left alone (`lib/crutch.ts`).
 
 ## Privacy and keys
 - Videos never leave the browser: they're processed on the user's computer and kept in IndexedDB.

@@ -11,6 +11,7 @@ import { addToLibrary } from "@/lib/workflow";
 import { LANGUAGES, translateSubtitles } from "@/lib/translate";
 import { formatTime, playedLength, waitSavings, WAIT_SPEED } from "@/lib/screenrec";
 import { takeLines, withTake } from "@/lib/takes";
+import { crutches, cutWords } from "@/lib/crutch";
 import type { Asset, Broll, BrollIn, CaptionAnim, CaptionPreset, Edit, Look, Motion, Project, Range, Settings, Transition } from "@/lib/types";
 
 const ANIM_NAME: Record<CaptionAnim, string> = { pop: "Pop", karaoke: "Karaoke", bounce: "Bounce", words: "Word by word", typewriter: "Typewriter",
@@ -56,6 +57,7 @@ export function Drawer({ project: p, edit, onApply, settings, onMakeMusic, onWor
     return s;
   }, [e.keep, idx, p.words]);
   const lines = useMemo(() => takeLines(p, e.keep), [p, e.keep]);
+  const habits = useMemo(() => crutches(p, e.keep), [p, e.keep]);
   const changed = JSON.stringify(e) !== JSON.stringify(edit);
   const cap = (k: Partial<Edit["captions"]>) => setE({ ...e, captions: { ...e.captions, ...k } });
   const mo = motionOf(e);
@@ -123,6 +125,20 @@ export function Drawer({ project: p, edit, onApply, settings, onMakeMusic, onWor
                       ))}
                     </div>
                     <p className="small muted take-text">{L.playing < 0 ? "None of these plays now. " : ""}“{L.takes[L.playing < 0 ? L.takes.length - 1 : L.playing].text}”</p>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {habits.length > 0 && (
+            <div className="field"><span className="label" id="crutch-h">Words you say out of habit</span>
+              <span className="hint">They fill time without saying anything. Cut them all at once, or click single ones in the words below.</span>
+              <ul className="takes" aria-labelledby="crutch-h">
+                {habits.map((c) => (
+                  <li key={c.name} className="row">
+                    <span>“{c.name}” <span className="muted small">{c.hits.length === 1 ? "once" : `${c.hits.length} times`}</span></span>
+                    <button type="button" className="btn sm" onClick={() => setE({ ...e, keep: cutWords(p, e.keep, c.hits.flat()) })}>
+                      Cut {c.hits.length === 1 ? "it" : `all ${c.hits.length}`}<span className="sr-only"> “{c.name}”</span></button>
                   </li>
                 ))}
               </ul>

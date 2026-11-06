@@ -9,14 +9,14 @@ export type Take = { range: Range; text: string; src: number; s: number; e: numb
 export type TakeLine = { group: RetakeGroup; takes: Take[]; playing: number };   // playing: -1 when none plays
 
 /** The words the cut plays, by index into p.words, in play order. */
-function played(p: Project, keep: Range[], idx = indexOf(p.words)): number[] {
+export function played(p: Project, keep: Range[], idx = indexOf(p.words)): number[] {
   const out: number[] = [];
   for (const r of keep) { const a = idx.get(r.from), b = idx.get(r.to); if (a == null || b == null) continue; for (let i = a; i <= b; i++) out.push(i); }
   return out;
 }
 
 /** Word indices back into ranges: consecutive words of one take join, anything else starts a new range. */
-function ranges(p: Project, seq: number[]): Range[] {
+export function ranges(p: Project, seq: number[]): Range[] {
   const out: Range[] = [];
   let prev = -2;
   for (const i of seq) {
