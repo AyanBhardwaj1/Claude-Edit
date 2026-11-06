@@ -345,6 +345,15 @@ def main(argv=None):
     from .compose import add_arguments as _compose_arguments   # import-light: argparse only
     _compose_arguments(p)
 
+    p = sub.add_parser("inventory", add_help=False, prefix_chars="+",
+                       help="what's in a folder of footage: lengths, sizes, sound, contact sheets, what is said")
+    p.add_argument("inventory_args", nargs=argparse.REMAINDER)
+
+    p = sub.add_parser("produce", add_help=False, prefix_chars="+",
+                       help="a finished video from one JSON spec: pieces, overlay track, mix, composite, extras "
+                            "(brief-production skill)")
+    p.add_argument("produce_args", nargs=argparse.REMAINDER)
+
     p = sub.add_parser("overlay", add_help=False, prefix_chars="+",
                        help="designed overlay track: JSON spec -> transparent PNG-in-MOV (Node Playwright); "
                             "also `overlay frame OUT_DIR` / `overlay still SRC OUT` (screens on a rounded backdrop)")
@@ -918,6 +927,16 @@ def cmd_timeline(args):
 def cmd_compose(args):
     from .compose import run
     return run(args)
+
+
+def cmd_inventory(args):
+    from .inventory import main as inventory_main
+    return inventory_main(args.inventory_args)
+
+
+def cmd_produce(args):
+    from .produce import main as produce_main
+    return produce_main(args.produce_args)
 
 
 def cmd_overlay(args):

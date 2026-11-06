@@ -16,9 +16,9 @@ honest, and get a watchable draft to the user early. Read first:
 - Deadline? `python3 -m editor effort show --length <final seconds> --budget <min> --stages transcribe capture pieces overlay mix composite`.
   If asked "how long?", answer with that number and what you'd drop, before doing anything.
 - Copy uploads into `projects/<name>/raw/` with plain names (`scene1.mov`, `scene5.m4a`); never modify raw.
-- One contact sheet per clip (`ffmpeg -vf "fps=8/<dur>,scale=480:-2,tile=4x2"`) and Read them; transcribe every clip
-  (`editor auto --to transcribe` per clip project, or the transcribe module; Vosk offline mishears names and other
-  languages, so correct from the script and from on-screen text).
+- `python3 -m editor inventory projects/<name>/raw` (lengths, sizes, sound, a contact sheet per clip, what is said;
+  writes `work/inventory/inventory.md` and per-clip `<clip>.words.json` for captions). Read it and the sheets. Offline
+  Vosk mishears names and other languages: correct from the script and from on-screen text.
 - Write the **asset map**: brief name → file → what it really contains (takes, angles, language, what was said vs the
   script). List what's missing or different and tell the user in one short message, then continue with the closest
   honest substitute unless it changes the story.
@@ -40,16 +40,28 @@ one number. Captions: what was actually said, one card per line, ≤ 2 lines × 
   `editor/overlay/README.md`; broll-motion skill).
 - Meanwhile you: grade and trim live action, clean voices (`highpass=80, afftdn, light compression`).
 
-## 4. Assemble
-1. **Pieces** (one mp4 each, same codec/size/fps, rendered 4 at a time): live clips (grade, speed ramps, push-ins),
-   app shots on the framed backdrop (`editor.overlay.frame`: 92% scale, rounded corners, soft shadow, Ken Burns,
-   punch-in on the thing being said), photos with a white shutter flash, the end-card freeze (blur + darken).
-2. `concat` the pieces → `base.mp4` (check the total duration to the frame).
-3. **Mix**: voices at their table times; music under it with `sidechaincompress` keyed by the voice bus (pad the bus
-   with `apad=whole_dur=<total>`), much lower under on-camera dialogue than under voice-over; SFX only on visible
-   events; ambience low; `loudnorm I=-14 TP=-1.5`.
-4. **Composite**: base + overlay + mix, H.264 16 Mbps, AAC 320k, faststart. Audio-only fixes later are a remux
-   (`-map 0:v -c:v copy`).
+## 4. Assemble with one spec: `editor produce`
+Write `projects/<name>/produce.json` (the whole video: pieces, audio, overlay, extras) and run it. A worked,
+complete example is the Walk-Free rebuild: `editor/produce.py` docstring + [example.md](example.md).
+```bash
+python3 -m editor produce projects/<name>/produce.json --plan      # timeline table, total vs target, overlay check
+python3 -m editor produce projects/<name>/produce.json --preview   # pieces -> overlay -> mix -> composite -> extras
+python3 -m editor produce projects/<name>/produce.json --only mix  # after an audio note (then --only composite)
+```
+- **Pieces** (in order; cached by content, so a note re-renders only the shots it touches):
+  `video` (src, in/out, speed, grade hot|cool|neutral|warm|punchy|bw or a raw filter, crop_y, z0/z1 Ken Burns,
+  push [at,dur,zoom,fx,fy] for a push-in transition, fade_in/fade_out [s,"white"]), `framed` (app screen or photo
+  on the rounded, shadowed backdrop; z0/z1, fx/fy, punch [t,zoom,fx,fy], flash for a shutter), `still` (full frame),
+  `sequence` (stills cross-blended: a time-lapse from screenshots), `freeze` (last frame of another piece, blur and
+  darken for an end card), `color`.
+- **Times are references**, so a re-time is one number: `"s3"`, `"s3+1.2"`, `"s3.end-0.5"`, and `"@v3:2.01"` (where
+  source second 2.01 of voice v3 lands): anchor captions and pills on real word times from the transcript.
+- **Audio**: `voices` (cleaned and summed; music ducks under them), `music` (a file, or `{"compose": {...}}` for an
+  original bed fitted to the length; `automation` [[t, dB], ...] for hard stops and dips under dialogue), `sfx`
+  (built-in names like whoosh, pop, shutter, or files), `beds` (ambience and app audio that don't duck the music).
+  Mastered to the output `lufs` (default −14) and `tp`.
+- **Overlay**: the overlay spec inline (or a path); every time in it may be a reference.
+- **Extras**: e.g. `{"name": "square", "from": "s3q", "to": "s4a", "size": [1080, 1080]}`.
 
 ## 5. Look, then deliver drafts
 Contact sheet every ~5 s and frames at every graphic; Read them. Fix overlaps, unreadable text, covered faces, wrong
