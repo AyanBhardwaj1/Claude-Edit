@@ -212,6 +212,11 @@ def test_pacing_checks():
     assert rep["no_hook_title"] and rep["first_word_after_0_6s"] is None        # speech from 0.0 s, no title
     titled = pacing(dict(edl, title="I quit Notion"), [dict(w, start=w["start"] + 1.0, end=w["end"] + 1.0) for w in ws], 30.0)
     assert titled["no_hook_title"] is None and titled["first_word_after_0_6s"]
+    assert "of nothing after the last word" in rep["loop_seam"]            # the words end long before 30 s
+    end = ws[-1]["end"]
+    assert pacing(edl, ws, end + 0.3)["loop_seam"] is None
+    bye = words("here is the trick thanks for watching")
+    assert "sign-off" in pacing(edl, bye, bye[-1]["end"] + 0.2)["loop_seam"]
 
 
 def write_wav(path, x, sr=48000):
