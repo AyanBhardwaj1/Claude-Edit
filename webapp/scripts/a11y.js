@@ -8,7 +8,8 @@ const BASE = `http://localhost:${PORT}`;
 const AXE = fs.readFileSync(require.resolve("axe-core/axe.min.js"), "utf8");
 
 (async () => {
-  const b = await chromium.launch();
+  // a fake camera and microphone, so "Film it here" opens with a live preview
+  const b = await chromium.launch({ args: ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream"] });
   const page = await b.newPage({ viewport: { width: 1280, height: 800 } });
   const results = [];
   const audit = async (name) => {
@@ -35,6 +36,11 @@ const AXE = fs.readFileSync(require.resolve("axe-core/axe.min.js"), "utf8");
     await theme(t);
     await page.goto(BASE + "/app"); await page.waitForTimeout(1200); await theme(t); await page.waitForTimeout(600); await audit(`home (${t})`);
     await page.goto(BASE + "/app#new"); await page.waitForTimeout(1200); await theme(t); await audit(`new video (${t})`);
+    await page.getByRole("button", { name: "Film it here" }).click();
+    await page.locator(".film-recbtn:not([disabled])").waitFor({ timeout: 15000 }).catch(() => undefined);
+    await page.getByRole("textbox", { name: "Your script" }).fill("Hi, I'm filming this inside Cutmind.\n\nThe script scrolls while I talk.");
+    await page.waitForTimeout(400); await audit(`film it here (${t})`);
+    await page.keyboard.press("Escape"); await page.waitForTimeout(300);
     await page.goto(BASE + "/app#settings"); await page.waitForTimeout(1200); await theme(t); await audit(`settings (${t})`);
     await page.goto(BASE + "/app#animate"); await page.waitForTimeout(1500); await theme(t); await audit(`animate (${t})`);
   }
