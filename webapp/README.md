@@ -48,7 +48,11 @@ vertical reel with a cover and a post caption, then change it by typing notes. E
 14. **Subtitles in 16 languages** and `.srt` files; **AI pictures** from a description (OpenAI), labelled.
 15. **Hook ideas** (five new hook titles in one click) and a **reel check** (a 0-100 score with fixes).
 16. **Brand kit**: name, handle, colours, font, logo, an optional watermark, a brand style and brand animations.
-17. **Pro editing**: a timeline, keyboard shortcuts (space, arrows, frame steps, Cmd/Ctrl+Z for versions), every shape in
+17. **Make music**: no song? An original, royalty-free music bed composed in the browser (no key, no network): four moods
+    (warm, uplifting, tense, lo-fi), tempo, key, as long as the edit, with sections on a bar grid and the final chord placed just
+    before the video ends; an FM electric piano, detuned pads, sub bass, soft drums, sidechain pumping, reverb and a 1-3 kHz dip
+    for the voice, mastered to about -16 LUFS (`lib/compose.ts`, `lib/loudness.ts`, a port of `editor/compose`).
+18. **Pro editing**: a timeline, keyboard shortcuts (space, arrows, frame steps, Cmd/Ctrl+Z for versions), every shape in
     one export, and a Cmd/Ctrl+K command palette.
 
 ## Privacy and keys
@@ -98,6 +102,7 @@ timeouts, a ~4.5 MB request limit), so all media work runs client-side:
 | `lib/studio.ts`, `lib/studioPlay.ts`, `lib/studioAi.ts`, `lib/fastExport.ts` | Motion Studio: scenes, renderer, player, AI planning and voice, WebCodecs export |
 | `lib/clips.ts`, `lib/translate.ts`, `lib/hooks.ts`, `lib/score.ts`, `lib/brand.ts` | clips, translated subtitles and .srt, hook ideas, the reel check, the brand kit |
 | `lib/livecut.ts` | the landing page's live demo of the first-pass cut |
+| `lib/compose.ts`, `lib/loudness.ts`, `components/MusicMaker.tsx` | Make music: section plan, chords and notes, an OfflineAudioContext renderer, LUFS + peak limiting, WAV |
 
 Everything is anchored to transcript word ids, so a re-cut never breaks a picture, a zoom or a music lift.
 
@@ -110,7 +115,7 @@ Everything is anchored to transcript word ids, so a re-cut never breaks a pictur
 
 ## Tests
 ```bash
-npm test                                         # unit tests: timeline, analysis, caption text, AI-answer validation, live cut, passwords
+npm test                                         # unit tests: timeline, analysis, caption text, AI-answer validation, live cut, passwords, composer, loudness
 npm run build && npx next start -p 3200 &
 python3 tests/e2e.py <take.mp4> <transcript.json> <out_dir>   # sign up, the whole workflow, every shape, the sample (APIs mocked)
 DATABASE_URL=postgres://... npx next start -p 3200 & python3 tests/accounts.py   # server accounts across two browsers

@@ -487,6 +487,28 @@ kbd { font: 600 11px/1 var(--font-ui); padding: 3px 6px; border-radius: 5px; bac
 .brand-preview em { font-style: normal; font-size: 15px; padding: 3px 9px; border-radius: 6px; color: #111; margin-left: 8px; }
 .color { width: 44px; height: 34px; padding: 0; border: 0; background: none; cursor: pointer; }
 .chip[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+.chip[role="radio"][aria-checked="true"] { background: var(--accent); color: var(--accent-ink); }
+.chip:focus-visible { outline: none; box-shadow: var(--focus); }
+.chip:disabled { opacity: .55; cursor: not-allowed; }
+
+/* ---------- make music ---------- */
+.mm-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 16px; }
+.mm-grid .field + .field { margin-top: 0; }
+.mm-grid .mm-wide { grid-column: 1 / -1; }
+.mm-result { display: grid; gap: 12px; margin-top: 16px; padding: 14px; border-radius: var(--r-md); background: var(--surface-2); }
+.mm-player { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.mm-wave { position: relative; flex: 1; min-width: 0; height: 40px; }
+.mm-wave svg { display: block; width: 100%; height: 100%; }
+.mm-wave path { stroke: var(--accent); stroke-width: 0.7; }
+.mm-wave b { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--ink); border-radius: 1px; }
+.mm-result .badge { flex: none; }
+.attach-row { display: flex; align-items: center; gap: 6px 16px; flex-wrap: wrap; }
+.attach-btn { display: inline-flex; align-items: center; gap: 8px; font: inherit; font-size: 13px; color: var(--ink-2); cursor: pointer; padding: 6px 2px;
+  background: none; border: 0; border-radius: var(--r-sm); }
+.attach-btn svg { width: 16px; height: 16px; }
+.attach-btn:hover { color: var(--ink); }
+.attach-btn:focus-visible { outline: none; box-shadow: var(--focus); }
+.song-badge { margin-left: 6px; height: 20px; font-size: 11px; vertical-align: 1px; }
 
 /* ---------- motion studio ---------- */
 .studio-new { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(300px, 1fr); gap: 16px; align-items: start; }

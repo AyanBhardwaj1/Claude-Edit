@@ -23,9 +23,12 @@ const LABEL: Record<string, string> = { "card-above-head": "Picture above your h
 const CARD_NAME = { number: "A number that counts up", list: "A list that ticks in", compare: "Before and after", statement: "A statement" } as const;
 const PRESETS: [CaptionPreset, string][] = [["studio", "Studio"], ["bold", "Bold"], ["white", "White"], ["boxed", "Boxed"], ["minimal", "Minimal"]];
 
-export function Drawer({ project: p, edit, onApply, settings }: { project: Project; edit: Edit; onApply: (e: Edit, what: string) => void; settings?: Settings }) {
+export function Drawer({ project: p, edit, onApply, settings, onMakeMusic }: { project: Project; edit: Edit; onApply: (e: Edit, what: string) => void;
+  settings?: Settings; onMakeMusic?: () => void }) {
   const [tab, setTab] = useState<(typeof TABS)[number]>("Cut");
   const [e, setE] = useState<Edit>(() => structuredClone(edit));
+  const [base, setBase] = useState(edit);
+  if (base !== edit) { setBase(edit); setE(structuredClone(edit)); }     // a new version from outside (a note, a style, made music)
   const [picFor, setPicFor] = useState<string | null>(null);
   const [lang, setLang] = useState(edit.translation?.lang ?? "Spanish");
   const [tBusy, setTBusy] = useState(false);
@@ -179,9 +182,14 @@ export function Drawer({ project: p, edit, onApply, settings }: { project: Proje
               <span>No music</span></label>
             {music.map((m) => (
               <label key={m.key} className="check"><input type="radio" name="song" checked={e.music.asset === m.key}
-                onChange={() => setE({ ...e, music: { ...e.music, asset: m.key } })} /><span>{m.name} <span className="faint small">sounds {m.feel}</span></span></label>))}
-            {!music.length && <p className="small muted">Add a song with &ldquo;Add a song, picture or clip&rdquo; under the notes.</p>}
+                onChange={() => setE({ ...e, music: { ...e.music, asset: m.key } })} /><span>{m.name} <span className="faint small">sounds {m.feel}</span>
+                {m.origin === "composed" && <span className="badge good song-badge">Original · royalty-free</span>}</span></label>))}
+            {!music.length && <p className="small muted">Add a song with &ldquo;Add a song, picture or clip&rdquo; under the notes, or make one.</p>}
           </div>
+          {onMakeMusic && <div className="row">
+            <button className="btn" onClick={onMakeMusic}><Icon name="music" />Make music</button>
+            <span className="hint">An original bed for this video, composed in your browser. No key needed.</span>
+          </div>}
           <div className="field">
             <label htmlFor="level">How loud</label>
             <select id="level" className="select" value={e.music.level} onChange={(ev) => setE({ ...e, music: { ...e.music, level: ev.target.value as Edit["music"]["level"] } })}>

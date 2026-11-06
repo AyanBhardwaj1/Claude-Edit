@@ -18,6 +18,8 @@ export type Asset = {
   entry?: number;                 // music: seconds in to start (a bar before the first big hit)
   web?: boolean;
   ai?: boolean;                   // made by an AI image model (labelled; platforms want an AI label)
+  origin?: "composed";            // music: an original bed composed in the browser (lib/compose.ts), royalty-free
+  composed?: { mood: string; bpm: number; key: string; mode: string; length: number; endChordAt: number; lufs: number };
 };
 
 export type Treatment = "card-above-head" | "side-card" | "phone-card" | "full-frame" | "split-top" | "text-pop" | "motion";

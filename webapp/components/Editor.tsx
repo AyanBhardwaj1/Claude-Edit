@@ -15,9 +15,10 @@ import { waveform } from "@/lib/wave";
 import { applyBrand, brandOf, hasBrand } from "@/lib/brand";
 import { applyTemplate, brandTemplate, templateOf, TEMPLATES } from "@/lib/templates";
 import { loadRules, saveProject, saveRules } from "@/lib/store";
-import type { Edit, Format, Project, Settings } from "@/lib/types";
+import type { Asset, Edit, Format, Project, Settings } from "@/lib/types";
 import { addToLibrary, applyUserNote, mediaUrls, saveManual } from "@/lib/workflow";
 import { Drawer } from "./Drawer";
+import { MusicMaker } from "./MusicMaker";
 import { Icon } from "./Icons";
 import { clock } from "./Tiles";
 
@@ -51,6 +52,8 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
   const [check, setCheck] = useState<{ score: number; checks: Check[] } | null>(null);
   const [track, setTrack] = useState<{ segs: [number, number][]; layers: { s: number; e: number; text: boolean; label: string }[]; zooms: [number, number][] } | null>(null);
   const [all, setAll] = useState<{ f: Format; url: string; ext: string }[] | null>(null);
+  const [maker, setMaker] = useState(false);
+  const [wpm, setWpm] = useState<number | null>(null);
   const version = p.versions.find((v) => v.n === p.current) ?? p.versions[p.versions.length - 1];
 
   const mount = useCallback(async (edit: Edit) => {
@@ -73,6 +76,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
     setTrack({ segs: pl.tl.segments.map((x) => [x.outStart, x.outEnd]), zooms: pl.scene.zooms.map((z) => [z.s, z.e]),
       layers: pl.scene.layers.map((L) => ({ s: L.start, e: L.end, text: L.b.treatment === "text-pop", label: L.b.text ?? L.b.card?.text ?? p.library.find((x) => x.key === L.b.asset)?.name ?? "Picture" })) });
     setDur(pl.tl.duration); setT(0); setPlaying(false);
+    setWpm(pl.tl.duration > 3 ? (pl.tl.words.length / pl.tl.duration) * 60 : null);
   }, [p, settings.brand]);
 
   useEffect(() => { if (version) void mount(version.edit); return () => player.current?.dispose(); }, [version, mount]);
@@ -170,6 +174,14 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
     setPlaying(false);
   }
 
+  /** A composed bed becomes the video's music the way a picked song does: a new version with music.asset set. */
+  async function useMusic(a: Asset) {
+    if (!version) return;
+    await saveManual(p, { ...version.edit, music: { ...version.edit.music, asset: a.key, startAt: null } }, `original music: ${a.name}`);
+    setP({ ...p }); setMaker(false);
+    setMsgs((m) => [...m, { who: "ed", text: `Version ${p.current}: I put ${a.name} under your voice. It's original and royalty-free, written for this video, and its last chord lands as the video ends.` }]);
+  }
+
   const copy = async (text: string) => { try { await navigator.clipboard.writeText(text); setToast("Caption copied"); } catch { setToast("Couldn't copy: select the text instead"); } };
   const post = version ? postText(p, version.edit) : "";
   const e = version?.edit;
@@ -184,7 +196,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
   const did: [boolean, string][] = e ? [
     [true, `Kept your best takes · ${clock(dur)} long`],
     [e.captions.enabled, e.captions.enabled ? "Added subtitles" : "Subtitles off"],
-    [!!song, song ? `Added music: ${song.name}` : "No music (add a song below)"],
+    [!!song, song ? `Added music: ${song.name}` : "No music (add a song or make one below)"],
     [pics + cards > 0, pics + cards ? `${pics} picture${pics === 1 ? "" : "s"} and ${cards} text card${cards === 1 ? "" : "s"}` : "No pictures yet"],
     [e.zooms.length > 0, e.zooms.length ? `${e.zooms.length} zoom${e.zooms.length === 1 ? "" : "s"}` : "No zooms"],
     ...(motionCards ? [[true, `${motionCards} animated card${motionCards === 1 ? "" : "s"}`] as [boolean, string]] : []),
@@ -304,6 +316,8 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
             </section>
           )}
 
+          {maker && version && <MusicMaker project={p} length={dur} wordsPerMinute={wpm} onUse={useMusic} onClose={() => setMaker(false)} />}
+
           <section className="panel" aria-labelledby="did-h">
             <div className="panel-head"><h2 id="did-h">What I did</h2><span className="badge good"><span className="dot" />Version {p.current}</span></div>
             <ul className="did">
@@ -402,18 +416,21 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
             </div>
             <p className="hint note-hint" id="note-hint">For example: &ldquo;music too loud at the start&rdquo;, &ldquo;show the Spotify logo when I say
               Spotify&rdquo;, &ldquo;cut the part about my cat&rdquo;. Enter sends, Shift+Enter starts a new line.</p>
-            <label className="attach">
-              <Icon name="paperclip" />Add a song, picture or clip your editor can use
-              <input type="file" multiple accept="audio/*,image/*,video/*"
-                onChange={async (ev) => { if (!ev.target.files?.length) return; const n = await addToLibrary(p, [...ev.target.files]); await saveProject(p); setP({ ...p });
-                  ev.target.value = "";
-                  setMsgs((m) => [...m, { who: "ed", text: `Added ${n.join(", ")}. Tell me where to use ${n.length > 1 ? "them" : "it"}.` }]); }} />
-            </label>
+            <div className="attach-row">
+              <label className="attach">
+                <Icon name="paperclip" />Add a song, picture or clip your editor can use
+                <input type="file" multiple accept="audio/*,image/*,video/*"
+                  onChange={async (ev) => { if (!ev.target.files?.length) return; const n = await addToLibrary(p, [...ev.target.files]); await saveProject(p); setP({ ...p });
+                    ev.target.value = "";
+                    setMsgs((m) => [...m, { who: "ed", text: `Added ${n.join(", ")}. Tell me where to use ${n.length > 1 ? "them" : "it"}.` }]); }} />
+              </label>
+              <button className="attach-btn" aria-expanded={maker} aria-controls="make-music" disabled={!version || !dur} onClick={() => setMaker(true)}><Icon name="music" />No song? Make music</button>
+            </div>
           </section>
 
           {drawer && version && (
             <section className="panel" aria-label="Edit it myself">
-              <Drawer project={p} edit={version.edit} settings={settings} onApply={async (edit, what) => { await saveManual(p, edit, what); setP({ ...p }); setMsgs((m) => [...m, { who: "ed", text: `Version ${p.current}: ${what}` }]); }} />
+              <Drawer project={p} edit={version.edit} settings={settings} onMakeMusic={() => setMaker(true)} onApply={async (edit, what) => { await saveManual(p, edit, what); setP({ ...p }); setMsgs((m) => [...m, { who: "ed", text: `Version ${p.current}: ${what}` }]); }} />
             </section>
           )}
 

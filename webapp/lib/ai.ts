@@ -108,7 +108,7 @@ export function transcriptText(p: Project): string {
   if (a?.unsure.length) parts.push("UNSURE WORDS (the recogniser was less sure): " + a.unsure.join(", "));
   const lib = p.library.filter((x) => !x.web);
   parts.push("LIBRARY:\n" + (lib.length ? lib.map((x) => `- key "${x.key}": ${x.kind} "${x.name}"` +
-    (x.kind === "music" ? ` sounds ${x.feel ?? "?"} (energy ${x.energy ?? "?"})` : x.duration ? ` ${x.duration.toFixed(1)}s` : "")).join("\n")
+    (x.kind === "music" ? ` sounds ${x.feel ?? "?"} (energy ${x.energy ?? "?"})${x.origin === "composed" ? ", composed for this video, ends on its last chord" : ""}` : x.duration ? ` ${x.duration.toFixed(1)}s` : "")).join("\n")
     : "(empty: use webPictures, labels and zooms)"));
   return parts.join("\n\n");
 }
