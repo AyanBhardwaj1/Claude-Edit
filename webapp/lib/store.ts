@@ -25,6 +25,8 @@ export async function getMedia(key: string): Promise<Blob | undefined> { return 
 /** Every media key stored in this browser (backups pick the ones this account's videos use). */
 export async function mediaKeys(): Promise<string[]> { return (await keys(media())).map(String); }
 /** Restore: put a project / animation back exactly as backed up (its time kept), for the signed-in account. */
+/** The signed-in account's id (null before accounts, or signed out). */
+export function currentOwner(): string | null { return owner; }
 export async function putProjectRaw(p: Project) { p.owner = owner ?? undefined; await set(p.id, JSON.parse(JSON.stringify(p)), projects()); }
 export async function putAnimRaw(a: Anim) { a.owner = owner ?? undefined; await set(a.id, JSON.parse(JSON.stringify(a)), anims()); }
 export async function getAnim(id: string): Promise<Anim | undefined> { return get(id, anims()); }

@@ -132,7 +132,7 @@ export function Dashboard({ user, settings, theme, onNew, onOpen, onGo, onSample
         <div className="stack">
           {needsBackup && (
             <div className="alert info backup-nudge" role="note"><Icon name="alert" />
-              <span className="grow">{lastBackup ? "Your last backup is more than a week old." : `You have ${ps!.length} videos and no backup yet.`} They
+              <span className="grow">{lastBackup ? "Your last backup is more than a week old." : `You have ${ps!.filter((x) => !x.sample).length} videos and no backup yet.`} They
                 live only in this browser: clearing its data would delete them.</span>
               <button className="btn sm" onClick={() => onGo("settings")}>Back up</button></div>
           )}

@@ -26,7 +26,11 @@ export function Shortcuts({ open, onClose }: { open: boolean; onClose: () => voi
   }, [open]);
   return (
     <dialog ref={ref} className="shortcuts" aria-labelledby="keys-h" onClose={onClose}
-      onClick={(ev) => { if (ev.target === ref.current) onClose(); }}>
+      onClick={(ev) => {                        // a click on the backdrop (outside the box), not on the box's own padding
+        if (ev.target !== ref.current) return;
+        const r = ref.current!.getBoundingClientRect();
+        if (ev.clientX < r.left || ev.clientX > r.right || ev.clientY < r.top || ev.clientY > r.bottom) onClose();
+      }}>
       <div className="panel-head"><h2 id="keys-h">Keyboard shortcuts</h2>
         <button className="btn ghost icon sm" aria-label="Close the shortcuts" onClick={onClose}>&times;</button></div>
       <dl>

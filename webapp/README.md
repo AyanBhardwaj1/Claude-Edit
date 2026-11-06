@@ -93,6 +93,9 @@ vertical reel with a cover and a post caption, then change it by typing notes. E
     its pictures and music, your Motion Studio animations and your style rules; restore it in another browser or after
     clearing site data. API keys are never in it; a video changed here more recently than the backup is kept
     (`lib/backup.ts`, `lib/zip.ts`).
+26. **Attention map**: a lane under the timeline marks, second by second, where viewers may drift (the same picture for
+    more than ~3 s, dead air, slow talking), and the Reel check lists the weakest spots with a fix; click one to go
+    there (`lib/attention.ts`). A guide from what is on screen and said, not a forecast.
 
 ## Privacy and keys
 - Videos never leave the browser: they're processed on the user's computer and kept in IndexedDB.

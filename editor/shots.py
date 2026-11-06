@@ -499,7 +499,7 @@ DEV_TEXT_JS = """(pat) => {
     for (const m of String(el.value || '').matchAll(re)) { hits.add(m[0]); hit = true; }
     if (hit) box(r);
   }
-  return { hits: [...hits].slice(0, 10), boxes: boxes.slice(0, 20) };
+  return { hits: [...hits].slice(0, 10), boxes: boxes.slice(0, 200), more: boxes.length > 200, vw: innerWidth, vh: innerHeight };
 }"""
 
 
@@ -625,6 +625,9 @@ async def _one_shot(s, spec, page, cdp, js, guard, out_dir, rec, t_start) -> dic
         if found:
             entry["dev_text"] = found
             entry["dev_boxes"] = res.get("boxes") or []     # where on screen (0-1): a piece's "redact": "dev" blurs them
+            entry["_viewport"] = [res.get("vw") or 0, res.get("vh") or 0]
+            if res.get("more"):
+                log(f"shots: {name}: more than 200 dev addresses on screen: capture the deployed site instead")
             log(f"shots: {name}: WARNING dev address on screen: {', '.join(found[:3])} "
                 "(blur it in the still, or capture the deployed site)")
     except Exception:  # noqa: BLE001 - a busy page only skips the check
@@ -634,6 +637,8 @@ async def _one_shot(s, spec, page, cdp, js, guard, out_dir, rec, t_start) -> dic
     if shot:
         params = {"format": "png", "fromSurface": True, "captureBeyondViewport": False}
         clip = shot.get("clip") if isinstance(shot, dict) else None
+        if clip and entry.get("dev_boxes"):    # the still is cropped to the clip: put the boxes in its frame
+            entry["dev_boxes"] = clip_boxes(entry["dev_boxes"], clip, *entry.get("_viewport", [0, 0]))
         out = out_dir / f"{name}.png"
         entry["rec_shot"] = rec.now() if rec else None
         tshot = time.monotonic()
@@ -659,6 +664,21 @@ async def _one_shot(s, spec, page, cdp, js, guard, out_dir, rec, t_start) -> dic
         for k in ("rec_in", "rec_out", "rec_shot"):
             entry.pop(k, None)
     return entry
+
+
+def clip_boxes(boxes: list, clip, vw: float, vh: float) -> list:
+    """Boxes measured as 0-1 of the viewport, re-expressed as 0-1 of a clip [x, y, w, h] (CSS px) of it; the parts
+    outside the clip are cut off and boxes wholly outside are dropped."""
+    if not (vw and vh):
+        return boxes
+    cx, cy, cw, ch = (float(v) for v in clip)
+    out = []
+    for x, y, w, h in boxes:
+        x0, y0, x1, y1 = x * vw, y * vh, (x + w) * vw, (y + h) * vh
+        x0, y0, x1, y1 = max(x0, cx), max(y0, cy), min(x1, cx + cw), min(y1, cy + ch)
+        if x1 > x0 and y1 > y0:
+            out.append([round((x0 - cx) / cw, 4), round((y0 - cy) / ch, 4), round((x1 - x0) / cw, 4), round((y1 - y0) / ch, 4)])
+    return out
 
 
 def _crop(png: bytes, clip, scale: float) -> bytes:

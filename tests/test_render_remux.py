@@ -32,3 +32,20 @@ def test_sound_changes_keep_the_picture_and_picture_changes_dont(tmp_path):
     assert _key(tmp_path, edl, captions=caps) != base
     caps.write_text("[Events]\nDialogue: hello")
     assert _key(tmp_path, dict(edl, segments=[{"src": 0, "start": 0, "end": 4}]), captions=caps) != base
+
+
+def test_a_treatment_png_rewritten_with_the_same_pixels_keeps_the_picture(tmp_path):
+    (tmp_path / "cut.mkv").write_bytes(b"cut")
+    (tmp_path / "cut_meta.json").write_text("{}")
+    png = tmp_path / "pop.png"
+    png.write_bytes(b"\x89PNG same pixels")
+    broll = [{"path": str(png), "start": 1, "dur": 2, "mode": "overlay"}]
+    k1 = _key(tmp_path, {}, broll=broll)
+    import os
+    import time
+    time.sleep(0.01)
+    png.write_bytes(b"\x89PNG same pixels")                    # text-pop / post-wall PNGs are rewritten every render
+    os.utime(png, None)
+    assert _key(tmp_path, {}, broll=broll) == k1
+    png.write_bytes(b"\x89PNG new pixels")
+    assert _key(tmp_path, {}, broll=broll) != k1

@@ -179,6 +179,20 @@ class Spec:
             return out
         return node
 
+    def voice_span(self, v: dict) -> tuple[float, float]:
+        """Where a voice plays in the video (output seconds), as the mix places it: out - in, else dur, else the
+        rest of the source file."""
+        a, t0 = self.t(v.get("at", 0)), float(v.get("in", 0))
+        if "out" in v:
+            d = float(v["out"]) - t0
+        elif "dur" in v:
+            d = float(v["dur"])
+        elif isinstance(v.get("src"), str) and self.p(v["src"]).exists():
+            d = float(probe(self.p(v["src"]))["duration"]) - t0
+        else:
+            d = 0.0
+        return a, a + max(0.0, d)
+
     def table(self) -> str:
         rows = [f"{'piece':<12} {'type':<8} {'start':>7} {'end':>7} {'dur':>6}  source"]
         for pc in self.pieces:
@@ -294,8 +308,7 @@ def validate(spec: "Spec") -> tuple[list[str], list[str]]:
             return pts[-1][1]
         for name, v in spec.voices.items():
             try:
-                va = spec.t(v.get("at", 0))
-                vb = va + float(v.get("out", va + 1)) - float(v.get("in", 0))
+                va, vb = spec.voice_span(v)
             except (EditorError, ValueError, TypeError):
                 continue
             level = gain + extra((va + vb) / 2)
@@ -868,8 +881,7 @@ def captions_from_brief(spec_path: str | Path, brief: str | Path) -> dict:
     for name in heard:                                   # where each voice plays in the video, for tie-breaks
         v = spec.voices.get(name, {})
         try:
-            a = spec.t(v.get("at", 0))
-            spans[name] = (a, a + float(v.get("out", a + 1)) - float(v.get("in", 0)))
+            spans[name] = spec.voice_span(v)
         except (EditorError, ValueError, TypeError):
             pass
     assigned = {n: [] for n in heard}
@@ -891,6 +903,8 @@ def captions_from_brief(spec_path: str | Path, brief: str | Path) -> dict:
     for n, ls in assigned.items():
         if ls:
             vmap[n] = {"words": heard[n][0], "lines": ls}
+        elif isinstance(vmap.get(n), dict) and "lines" in vmap[n]:   # lines from an earlier brief: back to its words
+            vmap[n] = {k: v for k, v in vmap[n].items() if k != "lines"}
     Path(spec_path).write_text(json.dumps(raw, indent=1, ensure_ascii=False) + "\n")
     report = {"assigned": {n: len(ls) for n, ls in assigned.items() if ls},
               "unmatched": [f"{ln['at']} {ln['text']}" for ln in lost]}
@@ -1154,6 +1168,8 @@ def composite(spec: Spec, base: Path, ov: Path | None, audio: Path, out: Path | 
     preset = o.get("preset", ENCODE.get(effort, "veryfast"))
     # Same picture as last time (an audio-only note: a level, a dip, a new bed) -> keep the encoded video and swap in
     # the new mix (seconds, not minutes)
+    global LAST_REMUX
+    LAST_REMUX = False
     picture = _picture_key(spec, ov, effort)
     stamp = out.with_name(out.name + ".picture")
     if out.exists() and stamp.exists() and stamp.read_text() == picture:
@@ -1162,7 +1178,6 @@ def composite(spec: Spec, base: Path, ov: Path | None, audio: Path, out: Path | 
              "-c:v", "copy", "-c:a", "aac", "-b:a", o.get("audio_bitrate", "320k"), "-movflags", "+faststart", str(tmp)])
         tmp.replace(out)
         log("produce: composite: same picture as last time, new sound only (remuxed, no re-encode)")
-        global LAST_REMUX
         LAST_REMUX = True
         return out
     stamp.unlink(missing_ok=True)
@@ -1857,6 +1872,14 @@ def spec_changes(old: dict, new: dict) -> tuple[list[str], list[str]]:
         if old.get(k) != new.get(k):
             lines.append(f"{k}: changed")
             stages.add(st)
+    # a piece that changes length (or appears, goes, moves) shifts every time after it: graphics and sound placed on
+    # later pieces move too; a voice that moves takes its captions with it
+    timing = ("dur", "in", "out", "speed", "ramp_waits", "type", "src")
+    if any(n not in op or n not in np_ or any(op[n].get(k) != np_[n].get(k) for k in timing) for n in {*op, *np_}) \
+            or "pieces: reordered" in lines:
+        stages |= {"overlay", "mix", "composite"}
+    if (oa.get("voices") != na.get("voices")) and (new.get("captions") or old.get("captions")):
+        stages |= {"overlay", "composite"}
     order = ["pieces", "overlay", "mix", "composite", "extras", "post"]
     return lines, [s for s in order if s in stages]
 
@@ -1949,8 +1972,8 @@ def produce(spec_path: str | Path, only: str | None = None, jobs: int = 4, want_
         elif st == "mix":
             audio = mix(spec)
         elif st == "composite":
-            if ov is None and spec.data.get("overlay"):
-                ov = overlay(spec, max(1, jobs - 1))         # cached: cheap when already rendered
+            if ov is None:                                   # captions-only specs and shimmers have an overlay too
+                ov = overlay(spec, max(1, jobs - 1))         # cached: cheap when already rendered (None: nothing to draw)
             for need in (base, audio):
                 if not need.exists():
                     raise EditorError(f"{need.name} is missing: run without --only first")
@@ -1995,7 +2018,7 @@ def _clock(x) -> float | str:
     m = re.fullmatch(r"(\d+):(\d{1,2}(?:\.\d+)?)", t) or re.fullmatch(r"(?:(\d+)\s*m(?:in)?\s*)?(?:(\d+(?:\.\d+)?)\s*s(?:ec)?)?", t.lower())
     if m and any(m.groups()):
         return int(m[1] or 0) * 60 + float(m[2] or 0)
-    return float(t) if re.fullmatch(r"-?[\d.]+", t) else t
+    return float(t) if re.fullmatch(r"-?(\d+\.?\d*|\.\d+)", t) else t
 
 
 def what_is_at(spec: Spec, ref) -> dict:
@@ -2003,7 +2026,11 @@ def what_is_at(spec: Spec, ref) -> dict:
     speaking (and their source second), music / beds / effects playing, graphics visible. A user's note ("at 1:23 the
     music is too loud") becomes the exact spec entry to change."""
     from .overlay import element_end
-    t = spec.t(_clock(ref))
+    name = str(ref).split("+")[0].split("-")[0].removesuffix(".end")
+    try:                                                    # a piece or voice reference first, then a clock time
+        t = spec.t(ref) if name in spec.starts or str(ref).startswith("@") else spec.t(_clock(ref))
+    except EditorError:
+        t = spec.t(_clock(ref))
     out = {"t": round(t, 2), "clock": f"{int(t // 60)}:{t % 60:05.2f}", "piece": None, "voices": [], "audio": [],
            "graphics": []}
     for pc in spec.pieces:
@@ -2160,7 +2187,7 @@ def main(argv=None) -> int:
         if not hist:
             print("no saved versions yet (render with --note to save one)")
             return 0
-        n = int(a.changes) if a.changes else hist[-1]["n"]
+        n = int(str(a.changes).lower().lstrip("v")) if a.changes else hist[-1]["n"]
         prev = vdir / f"{spec.path.stem}.v{n}.json"
         if not prev.exists():
             raise EditorError(f"no saved spec for v{n} ({prev.name})")

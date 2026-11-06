@@ -392,6 +392,43 @@ def test_plan_warns_when_the_music_is_too_hot_under_a_voice(tmp_path):
     assert not [w for w in produce.validate(s)[1] if "music 0 plays" in w]
 
 
+def test_only_composite_keeps_auto_captions_and_the_picture(tmp_path):
+    subprocess.run(["ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i", "sine=frequency=440:duration=4",
+                    str(tmp_path / "voice.wav")], check=True)
+    (tmp_path / "w.json").write_text(json.dumps([{"text": t, "start": 1.0 + i * 0.4, "end": 1.3 + i * 0.4}
+                                                for i, t in enumerate("hello there my friend".split())]))
+    spec = base_spec(captions={"voices": {"v": "w.json"}})                  # captions only: no "overlay" key
+    path = write_spec(tmp_path, spec)
+    md5 = lambda f: subprocess.run(["ffmpeg", "-v", "error", "-i", str(f), "-map", "0:v", "-c", "copy", "-f", "md5", "-"],  # noqa: E731
+                                   capture_output=True, text=True).stdout
+    out = Path(produce.produce(path, effort="rush")["file"])
+    v1 = md5(out)
+    produce.produce(path, only="composite", effort="rush")
+    assert md5(out) == v1                                                    # same picture: the captions are still there
+
+
+def test_review_fixes_piece_names_versions_and_stale_brief_lines(tmp_path):
+    spec = base_spec(pieces=[{"name": "intro", "type": "color", "dur": 2}, {"name": "5s", "type": "color", "dur": 3}], audio={"voices": []})
+    s = produce.Spec(write_spec(tmp_path, spec))
+    assert produce.what_is_at(s, "5s")["t"] == 5.0                         # names can't start with a digit: a time
+    assert produce.what_is_at(s, "0:01")["piece"]["name"] == "intro"
+    assert produce._clock(".") == "." and produce._clock(".5") == 0.5
+    # a voice with no "out" spans its whole source, as the mix plays it
+    w = lambda t, a, b: {"text": t, "start": a, "end": b}  # noqa: E731
+    (tmp_path / "v1.json").write_text(json.dumps([w(t, 1 + i * 0.3, 1.25 + i * 0.3) for i, t in enumerate("why walk in the sun".split())]))
+    spec = base_spec()
+    spec["audio"]["voices"] = [{"name": "v1", "src": "voice.wav", "in": 0, "out": 5, "at": "a"}]
+    spec["captions"] = {"voices": {"v1": "v1.json"}}
+    path = write_spec(tmp_path, spec)
+    brief = tmp_path / "brief.md"
+    brief.write_text("0:01 Why walk in the sun?\n")
+    produce.captions_from_brief(path, brief)
+    assert json.loads(path.read_text())["captions"]["voices"]["v1"]["lines"]
+    brief.write_text("0:01 A completely different line about trees.\n")       # the brief changed
+    produce.captions_from_brief(path, brief)
+    assert "lines" not in json.loads(path.read_text())["captions"]["voices"]["v1"]   # no stale lines left behind
+
+
 def test_a_script_line_nobody_said_in_that_voice_is_reported_not_hidden():
     heard = [("the", 1.0, 1.2), ("shadiest", 1.25, 1.8), ("route", 1.85, 2.2), ("he", 3.0, 3.1), ("asked", 3.15, 3.5),
              ("out", 3.55, 3.7), ("loud", 3.75, 4.1)]

@@ -39,3 +39,12 @@ test("a spoken note about 'here' gets the player's time; one with its own time o
   assert.equal(anchorSpoken("Make the captions bigger", 12), "Make the captions bigger");
   assert.equal(anchorSpoken("Where is the logo", 12), "Where is the logo");                 // "where" isn't "here"
 });
+
+test("lengths aren't moments, and \"here's\" isn't \"here\"", () => {
+  assert.deepEqual(noteTimes("make it 10 seconds shorter"), []);
+  assert.deepEqual(noteTimes("cut it by 5 seconds"), []);
+  assert.deepEqual(noteTimes("at 0:40 trim it by 3s"), [40]);
+  assert.deepEqual(noteTimes("the bit at 12s is slow"), [12]);
+  assert.equal(anchorSpoken("Here's an idea, captions bigger", 9), "Here's an idea, captions bigger");
+  assert.equal(anchorSpoken("Cut it here", 9), "At 0:09, cut it here");
+});

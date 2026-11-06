@@ -27,6 +27,7 @@ import { Icon } from "./Icons";
 import { RecordScreen } from "./ScreenRecorder";
 import { clock } from "./Tiles";
 import { changeItems, type Change } from "@/lib/changes";
+import { attention, zoomsFor, type Attention } from "@/lib/attention";
 import { Shortcuts } from "./Shortcuts";
 import { VoiceNote } from "./VoiceNote";
 import { anchorSpoken } from "@/lib/moments";
@@ -45,8 +46,10 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
   const [dur, setDur] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [msgs, setMsgs] = useState<Msg[]>(() => (firstSummary ? [{ who: "ed", text: firstSummary }] :
-    project.versions.map((v, i) => ({ who: "ed" as const, text: `Version ${v.n}: ${v.summary}`, v: v.n,
-      changes: i > 0 ? changeItems(project, project.versions[i - 1].edit, v.edit) : undefined }))));
+    project.versions.map((v, i) => {
+      const base = v.from !== undefined ? project.versions.find((x) => x.n === v.from) : i > 0 ? project.versions[i - 1] : undefined;
+      return { who: "ed" as const, text: `Version ${v.n}: ${v.summary}`, v: v.n, changes: base ? changeItems(project, base.edit, v.edit) : undefined };
+    })));
   const [note, setNote] = useState("");
   useEffect(() => {                                   // the note box grows with what's in it (up to its max height)
     const el = document.getElementById("note") as HTMLTextAreaElement | null;
@@ -69,11 +72,22 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
   const [renaming, setRenaming] = useState(false);
   const [wave, setWave] = useState<number[] | null>(null);
   const [check, setCheck] = useState<{ score: number; checks: Check[] } | null>(null);
+  const [attn, setAttn] = useState<Attention | null>(null);
   const [track, setTrack] = useState<{ segs: [number, number][]; layers: { s: number; e: number; text: boolean; label: string }[]; zooms: [number, number][] } | null>(null);
   const [all, setAll] = useState<{ f: Format; url: string; ext: string }[] | null>(null);
+  // export files are whole videos in memory: free the ones no longer shown
+  const shownUrls = useRef<string[]>([]);
+  useEffect(() => {
+    const now = [exp?.video, exp?.cover, exp?.caption, exp?.srt, ...(all ?? []).map((x) => x.url)].filter((u): u is string => !!u);
+    for (const u of shownUrls.current) if (!now.includes(u)) URL.revokeObjectURL(u);
+    shownUrls.current = now;
+  }, [exp, all]);
+  useEffect(() => () => { for (const u of shownUrls.current) URL.revokeObjectURL(u); }, []);
   const [maker, setMaker] = useState(false);
   const [wpm, setWpm] = useState<number | null>(null);
   const version = p.versions.find((v) => v.n === p.current) ?? p.versions[p.versions.length - 1];
+  // a finished export belongs to the version it was made from: another version on screen means export again
+  useEffect(() => { setExp((x) => (x && x.pct >= 100 ? null : x)); setAll(null); lastBlob.current = null; }, [version?.n]);
   const latest = useRef(p);
   latest.current = p;
 
@@ -127,6 +141,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
     if (!canvas.current || gen !== mounts.current) return;
     canvas.current!.dataset.cuts = pl.scene.cuts.map((c) => c.toFixed(3)).join(",");   // for tests and tools
     setCheck(reelCheck(p, edit, pl.tl));
+    setAttn(attention(pl.tl, edit));
     void waveform(p, pl.tl).then((w) => { if (gen === mounts.current) setWave(w); });
     setTrack({ segs: pl.tl.segments.map((x) => [x.outStart, x.outEnd]), zooms: pl.scene.zooms.map((z) => [z.s, z.e]),
       layers: pl.scene.layers.map((L) => ({ s: L.start, e: L.end, text: L.b.treatment === "text-pop", label: L.b.text ?? L.b.card?.text ?? p.library.find((x) => x.key === L.b.asset)?.name ?? "Picture" })) });
@@ -140,7 +155,13 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
   }, [p, settings.brand]);
 
   // Compare: the version before this one, played from the same moment (C or the Compare button)
-  const prevN = (() => { const ns = p.versions.map((v) => v.n); const i = ns.indexOf(version?.n ?? -1); return i > 0 ? ns[i - 1] : null; })();
+  // the version this one was made from (a note on version 1 after viewing it makes version 4 "from" 1), else the one before
+  const baseOf = (v?: { n: number; from?: number }) => {
+    if (!v) return null;
+    if (v.from !== undefined && p.versions.some((x) => x.n === v.from)) return v.from;
+    const ns = p.versions.map((x) => x.n), i = ns.indexOf(v.n); return i > 0 ? ns[i - 1] : null;
+  };
+  const prevN = baseOf(version);
   const [cmp, setCmp] = useState(false);
   const shown = cmp && prevN !== null ? p.versions.find((v) => v.n === prevN) ?? version : version;
   const here = () => { const pl = player.current; if (!pl) return undefined;
@@ -165,6 +186,8 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
     const onKey = (ev: KeyboardEvent) => {
       const el = ev.target as HTMLElement;
       if (el.closest("input, textarea, select, [contenteditable]") || (!!exp && exp.pct < 100)) return;
+      if (keys || el.closest("dialog") || document.querySelector("dialog[open]")) return;   // a dialog is in front
+      if ((ev.key === " " || ev.key === "Enter") && el.closest("button, a, [role=button], summary")) return;   // pressing a button
       const pl = player.current; if (!pl) return;
       const mod = ev.metaKey || ev.ctrlKey;
       if (ev.key === "?" && !mod) { ev.preventDefault(); setKeys(true); return; }
@@ -224,6 +247,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
 
   async function applyOne(text: string): Promise<boolean> {
     setBusy("Working on your note…");
+    const p = latest.current;               // not the render this queue started in: renames, chips, version picks since
     try {
       const before = (p.versions.find((v) => v.n === p.current) ?? p.versions[p.versions.length - 1]).edit;
       const r = await applyUserNote(p, settings, loadRules(), text, (m) => setBusy(m));
@@ -373,7 +397,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
         real person. Play it, open &ldquo;Edit it myself&rdquo;, change its shape and export it. Notes need an AI key in Settings.</span></div>}
       <div className={`ed-grid ${shape.w > shape.h ? "wide" : ""}`}>
         <div className="preview">
-          <div className={`phone ${shape.w >= shape.h ? "flat" : ""} ${cmp ? "comparing" : ""}`}>{cmp && <span className="cmp-badge" role="status">Version {prevN}, before your last change</span>}<canvas ref={canvas} style={{ aspectRatio: `${shape.w} / ${shape.h}` }}
+          <div className={`phone ${shape.w >= shape.h ? "flat" : ""} ${cmp ? "comparing" : ""}`}>{cmp && <span className="cmp-badge" role="status">Version {prevN}, before this change</span>}<canvas ref={canvas} style={{ aspectRatio: `${shape.w} / ${shape.h}` }}
             aria-label={`Preview of ${p.title}, version ${shown?.n ?? p.current}, ${shape.name.toLowerCase()} ${fmt}`} role="img" /></div>
           <div className="transport">
             <button className="play" onClick={toggle} disabled={recording} aria-label={playing ? "Pause" : "Play"}><Icon name={playing ? "pause" : "play"} /></button>
@@ -395,6 +419,9 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
                 style={{ left: `${(100 * L.s) / dur}%`, width: `${Math.max(0.8, (100 * (L.e - L.s)) / dur)}%` }}><span>{L.label}</span></i>)}</div>
               {wave && <svg className="wave" viewBox={`0 0 ${wave.length} 20`} preserveAspectRatio="none" aria-hidden="true">
                 <path d={wave.map((v, i) => `M${i + 0.5} ${10 - v * 9}V${10 + v * 9}`).join("")} /></svg>}
+              {attn && <div className="lane attn">{attn.risk.map((r, i) => r > 0.15 &&
+                <i key={i} style={{ left: `${(100 * i * attn.step) / dur}%`, width: `${(100 * attn.step) / dur}%`, opacity: Math.min(1, 0.25 + r) }}
+                  className={r >= 0.55 ? "hi" : "lo"} />)}</div>}
               <div className="lane thin">{track.zooms.map(([a, b], i) => <i key={i} className="zm" style={{ left: `${(100 * a) / dur}%`, width: `${(100 * (b - a)) / dur}%` }} />)}</div>
               <b className="head" style={{ left: `${(100 * t) / dur}%` }} />
             </div>
@@ -491,6 +518,24 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
                     </li>))}
                 </ul>
               </div>
+              {attn && attn.spots.length > 0 && (
+                <div className="drift">
+                  <h3 className="small">Where viewers may drift</h3>
+                  <ul>{attn.spots.map((sp) => (
+                    <li key={sp.from}><button type="button" className="linkish" onClick={() => { const v = Math.max(0, sp.from - 0.5); setT(v); void player.current?.seek(v); }}>
+                      <span className="num">{clock(sp.from)}–{clock(sp.to)}</span> · {sp.text}</button>
+                      <span className="small muted block">{sp.fix}</span>
+                      {sp.cause === "still" && version && player.current && (
+                        <button type="button" className="btn sm mt-8" disabled={!!busy || recording} onClick={async () => {
+                          const fixed = zoomsFor(player.current!.tl, version.edit, sp);
+                          if (!fixed) { setToast("No words there to zoom on"); return; }
+                          const before = version.edit;
+                          await saveManual(p, fixed, `zooms at ${clock(sp.from)}–${clock(sp.to)} (attention map)`); setP({ ...p });
+                          setMsgs((m) => [...m, { who: "ed", v: p.current, text: `Version ${p.current}: I added zooms at ${clock(sp.from)}–${clock(sp.to)} so the picture keeps changing.`,
+                            changes: changeItems(p, before, fixed) }]);
+                        }}><Icon name="wand" />Add zooms there</button>)}</li>))}</ul>
+                  <p className="small faint">The red marks under the timeline. A guide from what is on screen and said, not a forecast.</p>
+                </div>)}
             </section>
           )}
 
