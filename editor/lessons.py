@@ -59,7 +59,11 @@ def show(grep: str | None = None, last: int | None = None, path: Path = PATH) ->
             continue
         out.append(f"{section}: {ln[2:].strip()}" if ln.startswith("- ") else f"{section}: {ln.strip()}")
     if last:
-        out = out[:last]
+        # the newest: sections are newest first, but a video's lessons are in story order (newest at the bottom)
+        by: dict[str, list[str]] = {}
+        for ln in out:
+            by.setdefault(ln.split(": ", 1)[0], []).append(ln)
+        out = [ln for sec in by.values() for ln in reversed(sec)][:last]
     return "\n".join(out) if out else "no matching lessons"
 
 
