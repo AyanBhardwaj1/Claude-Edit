@@ -230,7 +230,8 @@ def main(argv=None):
     p = sub.add_parser("triage", help="classify raw/ clips: a-roll (founder-to-camera) vs reusable / one-off b-roll")
     p.add_argument("project")
 
-    p = sub.add_parser("capture", help="make b-roll: web page screenshots/scrolls, iPhone Simulator, Android")
+    p = sub.add_parser("capture", help="make b-roll: web page screenshots/scrolls, app shot lists, stills from "
+                                       "recordings, iPhone Simulator, Android")
     csub = p.add_subparsers(dest="capture_cmd", required=True)
     q = csub.add_parser("web", help="Playwright screenshot or scroll recording of a URL")
     q.add_argument("url")
@@ -240,6 +241,19 @@ def main(argv=None):
     q.add_argument("--video", type=float, default=0.0, help="record N seconds (smooth scroll) instead of a screenshot")
     q.add_argument("--no-scroll", action="store_true")
     q.add_argument("--dark", action="store_true")
+    q = csub.add_parser("shots", help="app screenshots from a JSON shot list (clicks, typing, sliders done in-page; "
+                                      "works for heavy WebGL pages without a GPU)")
+    q.add_argument("shotlist", help="shot list JSON (format: pydoc editor.shots)")
+    q.add_argument("-o", "--out", required=True, help="output folder: <name>.png, shots.json, shots_sheet.jpg")
+    q.add_argument("--base", help="override the shot list's base URL")
+    q.add_argument("--record", action="store_true",
+                   help="also record the whole run as shots.mp4 (headed Chromium on Xvfb + ffmpeg x11grab)")
+    q.add_argument("--headed", action="store_true", help="show the browser (needs a display)")
+    q = csub.add_parser("stills-from", help="distinct frames of a choppy screen recording as clean stills (mpdecimate)")
+    q.add_argument("video")
+    q.add_argument("out_dir")
+    q.add_argument("--min-gap", type=float, default=0.0, help="at most one still per N seconds (default: all)")
+    q.add_argument("--max", type=int, help="keep at most N stills, spread evenly")
     q = csub.add_parser("sim", help="record or screenshot the booted iOS Simulator (macOS + Xcode)")
     q.add_argument("-o", "--out", required=True)
     q.add_argument("--seconds", type=float, default=8.0)
@@ -463,6 +477,7 @@ def cmd_doctor(_):
         except ImportError:
             print(f"optional python {mod}: {why}")
     print(f"{'ok ' if shutil.which('xcrun') else 'optional'} xcrun (iPhone Simulator capture, macOS)")
+    print(f"{'ok ' if shutil.which('xvfb-run') else 'optional'} xvfb-run (capture shots --record, Linux)")
     try:
         import vosk  # noqa: F401
         from .models import MODELS_DIR
@@ -746,6 +761,16 @@ def cmd_capture(args):
     if args.capture_cmd == "web":
         capture.web(args.url, args.out, mobile=not args.desktop, full_page=args.full_page, video=args.video,
                     scroll=not args.no_scroll, dark=args.dark)
+    elif args.capture_cmd == "shots":
+        from . import shots
+        report = shots.shots(args.shotlist, args.out, record=args.record, headed=args.headed, base=args.base)
+        print(Path(args.out) / "shots.json")
+        if report["failures"]:
+            print(f"{report['failures']} step(s) failed: see the log above / shots.json")
+    elif args.capture_cmd == "stills-from":
+        from . import shots
+        stills = shots.stills_from(args.video, args.out_dir, min_gap=args.min_gap, max_stills=args.max)
+        print(f"{len(stills)} stills -> {args.out_dir} (stills_sheet.jpg)")
     elif args.capture_cmd == "sim":
         capture.sim(args.out, seconds=args.seconds, url=args.url, device=args.device, screenshot=args.screenshot)
     else:

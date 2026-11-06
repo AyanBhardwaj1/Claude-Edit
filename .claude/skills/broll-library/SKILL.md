@@ -58,6 +58,27 @@ JPG/PNG copied; HEIC, still GIF/WebP, BMP -> PNG; animated GIF/WebP -> a silent 
   ```
   `--desktop` for a desktop layout, `--dark` for dark mode, `--full-page` for long screenshots.
   First time: `pip install playwright && python3 -m playwright install chromium`.
+- **Web app demos (clicks, typing, sliders; heavy WebGL/3D pages, no GPU needed)**: write a shot list and run
+  `capture shots`. Every action runs inside the page with its own timeout (no Playwright waits that hang on a
+  3D page), failures are logged and listed instead of stopping the run, `read` saves the real on-screen numbers
+  for captions. Budget ~60-90 s a shot for a Three.js app on a 4-CPU cloud machine.
+  ```json
+  {"base": "http://localhost:5173", "viewport": [1440, 810], "settle": 8,
+   "shots": [{"name": "route", "url": "/demo?tab=route", "wait": 40, "do": [{"dismiss": "No live weather"},
+              {"click": "Quickest"}], "read": {"minutes": "text=min walk"}},
+             {"name": "night", "do": [{"slider": "input[aria-label='Time of day']", "value": 22}]},
+             {"name": "search", "do": [{"type": "PCL", "into": "input[placeholder^='Search']"}]}]}
+  ```
+  ```bash
+  python3 -m editor capture shots shots.json -o projects/<n>/broll/app     # route.png ... shots.json shots_sheet.jpg
+  python3 -m editor capture shots shots.json -o projects/<n>/broll/app --record   # + shots.mp4 (Xvfb, Linux)
+  python3 -m editor capture stills-from choppy.mp4 projects/<n>/broll/stills --min-gap 1   # clean frames
+  ```
+  Actions: `click` (visible text or `css=`), `type` + `into`, `key`, `slider` + `value`, `select` + `value`,
+  `scroll`, `wait`, `dismiss` (close button near a text), `eval` (raw JS, logged); `"required": true` stops the run.
+  Shots without `url` continue on the same page. Full format: `pydoc editor.shots`. Read `shots_sheet.jpg`
+  before using them. `--record` gives real motion, as choppy as the page renders (a heavy shader: ~2-3 fps):
+  use `stills-from` on it, or animate the stills with camera moves.
 - **The user's iPhone app** (macOS with Xcode): boot it with `open -a Simulator`, run the app, then
   ```bash
   python3 -m editor capture sim -o projects/<n>/broll/app.mov --seconds 8 [--url myapp://profile/123]

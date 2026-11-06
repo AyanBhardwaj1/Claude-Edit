@@ -89,6 +89,8 @@ editor/            python package (python3 -m editor)
   share.py         send to phone: QR code for a private 15-minute link on the home Wi-Fi
   library.py       shared music (by mood) and b-roll (by category) libraries
   capture.py       b-roll makers: Playwright web, iOS Simulator, Android
+  shots.py         app demos from a JSON shot list (in-page clicks/typing/sliders, software WebGL, reads on-screen
+                   numbers, optional Xvfb recording) + clean stills from choppy recordings (mpdecimate)
   graphics.py      built-in motion graphics (counter, lower-third, checklist, title, cta) -> ProRes 4444 alpha
   sfx.py           synthesized SFX placed on visible events (mixed at render)
   review.py        inspect (video-use timeline view) + review of every cut and covered faces
