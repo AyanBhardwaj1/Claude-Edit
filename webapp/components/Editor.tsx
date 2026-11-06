@@ -524,7 +524,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
                     <circle cx="60" cy="60" r="52" className="fg" strokeDasharray={`${(check.score / 100) * 326.7} 326.7`} /></svg>
                   <b className="num">{check.score}</b>
                 </div>
-                <ul className="checks" tabIndex={0} aria-label="Reel check results">
+                <ul className="checks" aria-label="Reel check results">
                   {check.checks.filter((c) => !c.ok).concat(check.checks.filter((c) => c.ok)).map((c) => (
                     <li key={c.id} className={c.ok ? "ok" : c.warn ? "warn" : "bad"}>
                       <Icon name={c.ok ? "check" : "alert"} />
@@ -627,7 +627,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
             {err && <div className="alert err mt-12" role="alert"><Icon name="alert" /><span>{err}</span></div>}
             <div className="composer">
               <label className="sr-only" htmlFor="note">Note for your editor</label>
-              <textarea id="note" rows={1} value={note} placeholder="Tell your editor what to change…" aria-describedby="note-hint"
+              <textarea id="note" rows={1} value={note} placeholder="What should change?" aria-describedby="note-hint"
                 autoComplete="off" onChange={(ev) => setNote(ev.target.value)}
                 onKeyDown={(ev) => { if (ev.key === "Enter" && !ev.shiftKey && !ev.nativeEvent.isComposing) { ev.preventDefault(); void send(); } }} />
               <VoiceNote settings={settings} disabled={recording}

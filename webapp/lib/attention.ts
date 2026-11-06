@@ -52,7 +52,9 @@ export function attention(tl: Timeline, e: Pick<Edit, "broll" | "zooms" | "motio
     const counts = { still: 0, quiet: 0, slow: 0 } as Record<Cause, number>;
     for (let k = i; k < j; k++) counts[cause[k]]++;
     const c = (Object.keys(counts) as Cause[]).sort((a, b) => counts[b] - counts[a])[0];
-    const from = i * STEP, to = Math.min(dur, j * STEP), peak = Math.max(...risk.slice(i, j));
+    let from = i * STEP;
+    const to = Math.min(dur, j * STEP), peak = Math.max(...risk.slice(i, j));
+    if (c === "still") from = changes.filter((x) => x <= from).pop() ?? from;   // the stretch starts at the last change
     if (to - from >= 1) spots.push({ from, to, cause: c, risk: peak, ...describe(c, from, to, changes) });
     i = j;
   }
