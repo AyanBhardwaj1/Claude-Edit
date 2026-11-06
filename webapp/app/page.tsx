@@ -17,7 +17,7 @@ const d = (i: number) => ({ ["--i" as string]: i }) as React.CSSProperties;
 const FEATURES = [
   { h: "Subtitles on every word", p: "Two or three words at a time, timed to your voice, in five styles and any Google Font. Numbers you say become digits, and you can fix any word it misheard.", pic: "w240", frag: "caps" },
   { h: "Pictures that miss your face", p: "Name an app, a brand or a place and its logo or photo appears on those words: from your own files first, then open-licence pictures it finds and credits. They sit above your head, beside you or in a phone, never across your eyes and mouth.", pic: "w320", frag: "frame" },
-  { h: "Music under your voice", p: "It listens to your songs, picks one by mood, starts it a beat before the first hit, dips it under every word and lifts it in the pauses.", pic: "w180", frag: "music" },
+  { h: "Music under your voice", p: "It listens to your songs, picks one by mood, starts it a beat before the first hit, dips it under every word and lifts it in the pauses. No song? Make music composes an original one in your browser, in four moods, with a final chord that rings out as your video ends.", pic: "w180", frag: "music" },
   { h: "One long video, five reels", p: "Drop in a podcast, a talk or a long take. Your AI editor reads all of it, ranks the moments that stand on their own and turns each into its own finished reel.", pic: "w320", frag: "clips" },
   { h: "Subtitles in 16 languages", p: "Translate the subtitles into Spanish, Hindi, Japanese and 13 more, line by line on the words they cover, then fix any line. A subtitle file comes with every export.", pic: "w180", frag: "lang" },
   { h: "A score before you post", p: "The reel check grades the hook, the pace, how often the picture changes, the length, the subtitles and the caption, out of 100, and says exactly what to fix.", pic: "w180", frag: "score" },
@@ -34,7 +34,7 @@ const FAQ: [string, string][] = [
   ["Does my account work on other devices?", "Yes: sign in anywhere and your settings, style rules and look come with you. Your videos and API keys stay in the browser you made them in. On a copy of Cutmind with no database, accounts live in one browser instead."],
   ["Which browsers work?", "Chrome, Edge and Safari export MP4. Firefox works too and exports WebM. Export plays the reel once in real time, so a 60-second reel takes about a minute."],
   ["Will it cut my jokes?", "It shouldn’t: asides and opinions are the video. If it does, write “it cut my joke” and the next version puts it back."],
-  ["Can I use my own music and pictures?", "Yes, drop them in with your take or add them later. Only use music and pictures you own or are licensed to use."],
+  ["Can I use my own music and pictures?", "Yes, drop them in with your take or add them later. Only use music and pictures you own or are licensed to use. With no song, Make music composes an original, royalty-free one for the video, with no key and nothing uploaded."],
   ["Where do found pictures come from?", "Openverse, Wikimedia Commons and Simple Icons, under CC0, public domain, CC BY or CC BY-SA, with the credit written into your caption."],
   ["My video looks mirrored.", "Tick “Flip picture” in Edit it myself, or just tell your editor “it’s mirrored”."],
   ["Does it learn how I like things?", "When a note sounds like a lasting preference, it asks whether to remember it. Remembered rules shape every first edit after that."],

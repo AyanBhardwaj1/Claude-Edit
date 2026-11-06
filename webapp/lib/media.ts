@@ -82,15 +82,22 @@ export function activeRms(x: Float32Array, rate = 16000): number {
   return top.length ? Math.sqrt(top.reduce((a, b) => a + b * b, 0) / top.length) : 0.05;
 }
 
-export function wav(x: Float32Array, rate = 16000): Blob {
-  const buf = new ArrayBuffer(44 + x.length * 2);
+/** 16-bit PCM WAV of one channel, or of several (interleaved: stereo is [left, right]). */
+export function wav(x: Float32Array | Float32Array[], rate = 16000): Blob {
+  const ch = Array.isArray(x) ? x : [x];
+  const n = ch[0]?.length ?? 0, k = ch.length, bytes = n * k * 2;
+  const buf = new ArrayBuffer(44 + bytes);
   const v = new DataView(buf);
   const str = (o: number, s: string) => [...s].forEach((c, i) => v.setUint8(o + i, c.charCodeAt(0)));
-  str(0, "RIFF"); v.setUint32(4, 36 + x.length * 2, true); str(8, "WAVE"); str(12, "fmt ");
-  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, rate, true);
-  v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); str(36, "data");
-  v.setUint32(40, x.length * 2, true);
-  for (let i = 0; i < x.length; i++) v.setInt16(44 + i * 2, Math.max(-1, Math.min(1, x[i])) * 32767, true);
+  str(0, "RIFF"); v.setUint32(4, 36 + bytes, true); str(8, "WAVE"); str(12, "fmt ");
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, k, true); v.setUint32(24, rate, true);
+  v.setUint32(28, rate * k * 2, true); v.setUint16(32, k * 2, true); v.setUint16(34, 16, true); str(36, "data");
+  v.setUint32(40, bytes, true);
+  const out = new Int16Array(buf, 44, n * k);
+  for (let c = 0; c < k; c++) {
+    const d = ch[c];
+    for (let i = 0; i < n; i++) { const s = d[i] > 1 ? 1 : d[i] < -1 ? -1 : d[i]; out[i * k + c] = Math.round(s * 32767); }
+  }
   return new Blob([buf], { type: "audio/wav" });
 }
 

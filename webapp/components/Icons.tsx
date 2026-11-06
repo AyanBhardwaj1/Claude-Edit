@@ -10,6 +10,7 @@ const P = {
   upload: <><path d="M12 15V4.5M7.5 9 12 4.5 16.5 9" /><path d="M5 14.5V19h14v-4.5" /></>,
   play: <><path d="M8 5.5v13l10.5-6.5L8 5.5Z" fill="currentColor" stroke="none" /></>,
   pause: <><rect x="7" y="5.5" width="3.5" height="13" rx="1" fill="currentColor" stroke="none" /><rect x="13.5" y="5.5" width="3.5" height="13" rx="1" fill="currentColor" stroke="none" /></>,
+  stop: <><rect x="6.5" y="6.5" width="11" height="11" rx="1.5" fill="currentColor" stroke="none" /></>,
   check: <><path d="m5 12.5 4.5 4.5L19 7.5" /></>,
   dot: <><circle cx="12" cy="12" r="2.5" fill="currentColor" stroke="none" /></>,
   arrowLeft: <><path d="M19 12H5M11 6l-6 6 6 6" /></>,

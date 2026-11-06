@@ -19,6 +19,8 @@ export type Asset = {
   web?: boolean;
   ai?: boolean;                   // made by an AI image model (labelled; platforms want an AI label)
   screen?: boolean;               // looks like a screenshot / screen recording (flat UI colours; lib/framed.ts looksLikeScreen)
+  origin?: "composed";            // music: an original bed composed in the browser (lib/compose.ts), royalty-free
+  composed?: { mood: string; bpm: number; key: string; mode: string; length: number; endChordAt: number; lufs: number };
 };
 
 export type Treatment = "card-above-head" | "side-card" | "phone-card" | "full-frame" | "split-top" | "framed" | "text-pop" | "motion";
