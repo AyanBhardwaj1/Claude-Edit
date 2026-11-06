@@ -1235,8 +1235,11 @@ def cmd_auto(args):
                       highlight=edl.get("emphasis"), work=work, preset=args.preset)
         took = _time.monotonic() - t0
         from . import render as _render_mod
+        from . import cut as _cut_mod, transcribe as _tr_mod
         if stage == "render" and _render_mod.LAST_REMUX:
             log("timings: render only swapped in new sound, not recorded")
+        elif (stage == "transcribe" and _tr_mod.LAST_CACHED) or (stage == "cut" and _cut_mod.LAST_CACHED):
+            log(f"timings: {stage} came from its cache, not recorded")
         elif not args.draft or stage not in ("render", "check"):
             seconds_of = media["source"] if stage in ("transcribe", "plan", "cut") else _output_seconds(work, media)
             try:

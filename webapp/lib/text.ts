@@ -45,8 +45,11 @@ function numberRun(tokens: string[], raws: string[] = []): [number, number, bool
   let total = 0, cur = 0, used = 0, last: Kind = null;
   for (let i = 0; i < tokens.length; i++) {
     const t = tokens[i], k = kindOf(t);
-    if (!k) break;
     if (i > 0 && /[,.;:!?]$/.test(raws[i - 1] ?? "")) break;          // "two, three ideas"
+    if (t === "and" && last === "scale" && i + 1 < tokens.length && ["ones", "teen", "tens"].includes(kindOf(tokens[i + 1]) ?? "")) {
+      used++; continue;                                              // "two hundred and fifty"
+    }
+    if (!k) break;
     const ok = last === null ? k !== "scale" || false
       : k === "ones" ? last === "tens" || last === "scale"
       : k === "teen" || k === "tens" ? last === "scale"
@@ -65,7 +68,9 @@ function numberRun(tokens: string[], raws: string[] = []): [number, number, bool
     last = k; used++;
   }
   if (!used || tokens[used] === "point") return null;              // "one point five": leave as said
-  return [total + cur, used];
+  const value = total + cur;
+  // "two thousand (and) twenty four" is a year: 2024, not 2,024
+  return [value, used, value >= 2001 && value <= 2099 && tokens[0] === "two" && tokens[1] === "thousand" && used > 2];
 }
 
 const fmt = (n: number) => (n >= 1000 ? n.toLocaleString("en-US") : String(n));

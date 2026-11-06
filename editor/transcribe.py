@@ -30,6 +30,7 @@ from .util import EditorError, fmt_ts, load_json, log, probe, save_json
 FILLER_PROMPT = "Umm, let me think, uh... Okay, so, like, hmm, here's what I, um, wanted to say."
 AUTO_ORDER = ["whisperx", "faster-whisper", "scribe", "vosk"]
 PHRASE_GAP = 0.5
+LAST_CACHED = False
 
 
 def transcribe(paths: list[str], out_dir: str | Path, model: str = "small", language: str | None = None,
@@ -42,12 +43,15 @@ def transcribe(paths: list[str], out_dir: str | Path, model: str = "small", lang
     runner, used = None, None
     errors = []
 
+    global LAST_CACHED
+    LAST_CACHED = True                  # every source came from the cache (no transcription ran): not a timing sample
     sources, words = [], []
     for idx, path in enumerate(paths):
         info = probe(path)
         if not info["has_audio"]:
             raise EditorError(f"{path} has no audio track to transcribe")
-        cached = _find_cache(cache_dir, path, candidates)
+        variant = {c: _variant(c, model, language, glossary, num_speakers) for c in candidates}
+        cached = _find_cache(cache_dir, path, candidates, variant)
         if cached:
             data = load_json(cached)
             log(f"[{idx}] cached transcript ({data['engine']}): {cached.name}")
@@ -64,11 +68,12 @@ def transcribe(paths: list[str], out_dir: str | Path, model: str = "small", lang
                     raise EditorError("no transcription engine available:\n  " + "\n  ".join(errors) +
                                       "\nInstall one (./setup.sh), set ELEVENLABS_API_KEY, or run "
                                       "`python3 -m editor models vosk`.")
+            LAST_CACHED = False
             log(f"transcribing [{idx}] {path} ({info['duration']:.1f}s) with {used}")
             seg_words, lang = runner(str(path))
             data = {"engine": used, "model": model if used in ("whisperx", "faster-whisper") else None,
                     "language": lang, "source": str(Path(path).resolve()), "words": seg_words}
-            save_json(_cache_path(cache_dir, path, used), data)
+            save_json(_cache_path(cache_dir, path, used, variant.get(used, "")), data)
         sources.append({"path": str(Path(path).resolve()), "duration": info["duration"],
                         "language": data.get("language"), "engine": data["engine"]})
         words += [dict(w, src=idx) for w in data["words"] if w["text"]]
@@ -80,13 +85,28 @@ def _cache_key(path) -> str:
     return hashlib.sha1(f"{Path(path).resolve()}|{st.st_size}|{int(st.st_mtime)}".encode()).hexdigest()[:12]
 
 
-def _cache_path(cache_dir: Path, path, engine: str) -> Path:
-    return cache_dir / f"{Path(path).stem}.{_cache_key(path)}.{engine}.json"
+def _variant(engine: str, model: str, language: str | None, glossary: list[str] | None, num_speakers: int | None) -> str:
+    """What else changes an engine's transcript: the model (Whisper engines), a forced language, glossary names,
+    the speaker count (Scribe). Empty for the defaults, so caches made before this keep working."""
+    parts = []
+    if engine in ("whisperx", "faster-whisper") and model != "small":
+        parts.append(f"m={model}")
+    if language:
+        parts.append(f"l={language}")
+    if glossary and engine in ("whisperx", "faster-whisper", "scribe"):
+        parts.append("g=" + "|".join(sorted(glossary)))
+    if num_speakers and engine == "scribe":
+        parts.append(f"n={num_speakers}")
+    return hashlib.sha1(";".join(parts).encode()).hexdigest()[:8] if parts else ""
 
 
-def _find_cache(cache_dir: Path, path, candidates: list[str]) -> Path | None:
+def _cache_path(cache_dir: Path, path, engine: str, variant: str = "") -> Path:
+    return cache_dir / f"{Path(path).stem}.{_cache_key(path)}.{engine}{'.' + variant if variant else ''}.json"
+
+
+def _find_cache(cache_dir: Path, path, candidates: list[str], variant: dict | None = None) -> Path | None:
     for engine in candidates:
-        p = _cache_path(cache_dir, path, engine)
+        p = _cache_path(cache_dir, path, engine, (variant or {}).get(engine, ""))
         if p.exists():
             return p
     return None

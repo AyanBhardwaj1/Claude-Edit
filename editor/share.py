@@ -21,6 +21,7 @@ import secrets
 import socket
 import threading
 import time
+import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -102,7 +103,7 @@ def serve(video: str | Path, caption: str = "", port: int = 0, lifetime: int = L
                 self.end_headers()
                 if not head:
                     self.wfile.write(body)
-                visited.set()
+                    visited.set()            # a HEAD (a link preview) isn't the phone opening it
                 return
             if parts[1] != "video.mp4":
                 self.send_error(404)
@@ -110,10 +111,24 @@ def serve(video: str | Path, caption: str = "", port: int = 0, lifetime: int = L
             size = video.stat().st_size
             start, end = 0, size - 1
             rng = self.headers.get("Range", "")
-            if rng.startswith("bytes="):
-                a, _, b = rng[6:].partition("-")
-                start = int(a) if a else max(0, size - int(b))
-                end = int(b) if a and b else end
+            ranged = False
+            if rng.startswith("bytes=") and "," not in rng:        # one range; anything else gets the whole file
+                try:
+                    a, _, b = rng[6:].partition("-")
+                    if a:
+                        start, end = int(a), min(int(b), size - 1) if b else size - 1
+                    else:
+                        start = max(0, size - int(b))
+                    ranged = True
+                except ValueError:
+                    start, end = 0, size - 1
+                if ranged and (start >= size or start > end):
+                    self.send_response(416)
+                    self.send_header("Content-Range", f"bytes */{size}")
+                    self.send_header("Content-Length", "0")
+                    self.end_headers()
+                    return
+            if ranged:
                 self.send_response(206)
                 self.send_header("Content-Range", f"bytes {start}-{end}/{size}")
             else:
@@ -122,7 +137,10 @@ def serve(video: str | Path, caption: str = "", port: int = 0, lifetime: int = L
                          "Content-Length": str(end - start + 1)}.items():
                 self.send_header(k, v)
             if "save=1" in self.path:
-                self.send_header("Content-Disposition", f'attachment; filename="{video.name}"')
+                # headers are latin-1: an ASCII name plus the real one (emoji, curly quotes) as RFC 5987
+                plain = video.name.encode("ascii", "replace").decode().replace("?", "_").replace('"', "")
+                self.send_header("Content-Disposition",
+                                 f"attachment; filename=\"{plain}\"; filename*=UTF-8''{urllib.parse.quote(video.name)}")
             self.end_headers()
             if head:
                 return
@@ -156,14 +174,18 @@ def serve(video: str | Path, caption: str = "", port: int = 0, lifetime: int = L
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     t0 = time.time()
     try:
+        said = False
         while time.time() - t0 < lifetime:
-            if visited.wait(1) and not getattr(serve, "_said", False):
+            if not said and visited.wait(1):
                 log("share: your phone opened it")
-                serve._said = True
+                said = True
+            elif said:
+                time.sleep(1)                       # once opened, wait without spinning a core
     except KeyboardInterrupt:
         pass
     finally:
         srv.shutdown()
+        srv.server_close()
         if qr_png and Path(qr_png).exists():
             os.remove(qr_png)
         log("share: link stopped")

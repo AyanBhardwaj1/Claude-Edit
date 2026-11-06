@@ -112,8 +112,9 @@ def save_json(path: str | Path, data) -> Path:
 
 
 def fmt_ts(t: float) -> str:
-    m, s = divmod(max(t, 0.0), 60)
-    return f"{int(m):02d}:{s:05.2f}"
+    cs = round(max(t, 0.0) * 100)              # round first: 59.996 is 01:00.00, not 00:60.00
+    m, c = divmod(cs, 6000)
+    return f"{m:02d}:{c / 100:05.2f}"
 
 
 def log(msg: str) -> None:
