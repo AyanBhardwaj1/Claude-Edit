@@ -19,7 +19,10 @@ import type { Asset, Edit, Format, Project, Settings } from "@/lib/types";
 import { addToLibrary, applyUserNote, mediaUrls, needsWaitScan, saveManual, scanWaits } from "@/lib/workflow";
 import { waitSavings, WAIT_SPEED } from "@/lib/screenrec";
 import { Drawer } from "./Drawer";
-import { MusicMaker } from "./MusicMaker";
+import dynamic from "next/dynamic";
+// the composer (synth, mixer, loudness) only loads when someone opens Make music
+const MusicMaker = dynamic(() => import("./MusicMaker").then((m) => m.MusicMaker), {
+  ssr: false, loading: () => <p className="muted" role="status">Opening the composer…</p> });
 import { Icon } from "./Icons";
 import { RecordScreen } from "./ScreenRecorder";
 import { clock } from "./Tiles";

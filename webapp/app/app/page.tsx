@@ -6,7 +6,10 @@ import { Icon, Mark, type IconName } from "@/components/Icons";
 import { Library } from "@/components/Library";
 import { NewVideo } from "@/components/NewVideo";
 import { Settings } from "@/components/Settings";
-import { Studio } from "@/components/Studio";
+import dynamic from "next/dynamic";
+// Motion Studio is big and only needed on Animate: load it when opened
+const Studio = dynamic(() => import("@/components/Studio").then((m) => m.Studio), {
+  ssr: false, loading: () => <p className="muted" role="status">Opening Motion Studio…</p> });
 import { Command } from "@/components/Command";
 import { Script, StyleRules } from "@/components/Small";
 import { getUser, initials, signOut, type User } from "@/lib/auth";
