@@ -42,7 +42,7 @@ export function scrollTest(tl: Timeline, e: Edit): { lines: ScrollLine[]; passed
     : hs && hs[0] <= 0.5
     ? { id: "hook", ok: true, text: `They read “${hookText}” before the first word lands.` }
     : { id: "hook", ok: false, text: hs ? `The hook title only shows at ${hs[0].toFixed(1)} s: by then most have scrolled.` : "Nothing tells them why to stay: there's no hook title.",
-        fix: "Try 5 hooks, or write a note: “add a hook title”." });
+        fix: hs ? "Write a note: “hook title from the first word”." : "Write one in the Hook title panel beside the video, or press Try 5 hooks there." });
   const first = tl.words.find((w) => w.w.trim());
   const read = e.captions.enabled && !!first && first.os <= 0.6;
   lines.push(read

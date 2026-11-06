@@ -15,11 +15,18 @@ claim they didn't make), each a different angle: a number, a contrarian take, a 
   return [...new Set((r.hooks ?? []).map((h) => String(h).trim().replace(/[.]$/, "")).filter((h) => h && h.split(/\s+/).length <= 9))].slice(0, 5);
 }
 
-/** The edit with a new hook title (the first plain label is the hook). */
-export function withHook(e: Edit, text: string): Edit {
+/** The edit with a new hook title (the first plain label is the hook). A reel without one gets one, on screen from
+ *  its first spoken words (given the timeline), so the hook is read before the first word lands. */
+export function withHook(e: Edit, text: string, tl?: Timeline): Edit {
   const next = structuredClone(e);
   const hook = next.broll.find((b) => b.treatment === "text-pop" && b.style === "label" && b.tilt === 0);
-  if (hook) hook.text = text.slice(0, 60);
+  const clean = text.trim().slice(0, 60);
+  if (hook) hook.text = clean;
+  else if (tl && clean) {
+    const spoken = tl.words.filter((w) => w.w.trim());
+    if (spoken.length) next.broll.unshift({ id: `hook-${Date.now().toString(36)}`, treatment: "text-pop", style: "label", tilt: 0,
+      text: clean, anchor: { from: spoken[0].id, to: spoken[Math.min(3, spoken.length - 1)].id } });
+  }
   return next;
 }
 export const hookOf = (e: Edit) => e.broll.find((b) => b.treatment === "text-pop" && b.style === "label" && b.tilt === 0)?.text ?? "";

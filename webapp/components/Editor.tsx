@@ -101,6 +101,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
   const [clipBusy, setClipBusy] = useState("");
   const [hooks, setHooks] = useState<string[] | null>(null);
   const [hookBusy, setHookBusy] = useState(false);
+  const [hookDraft, setHookDraft] = useState("");
   const [recapBusy, setRecapBusy] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [wave, setWave] = useState<number[] | null>(null);
@@ -684,17 +685,30 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
             </section>
           )}
 
-          {version && hookOf(version.edit) && (
-            <section className="panel" aria-labelledby="hook-h">
+          {version && p.words.length > 0 && (
+            <section className="panel" aria-labelledby="hook-h" id="hook-panel">
               <div className="panel-head"><h2 id="hook-h">Hook title</h2>
                 <button className="btn sm" disabled={hookBusy || !(settings.provider === "anthropic" ? settings.anthropicKey : settings.openaiKey)} onClick={async () => {
                   setHookBusy(true); setErr("");
                   try { const pl = player.current; if (pl) setHooks(await hookIdeas(settings, pl.tl, hookOf(version.edit))); }
                   catch (e) { setErr((e as { userMessage?: string }).userMessage ?? String(e)); }
                   setHookBusy(false); }}>{hookBusy ? <><span className="spin" />Thinking…</> : <><Icon name="spark" />Try 5 hooks</>}</button></div>
-              <p className="hook-now">&ldquo;{hookOf(version.edit)}&rdquo;</p>
+              {hookOf(version.edit) ? <p className="hook-now">&ldquo;{hookOf(version.edit)}&rdquo;</p> : (
+                <form className="row mt-8" style={{ alignItems: "flex-end" }} onSubmit={async (ev) => {
+                  ev.preventDefault();
+                  const text = hookDraft.trim(); if (!text || recording) return;
+                  const before = version.edit, fixed = withHook(before, text, player.current?.tl);
+                  if (fixed.broll.length === before.broll.length) return;
+                  await saveManual(p, fixed, "a hook title"); setP({ ...p }); setHookDraft("");
+                  setMsgs((m) => [...m, { who: "ed", v: p.current, text: `Version ${p.current}: “${text}” is on screen from the first word.`, changes: changeItems(p, before, fixed) }]);
+                }}>
+                  <label className="grow"><span className="small muted block">No hook title yet: it&apos;s the first thing people read.</span>
+                    <input className="input" id="hook-input" value={hookDraft} maxLength={60} placeholder="e.g. The habit that doubled my posting"
+                      onChange={(ev) => setHookDraft(ev.target.value)} /></label>
+                  <button className="btn sm" type="submit" disabled={!hookDraft.trim() || recording}>Add</button>
+                </form>)}
               {hooks && <div className="chips mt-8" role="group" aria-label="Hook ideas">{hooks.map((h) => (
-                <button key={h} className="chip" onClick={async () => { await saveManual(p, withHook(version.edit, h), "a new hook title"); setP({ ...p });
+                <button key={h} className="chip" disabled={recording} onClick={async () => { await saveManual(p, withHook(version.edit, h, player.current?.tl), "a new hook title"); setP({ ...p });
                   setMsgs((m) => [...m, { who: "ed", text: `Version ${p.current}: the hook now says "${h}".` }]); setHooks(null); }}>{h}</button>))}</div>}
             </section>
           )}
