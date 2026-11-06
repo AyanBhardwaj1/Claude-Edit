@@ -1,0 +1,237 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<!-- editor overlay: every element type, laid out in output pixels, drawn deterministically by seek(t).
+     Theme (colours, fonts, size) arrives from Python through window.init(job); see README.md. -->
+<style id="base">html,body{margin:0;padding:0;background:transparent;overflow:hidden}svg{overflow:visible}</style>
+<style id="theme"></style>
+</head>
+<body><div id="stage"></div>
+<script>
+let W=1920,H=1080,K={},SH='#101810',FD="serif",FT="sans-serif";
+const clamp=(x,a=0,b=1)=>Math.max(a,Math.min(b,x));
+const eOC=p=>1-Math.pow(1-clamp(p),3);
+const eOE=p=>{p=clamp(p);return p>=1?1:1-Math.pow(2,-10*p)};
+const eIOC=p=>{p=clamp(p);return p<.5?4*p*p*p:1-Math.pow(-2*p+2,3)/2};
+const eOB=(p,k=1.70158)=>{p=clamp(p);const c3=k+1;return 1+c3*Math.pow(p-1,3)+k*Math.pow(p-1,2)};
+const lerp=(a,b,p)=>a+(b-a)*p;
+const r1=x=>Math.round(x*10)/10, r3=x=>Math.round(x*1000)/1000;
+const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+const attr=s=>esc(s).replace(/"/g,'&quot;');
+// colour with alpha: hex -> rgba(), anything else -> color-mix
+function A(c,a){const m=/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(String(c).trim());
+  if(m){let h=m[1];if(h.length===3)h=h.split('').map(x=>x+x).join('');
+    return `rgba(${parseInt(h.slice(0,2),16)},${parseInt(h.slice(2,4),16)},${parseInt(h.slice(4,6),16)},${a})`}
+  return `color-mix(in srgb, ${c} ${Math.round(a*1000)/10}%, transparent)`}
+const S=a=>A(SH,a);   // shadow colour
+const stage=document.getElementById('stage');
+function mk(tag,cls,parent,html){const e=document.createElement(tag);if(cls)e.className=cls;if(html!=null)e.innerHTML=html;(parent||stage).appendChild(e);return e}
+// set transform/opacity; returns rounded key values
+function put(el,x,y,s=1,o=1,rot=0){x=r1(x);y=r1(y);s=r3(s);o=r3(o);rot=r1(rot);
+  el.style.transform=`translate(${x}px,${y}px)`+(s!==1?` scale(${s})`:'')+(rot?` rotate(${rot}deg)`:'');
+  el.style.opacity=o;return [x,y,s,o,rot]}
+// fade envelope
+function fade(t,tin,tout,fi=.25,fo=.25){return eOC((t-tin)/fi)*clamp((tout-t)/fo)}
+// colour roles; the Walk-Free names stay as aliases
+const ALIAS={heat:'accent',shade:'accent2',green:'ink',ivory:'bg'};
+const colorOf=c=>{if(!c)return K.ink;const r=ALIAS[c]||c;return K[r]||c};
+const roleOf=c=>ALIAS[c]||c;
+const SUN=c=>`<svg viewBox="0 0 30 30"><circle cx="15" cy="15" r="6.2" fill="${c}"/>${[0,45,90,135,180,225,270,315].map(a=>{const r=a*Math.PI/180;return `<line x1="${15+Math.cos(r)*10}" y1="${15+Math.sin(r)*10}" x2="${15+Math.cos(r)*13.5}" y2="${15+Math.sin(r)*13.5}" stroke="${c}" stroke-width="2.4" stroke-linecap="round"/>`}).join('')}</svg>`;
+const LEAF=c=>`<svg viewBox="0 0 30 30"><path d="M24 5 C12 5 5 11 6 23 C18 24 25 17 24 5 Z" fill="${c}"/><path d="M8 22 C12 17 16 13 20 9" stroke="${K.bg}" stroke-width="1.8" fill="none" stroke-linecap="round"/></svg>`;
+const DOT=c=>`<svg viewBox="0 0 30 30"><circle cx="15" cy="15" r="7" fill="${c}"/><circle cx="15" cy="15" r="11.5" fill="none" stroke="${c}" stroke-opacity=".3" stroke-width="2"/></svg>`;
+const ICONS={sun:SUN,leaf:LEAF,dot:DOT};
+
+function themeCSS(){return `
+#stage{position:absolute;left:0;top:0;width:${W}px;height:${H}px;overflow:hidden}
+html,body{width:${W}px;height:${H}px}
+.abs{position:absolute;left:0;top:0;transform-origin:0 0}
+.full{position:absolute;left:0;top:0;width:${W}px;height:${H}px}
+.ft{font-family:${FT}}
+.fd{font-family:${FD}}
+.pill{position:absolute;left:0;top:0;font-family:${FT};font-weight:600;font-size:26px;line-height:1.15;padding:14px 26px;border-radius:999px;background:${K.ink};color:${K.bg};white-space:nowrap;box-shadow:0 10px 28px ${S(.22)},0 2px 6px ${S(.14)};letter-spacing:.005em}
+.pill.ivory{background:${K.bg};color:${K.ink}}
+.pill.small{font-size:20px;padding:10px 18px;background:${K.bg};color:${K.ink};font-weight:600}
+.cap{position:absolute;left:0;top:0;width:${W}px;display:flex;justify-content:center;align-items:flex-end;pointer-events:none}
+.capbox{background:${K.box};border-radius:10px;padding:12px 26px 14px;text-align:center;color:${K.text};font-family:${FT};font-size:34px;line-height:1.28;font-weight:400}
+.capt{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.caps{font-style:italic;font-size:28px;opacity:.8;margin-top:2px}
+.chip{position:absolute;left:0;top:0;display:flex;align-items:center;gap:12px;background:${K.bg};border-radius:16px;padding:14px 24px 14px 18px;font-family:${FT};font-weight:600;font-size:30px;line-height:1.1;white-space:nowrap;box-shadow:0 14px 36px ${S(.22)},0 2px 6px ${S(.12)}}
+.chip.noicon{padding-left:24px}
+.chip svg{width:30px;height:30px;flex:none}
+.card{background:${K.bg};border-radius:22px;box-shadow:0 30px 80px ${S(.28)},0 4px 14px ${S(.12)}}
+.center{display:flex;align-items:center;justify-content:center;flex-direction:column}
+.gchip{position:absolute;left:0;top:0;background:${K.muted};color:${K.muted_ink};font-family:${FT};font-weight:600;font-size:30px;line-height:1.1;padding:14px 26px;border-radius:14px;white-space:nowrap;box-shadow:0 10px 28px ${S(.18)},0 2px 6px ${S(.1)}}
+`}
+
+const F={};
+F.caption=s=>{const root=mk('div','cap');const bottom=s.bottom!=null?s.bottom:H-70;root.style.height=bottom+'px';
+  const mw=s.max_w!=null?s.max_w:Math.min(760,W-160);
+  root.innerHTML=`<div class="capbox" style="max-width:${mw}px"><div class="capt">${esc(s.text)}</div>${s.sub?`<div class="caps capt">${esc(s.sub)}</div>`:''}</div>`;
+  return {root,upd:t=>{const o=r3(fade(t,s.t_in,s.t_out,.08,.08));root.style.opacity=o;return [o]}}};
+function pillEl(s,cls){const e=mk('div','pill '+(cls||''),null,esc(s.text));return e}
+F.meta_tag=s=>{if(s.t_out==null)s.t_out=s.t_in+(s.dur||3.5);const e=pillEl(s);
+  return {root:e,upd:t=>{const p=eOC((t-s.t_in)/.25);return put(e,s.x,s.y+12*(1-p),1,p*clamp((s.t_out-t)/.25))}}};
+F.tag=s=>{const st=s.style||'green';const e=pillEl(s,(st==='green'||st==='ink')?'':st==='bg'?'ivory':st);const base=st==='small'?.9:1;
+  return {root:e,upd:t=>{const p=eOC((t-s.t_in)/.3);return put(e,s.x,s.y+10*(1-p),1,base*p*clamp((s.t_out-t)/.25))}}};
+F.chip=s=>{const c=colorOf(s.color);const role=roleOf(s.color);
+  const icon=s.icon!=null?s.icon:role==='accent'?'sun':role==='accent2'?'leaf':'dot';const ic=ICONS[icon];
+  const e=mk('div','chip'+(ic?'':' noicon'),null,`${ic?ic(c):''}<span style="color:${c}">${esc(s.text)}</span>`);
+  return {root:e,measure(){this.w=e.offsetWidth},upd(t){const p=eOC((t-s.t_in)/.35);const x=s.anchor==='tr'?s.x-this.w:s.x;
+    return put(e,x+(s.anchor==='tr'?14:-14)*(1-p),s.y,1,p*clamp((s.t_out-t)/.25))}}};
+F.big_stat=s=>{const root=mk('div','full');
+  root.innerHTML=`<div class="full" style="background:radial-gradient(ellipse 46% 42% at 50% 50%,${S(.62)},${S(.35)} 45%,${S(0)} 100%)"></div>
+  <div class="full center"><div class="fd" style="font-weight:700;font-size:120px;line-height:1;color:${K.bg};text-shadow:0 6px 30px rgba(0,0,0,.45),0 1px 3px rgba(0,0,0,.3);font-variant-numeric:lining-nums tabular-nums;letter-spacing:-.01em">0</div>
+  <div class="ft lab" style="font-size:32px;color:${K.bg};margin-top:22px;text-shadow:0 2px 14px rgba(0,0,0,.5);letter-spacing:.01em;text-align:center;max-width:${W-120}px">${esc(s.label)}</div>
+  <div class="ft src" style="font-size:18px;color:${K.bg};opacity:.7;margin-top:12px;letter-spacing:.06em;text-transform:uppercase;text-shadow:0 1px 8px rgba(0,0,0,.5)">${esc(s.source)}</div></div>`;
+  const vig=root.children[0],box=root.children[1],num=box.children[0],lab=box.children[1],src=box.children[2];
+  const dec=Math.max(...[s.from||0,s.to].map(v=>(String(v).split('.')[1]||'').length));const cd=s.count_dur||1.5;
+  return {root,upd:t=>{const o=fade(t,s.t_in,s.t_out,.3);const p=(t-s.t_in)/.5;const sc=.9+.1*eOB(p,1.2);
+    const v=lerp(+s.from||0,+s.to,eOE((t-s.t_in)/cd));const str=(s.prefix||'')+v.toLocaleString('en-US',{minimumFractionDigits:dec,maximumFractionDigits:dec})+(s.suffix||'');
+    if(num.textContent!==str)num.textContent=str;vig.style.opacity=r3(o);
+    const k=put(box,0,0,sc,o);box.style.transformOrigin='50% 50%';const l=eOC((t-s.t_in-.25)/.4);
+    lab.style.opacity=r3(l);lab.style.transform=`translateY(${r1(10*(1-l))}px)`;const q=eOC((t-s.t_in-.4)/.4);src.style.opacity=r3(.7*q);
+    return [...k,str,r3(l),r3(q)]}}};
+F.big_caption=s=>{const root=mk('div','full center');
+  root.innerHTML=`<div class="card" style="padding:46px 80px 50px;max-width:${Math.min(1500,W-120)}px;box-sizing:border-box;text-align:center"><div class="fd" style="font-weight:600;font-size:96px;line-height:1.06;color:${K.ink};letter-spacing:-.01em">${esc(s.text)}</div>${s.sub?`<div class="ft" style="font-size:28px;color:${K.ink};opacity:.8;margin-top:20px">${esc(s.sub)}</div>`:''}</div>`;
+  const card=root.children[0];card.style.transformOrigin='50% 50%';
+  return {root,upd:t=>{const p=eOC((t-s.t_in)/.45);return put(card,0,0,.96+.04*p,p*clamp((s.t_out-t)/.25))}}};
+F.counter=s=>{const root=mk('div','abs card');root.style.padding='26px 40px 30px';
+  root.innerHTML=s.lines.map(L=>{const c=colorOf(L.color);const m=String(L.text).match(/^\s*([+\-−$€£]?[\d][\d,.]*\s*[%+]?)(.*)$/);
+    const inner=m?`<span class="fd" style="font-weight:700;font-size:56px;color:${c};font-variant-numeric:lining-nums">${esc(m[1])}</span>${m[2].trim()?`<span class="ft" style="font-weight:600;font-size:26px;color:${c};margin-left:12px">${esc(m[2].trim())}</span>`:''}`
+      :`<span class="ft" style="font-weight:600;font-size:26px;color:${c}">${esc(L.text)}</span>`;
+    return `<div style="display:flex;align-items:baseline;white-space:nowrap;line-height:1.15;padding:4px 0">${inner}</div>`}).join('');
+  const rows=[...root.children];const tin=Math.min(...s.lines.map(l=>l.t));s.t_in=tin;
+  return {root,measure(){this.w=root.offsetWidth;this.h=root.offsetHeight;root.style.transformOrigin='100% 100%'},upd(t){
+    const x=s.x!=null?s.x:W-110-this.w,y=s.y!=null?s.y:H-150-this.h;const p=eOC((t-tin)/.4);
+    const k=put(root,x,y+14*(1-p),.97+.03*p,p*clamp((s.t_out-t)/.25));
+    rows.forEach((r,i)=>{const q=eOC((t-s.lines[i].t)/.4);r.style.opacity=r3(q);r.style.transform=`translateY(${r1(12*(1-q))}px)`;k.push(r3(q))});return k}}};
+F.callout=s=>{const root=mk('div','full');const side=s.side||'right';
+  root.innerHTML=`<svg class="full" width="${W}" height="${H}"><line stroke="${K.bg}" stroke-opacity=".75" stroke-width="6" stroke-linecap="round"/><line stroke="${K.ink}" stroke-width="2.5" stroke-linecap="round"/><circle r="16" fill="${K.bg}" fill-opacity=".35"/><circle r="8" fill="${K.bg}" stroke="${K.ink}" stroke-width="3"/></svg><div class="pill ivory">${esc(s.text)}</div>`;
+  const svg=root.children[0],pill=root.children[1],[l0,l1,halo,dot]=svg.children;const D=s.dist!=null?s.dist:120;
+  return {root,measure(){const w=pill.offsetWidth,h=pill.offsetHeight;let px,py,ex,ey;
+      if(side==='right'){px=s.tx+D;py=s.ty-h/2;ex=px;ey=s.ty}else if(side==='left'){px=s.tx-D-w;py=s.ty-h/2;ex=px+w;ey=s.ty}
+      else if(side==='top'){px=s.tx-w/2;py=s.ty-D-h;ex=s.tx;ey=py+h}else{px=s.tx-w/2;py=s.ty+D;ex=s.tx;ey=py}
+      Object.assign(this,{px,py,ex,ey});pill.style.transformOrigin=side==='right'?'0 50%':side==='left'?'100% 50%':side==='top'?'50% 100%':'50% 0';
+      [halo,dot].forEach(c=>{c.setAttribute('cx',s.tx);c.setAttribute('cy',s.ty)});[l0,l1].forEach(l=>{l.setAttribute('x1',s.tx);l.setAttribute('y1',s.ty)})},
+    upd(t){const o=clamp((s.t_out-t)/.25);root.style.opacity=r3(o);const d=eOB((t-s.t_in)/.25,2);const lp=eOC((t-s.t_in-.1)/.3);
+      dot.setAttribute('r',r1(8*d));halo.setAttribute('r',r1(16*d+4*Math.sin((t-s.t_in)*4)));
+      const x2=r1(lerp(s.tx,this.ex,lp)),y2=r1(lerp(s.ty,this.ey,lp));[l0,l1].forEach(l=>{l.setAttribute('x2',x2);l.setAttribute('y2',y2)});
+      const pp=(t-s.t_in-.25)/.35;const k=put(pill,this.px,this.py,.85+.15*eOB(pp),eOC(pp*1.6));return [r3(o),r3(d),x2,y2,...k,r1(Math.sin((t-s.t_in)*4))]}}};
+F.ring=s=>{const root=mk('div','abs');const r=s.r||40;
+  root.innerHTML=`<svg width="0" height="0"><circle r="${r}" fill="none" stroke="${K.bg}" stroke-width="3.5"/><circle r="${r-4}" fill="none" stroke="${K.ink}" stroke-width="2.5"/>`+
+    [0,1].map(()=>`<g><circle fill="none" stroke="${K.bg}" stroke-width="3"/><circle fill="none" stroke="${K.ink}" stroke-width="2"/></g>`).join('')+`</svg>`;
+  const gs=[...root.querySelectorAll('g')];
+  return {root,upd:t=>{const k=put(root,s.x,s.y,1,fade(t,s.t_in,s.t_out));
+    gs.forEach((g,i)=>{const ph=(((t-s.t_in)/.9)+i*.5)%1;const rr=r*(1+.7*eOC(ph));const op=r3((1-ph)*.9);
+      g.children[0].setAttribute('r',r1(rr+3));g.children[1].setAttribute('r',r1(rr));g.style.opacity=op;k.push(r1(rr),op)});return k}}};
+F.glow_box=s=>{const root=mk('div','abs');root.style.cssText+=`;width:${s.w}px;height:${s.h}px`;const c=colorOf(s.color||'accent');
+  root.innerHTML=`<div style="position:absolute;inset:0;border-radius:16px;border:3px solid ${c}"></div><div style="position:absolute;inset:0;border-radius:16px;border:2px solid ${K.bg}"></div>`;
+  const [b,ring]=root.children;
+  return {root,upd:t=>{const k=put(root,s.x,s.y,1,fade(t,s.t_in,s.t_out));const ph=((t-s.t_in)*2)%1;const g=.5+.5*Math.cos(ph*2*Math.PI);
+    b.style.boxShadow=`0 0 ${r1(10+26*g)}px ${r1(2+6*g)}px ${A(c,r3(.3+.45*g))}, inset 0 0 ${r1(8+14*g)}px ${A(c,r3(.2+.3*g))}`;
+    const e=r1(14*eOC(ph));ring.style.inset=`${-e}px`;ring.style.opacity=r3(.85*(1-ph));ring.style.borderRadius=(16+e)+'px';return [...k,r3(g),e]}}};
+F.trace=s=>{const root=mk('div','full');const d='M'+s.points.map(p=>p.join(' ')).join(' L');
+  root.innerHTML=`<svg class="full" width="${W}" height="${H}"><defs><filter id="gl${s._i}" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="5"/></filter></defs>
+  <path d="${d}" fill="none" stroke="#000" stroke-opacity=".28" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="${d}" fill="none" stroke="${K.bg}" stroke-opacity=".9" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" filter="url(#gl${s._i})"/>
+  <path d="${d}" fill="none" stroke="${K.highlight}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle r="15" fill="${K.bg}" opacity=".55" filter="url(#gl${s._i})"/><circle r="6.5" fill="${K.highlight}" stroke="${K.ink}" stroke-width="2"/></svg>`;
+  const ps=[...root.querySelectorAll('path')],[hg,hd]=root.querySelectorAll('circle');
+  return {root,measure(){this.L=ps[2].getTotalLength();ps.forEach(p=>p.style.strokeDasharray=this.L+1)},upd(t){
+    const o=fade(t,s.t_in,s.t_out,.15);root.style.opacity=r3(o);const p=eIOC((t-s.t_in)/(s.draw_dur||1.5))*.15+.85*eOC((t-s.t_in)/(s.draw_dur||1.5));
+    const off=r1(this.L*(1-p));ps.forEach(q=>q.style.strokeDashoffset=off);const pt=ps[2].getPointAtLength(this.L*p);
+    [hg,hd].forEach(c=>{c.setAttribute('cx',r1(pt.x));c.setAttribute('cy',r1(pt.y))});return [r3(o),off]}}};
+F.chips_compete=s=>{const root=mk('div','full');const els=s.items.map(it=>mk('div','gchip',root,esc(it)));
+  const lab=mk('div','abs ft',root,esc(s.label||''));lab.style.cssText+=`;font-size:28px;color:${K.muted_label};font-weight:600;letter-spacing:.02em;white-space:nowrap;text-shadow:0 1px 10px rgba(0,0,0,.25)`;
+  s.t_in=Math.min(...s.times);const rowY=s.row_y!=null?s.row_y:H-320,cx=s.col_x!=null?s.col_x:110,cy=s.col_y!=null?s.col_y:330;
+  return {root,measure(){const ws=els.map(e=>e.offsetWidth),h=els[0]?els[0].offsetHeight:60,gap=18;const tot=ws.reduce((a,b)=>a+b,0)+gap*(ws.length-1);
+      let x=(W-tot)/2;this.row=ws.map(w=>{const p=[x,rowY-h/2];x+=w+gap;return p});this.col=ws.map((w,i)=>[cx,cy+i*(h+14)])},
+    upd(t){const o=clamp((s.t_out-t)/.25);root.style.opacity=r3(o);const q=s.t_column!=null?eIOC((t-s.t_column)/.5):0;const k=[r3(o),r3(q)];
+      els.forEach((e,i)=>{const p=clamp((t-s.times[i])/.15);const sc=.8+.2*eOC(p);e.style.transformOrigin='50% 50%';
+        k.push(...put(e,lerp(this.row[i][0],this.col[i][0],q),lerp(this.row[i][1],this.col[i][1],q),sc,eOC(p)))});
+      const lo=s.t_column!=null?eOC((t-s.t_column-.25)/.35):0;k.push(...put(lab,cx,cy-54+8*(1-lo),1,lo));return k}}};
+F.checklist=s=>{const root=mk('div','abs');const w=s.w||520;
+  root.innerHTML=`<div style="width:${w}px;box-sizing:border-box;background:${K.ink};border-radius:22px;padding:34px 40px 30px;box-shadow:0 30px 80px ${S(.32)},0 4px 14px ${S(.16)}">
+  <div class="fd" style="font-weight:600;font-size:40px;line-height:1.12;color:${K.bg};margin-bottom:22px">${esc(s.heading)}</div>
+  ${s.items.map(it=>`<div class="it" style="display:flex;align-items:flex-start;gap:16px;margin:0 0 16px"><svg width="34" height="34" viewBox="0 0 34 34" style="flex:none;margin-top:2px"><circle cx="17" cy="17" r="16" fill="${K.bg}" fill-opacity=".1" stroke="${K.bg}" stroke-opacity=".25" stroke-width="1.5"/><path d="M9.5 17.5 L15 23 L25 11.5" fill="none" stroke="${K.accent}" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="26" stroke-dashoffset="26"/></svg><div class="ft" style="font-size:28px;line-height:1.3;color:${K.bg}">${esc(it)}</div></div>`).join('')}</div>`;
+  const items=[...root.querySelectorAll('.it')];
+  return {root,upd:t=>{const p=eOC((t-s.t_in)/.45);const k=put(root,s.x!=null?s.x:W-630,(s.y!=null?s.y:300)+18*(1-p),1,p*clamp((s.t_out-t)/.25));
+    items.forEach((it,i)=>{const q=eOC((t-s.times[i])/.35);const c=eOC((t-s.times[i]-.08)/.3);it.style.opacity=r3(q);it.style.transform=`translateX(${r1(10*(1-q))}px)`;
+      it.querySelector('path').style.strokeDashoffset=r1(26*(1-c));k.push(r3(q),r3(c))});return k}}};
+F.lower_third=s=>{const side=s.side||'left';const root=mk('div','abs');
+  root.innerHTML=`<div style="display:flex;align-items:stretch;background:${K.ink};border-radius:14px;overflow:hidden;box-shadow:0 20px 50px ${S(.3)}"><div style="width:6px;background:${K.accent}"></div><div style="padding:18px 34px 20px 26px"><div class="ft" style="font-weight:600;font-size:36px;line-height:1.1;color:${K.bg};white-space:nowrap">${esc(s.name)}</div>${s.role?`<div class="ft" style="font-size:24px;line-height:1.2;color:${K.bg};opacity:.78;margin-top:6px;white-space:nowrap">${esc(s.role)}</div>`:''}</div></div>`;
+  const bar=root.children[0];const m=s.margin!=null?s.margin:110,y=s.y!=null?s.y:H-280;
+  return {root,measure(){this.w=root.offsetWidth},upd(t){const p=eOE((t-s.t_in)/.6);const x=side==='left'?m:W-m-this.w;const dx=(side==='left'?-60:60)*(1-p);
+    const cl=r1(100*(1-eOC((t-s.t_in)/.5)));bar.style.clipPath=side==='left'?`inset(0 ${cl}% 0 0 round 14px)`:`inset(0 0 0 ${cl}% round 14px)`;
+    return [...put(root,x+dx,y,1,eOC((t-s.t_in)/.25)*clamp((s.t_out-t)/.25)),cl]}}};
+F.shimmer=s=>{const root=mk('div','full');root.style.overflow='hidden';
+  let label=String(s.label||'thinking').replace(/(\.\.\.|…)\s*$/,'');const bh=2*H+440;
+  root.innerHTML=`<div class="abs" style="width:620px;height:${bh}px;top:${-(H+440)/2}px;background:linear-gradient(90deg,${A(K.highlight,0)} 0%,${A(K.highlight,.07)} 35%,${A(K.highlight,.14)} 50%,${A(K.highlight,.07)} 65%,${A(K.highlight,0)} 100%);transform-origin:50% 50%"></div>
+  <div class="pill ivory" style="display:flex;align-items:center;gap:2px">${esc(label)}<span class="d">.</span><span class="d">.</span><span class="d">.</span></div>`;
+  const band=root.children[0],pill=root.children[1],dots=[...pill.querySelectorAll('.d')];
+  return {root,measure(){this.pw=pill.offsetWidth},upd(t){const o=fade(t,s.t_in,s.t_out,.3);root.style.opacity=r3(o);const ph=((t-s.t_in)/1.2)%1;const bx=r1(-900+ph*(W+1500));
+    band.style.transform=`translateX(${bx}px) rotate(22deg)`;const k=[r3(o),bx,...put(pill,(W-this.pw)/2,s.y!=null?s.y:48,1,1)];
+    dots.forEach((d,i)=>{const v=r3(.25+.75*Math.max(0,Math.sin(((t-s.t_in)*1.6-i*.18)*2*Math.PI)));d.style.opacity=v;k.push(v)});return k}}};
+F.marker=s=>{const e=mk('div','abs');e.style.cssText+=`;width:${s.w}px;height:${s.h}px;border-radius:6px;background:${A(colorOf(s.color||'accent'),.4)}`;
+  return {root:e,upd:t=>{const p=eIOC((t-s.t_in)/(s.draw_dur||.5));const sx=r3(Math.max(.0001,p));e.style.transform=`translate(${s.x}px,${s.y}px) scaleX(${sx})`;
+    const o=r3(clamp((s.t_out-t)/.25));e.style.opacity=o;return [sx,o]}}};
+F.stamp=s=>{const root=mk('div','abs');const c=colorOf(s.color||'accent');root.innerHTML=`<div class="fd" style="font-weight:700;font-size:64px;line-height:1;color:${c};border:5px solid ${c};border-radius:14px;padding:14px 30px 18px;background:${A(K.bg,.92)};white-space:nowrap;box-shadow:0 14px 40px ${S(.25)};letter-spacing:.01em">${esc(s.text)}</div>`;
+  return {root,measure(){this.w=root.offsetWidth;this.h=root.offsetHeight;root.style.transformOrigin='50% 50%'},upd(t){const p=(t-s.t_in)/.38;const sc=1.4-.4*eOB(p,2.2);
+    return put(root,s.x-this.w/2,s.y-this.h/2,sc,eOC(p*3)*clamp((s.t_out-t)/.25),s.rotate!=null?s.rotate:-6)}}};
+F.pills_row=s=>{const root=mk('div','full');const els=s.items.map(it=>{const e=mk('div','pill',root,esc(it));e.style.transformOrigin='50% 50%';return e});s.t_in=Math.min(...s.times);
+  return {root,measure(){const ws=els.map(e=>e.offsetWidth),gap=16;let x=(W-(ws.reduce((a,b)=>a+b,0)+gap*(ws.length-1)))/2;this.xs=ws.map(w=>{const v=x;x+=w+gap;return v})},
+    upd(t){const o=r3(clamp((s.t_out-t)/.25));root.style.opacity=o;const k=[o];els.forEach((e,i)=>{const p=(t-s.times[i])/.2;k.push(...put(e,this.xs[i],s.y!=null?s.y:H-180,.85+.15*eOB(p,2),eOC(p)))});return k}}};
+F.url_band=s=>{const root=mk('div','abs');const y=s.y!=null?s.y:H-380;
+  root.innerHTML=`<div style="width:${W}px;height:180px;background:${K.bg};box-shadow:0 24px 70px ${S(.3)};display:flex;align-items:center;justify-content:center;position:relative"><div style="position:absolute;left:0;top:0;bottom:0;width:10px;background:${K.accent}"></div><div class="fd" style="font-weight:600;font-size:84px;line-height:1;color:${K.ink};letter-spacing:-.005em;padding-bottom:6px;white-space:nowrap">${esc(s.text)}</div></div>`;
+  const band=root.children[0],txt=band.children[1];
+  return {root,upd:t=>{const p=eIOC((t-s.t_in)/.6);const cl=r1(100*(1-p));band.style.clipPath=`inset(0 ${cl}% 0 0)`;const q=eOC((t-s.t_in-.3)/.5);
+    txt.style.opacity=r3(q);txt.style.transform=`translateY(${r1(14*(1-q))}px)`;return [...put(root,0,y-90,1,clamp((s.t_out-t)/.25)),cl,r3(q)]}}};
+F.logo_sting=s=>{const dur=s.dur||2.5;s.t_out=s.t_in+dur;const root=mk('div','full center');root.style.background=s.background?colorOf(s.background):K.bg;
+  const sun=s.mark==='sun_tree'?`<svg width="190" height="200" viewBox="0 0 190 200" style="position:absolute;left:0;top:0"><circle class="sun" cx="128" cy="62" r="54" fill="${K.accent}"/></svg>`:'';
+  const mark=s.image?`<img class="mk" src="${attr(s.image)}" style="position:absolute;left:0;top:0;width:100%;height:100%;object-fit:contain;transform-origin:50% 100%">`
+    :s.mark==='sun_tree'?`<svg class="mk" width="190" height="200" viewBox="0 0 190 200" style="position:absolute;left:0;top:0;transform-origin:50% 100%"><rect x="84" y="112" width="20" height="80" rx="6" fill="${K.ink}"/><circle cx="94" cy="92" r="64" fill="${K.ink}"/><path d="M94 150 L94 112 M94 128 L74 110 M94 122 L112 104" stroke="${K.bg}" stroke-opacity=".22" stroke-width="5" stroke-linecap="round" fill="none"/></svg>`:'';
+  const size=s.image_size||200;
+  root.innerHTML=`<div style="display:flex;align-items:center;gap:34px;position:relative">${mark?`<div style="position:relative;width:${s.image?size:190}px;height:${s.image?size:200}px">${sun}${mark}</div>`:''}
+   ${s.text?`<div class="fd wm" style="font-weight:700;font-size:${s.size||150}px;line-height:1;color:${s.color?colorOf(s.color):K.ink};letter-spacing:-.015em;padding-bottom:18px;white-space:nowrap">${esc(s.text)}</div>`:''}</div>`;
+  const sunEl=root.querySelector('.sun'),mk_=root.querySelector('.mk'),wm=root.querySelector('.wm');
+  return {root,upd:t=>{const u=t-s.t_in;const a=eOE(u/(dur*.55));const sx=r1(1100*(1-a));if(sunEl)sunEl.style.transform=`translateX(${sx}px)`;
+    const b=eOB((u-dur*.18)/(dur*.3),1.4);if(mk_){mk_.style.transform=`scale(${r3(.55+.45*b)})`;mk_.style.opacity=r3(eOC((u-dur*.18)/(dur*.15)))}
+    const c=eOC((u-dur*.3)/(dur*.35));if(wm){wm.style.opacity=r3(c);wm.style.transform=`translateY(${r1(24*(1-c))}px)`;wm.style.letterSpacing=r3(.04*(1-c)-.015)+'em'}
+    return [sx,r3(b),r3(c)]}}};
+F.end_card=s=>{const root=mk('div','full center');const c=s.color?colorOf(s.color):K.bg;
+  root.innerHTML=s.lines.map((l,i)=>i===0?`<div class="fd" style="font-weight:700;font-size:110px;line-height:1.05;color:${c};letter-spacing:-.015em;text-shadow:0 6px 30px rgba(0,0,0,.35);text-align:center">${esc(l)}</div>`
+    :i===1?`<div class="fd" style="font-weight:400;font-size:54px;line-height:1.2;color:${c};margin:10px 0 26px;text-shadow:0 4px 20px rgba(0,0,0,.35);text-align:center">${esc(l)}</div>`
+    :`<div class="ft" style="font-size:28px;line-height:1.5;color:${c};opacity:.85;text-shadow:0 2px 12px rgba(0,0,0,.4);text-align:center">${esc(l)}</div>`).join('');
+  const rows=[...root.children];
+  return {root,upd:t=>{const o=r3(clamp((s.t_out-t)/.25));root.style.opacity=o;const k=[o];
+    rows.forEach((r,i)=>{const p=eOC((t-s.t_in-i*.12)/.55);const base=i>1?.85:1;r.style.opacity=r3(base*p);r.style.transform=`translateY(${r1(20*(1-p))}px)`;k.push(r3(p))});return k}}};
+F.wipe_labels=s=>{const root=mk('div','full');const a=mk('div','pill ivory',root,esc(s.left)),b=mk('div','pill ivory',root,esc(s.right));const m=s.margin!=null?s.margin:56;
+  return {root,measure(){this.a=[a.offsetWidth,a.offsetHeight];this.b=[b.offsetWidth,b.offsetHeight]},upd(t){const p=eOC((t-s.t_in)/.3);const o=p*clamp((s.t_out-t)/.25);
+    return [...put(a,m-14*(1-p),H-m-this.a[1],1,o),...put(b,W-m-this.b[0]+14*(1-p),H-m-this.b[1],1,o)]}}};
+F.flash=s=>{const dur=s.dur||.3;s.t_out=s.t_in+dur;const root=mk('div','full');root.style.background=s.color?colorOf(s.color):K.flash;
+  return {root,upd:t=>{const p=clamp((t-s.t_in)/dur);const o=r3(.95*Math.pow(1-p,2));root.style.opacity=o;return [o]}}};
+
+let ELS=[];
+// job: {width, height, theme: {colors, fonts}, faces: [{family, url, weight, style}], elements: [...]}
+window.init=async function(job){
+  const th=job.theme||{};W=job.width||1920;H=job.height||1080;K=th.colors||{};SH=K.shadow||'#101810';
+  const q=n=>`'${String(n).replace(/'/g,'')}'`;const fn=th.fonts||{};
+  FD=`'D',${fn.display?q(fn.display)+',':''}Georgia,'Times New Roman',serif`;FT=`'T',${fn.text?q(fn.text)+',':''}'Helvetica Neue',Arial,sans-serif`;
+  document.getElementById('theme').textContent=themeCSS();
+  const errs=[];
+  await Promise.all((job.faces||[]).map(async f=>{try{const ff=new FontFace(f.family,`url("${f.url}")`,{weight:String(f.weight),style:f.style||'normal'});
+    await ff.load();document.fonts.add(ff)}catch(e){errs.push('font '+f.url+': '+e)}}));
+  await document.fonts.ready;
+  (job.elements||[]).forEach((s,i)=>{s._i=i;const f=F[s.type];if(!f){errs.push('unknown type '+s.type);return}
+    try{const E=f(s);E.s=s;E.i=i;E.root.style.display='';ELS.push(E)}catch(e){errs.push(s.type+': '+e.message)}});
+  for(const E of ELS){try{E.measure&&E.measure()}catch(e){errs.push(E.s.type+' measure: '+e.message)};E.root.style.display='none';E.vis=false}
+  const ok=[...document.fonts].filter(f=>f.status==='loaded').length;
+  return {n:ELS.length,errs,fontsLoaded:ok};
+};
+window.TYPES=Object.keys(F);
+window.seek=function(t){const key=[];
+  for(const E of ELS){const s=E.s;const tout=s.t_out!=null?s.t_out:Infinity;
+    if(t<s.t_in||t>=tout){if(E.vis){E.root.style.display='none';E.vis=false}continue}
+    if(!E.vis){E.root.style.display='';E.vis=true}
+    key.push(E.i+':'+E.upd(t).join(','))}
+  return key.join('|')};
+</script></body></html>

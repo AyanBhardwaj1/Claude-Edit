@@ -340,6 +340,11 @@ def main(argv=None):
     p = sub.add_parser("timeline", help="print the cut's words on the OUTPUT timeline (for placing zooms/b-roll)")
     p.add_argument("work_dir")
 
+    p = sub.add_parser("overlay", add_help=False, prefix_chars="+",
+                       help="designed overlay track: JSON spec -> transparent PNG-in-MOV (Node Playwright); "
+                            "also `overlay frame OUT_DIR` / `overlay still SRC OUT` (screens on a rounded backdrop)")
+    p.add_argument("overlay_args", nargs=argparse.REMAINDER)
+
     p = sub.add_parser("effort", help="speed vs quality: what rush/standard/polish do, how long they take here")
     esub = p.add_subparsers(dest="effort_cmd", required=True)
     q = esub.add_parser("show", help="estimates for each effort, from timings learned on this machine")
@@ -903,6 +908,11 @@ def cmd_timeline(args):
         seg_words = [w for w in words if w["segment"] == seg["index"]]
         for g in _groups(seg_words, 8, 60):
             print(f"  {fmt_ts(g[0]['start'])}-{fmt_ts(g[-1]['end'])}  {' '.join(w['text'] for w in g)}")
+
+
+def cmd_overlay(args):
+    from .overlay import main as overlay_main
+    return overlay_main(args.overlay_args)
 
 
 def cmd_effort(args):
