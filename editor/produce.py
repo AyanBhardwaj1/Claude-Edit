@@ -1106,6 +1106,20 @@ def _graphics_on_faces(spec: Spec, els: list[dict], dur: float, limit: float = 0
     return hits
 
 
+def missing_brief_lines(brief_text: str, els: list[dict]) -> list[str]:
+    """The brief's caption lines ("0:31 <line>") that no caption on screen says (60% of its content words)."""
+    said = set()
+    for e in els:
+        if e.get("type") in ("caption", "big_caption"):
+            said |= set(_tokens(" ".join(_texts(e))))
+    out = []
+    for ln in brief_lines(brief_text):
+        toks = _tokens(ln["text"], content=True) or _tokens(ln["text"])
+        if toks and sum(t in said for t in toks) / len(toks) < 0.6:
+            out.append(f"{ln['at']} {ln['text']}")
+    return out
+
+
 def review(spec: Spec, final: Path | None = None) -> dict:
     """What a human checks before sending a draft: length vs target, loudness, captions on every spoken line,
     graphics ending inside the video, and a frame at every graphic (sheets to Read)."""
@@ -1174,6 +1188,14 @@ def review(spec: Spec, final: Path | None = None) -> dict:
         rep["numbers"] = {"shown": sorted(shown), "not_in_brief": rogue}
         for n in rogue:
             issues.append(f"number {n} on screen (\"{shown[n][:60]}\") isn't in the brief or numbers_from_screen")
+        # every line in the brief's caption list ("0:31 <line>") must be on screen as a caption somewhere
+        missing = missing_brief_lines(spec.p(spec.data["brief"]).read_text(), els)
+        rep["brief_lines_missing"] = missing
+        for m in missing[:5]:
+            issues.append(f"the brief's line isn't in any caption (not captioned, or said differently on the "
+                          f"recording: caption what was said): {m[:80]}")
+        if len(missing) > 5:
+            issues.append(f"... and {len(missing) - 5} more of the brief's caption lines")
     late = [e for e in els if float(e.get("t_out", e.get("t_in", 0)) or 0) > dur + 0.05]
     if late:
         issues.append(f"{len(late)} overlay element(s) end after the video")

@@ -71,7 +71,8 @@ Hand-written `caption` elements in the overlay are fine too (`t_in`/`t_out` as r
 | `band` | `name`, `size` (e.g. [1080, 1920]), `from`/`to` or `ranges` [[from, to]…] (a highlight reel), `title`, `title_size`, `title_color`, `font`, `blur`, `darken`, `band_y` |
 
 ## Review (work/produce/review/review.md)
-Length vs target, loudness, caption coverage per voice (< 60% flagged), music under each voice in the speech band
+Length vs target, loudness, caption coverage per voice (< 60% flagged), the brief's caption lines no caption says
+(a line said differently on the recording is captioned as said, so check those by ear), music under each voice in the speech band
 (median < `min_voice_gap` flagged), the longest stretch with nothing new (> `max_still`), graphics over faces, numbers
 not in the brief, overlapping captions, graphics after the end; a contact sheet and a frame at every graphic. Then a
 critic sub-agent ([critic.md](critic.md)) at standard and polish.

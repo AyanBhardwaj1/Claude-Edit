@@ -286,6 +286,14 @@ def test_changes_since_a_version_in_plain_words_with_the_stages_to_rerender():
     assert stages == ["pieces", "overlay", "mix", "composite"]
 
 
+def test_review_lists_brief_caption_lines_nobody_captioned():
+    brief = "## Part 6\n0:02 Walk-Free finds you the shadiest way home.\n0:31 ¿Cuál es el camino más fresco?\n" \
+            "   (Which way is coolest?)\n0:40 Meta's Muse Voice wrote it down.\n"
+    els = [{"type": "caption", "text": "Walk-Free finds you"}, {"type": "caption", "text": "the shadiest way home."},
+           {"type": "caption", "text": "Meta's Muse Voice wrote it down,"}, {"type": "tag", "text": "¿Cuál es el camino más fresco?"}]
+    assert produce.missing_brief_lines(brief, els) == ["0:31 ¿Cuál es el camino más fresco?"]
+
+
 def test_a_script_line_nobody_said_in_that_voice_is_reported_not_hidden():
     heard = [("the", 1.0, 1.2), ("shadiest", 1.25, 1.8), ("route", 1.85, 2.2), ("he", 3.0, 3.1), ("asked", 3.15, 3.5),
              ("out", 3.55, 3.7), ("loud", 3.75, 4.1)]
