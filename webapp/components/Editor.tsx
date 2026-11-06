@@ -28,6 +28,7 @@ import { RecordScreen } from "./ScreenRecorder";
 import { clock } from "./Tiles";
 import { changeItems, type Change } from "@/lib/changes";
 import { Shortcuts } from "./Shortcuts";
+import { VoiceNote } from "./VoiceNote";
 import { declineLearned, learnFromExport } from "@/lib/learn";
 
 type Msg = { who: "you" | "ed"; text: string; rule?: string; changes?: Change[]; learned?: boolean };
@@ -46,6 +47,12 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
     project.versions.map((v, i) => ({ who: "ed" as const, text: `Version ${v.n}: ${v.summary}`,
       changes: i > 0 ? changeItems(project, project.versions[i - 1].edit, v.edit) : undefined }))));
   const [note, setNote] = useState("");
+  useEffect(() => {                                   // the note box grows with what's in it (up to its max height)
+    const el = document.getElementById("note") as HTMLTextAreaElement | null;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(160, Math.max(44, el.scrollHeight))}px`;
+  }, [note]);
   const [busy, setBusy] = useState("");
   const [drawer, setDrawer] = useState(false);
   const [exp, setExp] = useState<{ pct: number; video?: string; ext?: string; cover?: string; caption?: string; label?: string; srt?: string } | null>(null);
@@ -545,6 +552,8 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
               <textarea id="note" rows={1} value={note} placeholder="Tell your editor what to change…" aria-describedby="note-hint"
                 autoComplete="off" onChange={(ev) => setNote(ev.target.value)}
                 onKeyDown={(ev) => { if (ev.key === "Enter" && !ev.shiftKey && !ev.nativeEvent.isComposing) { ev.preventDefault(); void send(); } }} />
+              <VoiceNote settings={settings} disabled={recording}
+                onText={(t) => { setNote((n) => (n.trim() ? `${n.trim()} ${t}` : t)); document.getElementById("note")?.focus(); }} />
               {dur > 0 && <button type="button" className="btn ghost sm at-btn" title="Add where the player is to your note"
                 aria-label={`Add the time ${clock(t)} to your note`}
                 onClick={() => { setNote((n) => `At ${clock(t)}, ${n.replace(/^at \d+:\d\d,\s*/i, "")}`);
