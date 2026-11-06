@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { EFFORT, EFFORTS, type Effort } from "@/lib/effort";
 import { listAnims, listProjects } from "@/lib/store";
 import { THEMES, type ThemeId } from "@/lib/theme";
 import { Icon, type IconName } from "./Icons";
@@ -7,7 +8,8 @@ import { Icon, type IconName } from "./Icons";
 type Item = { id: string; label: string; hint: string; icon: IconName; run: () => void };
 
 /** ⌘K / Ctrl+K: jump to any screen, video or animation, or switch the look, from the keyboard. */
-export function Command({ go, onTheme, onSample }: { go: (hash: string) => void; onTheme: (t: ThemeId) => void; onSample: () => void }) {
+export function Command({ go, onTheme, onSample, onEffort }: { go: (hash: string) => void; onTheme: (t: ThemeId) => void;
+  onSample: () => void; onEffort?: (e: Effort) => void }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const [at, setAt] = useState(0);
@@ -46,11 +48,13 @@ export function Command({ go, onTheme, onSample }: { go: (hash: string) => void;
       { id: "style", label: "My style", hint: "Go to", icon: "spark", run: () => go("style") },
       { id: "settings", label: "Settings, keys and brand", hint: "Go to", icon: "sliders", run: () => go("settings") },
       ...THEMES.map((t) => ({ id: `t:${t.id}`, label: `${t.name} look`, hint: "Switch look", icon: "palette" as IconName, run: () => onTheme(t.id) })),
+      ...(onEffort ? EFFORTS.map((e) => ({ id: `e:${e}`, label: `${EFFORT[e].label}: make videos this way by default`,
+        hint: "Speed vs quality", icon: "sliders" as IconName, run: () => onEffort(e) })) : []),
     ];
     const all = [...base, ...docs];
     const n = q.trim().toLowerCase();
     return (n ? all.filter((x) => `${x.label} ${x.hint}`.toLowerCase().includes(n)) : all).slice(0, 12);
-  }, [q, docs, go, onTheme, onSample]);
+  }, [q, docs, go, onTheme, onSample, onEffort]);
 
   if (!open) return null;
   const run = (x?: Item) => { if (!x) return; setOpen(false); x.run(); };

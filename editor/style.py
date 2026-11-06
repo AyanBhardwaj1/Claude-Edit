@@ -73,6 +73,23 @@ KEYS = {
     "launch.text_dur": ("num", "average text-scene length, seconds"),
     "launch.serif_accents": ("bool", "serif-italic accent words (_like this_)"),
     "launch.length": ("num", "total length, seconds"),
+    # productions from a brief (editor produce spec.json)
+    "production.size": ("cat", "frame size, e.g. 1920x1080 or 1080x1920"),
+    "production.lufs": ("num", "final loudness, LUFS"),
+    "production.music.gain": ("num", "music bed level before ducking, dB"),
+    "production.music.mood": ("cat", "composed bed mood (warm, uplifting, tense, lofi)"),
+    "production.frame.backdrop": ("cat", "backdrop colour behind framed app screens"),
+    "production.frame.scale": ("num", "framed screen size (share of the frame)"),
+    "production.captions.max_chars": ("num", "caption line length, characters"),
+    "production.end.dur": ("num", "end card length, seconds"),
+    "production.ramp_waits": ("bool", "speed through waits in screen recordings"),
+    "production.extras": ("cat", "extra cuts delivered (none, square, vertical...)"),
+}
+APPLY_PRODUCTION = {   # key -> path in a produce spec, filled only when the spec leaves it unset
+    "production.lufs": ("output", "lufs"),
+    "production.frame.backdrop": ("frame", "backdrop"),
+    "production.frame.scale": ("frame", "scale"),
+    "production.captions.max_chars": ("captions", "max_chars"),
 }
 
 
@@ -232,6 +249,35 @@ def _reel_settings(edl: dict) -> dict:
     return s
 
 
+def _production_settings(spec: dict) -> dict:
+    o, fr = spec.get("output") or {}, spec.get("frame") or {}
+    s = {"production.size": f"{o.get('width', 1920)}x{o.get('height', 1080)}"}
+    if "lufs" in o:
+        s["production.lufs"] = float(o["lufs"])
+    music = (spec.get("audio") or {}).get("music") or []
+    gains = sorted(float(m.get("gain", 0)) for m in music if m.get("duck", True))
+    if gains:
+        s["production.music.gain"] = gains[len(gains) // 2]
+    moods = [m["src"]["compose"].get("mood", "warm") for m in music
+             if isinstance(m.get("src"), dict) and isinstance(m["src"].get("compose"), dict)]
+    if moods:
+        s["production.music.mood"] = moods[0]
+    if "backdrop" in fr:
+        s["production.frame.backdrop"] = fr["backdrop"]
+    if "scale" in fr:
+        s["production.frame.scale"] = float(fr["scale"])
+    cap = spec.get("captions") or {}
+    if "max_chars" in cap:
+        s["production.captions.max_chars"] = int(cap["max_chars"])
+    pieces = spec.get("pieces") or []
+    if pieces and pieces[-1].get("type") == "freeze" and "dur" in pieces[-1]:
+        s["production.end.dur"] = float(pieces[-1]["dur"])
+    s["production.ramp_waits"] = any(p.get("ramp_waits") for p in pieces)
+    ex = [x.get("name", "extra") for x in spec.get("extras") or []]
+    s["production.extras"] = "+".join(sorted(ex)) if ex else "none"
+    return s
+
+
 def brand_of(doc: dict, kind: str, brand: str | None = None) -> str | None:
     """Brand scope for a document: explicit, then the EDL's "brand", then a launch plan's brand name."""
     if brand:
@@ -249,7 +295,9 @@ def detect(doc: dict) -> tuple[str, dict]:
         return "launch", _launch_settings(doc)
     if "segments" in doc:
         return "reel", _reel_settings(doc)
-    raise EditorError("not an edl.json (segments) or a launch plan.json (scenes)")
+    if "pieces" in doc:
+        return "production", _production_settings(doc)
+    raise EditorError("not an edl.json (segments), a launch plan.json (scenes) or a produce spec (pieces)")
 
 
 # ---------------------------------------------------------------- draft / approve loop
@@ -347,7 +395,17 @@ def apply(path: str | Path, brand: str | None = None) -> list[str]:
     kind, _ = detect(doc)
     prefs = learned(kind, brand_of(doc, kind, brand))
     done = []
-    if kind == "launch":
+    if kind == "production":
+        for key, where in APPLY_PRODUCTION.items():
+            if key not in prefs:
+                continue
+            node = doc.setdefault(where[0], {})
+            if where[1] in node:
+                continue
+            val = prefs[key][0]
+            node[where[1]] = int(val) if key == "production.captions.max_chars" else val
+            done.append(f"{key} = {node[where[1]]} ({prefs[key][1]})")
+    elif kind == "launch":
         for key, where in APPLY_LAUNCH.items():
             if key not in prefs:
                 continue

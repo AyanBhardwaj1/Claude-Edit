@@ -19,6 +19,28 @@ Update it with `editor style note` (what the user says) and `editor style learn`
 - `launch.variants` = **one**  (applied, confidence 75%) — how many formats to deliver (one, both)
 - `launch.voice` = **none**  (applied, confidence 86%) — voiceover: none or voiced
 
+## kind:production
+- `production.end.dur` = **7.5**  (tentative, confidence 12%) — end card length, seconds
+- `production.extras` = **square**  (tentative, confidence 12%) — extra cuts delivered (none, square, vertical...)
+- `production.frame.backdrop` = **#f4f1e6**  (tentative, confidence 12%) — backdrop colour behind framed app screens
+- `production.frame.scale` = **0.92**  (tentative, confidence 12%) — framed screen size (share of the frame)
+- `production.lufs` = **-14.0**  (tentative, confidence 12%) — final loudness, LUFS
+- `production.music.gain` = **-3.0**  (tentative, confidence 12%) — music bed level before ducking, dB
+- `production.music.mood` = **warm**  (tentative, confidence 12%) — composed bed mood (warm, uplifting, tense, lofi)
+- `production.ramp_waits` = **False**  (tentative, confidence 12%) — speed through waits in screen recordings
+- `production.size` = **1920x1080**  (tentative, confidence 12%) — frame size, e.g. 1920x1080 or 1080x1920
+
+## brand:walk-free
+- `production.end.dur` = **7.5**  (tentative, confidence 12%) — end card length, seconds
+- `production.extras` = **square**  (tentative, confidence 12%) — extra cuts delivered (none, square, vertical...)
+- `production.frame.backdrop` = **#f4f1e6**  (tentative, confidence 12%) — backdrop colour behind framed app screens
+- `production.frame.scale` = **0.92**  (tentative, confidence 12%) — framed screen size (share of the frame)
+- `production.lufs` = **-14.0**  (tentative, confidence 12%) — final loudness, LUFS
+- `production.music.gain` = **-3.0**  (tentative, confidence 12%) — music bed level before ducking, dB
+- `production.music.mood` = **warm**  (tentative, confidence 12%) — composed bed mood (warm, uplifting, tense, lofi)
+- `production.ramp_waits` = **False**  (tentative, confidence 12%) — speed through waits in screen recordings
+- `production.size` = **1920x1080**  (tentative, confidence 12%) — frame size, e.g. 1920x1080 or 1080x1920
+
 ## brand:youbank
 - `launch.format` = **16:9**  (tentative, confidence 12%) — aspect ratio (16:9, 9:16, 1:1, 4:5)
 - `launch.length` = **45.2**  (tentative, confidence 12%) — total length, seconds

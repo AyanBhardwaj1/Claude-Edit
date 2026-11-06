@@ -1,7 +1,7 @@
 "use client";
 import { useMemo, useState } from "react";
 import { indexOf } from "@/lib/timeline";
-import { BROLL_INS, CAPTION_ANIMS, LOOKS, motionOf, TRANSITIONS } from "@/lib/edit";
+import { BOXED_DEFAULTS, BROLL_INS, CAPTION_ANIMS, LOOKS, motionOf, TRANSITIONS } from "@/lib/edit";
 import { LOOK_NAME } from "@/lib/motion";
 import { aiPicture } from "@/lib/images";
 import { saveProject } from "@/lib/store";
@@ -19,9 +19,11 @@ import { Icon } from "./Icons";
 
 const TABS = ["Cut", "Subtitles", "Motion", "Music", "Pictures", "Cover", "Post"] as const;
 const LABEL: Record<string, string> = { "card-above-head": "Picture above your head", "side-card": "Picture beside you",
-  "phone-card": "In a phone", "full-frame": "Full screen", "split-top": "Top half", "text-pop": "Words on screen", motion: "Animated card" };
+  "phone-card": "In a phone", "full-frame": "Full screen", "split-top": "Top half", framed: "Framed screen (apps, sites)", "text-pop": "Words on screen", motion: "Animated card" };
+const PLACES = ["card-above-head", "side-card", "phone-card", "full-frame", "split-top", "framed"] as const;
 const CARD_NAME = { number: "A number that counts up", list: "A list that ticks in", compare: "Before and after", statement: "A statement" } as const;
-const PRESETS: [CaptionPreset, string][] = [["studio", "Studio"], ["bold", "Bold"], ["white", "White"], ["boxed", "Boxed"], ["minimal", "Minimal"]];
+const PRESETS: [CaptionPreset, string][] = [["studio", "Studio"], ["bold", "Bold"], ["white", "White"], ["block", "Block"], ["boxed", "Boxed"],
+  ["minimal", "Minimal"]];
 
 export function Drawer({ project: p, edit, onApply, settings }: { project: Project; edit: Edit; onApply: (e: Edit, what: string) => void; settings?: Settings }) {
   const [tab, setTab] = useState<(typeof TABS)[number]>("Cut");
@@ -99,7 +101,7 @@ export function Drawer({ project: p, edit, onApply, settings }: { project: Proje
         {tab === "Subtitles" && (<>
           <label className="check"><input type="checkbox" checked={e.captions.enabled} onChange={(ev) => cap({ enabled: ev.target.checked })} />
             <span>Show subtitles</span></label>
-          <div className="field"><span className="label">Style</span>{opt(e.captions.preset, PRESETS, (v) => cap({ preset: v }), "Subtitle style")}</div>
+          <div className="field"><span className="label">Style</span>{opt(e.captions.preset, PRESETS, (v) => cap(v === "boxed" && e.captions.preset !== "boxed" ? { preset: v, ...BOXED_DEFAULTS } : { preset: v }), "Subtitle style")}</div>
           <div className="field"><span className="label">Size</span>{opt(e.captions.size, [[84, "Small"], [105, "Medium"], [126, "Big"]], (v) => cap({ size: v }), "Size")}</div>
           <div className="field"><span className="label">Position</span>{opt(e.captions.position, [[0.66, "Higher"], [0.75, "Lower"]], (v) => cap({ position: v }), "Position")}</div>
           <div className="field">
@@ -199,7 +201,9 @@ export function Drawer({ project: p, edit, onApply, settings }: { project: Proje
                 <span className="faint"> · {LABEL[b.treatment]}</span></span>
               {b.treatment !== "text-pop" && b.treatment !== "motion" && <select className="select w-200" aria-label="Where it goes" value={b.treatment} onChange={(ev) => setE({ ...e,
                 broll: e.broll.map((x) => (x.id === b.id ? { ...x, treatment: ev.target.value as Broll["treatment"] } : x)) })}>
-                {["card-above-head", "side-card", "phone-card", "full-frame", "split-top"].map((t) => <option key={t} value={t}>{LABEL[t]}</option>)}</select>}
+                {PLACES.map((t) => <option key={t} value={t}>{LABEL[t]}</option>)}</select>}
+              {b.treatment === "framed" && <label className="check"><input type="checkbox" checked={!!b.full} onChange={(ev) => setE({ ...e,
+                broll: e.broll.map((x) => (x.id === b.id ? { ...x, full: ev.target.checked || undefined } : x)) })} /><span>Fill the frame</span></label>}
               <button className="btn ghost sm" onClick={() => setE({ ...e, broll: e.broll.filter((x) => x.id !== b.id) })}>Remove</button>
             </div>))}
           <div className="field">
@@ -256,7 +260,8 @@ export function Drawer({ project: p, edit, onApply, settings }: { project: Proje
                   setE({ ...e, broll: [...e.broll, { id: `c${Date.now()}`, anchor: { from: w.id, to: end.id }, treatment: "motion",
                     card: { kind: card.kind, text: card.text.trim(), value: card.kind === "number" ? Number(card.value) : undefined, items: items.length ? items : undefined } }] });
                   setCard({ kind: card.kind, text: "", value: "", items: "" });
-                } else setE({ ...e, broll: [...e.broll, { id: `m${Date.now()}`, anchor: { from: w.id, to: end.id }, asset: picFor, treatment: "card-above-head" }] });
+                } else setE({ ...e, broll: [...e.broll, { id: `m${Date.now()}`, anchor: { from: w.id, to: end.id }, asset: picFor,
+                  treatment: p.library.find((a) => a.key === picFor)?.screen ? "framed" : "card-above-head" }] });
                 setPicFor(null);
               }}>{w.w}</button>))}
           </div>}

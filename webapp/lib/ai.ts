@@ -5,7 +5,7 @@ import { motionOf } from "./edit";
 import type { AiEdit } from "./edit";
 import { DEFAULT_MAX_TOKENS, type AiChoice } from "./effort";
 import { APPLY_NOTE, EDIT_SCHEMA, FIRST_EDIT, REVIEW_EDIT, SCRIPT_SCHEMA, SYSTEM, WRITE_SCRIPT } from "./prompts";
-import type { Edit, Project, Settings, StyleRule } from "./types";
+import type { Asset, Edit, Project, Settings, StyleRule } from "./types";
 
 export class AiError extends Error {
   constructor(message: string, public userMessage: string) { super(message); }
@@ -107,11 +107,15 @@ export function transcriptText(p: Project): string {
   if (a?.names.length) parts.push("NAMES HEARD: " + a.names.join(", "));
   if (a?.unsure.length) parts.push("UNSURE WORDS (the recogniser was less sure): " + a.unsure.join(", "));
   const lib = p.library.filter((x) => !x.web);
-  parts.push("LIBRARY:\n" + (lib.length ? lib.map((x) => `- key "${x.key}": ${x.kind} "${x.name}"` +
+  parts.push("LIBRARY:\n" + (lib.length ? lib.map((x) => `- key "${x.key}": ${libKind(x)} "${x.name}"` +
+    (x.width && x.height && x.kind !== "music" ? ` ${x.width}x${x.height}` : "") +
     (x.kind === "music" ? ` sounds ${x.feel ?? "?"} (energy ${x.energy ?? "?"})` : x.duration ? ` ${x.duration.toFixed(1)}s` : "")).join("\n")
     : "(empty: use webPictures, labels and zooms)"));
   return parts.join("\n\n");
 }
+
+/** How a library item reads to the editor: screenshots and screen recordings are named as such (lib/framed.ts). */
+export const libKind = (x: Asset) => (x.screen ? (x.kind === "video" ? "screen recording" : "screenshot") : x.kind);
 
 const rulesText = (rules: StyleRule[]) => (rules.length ? rules.map((r) => `- ${r.text}`).join("\n") : "(none yet)");
 
@@ -144,7 +148,9 @@ export function toAiShape(e: Edit): AiEdit {
     keep: e.keep, gapCap: e.gapCap, captions: e.captions, corrections: e.corrections,
     hook: hook ? { text: hook.text ?? "", ...hook.anchor } : null,
     labels: e.broll.filter((b) => b.treatment === "text-pop" && b !== hook).map((b) => ({ text: b.text ?? "", ...b.anchor, style: b.style })),
-    broll: e.broll.filter((b) => b.treatment !== "text-pop" && b.treatment !== "motion" && b.asset).map((b) => ({ asset: b.asset!, ...b.anchor, treatment: b.treatment, side: b.side })),
+    broll: e.broll.filter((b) => b.treatment !== "text-pop" && b.treatment !== "motion" && b.asset).map((b) => ({ asset: b.asset!, ...b.anchor,
+      treatment: b.treatment, side: b.side,
+      ...(b.treatment === "framed" ? { focus: b.focus, punch: b.punch, full: b.full, backdrop: b.backdrop } : {}) })),
     motionCards: e.broll.filter((b) => b.treatment === "motion" && b.card).map((b) => ({ ...b.card!, ...b.anchor })),
     zooms: e.zooms.map((z) => ({ ...z.anchor, scale: z.scale })),
     music: { asset: e.music.asset, level: e.music.level, automation: e.music.automation.map((a) => ({ ...a.anchor, db: a.db })) },

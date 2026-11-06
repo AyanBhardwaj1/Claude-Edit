@@ -3,6 +3,7 @@
 // 3-5 seconds, 140-200 spoken words a minute, 15-60 seconds for a reel, subtitles on, exactly 5 hashtags.
 
 import { motionOf } from "./edit";
+import { MIN_GAP, QUIET_VOICE_RMS, speechGap } from "./mix";
 import type { Timeline } from "./timeline";
 import { spanOf } from "./timeline";
 import type { Edit, Project } from "./types";
@@ -43,6 +44,17 @@ export function reelCheck(p: Project, e: Edit, tl: Timeline): { score: number; c
   const song = e.music.asset ? p.library.find((a) => a.key === e.music.asset) : undefined;
   add({ id: "music", weight: 5, ok: !!song, warn: !song, title: "Music under the voice", detail: song ? `${song.name}, ${e.music.level === "quiet" ? "quiet" : "under your voice"}.` : "No music.",
     fix: song ? undefined : "Add a song you own with “Add a song, picture or clip”." });
+  if (song) {
+    const { gap, at } = speechGap(e, tl);
+    add({ id: "hear", weight: 10, ok: gap >= MIN_GAP, warn: gap >= MIN_GAP - 4 && gap < MIN_GAP, title: "Your voice is clearly heard",
+      detail: gap >= MIN_GAP ? `The song stays at least ${gap} dB under your voice while you talk.`
+        : `At ${at!.toFixed(1)} s the song is only ${gap} dB under your voice: people may not hear what you say.`,
+      fix: gap >= MIN_GAP ? undefined : "Write a note: “keep the music quiet while we talk”, or lower that music lift." });
+  }
+  const quiet = p.sources.filter((s) => s.rms !== undefined && s.rms < QUIET_VOICE_RMS);
+  if (quiet.length) add({ id: "voice", weight: 5, ok: false, warn: true, title: "Voice level",
+    detail: `Take${quiet.length > 1 ? "s" : ""} ${quiet.map((s) => s.id + 1).join(", ")} ${quiet.length > 1 ? "are" : "is"} quiet: the mic was far away or the room was loud.`,
+    fix: "Next time hold the phone closer or use a clip-on mic; the editor already cleans and levels it." });
   add({ id: "post", weight: 10, ok: !!e.post.caption && e.post.hashtags.length === 5, warn: !!e.post.caption, title: "Caption and 5 hashtags",
     detail: e.post.caption ? `${e.post.hashtags.length} hashtag${e.post.hashtags.length === 1 ? "" : "s"}.` : "No post caption yet.",
     fix: e.post.hashtags.length === 5 ? undefined : "Edit it myself → Post." });

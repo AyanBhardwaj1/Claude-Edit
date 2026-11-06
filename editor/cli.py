@@ -78,7 +78,7 @@ def main(argv=None):
     p.add_argument("words")
     p.add_argument("-o", "--out", required=True)
     p.add_argument("--preset", default="reels", help="output preset (sets caption canvas size)")
-    p.add_argument("--style", choices=["bold", "beast", "clean", "white", "studio", "minimal"], default="bold")
+    p.add_argument("--style", choices=["bold", "beast", "clean", "white", "studio", "boxed", "minimal"], default="bold")
     p.add_argument("--position", choices=["low", "middle", "high"], default="low")
     p.add_argument("--title", help="hook text shown at the top for the first seconds")
     p.add_argument("--title-dur", type=float, default=3.0)
@@ -230,7 +230,8 @@ def main(argv=None):
     p = sub.add_parser("triage", help="classify raw/ clips: a-roll (founder-to-camera) vs reusable / one-off b-roll")
     p.add_argument("project")
 
-    p = sub.add_parser("capture", help="make b-roll: web page screenshots/scrolls, iPhone Simulator, Android")
+    p = sub.add_parser("capture", help="make b-roll: web page screenshots/scrolls, app shot lists, stills from "
+                                       "recordings, iPhone Simulator, Android")
     csub = p.add_subparsers(dest="capture_cmd", required=True)
     q = csub.add_parser("web", help="Playwright screenshot or scroll recording of a URL")
     q.add_argument("url")
@@ -240,6 +241,19 @@ def main(argv=None):
     q.add_argument("--video", type=float, default=0.0, help="record N seconds (smooth scroll) instead of a screenshot")
     q.add_argument("--no-scroll", action="store_true")
     q.add_argument("--dark", action="store_true")
+    q = csub.add_parser("shots", help="app screenshots from a JSON shot list (clicks, typing, sliders done in-page; "
+                                      "works for heavy WebGL pages without a GPU)")
+    q.add_argument("shotlist", help="shot list JSON (format: pydoc editor.shots)")
+    q.add_argument("-o", "--out", required=True, help="output folder: <name>.png, shots.json, shots_sheet.jpg")
+    q.add_argument("--base", help="override the shot list's base URL")
+    q.add_argument("--record", action="store_true",
+                   help="also record the whole run as shots.mp4 (headed Chromium on Xvfb + ffmpeg x11grab)")
+    q.add_argument("--headed", action="store_true", help="show the browser (needs a display)")
+    q = csub.add_parser("stills-from", help="distinct frames of a choppy screen recording as clean stills (mpdecimate)")
+    q.add_argument("video")
+    q.add_argument("out_dir")
+    q.add_argument("--min-gap", type=float, default=0.0, help="at most one still per N seconds (default: all)")
+    q.add_argument("--max", type=int, help="keep at most N stills, spread evenly")
     q = csub.add_parser("sim", help="record or screenshot the booted iOS Simulator (macOS + Xcode)")
     q.add_argument("-o", "--out", required=True)
     q.add_argument("--seconds", type=float, default=8.0)
@@ -345,6 +359,15 @@ def main(argv=None):
     from .compose import add_arguments as _compose_arguments   # import-light: argparse only
     _compose_arguments(p)
 
+    p = sub.add_parser("inventory", add_help=False, prefix_chars="+",
+                       help="what's in a folder of footage: lengths, sizes, sound, contact sheets, what is said")
+    p.add_argument("inventory_args", nargs=argparse.REMAINDER)
+
+    p = sub.add_parser("produce", add_help=False, prefix_chars="+",
+                       help="a finished video from one JSON spec: pieces, overlay track, mix, composite, extras "
+                            "(brief-production skill)")
+    p.add_argument("produce_args", nargs=argparse.REMAINDER)
+
     p = sub.add_parser("overlay", add_help=False, prefix_chars="+",
                        help="designed overlay track: JSON spec -> transparent PNG-in-MOV (Node Playwright); "
                             "also `overlay frame OUT_DIR` / `overlay still SRC OUT` (screens on a rounded backdrop)")
@@ -385,7 +408,7 @@ def main(argv=None):
     p.add_argument("--font", help="caption font by name (editor fonts list)")
     p.add_argument("--music", help="music file or library id (default: EDL \"music\", else <project>/music/)")
     p.add_argument("--music-db", type=float)
-    p.add_argument("--style", choices=["bold", "beast", "clean", "white", "studio", "minimal", "none"])
+    p.add_argument("--style", choices=["bold", "beast", "clean", "white", "studio", "boxed", "minimal", "none"])
     p.add_argument("--position", choices=["low", "middle", "high"])
     p.add_argument("--title")
     p.add_argument("--brand", help="brand scope for learned style (default: EDL \"brand\")")
@@ -454,6 +477,7 @@ def cmd_doctor(_):
         except ImportError:
             print(f"optional python {mod}: {why}")
     print(f"{'ok ' if shutil.which('xcrun') else 'optional'} xcrun (iPhone Simulator capture, macOS)")
+    print(f"{'ok ' if shutil.which('xvfb-run') else 'optional'} xvfb-run (capture shots --record, Linux)")
     try:
         import vosk  # noqa: F401
         from .models import MODELS_DIR
@@ -464,7 +488,23 @@ def cmd_doctor(_):
     from .transcribe import _api_key
     print(f"{'ok ' if _api_key('ELEVENLABS_API_KEY') else 'optional'} ElevenLabs Scribe key (hosted ASR)")
     node = shutil.which("node")
-    print(f"{'ok ' if node else 'optional'} node (HyperFrames / Remotion graphics)")
+    print(f"{'ok ' if node else 'optional'} node (HyperFrames / Remotion graphics, editor overlay, capture shots)")
+    try:
+        from .overlay import available
+        ov = available()
+        ov_ok = ov[0] if isinstance(ov, tuple) else bool(ov)
+        print(f"{'ok ' if ov_ok else 'optional'} overlay renderer (node + Playwright + Chromium: editor overlay, "
+              "produce overlays)" + ("" if ov_ok else f": {ov[1] if isinstance(ov, tuple) else 'not available'}"))
+    except Exception as e:  # noqa: BLE001
+        print(f"optional overlay renderer: {e}")
+    try:
+        import scipy  # noqa: F401
+        print("ok  python scipy (editor compose: original music and SFX)")
+    except ImportError:
+        print("optional python scipy: editor compose (pip install scipy)")
+    from . import effort as _eff
+    learned = _eff.load().get("machines", {}).get(_eff.machine(), {})
+    print(f"ok  effort timings: {len(learned)} stage rate(s) learned on {_eff.machine()} (editor effort show)")
     from .captions import STYLES, resolve_font
     print(f"ok  caption font (bold): {resolve_font(STYLES['bold']['fonts'])}")
     from .fonts import installed
@@ -737,6 +777,16 @@ def cmd_capture(args):
     if args.capture_cmd == "web":
         capture.web(args.url, args.out, mobile=not args.desktop, full_page=args.full_page, video=args.video,
                     scroll=not args.no_scroll, dark=args.dark)
+    elif args.capture_cmd == "shots":
+        from . import shots
+        report = shots.shots(args.shotlist, args.out, record=args.record, headed=args.headed, base=args.base)
+        print(Path(args.out) / "shots.json")
+        if report["failures"]:
+            print(f"{report['failures']} step(s) failed: see the log above / shots.json")
+    elif args.capture_cmd == "stills-from":
+        from . import shots
+        stills = shots.stills_from(args.video, args.out_dir, min_gap=args.min_gap, max_stills=args.max)
+        print(f"{len(stills)} stills -> {args.out_dir} (stills_sheet.jpg)")
     elif args.capture_cmd == "sim":
         capture.sim(args.out, seconds=args.seconds, url=args.url, device=args.device, screenshot=args.screenshot)
     else:
@@ -918,6 +968,16 @@ def cmd_timeline(args):
 def cmd_compose(args):
     from .compose import run
     return run(args)
+
+
+def cmd_inventory(args):
+    from .inventory import main as inventory_main
+    return inventory_main(args.inventory_args)
+
+
+def cmd_produce(args):
+    from .produce import main as produce_main
+    return produce_main(args.produce_args)
 
 
 def cmd_overlay(args):

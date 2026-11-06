@@ -30,7 +30,8 @@ a competitor-chips → "built for students" checklist, counters and a big statem
 - WebGL apps (Three.js maps) render a few frames a second in software: `Page.startScreencast` gave 0 frames,
   screenshots stalled during interactions, Playwright `click` timed out. What worked: wait for the page to settle,
   click from inside the page (`element.click()` in `page.evaluate`), wait 6-10 s, then CDP `Page.captureScreenshot`.
-  Budget ~60-90 s per screenshot. Next time also try headed Chromium under `xvfb-run` + ffmpeg `x11grab`.
+  Budget ~60-90 s per screenshot. All of this is now `editor capture shots` (shot list JSON); its `--record`
+  (headed Chromium on Xvfb + `x11grab`) does capture WebGL motion, but only as fast as the page renders.
 - Choppy recordings still have value: `mpdecimate` extracts the unique frames as clean stills.
 - Stills + Ken Burns + punch-ins on the framed backdrop read as a deliberate style, not a fallback.
 - Live sites are often blocked from the sandbox: run the app from its repo. A newer Node than the machine's: `npm
@@ -47,6 +48,15 @@ a competitor-chips → "built for students" checklist, counters and a big statem
   licensed track, repeat bars (bar-aligned crossfade) rather than time-stretch.
 - `editor compose` makes original royalty-free beds/SFX when no licensed track exists; say a human must listen.
 - Vosk (offline) mangles names and Spanish; correct from the script and the screen, and say which lines are guesses.
+
+**Caught after delivery by the critic (2026-11-06)**: the proposal-letter still showed `http://localhost:5173/...`
+(the app ran locally) for 8 s, and the app's spoken Spanish answer had no caption. Now `capture shots` flags dev
+addresses on screen, `produce` review flags uncaptioned voices, and a critic sub-agent runs before the first draft.
+Blur dev URLs in stills (or capture the deployed site) before they go in a video.
+
+**Afterwards (2026-11-06)**: the whole video was rebuilt from one `editor produce` spec
+(`projects/walkfree/produce.json`) in 7.5 min on the same 4-CPU machine, square cut included. Next brief: inventory,
+write the spec, `--plan`, render; notes are one-line spec edits that re-render only what changed.
 
 **Process under a deadline**
 - Parallel agents with hard deadlines worked for graphics and music; the demo-recording agents failed together on the

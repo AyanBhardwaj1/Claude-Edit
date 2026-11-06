@@ -298,3 +298,16 @@ def test_end_to_end_pipeline(tmp_path):
     assert "pacing" in json.loads((project / "out" / "review" / "review.json").read_text())
     assert "transitions=" in res.stderr
     assert (project / "out" / "contact_sheet.png").exists()
+
+
+def test_boxed_captions_are_whole_phrases_in_a_box(tmp_path):
+    said = "Meta's SAM 3.1 finds the trees, the pavement and the sky, and we split the ground into sun and shade."
+    words = [{"start": i * 0.3, "end": i * 0.3 + 0.25, "text": t, "segment": 0} for i, t in enumerate(said.split())]
+    wp = tmp_path / "w.json"
+    wp.write_text(json.dumps({"words": words}))
+    text = captions.build(wp, tmp_path / "c.ass", width=1920, height=1080, style="boxed").read_text()
+    cap_style = next(line for line in text.splitlines() if line.startswith("Style: Cap"))
+    assert cap_style.split(",")[15] == "3"                     # BorderStyle 3: a box behind each line
+    lines = [ln for ln in text.splitlines() if ln.startswith("Dialogue: 1")]
+    assert 2 <= len(lines) <= 4                                # phrases, not word pops
+    assert "Meta's SAM 3.1 finds the trees," in lines[0].replace("\\N", " ")

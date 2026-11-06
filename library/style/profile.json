@@ -394,6 +394,264 @@
           }
         ]
       }
+    },
+    "brand:walk-free": {
+      "production.size": {
+        "type": "cat",
+        "votes": {
+          "1920x1080": 0.5
+        },
+        "weight": 0.5,
+        "evidence": [
+          {
+            "date": "2026-11-06",
+            "value": "1920x1080",
+            "signal": "keep",
+            "source": "walkfree"
+          }
+        ]
+      },
+      "production.lufs": {
+        "type": "num",
+        "mean": -14.0,
+        "weight": 0.5,
+        "evidence": [
+          {
+            "date": "2026-11-06",
+            "value": -14.0,
+            "signal": "keep",
+            "source": "walkfree"
+          }
+        ]
+      },
+      "production.music.gain": {
+        "type": "num",
+        "mean": -3.0,
+        "weight": 0.5,
+        "evidence": [
+          {
+            "date": "2026-11-06",
+            "value": -3.0,
+            "signal": "keep",
+            "source": "walkfree"
+          }
+        ]
+      },
+      "production.music.mood": {
+        "type": "cat",
+        "votes": {
+          "warm": 0.5
+        },
+        "weight": 0.5,
+        "evidence": [
+          {
+            "date": "2026-11-06",
+            "value": "warm",
+            "signal": "keep",
+            "source": "walkfree"
+          }
+        ]
+      },
+      "production.frame.backdrop": {
+        "type": "cat",
+        "votes": {
+          "#f4f1e6": 0.5
+        },
+        "weight": 0.5,
+        "evidence": [
+          {
+            "date": "2026-11-06",
+            "value": "#f4f1e6",
+            "signal": "keep",
+            "source": "walkfree"
+          }
+        ]
+      },
+      "production.frame.scale": {
+        "type": "num",
+        "mean": 0.92,
+        "weight": 0.5,
+        "evidence": [
+          {
+            "date": "2026-11-06",
+            "value": 0.92,
+            "signal": "keep",
+            "source": "walkfree"
+          }
+        ]
+      },
+      "production.end.dur": {
+        "type": "num",
+        "mean": 7.5,
+        "weight": 0.5,
+        "evidence": [
+          {
+            "date": "2026-11-06",
+            "value": 7.5,
+            "signal": "keep",
+            "source": "walkfree"
+          }
+        ]
+      },
+      "production.ramp_waits": {
+        "type": "bool",
+        "votes": {
+          "false": 0.5
+        },
+        "weight": 0.5,
+        "evidence": [
+          {
+            "date": "2026-11-06",
+            "value": false,
+            "signal": "keep",
+            "source": "walkfree"
+          }
+        ]
+      },
+      "production.extras": {
+        "type": "cat",
+        "votes": {
+          "square": 0.5
+        },
+        "weight": 0.5,
+        "evidence": [
+          {
+            "date": "2026-11-06",
+            "value": "square",
+            "signal": "keep",
+            "source": "walkfree"
+          }
+        ]
+      }
+    },
+    "kind:production": {
+      "production.size": {
+        "type": "cat",
+        "votes": {
+          "1920x1080": 0.5
+        },
+        "weight": 0.5,
+        "evidence": [
+          {
+            "date": "2026-11-06",
+            "value": "1920x1080",
+            "signal": "keep",
+            "source": "walkfree"
+          }
+        ]
+      },
+      "production.lufs": {
+        "type": "num",
+        "mean": -14.0,
+        "weight": 0.5,
+        "evidence": [
+          {
+            "date": "2026-11-06",
+            "value": -14.0,
+            "signal": "keep",
+            "source": "walkfree"
+          }
+        ]
+      },
+      "production.music.gain": {
+        "type": "num",
+        "mean": -3.0,
+        "weight": 0.5,
+        "evidence": [
+          {
+            "date": "2026-11-06",
+            "value": -3.0,
+            "signal": "keep",
+            "source": "walkfree"
+          }
+        ]
+      },
+      "production.music.mood": {
+        "type": "cat",
+        "votes": {
+          "warm": 0.5
+        },
+        "weight": 0.5,
+        "evidence": [
+          {
+            "date": "2026-11-06",
+            "value": "warm",
+            "signal": "keep",
+            "source": "walkfree"
+          }
+        ]
+      },
+      "production.frame.backdrop": {
+        "type": "cat",
+        "votes": {
+          "#f4f1e6": 0.5
+        },
+        "weight": 0.5,
+        "evidence": [
+          {
+            "date": "2026-11-06",
+            "value": "#f4f1e6",
+            "signal": "keep",
+            "source": "walkfree"
+          }
+        ]
+      },
+      "production.frame.scale": {
+        "type": "num",
+        "mean": 0.92,
+        "weight": 0.5,
+        "evidence": [
+          {
+            "date": "2026-11-06",
+            "value": 0.92,
+            "signal": "keep",
+            "source": "walkfree"
+          }
+        ]
+      },
+      "production.end.dur": {
+        "type": "num",
+        "mean": 7.5,
+        "weight": 0.5,
+        "evidence": [
+          {
+            "date": "2026-11-06",
+            "value": 7.5,
+            "signal": "keep",
+            "source": "walkfree"
+          }
+        ]
+      },
+      "production.ramp_waits": {
+        "type": "bool",
+        "votes": {
+          "false": 0.5
+        },
+        "weight": 0.5,
+        "evidence": [
+          {
+            "date": "2026-11-06",
+            "value": false,
+            "signal": "keep",
+            "source": "walkfree"
+          }
+        ]
+      },
+      "production.extras": {
+        "type": "cat",
+        "votes": {
+          "square": 0.5
+        },
+        "weight": 0.5,
+        "evidence": [
+          {
+            "date": "2026-11-06",
+            "value": "square",
+            "signal": "keep",
+            "source": "walkfree"
+          }
+        ]
+      }
     }
   },
   "notes": [
