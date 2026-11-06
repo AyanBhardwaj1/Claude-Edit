@@ -46,7 +46,8 @@ vertical reel with a cover and a post caption, then change it by typing notes. E
     Exports faster than real time with WebCodecs. Any video can also become an **animated recap**.
 13. **Clips from long videos**: the AI ranks the moments that stand on their own; each becomes its own edited reel.
 14. **Subtitles in 16 languages** and `.srt` files; **AI pictures** from a description (OpenAI), labelled.
-15. **Hook ideas** (five new hook titles in one click) and a **reel check** (a 0-100 score with fixes).
+15. **Hook ideas** (five new hook titles in one click) and a **reel check** (a 0-100 score with fixes), including
+    "your voice is clearly heard": the song stays at least 12 dB under anyone talking (`lib/mix.ts`).
 16. **Brand kit**: name, handle, colours, font, logo, an optional watermark, a brand style and brand animations.
 17. **Make music**: no song? An original, royalty-free music bed composed in the browser (no key, no network): four moods
     (warm, uplifting, tense, lo-fi), tempo, key, as long as the edit, with sections on a bar grid and the final chord placed just
@@ -54,6 +55,12 @@ vertical reel with a cover and a post caption, then change it by typing notes. E
     for the voice, mastered to about -16 LUFS (`lib/compose.ts`, `lib/loudness.ts`, a port of `editor/compose`).
 18. **Pro editing**: a timeline, keyboard shortcuts (space, arrows, frame steps, Cmd/Ctrl+Z for versions), every shape in
     one export, and a Cmd/Ctrl+K command palette.
+19. **Framed screens**: app screenshots and screen recordings are recognised at upload and shown on a rounded, shadowed
+    backdrop with a slow push and a punch-in on what's being said; on reels they take a band above the speaker, never over
+    the face (`lib/framed.ts`). **Boxed subtitles**: a whole phrase at a time in a soft dark box.
+20. **Speed vs quality**: Fast, Balanced or Best quality for each video. Fast skips face finding and uses fewer pictures;
+    Best adds a second pass where the AI reviews its own edit like a senior editor. Time estimates are learned from the
+    videos made on each device (`lib/effort.ts`, `lib/timings.ts`).
 
 ## Privacy and keys
 - Videos never leave the browser: they're processed on the user's computer and kept in IndexedDB.
