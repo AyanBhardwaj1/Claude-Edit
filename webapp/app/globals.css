@@ -639,6 +639,15 @@ button.attach { background: none; border: 0; font: inherit; font-size: 13px; tex
 .rec-strip .rec-wait { background: repeating-linear-gradient(135deg, var(--ink-3) 0 3px, transparent 3px 6px); opacity: .55; }
 .rec-strip .rec-wait.on { background: repeating-linear-gradient(135deg, var(--accent) 0 3px, transparent 3px 6px); opacity: .85; }
 .rec-strip .rec-head { width: 2px; margin-left: -1px; background: var(--ink); }
+/* "Speed through waits" for uploaded screen recordings (components/Drawer.tsx WaitsRow, components/Editor.tsx) */
+.waits { padding: 12px 14px; border-radius: var(--r-md); background: var(--surface-2); }
+.waits-h { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.waits-h svg { width: 16px; height: 16px; flex: none; color: var(--accent-text); }
+.waits-name { font-size: 14px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.waits .check { padding: 2px 0; }
+.waits-strip { height: 12px; }
+.waits-busy, .wait-scan { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; margin: 0; }
+.wait-scan { margin-top: 6px; }
 .rec-trim { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 18px; }
 .rec-trim .field + .field { margin-top: 0; }
 @media (max-width: 640px) {

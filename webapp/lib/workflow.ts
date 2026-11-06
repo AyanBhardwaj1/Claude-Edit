@@ -9,6 +9,7 @@ import { findPicture } from "./images";
 import { activeRms, decodeMono, looksLikeScreenAt, musicFeel, probeImage, probeVideo, uid } from "./media";
 import { getMedia, putMedia, saveProject } from "./store";
 import { applyScript, type ScriptResult } from "./retext";
+import { findWaits } from "./screenrec";
 import { record } from "./timings";
 import { transcribe } from "./transcribe";
 import type { Asset, Edit, Project, Settings, StyleRule } from "./types";
@@ -70,6 +71,27 @@ export async function addToLibrary(p: Project, files: File[], onProgress: Progre
     added.push(f.name);
   }
   return added;
+}
+
+/** An uploaded screen recording whose waits haven't been looked for yet (a recording made in Cutmind comes with its own). */
+export const needsWaitScan = (a: Asset) =>
+  a.kind === "video" && !!a.screen && !a.web && a.waits === undefined && !!a.duration && Number.isFinite(a.duration);
+
+/** Looks for the waits in a library clip (lib/screenrec.ts findWaits) and stores them on it: the frozen stretches then
+ *  play 6x faster unless the user turns "Speed through waits" off. Null when stopped; a clip that can't be read gets no
+ *  waits (an empty list, so it isn't tried again). The caller saves the project. */
+export async function scanWaits(a: Asset, onProgress: (fraction: number) => void, signal?: AbortSignal): Promise<[number, number][] | null> {
+  const blob = await getMedia(a.key);
+  if (!blob) { a.waits = []; return []; }
+  const url = URL.createObjectURL(blob);
+  try {
+    a.waits = await findWaits(url, a.duration ?? 0, { onProgress, signal });
+  } catch (e) {
+    if ((e as { name?: string }).name === "AbortError") return null;
+    console.warn("couldn't look for waits", e);
+    a.waits = [];
+  } finally { URL.revokeObjectURL(url); }
+  return a.waits;
 }
 
 export async function mediaUrls(p: Project): Promise<Map<string, string>> {
