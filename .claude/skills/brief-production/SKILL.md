@@ -5,6 +5,9 @@ description: Produce a finished 1-5 minute video from a written production brief
 
 # Video from a production brief
 
+No brief yet but a video to plan? Write one with the user from [brief_template.md](brief_template.md) (the structure
+of the Walk-Free brief): it makes the recording session and the edit both go faster.
+
 The brief is the plan; the recordings are the truth. Edit to what was actually said and filmed, keep every number
 honest, and get a watchable draft to the user early. Read first:
 - `.claude/skills/edit-reel/lessons.md` (the Walk-Free production: what worked, what broke, what the user loved)
