@@ -9,6 +9,7 @@ import { findPicture, webKey } from "./images";
 import { activeRms, decodeMono, looksLikeScreenAt, musicFeel, probeImage, probeVideo, uid } from "./media";
 import { getMedia, putMedia, saveProject } from "./store";
 import { applyScript, type ScriptResult } from "./retext";
+import { takeLines } from "./takes";
 import { findWaits } from "./screenrec";
 import { record } from "./timings";
 import { transcribe } from "./transcribe";
@@ -235,6 +236,10 @@ export async function makeFirstEdit(p: Project, s: Settings, rules: StyleRule[],
     }
     if (!p.parent) record("edit", effortOf(s), since(t0), footage(p));
   }
+  // lines said more than once: say which take plays and where to pick another (the user's call, not a guess)
+  const twice = takeLines(p, edit.keep).length;
+  if (twice) summary += ` You said ${twice === 1 ? "one line" : `${twice} lines`} more than once: to use a different take, open` +
+    " Edit it myself → Cut.";
   p.versions = [{ n: 1, edit, note: "First draft", summary, at: new Date().toISOString() }];
   p.current = 1;
   p.status = "edited";
