@@ -5,9 +5,10 @@ import { probeVideo } from "@/lib/media";
 import { loadRules } from "@/lib/store";
 import { estimate, estimateText } from "@/lib/timings";
 import type { Project, Settings } from "@/lib/types";
-import { createProject, kindOf, listen, makeFirstEdit, REVIEWING } from "@/lib/workflow";
+import { createProject, fileMeta, kindOf, listen, makeFirstEdit, REVIEWING } from "@/lib/workflow";
 import { EffortPicker } from "./EffortPicker";
 import { Icon, type IconName } from "./Icons";
+import { RecordScreen } from "./ScreenRecorder";
 
 const FACE = "Finding your face";
 const STAGES = ["Copying your video", "Listening to your video", "Finding your retakes", FACE,
@@ -127,13 +128,18 @@ export function NewVideo({ settings, initial = [], onDone, onSettings, onSaveSet
           <input ref={input} type="file" multiple hidden accept="video/*,audio/*,image/*" onChange={(e) => e.target.files && take(e.target.files)} />
         </div>
 
+        <div className="rec-extra">
+          <p className="small muted">Showing an app? Record a demo now and it goes in as b-roll, framed as a screen.</p>
+          <RecordScreen onAdd={(f) => setExtras((x) => [...x, f])} />
+        </div>
+
         {files.length > 0 && (
           <div className="files" aria-label="Your files">
             {files.map(({ f, take: t }, i) => (
               <div key={`${f.name}-${i}`} className="file">
-                <span className={`ic ${t ? "take" : ""}`}><Icon name={t ? "film" : ICON[kindOf(f) ?? "video"] ?? "clip"} /></span>
+                <span className={`ic ${t ? "take" : ""}`}><Icon name={t ? "film" : fileMeta.get(f)?.screen ? "screen" : ICON[kindOf(f) ?? "video"] ?? "clip"} /></span>
                 <span className="grow"><b className="trunc">{f.name}</b>
-                  <span className="small faint">{t ? "Your take" : kindOf(f) === "music" ? "Song" : kindOf(f) === "image" ? "Picture" : "B-roll clip"} · {size(f.size)}</span></span>
+                  <span className="small faint">{t ? "Your take" : fileMeta.get(f)?.screen ? "Screen recording (b-roll)" : kindOf(f) === "music" ? "Song" : kindOf(f) === "image" ? "Picture" : "B-roll clip"} · {size(f.size)}</span></span>
                 <button className="btn ghost icon sm" aria-label={`Remove ${f.name}`}
                   onClick={() => (t ? setTakes((x) => x.filter((y) => y !== f)) : setExtras((x) => x.filter((y) => y !== f)))}><Icon name="trash" /></button>
               </div>
@@ -154,7 +160,7 @@ export function NewVideo({ settings, initial = [], onDone, onSettings, onSaveSet
           <button className="btn primary lg" disabled={!takes.length || !canListen} onClick={go}><Icon name="wand" />Make my reel</button>
           {files.length > 0 && <button className="btn ghost" onClick={() => { setTakes([]); setExtras([]); }}>Clear</button>}
         </div>
-        <p className="small faint">Videos in your first drop are your takes; videos you add after that become b-roll clips. Only use music and pictures you own or
+        <p className="small faint">Videos in your first drop are your takes; videos you add after that, and screen recordings, become b-roll clips. Only use music and pictures you own or
           are licensed to use.</p>
       </div>
     </div>

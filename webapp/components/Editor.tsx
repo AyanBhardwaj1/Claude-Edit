@@ -19,6 +19,7 @@ import type { Edit, Format, Project, Settings } from "@/lib/types";
 import { addToLibrary, applyUserNote, mediaUrls, saveManual } from "@/lib/workflow";
 import { Drawer } from "./Drawer";
 import { Icon } from "./Icons";
+import { RecordScreen } from "./ScreenRecorder";
 import { clock } from "./Tiles";
 
 type Msg = { who: "you" | "ed"; text: string; rule?: string };
@@ -402,13 +403,17 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
             </div>
             <p className="hint note-hint" id="note-hint">For example: &ldquo;music too loud at the start&rdquo;, &ldquo;show the Spotify logo when I say
               Spotify&rdquo;, &ldquo;cut the part about my cat&rdquo;. Enter sends, Shift+Enter starts a new line.</p>
-            <label className="attach">
-              <Icon name="paperclip" />Add a song, picture or clip your editor can use
-              <input type="file" multiple accept="audio/*,image/*,video/*"
-                onChange={async (ev) => { if (!ev.target.files?.length) return; const n = await addToLibrary(p, [...ev.target.files]); await saveProject(p); setP({ ...p });
-                  ev.target.value = "";
-                  setMsgs((m) => [...m, { who: "ed", text: `Added ${n.join(", ")}. Tell me where to use ${n.length > 1 ? "them" : "it"}.` }]); }} />
-            </label>
+            <div className="attach-row">
+              <label className="attach">
+                <Icon name="paperclip" />Add a song, picture or clip your editor can use
+                <input type="file" multiple accept="audio/*,image/*,video/*"
+                  onChange={async (ev) => { if (!ev.target.files?.length) return; const n = await addToLibrary(p, [...ev.target.files]); await saveProject(p); setP({ ...p });
+                    ev.target.value = "";
+                    setMsgs((m) => [...m, { who: "ed", text: `Added ${n.join(", ")}. Tell me where to use ${n.length > 1 ? "them" : "it"}.` }]); }} />
+              </label>
+              <RecordScreen onAdd={async (f) => { const n = await addToLibrary(p, [f]); await saveProject(p); setP({ ...p });
+                setMsgs((m) => [...m, { who: "ed", text: `Added ${n.join(", ")} as a screen recording. Tell me where to show it, for example "show my screen recording when I talk about the app", or place it yourself in Edit it myself, Pictures.` }]); }} />
+            </div>
           </section>
 
           {drawer && version && (

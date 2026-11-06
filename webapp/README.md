@@ -20,6 +20,8 @@ vertical reel with a cover and a post caption, then change it by typing notes. E
 
 ## What it does
 1. **Takes in**: one or more raw takes (retakes and fumbles welcome), plus optional songs, pictures and clips.
+   **Record my screen** captures an app demo (a tab, a window or the whole screen, optionally with the microphone) right
+   in the browser, with a trim and "speed through waits" (frozen stretches play 6x faster), and adds it as a screen recording.
 2. **Listens**: a word-timed transcript through OpenAI (OpenAI key), or a speech model running in the browser (no key).
 3. **Reads the takes**: retakes (keeps the last complete take), pauses, fillers, meta-talk, stutters; finds the face.
 4. **First edit** by the AI editor (the user's Anthropic or OpenAI model), following the editing doctrine: the cut ("one red thread"), a hook
@@ -89,6 +91,7 @@ timeouts, a ~4.5 MB request limit), so all media work runs client-side:
 | `lib/face.ts` | MediaPipe face detector (wasm from a CDN) for the reframe and the protected face zone |
 | `lib/compositor.ts` | draws each frame: reframe, zooms, the picture treatments, labels, captions |
 | `lib/framed.ts` | the framed treatment for app screens (92% on a backdrop, rounded, shadow, Ken Burns, punch-in) and the screenshot check |
+| `lib/screenrec.ts` | Record my screen: getDisplayMedia + MediaRecorder, wait detection, the trim / waits time map the player follows |
 | `lib/player.ts` | live playback with two video elements per take swapped at cuts, Web Audio mix, MediaRecorder export |
 | `app/api/search`, `app/api/image` | licensed picture search and a fixed-host image fetch |
 | `lib/auth.ts`, `lib/sync.ts` | email + password accounts (server or browser) and preference sync |
