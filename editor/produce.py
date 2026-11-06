@@ -199,7 +199,7 @@ PIECE_KEYS = {
     "freeze": {"from", "dur", "blur", "darken", "blur_at", "fade_out"},
     "color": {"color", "dur"},
 }
-COMMON_KEYS = {"name", "type", "chapter", "note", "notes", "todo", "label"}
+COMMON_KEYS = {"name", "type", "chapter", "note", "notes", "todo", "label", "transition"}
 
 
 def validate(spec: "Spec") -> tuple[list[str], list[str]]:
@@ -222,6 +222,13 @@ def validate(spec: "Spec") -> tuple[list[str], list[str]]:
         for k, n in (("punch", 4), ("push", 5)):
             if pc.get(k) is not None and (not isinstance(pc[k], list) or len(pc[k]) != n):
                 errors.append(f"{where}: {k} needs {n} numbers")
+        tr = pc.get("transition")
+        if tr:
+            tk = tr.get("type") if isinstance(tr, dict) else str(tr)
+            if tk not in TRANSITIONS and tk not in XFADE:
+                errors.append(f"{where}: unknown transition {tk!r} ({', '.join(TRANSITIONS)}, or any ffmpeg xfade name)")
+            if pc is spec.pieces[0]:
+                warnings.append(f"{where}: the first piece has nothing to transition from")
         if kind == "freeze" and pc.get("from") not in names:
             errors.append(f"{where}: freezes {pc.get('from')!r}, which isn't a piece")
         if kind == "video" and "out" in pc and float(pc["out"]) <= float(pc.get("in", 0)):
@@ -471,6 +478,40 @@ def _piece_path(spec: Spec, pc: dict) -> Path:
     return spec.work / "pieces" / f"{pc['name']}.{_piece_key(spec, pc)}.mp4"
 
 
+XFADE = set("""fade wipeleft wiperight wipeup wipedown slideleft slideright slideup slidedown circlecrop rectcrop distance
+fadeblack fadewhite radial smoothleft smoothright smoothup smoothdown circleopen circleclose vertopen vertclose horzopen
+horzclose dissolve pixelize diagtl diagtr diagbl diagbr hlslice hrslice vuslice vdslice hblur fadegrays wipetl wipetr wipebl
+wipebr squeezeh squeezev zoomin fadefast fadeslow""".split())
+TRANSITIONS = {"dissolve": "fade", "cross": "fade", "whip": "smoothleft", "whip_right": "smoothright",
+               "swipe_up": "slideup", "swipe_left": "slideleft", "dip_white": "fadewhite", "dip_black": "fadeblack",
+               "zoom": "zoomin", "blur": "hblur", "wipe": "wipeleft"}
+
+
+def _join_with_transitions(spec: Spec, base: Path) -> None:
+    """Join the pieces with xfade transitions INTO the pieces that ask for one ("transition": {"type", "dur"}).
+    The outgoing piece holds its last frame for the transition's length, so every piece still starts on time."""
+    ins, graph = [], []
+    for i, pc in enumerate(spec.pieces):
+        ins += ["-i", str(_piece_path(spec, pc))]
+        graph.append(f"[{i}:v]settb=AVTB,fps={spec.fps},format=yuv420p[p{i}]")
+    cur, t = "p0", spec.pieces[0]["_dur"]
+    for i, pc in enumerate(spec.pieces[1:], 1):
+        tr = pc.get("transition")
+        if tr:
+            kind = tr["type"] if isinstance(tr, dict) else str(tr)
+            d = float(tr.get("dur", 0.3)) if isinstance(tr, dict) else 0.3
+            name = TRANSITIONS.get(kind, kind)
+            graph.append(f"[{cur}]tpad=stop_mode=clone:stop_duration={d}[h{i}]")
+            graph.append(f"[h{i}][p{i}]xfade=transition={name}:duration={d}:offset={t:.4f}[j{i}]")
+            # the frame held is consumed by the overlap: total length is unchanged
+        else:
+            graph.append(f"[{cur}][p{i}]concat=n=2:v=1:a=0[j{i}]")
+        cur = f"j{i}"
+        t += pc["_dur"]
+    run(["ffmpeg", "-y", *ins, "-filter_complex", ";".join(graph), "-map", f"[{cur}]", "-r", str(spec.fps),
+         "-c:v", "libx264", "-preset", "veryfast", "-crf", "14", "-pix_fmt", "yuv420p", "-an", str(base)])
+
+
 def pieces(spec: Spec, jobs: int = 4) -> Path:
     (spec.work / "pieces").mkdir(parents=True, exist_ok=True)
     todo = [pc for pc in spec.pieces if not _piece_path(spec, pc).exists()]
@@ -492,7 +533,10 @@ def pieces(spec: Spec, jobs: int = 4) -> Path:
     lst = spec.work / "pieces.txt"
     lst.write_text("".join(f"file '{_piece_path(spec, pc)}'\n" for pc in spec.pieces))
     base = spec.work / "base.mp4"
-    run(["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(lst), "-c", "copy", str(base)])
+    if any(pc.get("transition") for pc in spec.pieces[1:]):
+        _join_with_transitions(spec, base)
+    else:
+        run(["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(lst), "-c", "copy", str(base)])
     got = float(probe(base)["duration"])
     if abs(got - spec.total) > 1.5 / spec.fps:
         log(f"produce: base is {got:.3f} s, the plan says {spec.total:.3f} s (check piece durations)")
