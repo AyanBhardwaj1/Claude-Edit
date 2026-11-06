@@ -1259,16 +1259,20 @@ def cmd_auto(args):
                 style.snapshot(work / "edl.json")
         elif stage == "check":
             from .qa import check, sheet, write_report
-            write_report(check(out_file, preset=args.preset), out_dir / "qa.json")
+            qa_report = check(out_file, preset=args.preset)
+            write_report(qa_report, out_dir / "qa.json")
             sheet(out_file, out_dir / "contact_sheet.png")
+            safe_hits = None
             if PRESETS[args.preset]["size"][1] > PRESETS[args.preset]["size"][0] and (work / "captions.ass").exists():
                 from .safezone import check as safe_check     # captions under Reels / TikTok / Shorts UI?
                 try:
-                    for h in safe_check(out_file, work, sheets=False)["hits"]:
+                    safe_hits = safe_check(out_file, work, sheets=False)["hits"]
+                    for h in safe_hits:
                         log(f"safezone: {h['platform']} {h['from']:.1f}-{h['to']:.1f} s: captions under the {h['zone']} "
                             f"(editor safezone {out_file} for the sheet)")
                 except EditorError as e:
                     log(f"safezone: not checked ({e})")
+            _before_post(work, out_dir, qa_report, safe_hits)
             if prof["review"]:
                 from .review import review
                 review(out_file, work, out_dir / "review")
@@ -1294,6 +1298,33 @@ def cmd_auto(args):
                 log(f"timings not recorded for {stage}: {e}")
         log(f"--- {stage}: {took:.1f} s")
     log(f"done: {', '.join(stages)} (effort {effort})" + (f" -> {out_file}" if "render" in stages else ""))
+
+
+def _before_post(work: Path, out_dir: Path, qa_report: dict, safe_hits: list | None) -> dict:
+    """Every check of a finished render in one block (and out/before_post.json): the file (qa), the edit (pacing:
+    pace, first second, loop, names, strong language) and the app UI (safezone). What's flagged is to look at, not
+    to fix blindly: strong language and cold opens are the user's call."""
+    items = [{"what": f"file {r['check']}", "ok": r["ok"], "detail": r["detail"]} for r in qa_report.get("checks", [])
+             if not r["ok"]]
+    try:
+        from .anchors import load_words, resolve_work
+        from .review import pacing, punch_cuts
+        meta = load_json(work / "cut_meta.json")
+        edl = resolve_work(load_json(meta["edl"]), work)
+        for k, v in pacing(edl, load_words(work), meta["duration"], punch_cuts(edl, meta)).items():
+            if v:
+                items.append({"what": k.replace("4_5s", "4.5 s").replace("10s", "10 s").replace("_", " "), "ok": False, "detail": v})
+    except EditorError as e:
+        items.append({"what": "pacing", "ok": False, "detail": f"not checked: {e}"})
+    if safe_hits:
+        items.append({"what": "captions under app UI", "ok": False,
+                      "detail": "; ".join(f"{h['platform']} {h['from']:.1f}-{h['to']:.1f}s ({h['zone']})" for h in safe_hits[:4])})
+    report = {"to_look_at": len(items), "items": items}
+    save_json(out_dir / "before_post.json", report)
+    log(f"before you post: {len(items) or 'nothing'} to look at" + (" (out/before_post.json)" if items else ""))
+    for it in items:
+        log(f"  !! {it['what']}: {it['detail']}")
+    return report
 
 
 def _output_seconds(work: Path, media: dict) -> float:

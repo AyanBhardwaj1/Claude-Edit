@@ -261,14 +261,15 @@ def _strong(words: list[dict], edl: dict) -> str | None:
     return f"{len(said)} strong word(s) ({first}): if the user wants it brand-safe, EDL \"bleep\": true"
 
 
-def stillness_zooms(gaps: list[str], words: list[dict], every: float = 3.0) -> list[dict]:
-    """Word-anchored zooms for the bare-face stretches pacing reports ("1.0-9.0s"): one about every 3 s, on the word
-    being said there and held ~1.5 s, alternating 1.15 / 1.25 (the same as Cutmind's attention-map fix)."""
+def stillness_zooms(gaps: list[str], words: list[dict], every: float = 6.0) -> list[dict]:
+    """Word-anchored zooms for the bare-face stretches pacing reports ("1.0-9.0s"): one about every 6 s (the doctrine's
+    one emphasis zoom every 4-8 s, and no more than 10 a minute), on the word being said there and held ~1.5 s,
+    alternating 1.15 / 1.25. A long bare stretch still wants b-roll: zooms alone don't carry it."""
     spoken = [w for w in words if str(w.get("text", "")).strip() and w.get("id")]
     out, k = [], 0
     for g in gaps:
         a, b = (float(x) for x in g.rstrip("s").split("-"))
-        t = a + 0.5
+        t = a + min(2.0, (b - a) / 3)              # into the stretch, not at its first frame
         while t < b - 0.5:
             first = next((w for w in spoken if float(w["start"]) >= t), None)
             if first is None or float(first["start"]) > b - 0.3:
@@ -371,7 +372,7 @@ def pacing(edl: dict, words: list[dict], duration: float, cuts: list[float] | No
     loop = (f"ends on \"{bye.group(0)}\": a sign-off tells people to swipe instead of watching again" if bye else
             f"{air:.1f}s of nothing after the last word before it replays" if air > 0.6 else None)
     return {"face_only_over_4_5s": gaps, "zooms_only_over_10s": zoom_only,
-            "zooms_per_minute_over_10": round(per_min, 1) if per_min > 10 else None,
+            "zooms_per_minute_over_10": round(per_min, 1) if per_min > 10 and len(zooms) > 2 else None,   # 2 in a short reel isn't many
             "big_word_cards_over_2": len(pops) if len(pops) > 2 else None,
             "visuals_under_1_2s": too_short, "named_not_shown": names[:20],
             "broll_moments": None if len(broll) >= want else f"{len(broll)} (hand edits carry about {round(duration / 6)})",
