@@ -81,6 +81,9 @@ vertical reel with a cover and a post caption, then change it by typing notes. E
     hook title), next to the AI's own summary; "Nothing in the video changed" when a note didn't land
     (`lib/changes.ts`). A note with a time in it ("at 0:12 zoom in") gives the AI editor the words, pictures and zooms
     at that moment of the edited video, and the At button beside the note box adds where the player is (`lib/moments.ts`).
+23. **Learns from your exports**: Cutmind compares its first draft of each video with the version you export. A change
+    you make in two different videos (bigger subtitles, fewer zooms, quieter music, tighter cuts...) is offered once as a
+    style rule for next time; a no is remembered too (`lib/learn.ts`). The editor's keyboard shortcuts are one `?` away.
 
 ## Privacy and keys
 - Videos never leave the browser: they're processed on the user's computer and kept in IndexedDB.

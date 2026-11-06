@@ -28,8 +28,9 @@ import { RecordScreen } from "./ScreenRecorder";
 import { clock } from "./Tiles";
 import { changeList } from "@/lib/changes";
 import { Shortcuts } from "./Shortcuts";
+import { declineLearned, learnFromExport } from "@/lib/learn";
 
-type Msg = { who: "you" | "ed"; text: string; rule?: string; changes?: string[] };
+type Msg = { who: "you" | "ed"; text: string; rule?: string; changes?: string[]; learned?: boolean };
 
 export function Editor({ project, settings, firstSummary, onBack, onOpenProject, onOpenAnim }: { project: Project; settings: Settings; firstSummary?: string;
   onBack: () => void; onOpenProject?: (p: Project, summary: string) => void; onOpenAnim?: (id: string) => void }) {
@@ -185,6 +186,13 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
     setBusy("");
   }
 
+  /** After an export: a change the user has now made in two videos, offered as a style rule (lib/learn.ts). */
+  function offerLearned() {
+    const rule = learnFromExport(p, loadRules());
+    if (rule) setMsgs((m) => [...m, { who: "ed", learned: true, rule,
+      text: `I noticed you made the same change before exporting your last two videos: “${rule}”.` }]);
+  }
+
   function addRule(text: string) {
     const rules = loadRules();
     if (!rules.some((r) => r.text.toLowerCase() === text.toLowerCase())) saveRules([...rules, { id: Math.random().toString(36).slice(2), text, at: new Date().toISOString() }]);
@@ -208,6 +216,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
     p.format = keep;
     await mount(version.edit);
     setExp(null); setAll(out); setPlaying(false);
+    if (out.length) offerLearned();
   }
 
   async function exportVideo() {
@@ -220,6 +229,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
       setExp({ pct: 100, video: URL.createObjectURL(blob), ext, cover: URL.createObjectURL(cover),
         caption: URL.createObjectURL(new Blob([post], { type: "text/plain" })),
         srt: version ? URL.createObjectURL(new Blob([srt(p, version.edit, pl.tl)], { type: "application/x-subrip" })) : undefined });
+      offerLearned();
     } catch (e) { setErr(String(e)); setExp(null); }
     setPlaying(false);
   }
@@ -453,7 +463,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
                       <div className="small">Remember this for next time? &ldquo;{m.rule}&rdquo;</div>
                       <div className="row mt-8">
                         <button className="btn sm primary" onClick={() => { addRule(m.rule!); setMsgs((x) => x.map((y, k) => (k === i ? { ...y, rule: undefined, text: y.text + "\nSaved to My style." } : y))); }}>Yes, remember it</button>
-                        <button className="btn sm ghost" onClick={() => setMsgs((x) => x.map((y, k) => (k === i ? { ...y, rule: undefined } : y)))}>No, just this video</button>
+                        <button className="btn sm ghost" onClick={() => { if (m.learned && m.rule) declineLearned(m.rule); setMsgs((x) => x.map((y, k) => (k === i ? { ...y, rule: undefined } : y))); }}>No, just this video</button>
                       </div>
                     </div>
                   )}
