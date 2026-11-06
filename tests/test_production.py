@@ -123,7 +123,7 @@ def test_caption_look_overrides(tmp_path):
     f = cap.split(",")
     assert f[1] == "DejaVu Sans" and f[15] == "3"                        # font, opaque box
     assert f[5] == captions.ass_color("#112233") and int(f[2]) == round(0.085 * 1.5 * 1080)
-    texts = [ln.split(",,", 1)[1] for ln in ass.splitlines() if ln.startswith("Dialogue: 1")]
+    texts = [ln.split(",,", 1)[1].replace(" \u2009", " ") for ln in ass.splitlines() if ln.startswith("Dialogue: 1")]
     assert len(texts) == 3 and "this is" in texts[0] and "\\c" not in texts[0]
 
 
