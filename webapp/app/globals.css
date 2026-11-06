@@ -336,6 +336,7 @@ kbd { font: 600 11px/1 var(--font-ui); padding: 3px 6px; border-radius: 5px; bac
 .tile-wrap { position: relative; }
 .tile-wrap .more { position: absolute; top: 8px; right: 8px; z-index: 2; opacity: 0; transition: opacity .15s ease; background: #000a; color: #fff; }
 .tile-wrap:hover .more, .tile-wrap:focus-within .more { opacity: 1; }
+.tile-wrap .more.copy { right: 48px; }
 .confirm { position: absolute; inset: 0; z-index: 3; display: grid; align-content: center; gap: 10px; padding: 16px; border-radius: var(--r-lg);
   background: var(--surface); box-shadow: var(--pop); text-align: center; animation: pop .14s ease-out; }
 .toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 18px; }

@@ -42,6 +42,16 @@ export async function listProjects(): Promise<Project[]> {
   const ps = await Promise.all(ks.map((k) => get(k, projects()) as Promise<Project>));
   return ps.filter((p) => p && (!p.owner || !owner || p.owner === owner)).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
+/** A copy of a video to try something different: its own id, versions and title; the same footage and library files
+ *  (shared like a long video's clips, so deleting either keeps what the other uses). */
+export async function copyProject(p: Project): Promise<Project> {
+  const now = new Date().toISOString();
+  const copy: Project = { ...JSON.parse(JSON.stringify(p)), id: `${p.id.replace(/-copy-\w+$/, "")}-copy-${Math.random().toString(36).slice(2, 7)}`,
+    title: `${p.title.replace(/ \(copy( \d+)?\)$/, "")} (copy)`, createdAt: now, updatedAt: now, sample: undefined };
+  await saveProject(copy);
+  return copy;
+}
+
 export async function deleteProject(p: Project) {
   await del(p.id, projects());
   // clips share their long video's files: only delete what no other project (of any account) still uses

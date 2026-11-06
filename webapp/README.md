@@ -137,6 +137,8 @@ vertical reel with a cover and a post caption, then change it by typing notes. E
 37. **YouTube chapters**: a wide video over a minute gets "0:00 Intro, 1:12 …" lines (about one chapter a minute,
     at sentence starts, YouTube's rules kept: 3 or more, the first at 0:00, each 10 s or longer); **Name them** has
     the AI title them from what each part says; **Add to the post** puts them in the caption (`lib/chapters.ts`).
+38. **Make a copy**: a copy of a video (its versions too) to try something different, sharing the same footage;
+    deleting either keeps what the other uses (`copyProject` in `lib/store.ts`).
 
 ## Privacy and keys
 - Videos never leave the browser: they're processed on the user's computer and kept in IndexedDB.

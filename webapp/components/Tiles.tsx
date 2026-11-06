@@ -55,7 +55,8 @@ function Thumb({ p }: { p: Project }) {
   );
 }
 
-export function VideoTile({ p, onOpen, onDelete }: { p: Project; onOpen: () => void; onDelete?: () => Promise<void> }) {
+export function VideoTile({ p, onOpen, onDelete, onCopy }: { p: Project; onOpen: () => void; onDelete?: () => Promise<void>;
+  onCopy?: () => Promise<void> }) {
   const [asking, setAsking] = useState(false);
   const [busy, setBusy] = useState(false);
   return (
@@ -68,6 +69,8 @@ export function VideoTile({ p, onOpen, onDelete }: { p: Project; onOpen: () => v
         </span>
       </button>
       {onDelete && <button className="btn icon sm more" aria-label={`Delete ${p.title}`} onClick={() => setAsking(true)}><Icon name="trash" /></button>}
+      {onCopy && <button className="btn icon sm more copy" aria-label={`Make a copy of ${p.title}`} title="Make a copy to try something different"
+        disabled={busy} onClick={async () => { setBusy(true); try { await onCopy(); } finally { setBusy(false); } }}><Icon name="copy" /></button>}
       {asking && (
         <div className="confirm" role="alertdialog" aria-label={`Delete ${p.title}?`}>
           <b>Delete this video?</b>
