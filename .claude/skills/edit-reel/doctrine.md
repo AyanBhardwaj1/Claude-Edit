@@ -122,7 +122,9 @@ At most two draft passes (`--draft`) unless something is broken. Every change is
   face" / "instead of me" = full-frame, "next to me" = side-card, "above my head" = card-above-head; a meme with no
   place given = full-frame, a screenshot or photo of a thing = card-above-head. Clips play silently. If the note
   doesn't say WHEN, ask "Which words should it show on?" instead of guessing.
-- Then `editor version <project> --note "<the note>"` and tell the user in one warm sentence what changed.
+- Then `editor version <project> --note "<the note>"` and tell the user in one warm sentence what changed: before
+  saving, `editor version <project> --changes` lists what the EDL edit really changed since the last version (length,
+  words cut or brought back, hook title, b-roll, zooms, music, captions), so check it touched only what was asked.
 - Lasting preference? If the note would still make sense on a video that doesn't exist yet, ask
   "Remember this for next time?" and on a yes record it with `editor style note` as one general sentence under
   ~15 words ("Keep music quieter under talking"), no times, words or file names from this video. Save without

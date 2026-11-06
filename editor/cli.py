@@ -201,6 +201,8 @@ def main(argv=None):
     p.add_argument("--note", default="")
     p.add_argument("--list", action="store_true")
     p.add_argument("--restore", type=int)
+    p.add_argument("--changes", nargs="?", const=0, type=int, metavar="N",
+                   help="what the EDL changed since the last saved version (or vN), in plain words")
 
     p = sub.add_parser("post", help="the post caption (hook line, context, one ask) + exactly 5 hashtags -> out/post.txt")
     p.add_argument("project")
@@ -737,7 +739,9 @@ def cmd_pacing(args):
 
 def cmd_version(args):
     from . import versions
-    if args.restore:
+    if args.changes is not None:
+        print(versions.changes(args.project, args.changes or None))
+    elif args.restore:
         versions.restore(args.project, args.restore)
     elif args.list:
         for v in versions.versions(args.project):

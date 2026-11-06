@@ -12,6 +12,7 @@ specific ask) and EXACTLY 5 hashtags; credits for CC BY pictures are added autom
 """
 from __future__ import annotations
 
+import json
 import re
 import shutil
 from datetime import datetime
@@ -112,3 +113,97 @@ def export(project: str | Path, version: int | None = None) -> Path:
         shutil.copy2(project / "out" / "post.txt", dest / f"{stem} caption.txt")
     log(f"exported {dest / (stem + '.mp4')}")
     return dest / f"{stem}.mp4"
+
+
+def _kept_words(edl: dict, words: list[dict]) -> set[int]:
+    segs = edl.get("segments") or []
+    return {i for i, w in enumerate(words) for sg in segs
+            if sg.get("src", 0) == w.get("src", 0) and sg["start"] <= (w["start"] + w["end"]) / 2 <= sg["end"]}
+
+
+def _runs(words: list[dict], ids: set[int]) -> list[str]:
+    out, cur = [], []
+    for i, w in enumerate(words):
+        if i in ids:
+            cur.append(str(w.get("text", "")).strip())
+        elif cur:
+            out.append(" ".join(cur))
+            cur = []
+    if cur:
+        out.append(" ".join(cur))
+    return [r for r in out if r]
+
+
+def _q(t: str) -> str:
+    return f'"{t}"' if len(t) <= 50 else f'"{t[:47]}..."'
+
+
+def edl_changes(old: dict, new: dict, words: list[dict] | None = None) -> list[str]:
+    """What changed between two EDLs, in plain words: the length, the words cut or brought back, the hook title,
+    b-roll, zooms, music, captions, transitions and SFX. For telling the user what a note did, and checking that the
+    edit touched only what the note asked (the reel twin of `editor produce --changes`)."""
+    out = []
+    dur = lambda e: sum((sg["end"] - sg["start"]) for sg in e.get("segments") or []) / float(e.get("speed", 1.0) or 1)  # noqa: E731
+    if old.get("segments") != new.get("segments") or old.get("speed") != new.get("speed"):
+        a, b = dur(old), dur(new)
+        out.append(f"length {a:.1f} s -> {b:.1f} s ({b - a:+.1f} s)")
+        if words:
+            ko, kn = _kept_words(old, words), _kept_words(new, words)
+            cut, back = _runs(words, ko - kn), _runs(words, kn - ko)
+            if cut:
+                out.append("cut " + ", ".join(_q(x) for x in cut[:4]) + (f" and {len(cut) - 4} more" if len(cut) > 4 else ""))
+            if back:
+                out.append("brought back " + ", ".join(_q(x) for x in back[:4]) + (f" and {len(back) - 4} more" if len(back) > 4 else ""))
+        if old.get("speed") != new.get("speed"):
+            out.append(f"speed {old.get('speed', 1.0)} -> {new.get('speed', 1.0)}")
+    if old.get("title") != new.get("title"):
+        out.append(f"hook title {_q(str(old.get('title') or ''))} -> {_q(str(new.get('title') or ''))}")
+    ident = lambda b: json.dumps({k: b.get(k) for k in ("path", "text", "treatment", "on", "words", "start")}, sort_keys=True)  # noqa: E731
+    label = lambda b: b.get("on") and f"{b.get('path') or b.get('text') or b.get('treatment')} on {_q(str(b['on']))}" \
+        or str(b.get("path") or b.get("text") or b.get("treatment"))  # noqa: E731
+    ob, nb = {ident(b): b for b in old.get("broll") or []}, {ident(b): b for b in new.get("broll") or []}
+    added = [label(nb[k]) for k in nb if k not in ob]
+    gone = [label(ob[k]) for k in ob if k not in nb]
+    changed = [label(nb[k]) for k in nb if k in ob and ob[k] != nb[k]]
+    if added:
+        out.append("b-roll added: " + "; ".join(added[:4]) + (f" (+{len(added) - 4})" if len(added) > 4 else ""))
+    if gone:
+        out.append("b-roll removed: " + "; ".join(gone[:4]) + (f" (+{len(gone) - 4})" if len(gone) > 4 else ""))
+    if changed:
+        out.append("b-roll changed: " + "; ".join(changed[:4]))
+    for key, name in (("zooms", "zooms"), ("transitions", "transitions"), ("chapters", "chapters")):
+        a, b = old.get(key) or [], new.get(key) or []
+        if a != b:
+            out.append(f"{name}: {len(a)} -> {len(b)}" if len(a) != len(b) else f"{name} moved or changed")
+    mo = old.get("music") if isinstance(old.get("music"), dict) else {}
+    mn = new.get("music") if isinstance(new.get("music"), dict) else {}
+    for k in sorted({*mo, *mn}):
+        if mo.get(k) != mn.get(k):
+            if k == "automation":
+                out.append(f"music dips/lifts: {len(mo.get(k) or [])} -> {len(mn.get(k) or [])}")
+            else:
+                out.append(f"music {k}: {mo.get(k)} -> {mn.get(k)}")
+    co = old.get("captions") if isinstance(old.get("captions"), dict) else {}
+    cn = new.get("captions") if isinstance(new.get("captions"), dict) else {}
+    for k in sorted({*co, *cn}):
+        if co.get(k) != cn.get(k):
+            out.append(f"captions {k}: {co.get(k)} -> {cn.get(k)}")
+    if old.get("sfx") != new.get("sfx"):
+        out.append("sound effects changed")
+    return out
+
+
+def changes(project: str | Path, n: int | None = None) -> str:
+    """The plain-words diff between version n (default: the last saved) and the current work/edl.json."""
+    project = Path(project)
+    vs = versions(project)
+    if not vs:
+        return "no saved versions yet (editor version <project> --note ...)"
+    n = n or vs[-1]["n"]
+    old_p = project / "versions" / f"v{n}" / "edl.json"
+    if not old_p.exists():
+        raise EditorError(f"v{n} has no edl.json")
+    tr = project / "work" / "transcript.json"
+    words = load_json(tr).get("words") if tr.exists() else None
+    lines = edl_changes(load_json(old_p), load_json(project / "work" / "edl.json"), words)
+    return f"since v{n}:\n" + ("\n".join(f"  {x}" for x in lines) or "  nothing")

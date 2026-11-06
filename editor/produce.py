@@ -618,10 +618,19 @@ def pieces(spec: Spec, jobs: int = 4) -> Path:
     lst = spec.work / "pieces.txt"
     lst.write_text("".join(f"file '{_piece_path(spec, pc)}'\n" for pc in spec.pieces))
     base = spec.work / "base.mp4"
+    # the joined picture, by content: with transitions the join re-encodes everything (77 s on a 3-min video), so a
+    # note that changes no piece (a caption, a level) reuses the last join
+    key = _hash([_piece_key(spec, pc) for pc in spec.pieces], [pc.get("transition") for pc in spec.pieces])
+    stamp = base.with_name("base.key")
+    if base.exists() and stamp.exists() and stamp.read_text() == key:
+        log("produce: joined picture unchanged (cached)")
+        return base
+    stamp.unlink(missing_ok=True)
     if any(pc.get("transition") for pc in spec.pieces[1:]):
         _join_with_transitions(spec, base)
     else:
         run(["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(lst), "-c", "copy", str(base)])
+    stamp.write_text(key)
     got = float(probe(base)["duration"])
     if abs(got - spec.total) > 1.5 / spec.fps:
         log(f"produce: base is {got:.3f} s, the plan says {spec.total:.3f} s (check piece durations)")
