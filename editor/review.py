@@ -261,6 +261,26 @@ def _strong(words: list[dict], edl: dict) -> str | None:
     return f"{len(said)} strong word(s) ({first}): if the user wants it brand-safe, EDL \"bleep\": true"
 
 
+def stillness_zooms(gaps: list[str], words: list[dict], every: float = 3.0) -> list[dict]:
+    """Word-anchored zooms for the bare-face stretches pacing reports ("1.0-9.0s"): one about every 3 s, on the word
+    being said there and held ~1.5 s, alternating 1.15 / 1.25 (the same as Cutmind's attention-map fix)."""
+    spoken = [w for w in words if str(w.get("text", "")).strip() and w.get("id")]
+    out, k = [], 0
+    for g in gaps:
+        a, b = (float(x) for x in g.rstrip("s").split("-"))
+        t = a + 0.5
+        while t < b - 0.5:
+            first = next((w for w in spoken if float(w["start"]) >= t), None)
+            if first is None or float(first["start"]) > b - 0.3:
+                break
+            last = [w for w in spoken if float(first["start"]) <= float(w["start"]) and float(w["end"]) <= float(first["start"]) + 1.6]
+            last = last[-1] if last else first
+            out.append({"words": f"{first['id']}-{last['id']}", "scale": 1.15 if k % 2 == 0 else 1.25, "ease": 0.3})
+            k += 1
+            t = float(first["start"]) + every
+    return out
+
+
 def named_not_shown(edl: dict, words: list[dict]) -> list[dict]:
     """Names said but never shown: a capitalised word mid-sentence (or a run, "Claude Code") that isn't a common word,
     with no picture on screen as it's said (a text card counts only if it spells the name), at any of its mentions.

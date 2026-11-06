@@ -37,7 +37,8 @@ python3 -m editor render projects/<n>/work -o projects/<n>/out/<n>_youtube.mp4 -
 4. `python3 -m editor cover <file> -o out/cover.jpg --title "..." --work projects/<n>/work` makes the cover
    from a clean frame (no captions/overlays), plus `cover_grid.jpg`, the 4:5 crop the profile grid shows.
 5. Spot-check exact moments with `python3 -m editor frames <file> -o <dir> --at <t> ...`.
-5b. `python3 -m editor pacing projects/<n>/work`: bare face over 4.5 s, over 10 s with zooms only, more than 10
+5b. `python3 -m editor pacing projects/<n>/work` (`--fix` adds word-anchored zooms in bare-face stretches, the one
+   fix it makes itself; re-run from render): bare face over 4.5 s, over 10 s with zooms only, more than 10
    zooms a minute, more than 2 big word cards, visuals under 1.2 s, names said but never shown, and too few b-roll
    moments for the length, the first second (speech starting after 0.6 s, a warm-up opener like "so" / "um" / "today", no hook title to read, or one
    up too briefly to read: about 0.4 s + 0.25 s a word, and a later line that grips more than the opening, as a
