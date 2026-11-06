@@ -211,3 +211,6 @@ export const boxedChars = (frameW: number, size: number) => Math.max(18, Math.mi
 
 /** About how long a short line takes to read on a phone: a moment to notice it, then ~4 words a second. */
 export const readTime = (text: string) => 0.4 + 0.25 * text.trim().split(/\s+/).filter(Boolean).length;
+
+/** Hashtags from what was typed: spaces, commas or a new # split them ("#reels#editing" is two). */
+export const parseTags = (text: string) => text.split(/[\s,#]+/).filter(Boolean).map((h) => "#" + h);

@@ -65,14 +65,20 @@ export class StudioPlayer {
     } catch { return null; }
   }
 
+  private gen = 0;
+
   async play(from = this.t) {
     this.ensure();
+    const my = ++this.gen;              // a pause (or another play) while the sound decodes cancels this one
     const ctx = this.ctx!;
     if (ctx.state === "suspended") await ctx.resume();
-    this.stopSources();
     const dur = this.duration;
     if (from >= dur - 0.05) from = 0;
     const music = await this.buf(this.anim.music);
+    const voices = new Map<string, AudioBuffer | null>();
+    for (const seg of timeline(this.anim)) voices.set(seg.s.id, await this.buf(this.anim.voice?.keys[seg.s.id]));
+    if (my !== this.gen) return;
+    this.stopSources();
     const voiced = Object.keys(this.anim.voice?.keys ?? {}).length > 0;
     const startAt = ctx.currentTime + 0.05;
     if (music) {
@@ -88,8 +94,7 @@ export class StudioPlayer {
       this.live.push(src);
     }
     for (const seg of timeline(this.anim)) {
-      const key = this.anim.voice?.keys[seg.s.id];
-      const b = await this.buf(key);
+      const b = voices.get(seg.s.id);
       if (!b || seg.start + b.duration < from) continue;
       const src = ctx.createBufferSource(); src.buffer = b; src.connect(this.out!);
       const at = seg.start + 0.15 - from;
@@ -111,7 +116,7 @@ export class StudioPlayer {
 
   private stopSources() { for (const s of this.live) { try { s.stop(); } catch { /* already stopped */ } } this.live = []; }
 
-  pause() { this.playing = false; cancelAnimationFrame(this.raf); this.stopSources(); }
+  pause() { this.gen++; this.playing = false; cancelAnimationFrame(this.raf); this.stopSources(); }
 
   seek(t: number) { const was = this.playing; this.pause(); this.t = Math.max(0, Math.min(t, this.duration)); this.draw(this.t); if (was) void this.play(this.t); }
 

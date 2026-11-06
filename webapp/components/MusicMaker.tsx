@@ -27,6 +27,7 @@ export function MusicMaker({ project: p, length, wordsPerMinute, onUse, onClose 
   const [bpm, setBpm] = useState(MOODS[suggested].bpm);
   const [key, setKey] = useState("D");
   const [secs, setSecs] = useState(() => Math.max(4, Math.round(length * 10) / 10));
+  const [secsText, setSecsText] = useState<string | null>(null);
   const [busy, setBusy] = useState<{ msg: string; pct: number } | null>(null);
   const [res, setRes] = useState<Result | null>(null);
   const [playing, setPlaying] = useState(false);
@@ -120,8 +121,12 @@ export function MusicMaker({ project: p, length, wordsPerMinute, onUse, onClose 
         </div>
         <div className="field">
           <label htmlFor="mm-len">Length (seconds)</label>
-          <input id="mm-len" className="input num" type="number" min={4} max={600} step={0.1} value={secs} disabled={!!busy}
-            onChange={(ev) => setSecs(Math.max(4, Math.min(600, +ev.target.value || 4)))} />
+          <input id="mm-len" className="input num" type="number" min={4} max={600} step={0.1} value={secsText ?? secs} disabled={!!busy}
+            onChange={(ev) => {                    // typed as is ("3" on the way to "30"), clamped once the field is left
+              setSecsText(ev.target.value);
+              const n = +ev.target.value; if (n >= 4 && n <= 600) setSecs(n);
+            }}
+            onBlur={() => { if (secsText !== null) setSecs(Math.max(4, Math.min(600, +secsText || 4))); setSecsText(null); }} />
         </div>
       </div>
       <p className="hint mt-8">{fitted ? "Fitted to your edit" : <>Your edit is {clock(length)}. <button className="link" type="button" onClick={() => setSecs(Math.max(4, Math.round(length * 10) / 10))}>Fit to it</button></>}
