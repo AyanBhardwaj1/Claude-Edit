@@ -56,10 +56,18 @@ or `python3 -m editor new myreel`, drop clips in `projects/myreel/raw/`, and say
 Also: "make a launch video for <product>" (launch-video), "make me a motion graphic" (claude-video-studio), "animate this concept" (manim-video),
 "edit these interview takes into a 3-minute video" (video-use), `/reel-script` to plan a video first.
 
+A written brief with scenes and app demos (a hackathon or product video): "make the video from this brief"
+(brief-production: `editor produce init --brief`, then one JSON spec renders the whole video). Notes on any draft,
+typed or with a time ("at 1:23 the music drowns him out"): video-notes finds the moment (`--at`), makes the smallest
+change, says how long the re-render takes (`--estimate`; sound-only notes take seconds) and what really changed
+(`--changes`). Say "hurry" or "take your time" for rush / polish (`editor effort show`). What changed each night:
+[CHANGELOG.md](CHANGELOG.md).
+
 Without Claude: `python3 -m editor auto projects/myreel` runs everything; `python3 -m editor --help` lists
 every stage (`transcribe`, `retext`, `plan`, `cut`, `audio`, `track`, `captions`, `graphic`, `render`,
 `check`, `review`, `inspect`, `cover`, `fetch`, `triage`, `music`, `broll`, `capture`, `models`, `style`, `fonts`, `gen`,
-`words`, `images`, `attach`, `pacing`, `version`, `post`, `export`, `share`, ...).
+`words`, `images`, `attach`, `pacing`, `version`, `post`, `export`, `share`, `produce`, `inventory`, `overlay`,
+`compose`, `effort`, `lessons`, ...).
 
 ## It learns your style
 Every video teaches the next first draft. What you say ("captions smaller", "always 16:9", "no voiceover") is
