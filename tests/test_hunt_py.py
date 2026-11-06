@@ -397,3 +397,10 @@ def test_pacing_reports_lines_said_twice():
     words = [{"id": f"w{i}", "text": t, "start": i * 0.4, "end": i * 0.4 + 0.3} for i, t in enumerate(text.split())]
     assert _said_twice(words) == '"Here is the secret you need." at 0.0s and 4.0s: cut the later one?'
     assert _said_twice(words[:10]) is None
+
+
+def test_edl_changes_length_uses_a_segments_own_speed():
+    from editor.versions import edl_changes
+    old = {"segments": [{"src": 0, "start": 0, "end": 4}]}
+    new = {"segments": [{"src": 0, "start": 0, "end": 4, "speed": 2.0}]}
+    assert edl_changes(old, new)[0] == "length 4.0 s -> 2.0 s (-2.0 s)"

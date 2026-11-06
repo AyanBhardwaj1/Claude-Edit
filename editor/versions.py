@@ -209,7 +209,9 @@ def edl_changes(old: dict, new: dict, words: list[dict] | None = None) -> list[s
     b-roll, zooms, music, captions, transitions and SFX. For telling the user what a note did, and checking that the
     edit touched only what the note asked (the reel twin of `editor produce --changes`)."""
     out = []
-    dur = lambda e: sum((sg["end"] - sg["start"]) for sg in e.get("segments") or []) / float(e.get("speed", 1.0) or 1)  # noqa: E731
+    # output seconds, a segment's own "speed" winning over the EDL's (as editor cut plays it)
+    dur = lambda e: sum((sg["end"] - sg["start"]) / float(sg.get("speed", e.get("speed", 1.0)) or 1)  # noqa: E731
+                        for sg in e.get("segments") or [])
     if old.get("segments") != new.get("segments") or old.get("speed") != new.get("speed"):
         a, b = dur(old), dur(new)
         out.append(f"length {a:.1f} s -> {b:.1f} s ({b - a:+.1f} s)")
