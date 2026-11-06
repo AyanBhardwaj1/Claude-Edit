@@ -24,8 +24,8 @@ Claude makes the editorial calls and checks the result visually.
 - **Speed vs quality** is the user's call: "we have 10 minutes" / "hurry" → rush, "take your time" / "best" → polish
   (`.claude/skills/edit-reel/effort.md`; `editor effort show --budget <min>`, `editor auto --effort|--budget`).
   Answer "how long?" before starting. Timings are learned per machine (`library/style/timings.json`).
-- **Self-improve after every video**: style notes (what the user said), 1-5 lines in
-  `.claude/skills/edit-reel/lessons.md` (read it before planning), `editor effort record` for hand-run stages.
+- **Self-improve after every video**: style notes (what the user said), 1-5 lessons (`editor lessons add`; read
+  `.claude/skills/edit-reel/lessons.md` before planning), `editor effort record` for hand-run stages.
 - A written production brief (script + effects plan + scene clips + app demos, e.g. a hackathon demo):
   **brief-production** skill (`editor inventory` → `editor produce spec.json`: pieces, overlay, mix, captions, extras).
 - **style-memory** learns the user's editing taste over time (`library/style/`, `editor style`): read
@@ -102,6 +102,7 @@ editor/            python package (python3 -m editor)
                    frame.py puts app screens on a rounded, shadowed backdrop with Ken Burns / punch-ins
   produce.py       a finished video from one JSON spec: pieces (video/framed/sequence/freeze), voices + music + SFX
                    mix, overlay track, captions from word times, extras; time references like "s3+1.2" / "@v3:2.01"
+  lessons.py       what each production taught (lessons.md): add one line per lesson, show before planning
   inventory.py     what's in a footage folder: lengths, sizes, sound, contact sheets, transcripts (asset map)
   compose/         original music beds, lo-fi, risers, SFX and ambiences synthesized in code (royalty-free)
 library/           hooks.md (265 hook templates), glossary.txt, style/ (learned style), music/, broll/, models/, sfx/ (media git-ignored)

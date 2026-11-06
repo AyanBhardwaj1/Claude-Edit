@@ -103,5 +103,5 @@ preference in the note with `editor style note`, and `editor style learn produce
 - Numbers exactly as in the brief or read off the recorded screen (write them down when you capture).
 - Captions on every spoken line; nothing over the length cap; no spinner on screen > 1 s.
 - You can't hear: report LUFS/peaks and ask the user to listen, especially dialogue over music.
-- Remember: `editor style note` for what the user said, a few lines in lessons.md, `editor effort record` for the
+- Remember: `editor style note` for what the user said, `editor lessons add` (a few lines), `editor effort record` for the
   stages you timed.

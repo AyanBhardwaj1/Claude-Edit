@@ -20,7 +20,7 @@ subtitles last, over every overlay (built in); never cover a face; cached transc
 **Effort and time.** If the user names a deadline or asks for speed ("we have 10 minutes", "hurry") or quality
 ("take your time", "best possible"), read [effort.md](effort.md) first: pick rush / standard / polish, estimate
 with `python3 -m editor effort show --length <s> --budget <min>`, and answer "how long?" before starting.
-**Read [lessons.md](lessons.md)** (what earlier productions taught: briefs, honest demos, no-GPU capture, mixing
+**Read [lessons.md](lessons.md)** (or `editor lessons show --grep <topic>`; what earlier productions taught: briefs, honest demos, no-GPU capture, mixing
 under dialogue) before planning anything bigger than a single talking-head reel. A written production brief with
 live action + app demos + effects: the **brief-production** skill.
 
@@ -130,7 +130,7 @@ plain warm words (doctrine.md). Then **notes**: each note the user types is appl
 re-rendered, saved with `editor version --note`, and checked for "remember this for next time?" (doctrine.md).
 Record every preference the user voiced while editing (`editor style note`), and when they approve,
 `python3 -m editor style learn projects/<name>/work/edl.json` (style-memory skill).
-**Self-improve:** append 1-5 one-line lessons to [lessons.md](lessons.md) (what cost time, what broke, what the user
+**Self-improve:** add 1-5 one-line lessons (`python3 -m editor lessons add "..." --video "<name>" --tag <topic>`, into [lessons.md](lessons.md)) (what cost time, what broke, what the user
 loved or rejected), and `python3 -m editor effort record <stage> <seconds> --media <s>` for any stage you ran by
 hand (`editor auto` records its own). Next video's estimates and plan start from these.
 Offer other formats (`--preset youtube|feed|square|tiktok|shorts`) and the `.srt`. Append to

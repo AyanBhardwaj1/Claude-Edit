@@ -659,7 +659,10 @@ def extras(spec: Spec, final: Path) -> list[Path]:
         w, h = x.get("size", [spec.w, spec.h])
         out = spec.p(x.get("file", f"{final.with_suffix('')}_{x['name']}.mp4"))
         if x.get("kind") == "band":            # a vertical/square social cut: the frame as a band over its own blur
-            made.append(_band(final, out, a, b, int(w), int(h), x))
+            if x.get("ranges"):                  # a highlight reel: several moments, back to back
+                made.append(_highlights(spec, final, out, int(w), int(h), x))
+            else:
+                made.append(_band(final, out, a, b, int(w), int(h), x))
             continue
         vf = (f"crop='min(iw,ih*{w}/{h})':'min(ih,iw*{h}/{w})':(iw-ow)*{x.get('x', 0.5)}:(ih-oh)*{x.get('y', 0.5)},"
               f"scale={w}:{h}:flags=lanczos")
@@ -697,6 +700,26 @@ def _band(final: Path, out: Path, a: float, b: float, w: int, h: int, x: dict) -
     run(["ffmpeg", "-y", "-ss", f"{a}", "-to", f"{b}", "-i", str(final), "-filter_complex", vf, "-map", "[v]",
          "-map", "0:a?", "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-c:a", "aac", "-b:a", "192k",
          "-movflags", "+faststart", str(out)])
+    return out
+
+
+def _highlights(spec: Spec, final: Path, out: Path, w: int, h: int, x: dict) -> Path:
+    """Band cuts of each [from, to] range (references allowed), joined with short audio crossfades."""
+    parts = []
+    tmp = out.parent / f".{out.stem}_parts"
+    tmp.mkdir(parents=True, exist_ok=True)
+    for i, (r0, r1) in enumerate(x["ranges"]):
+        part = tmp / f"{i:02d}.mp4"
+        _band(final, part, spec.t(r0), spec.t(r1), w, h, x)
+        parts.append(part)
+    lst = tmp / "list.txt"
+    lst.write_text("".join(f"file '{p}'\n" for p in parts))
+    run(["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(lst), "-c:v", "libx264", "-preset", "veryfast",
+         "-crf", "18", "-c:a", "aac", "-b:a", "192k", "-af", "aresample=async=1", "-movflags", "+faststart", str(out)])
+    for p in parts:
+        p.unlink(missing_ok=True)
+    lst.unlink(missing_ok=True)
+    tmp.rmdir()
     return out
 
 

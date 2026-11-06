@@ -86,7 +86,8 @@ def test_tiny_production_end_to_end(tmp_path):
     spec["audio"]["sfx"] = [{"src": "pop", "at": "b", "gain": -6}]
     spec["audio"]["music"] = [{"src": "clip.mp4", "at": 0, "gain": -10}]
     spec["extras"] = [{"name": "sq", "from": "a", "to": "b.end", "size": [180, 180]},
-                      {"name": "vert", "kind": "band", "size": [180, 320], "title": "It's 100°F: walk home"}]
+                      {"name": "vert", "kind": "band", "size": [180, 320], "title": "It's 100°F: walk home"},
+                      {"name": "hl", "kind": "band", "size": [180, 320], "ranges": [["a", "a+1"], ["c", "c.end"]]}]
     path = write_spec(tmp_path, spec)
     res = produce.produce(path)
     out = Path(res["file"])
@@ -96,6 +97,8 @@ def test_tiny_production_end_to_end(tmp_path):
     rv = res["review"]
     assert rv["duration"] == pytest.approx(4.5, abs=0.1) and Path(rv["contact_sheet"]).exists()
     assert any("voice v" in i for i in rv["issues"])        # the voice has no captions: flagged
+    hl = probe(Path(res["extras"][2]))
+    assert hl["duration"] == pytest.approx(2.0, abs=0.2)
     vert = probe(Path(res["extras"][1]))
     assert (vert["video"]["width"], vert["video"]["height"]) == (180, 320)
     sq = probe(Path(res["extras"][0]))
