@@ -37,3 +37,38 @@ export function cutWords(p: Project, keep: Range[], ids: string[]): Range[] {
   const out = new Set(ids.map((id) => idx.get(id)));
   return ranges(p, played(p, keep, idx).filter((i) => !out.has(i)));
 }
+
+/** Every place the words of `query` are said, in order (its last word may be the start of one: "sub" finds
+ *  "subscribe"), as word ids. Case and punctuation don't matter. */
+export function findWords(p: Project, query: string): string[][] {
+  const q = query.split(/\s+/).map(bare).filter(Boolean);
+  if (!q.length) return [];
+  const spoken = p.words.map((w, i) => ({ i, b: bare(w.w) })).filter((x) => x.b);
+  const out: string[][] = [];
+  for (let k = 0; k + q.length <= spoken.length; k++) {
+    let ok = true;
+    for (let j = 0; j < q.length && ok; j++) {
+      const b = spoken[k + j].b;
+      ok = j === q.length - 1 ? b.startsWith(q[j]) : b === q[j];
+      if (ok && j > 0 && p.words[spoken[k + j].i].src !== p.words[spoken[k].i].src) ok = false;
+    }
+    if (ok) out.push(q.map((_, j) => p.words[spoken[k + j].i].id));
+  }
+  return out;
+}
+
+/** The cut with these words back in: each next to the word said before or after it, so a re-ordered cut keeps its
+ *  order; a word with no neighbour playing goes where it was filmed. */
+export function restoreWords(p: Project, keep: Range[], ids: string[]): Range[] {
+  const idx = indexOf(p.words);
+  const seq = played(p, keep, idx);
+  const add = [...new Set(ids.map((id) => idx.get(id)).filter((i): i is number => i != null))].sort((a, b) => a - b);
+  for (const i of add) {
+    if (seq.includes(i)) continue;
+    const before = seq.indexOf(i - 1), after = seq.indexOf(i + 1);
+    if (before >= 0 && p.words[i - 1].src === p.words[i].src) seq.splice(before + 1, 0, i);
+    else if (after >= 0 && p.words[i + 1].src === p.words[i].src) seq.splice(after, 0, i);
+    else { const at = seq.findIndex((x) => x > i); seq.splice(at < 0 ? seq.length : at, 0, i); }
+  }
+  return ranges(p, seq);
+}

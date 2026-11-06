@@ -32,3 +32,17 @@ test("only words the cut plays are counted", () => {
   const found = crutches(p, [{ from: "w4", to: "w6" }]).map((c) => c.name);
   assert.deepEqual(found, ["honestly"]);
 });
+
+test("find a word or phrase, then cut or bring back every place it's said", async () => {
+  const { findWords, restoreWords } = await import("../lib/crutch");
+  const p = project("Subscribe now. Then the end. Please subscribe now, okay?");
+  assert.deepEqual(findWords(p, "subscribe now").map((h) => h.join(",")), ["w0,w1", "w6,w7"]);
+  assert.deepEqual(findWords(p, "SUB").length, 2);                    // the start of a word, any case
+  assert.deepEqual(findWords(p, "  "), []);
+  const keep: Range[] = [{ from: "w2", to: "w4" }, { from: "w0", to: "w1" }, { from: "w5", to: "w8" }];   // re-ordered
+  const ids = findWords(p, "subscribe now").flat();
+  const cut = cutWords(p, keep, ids);
+  assert.equal(said(p, cut), "Then the end. Please okay?");
+  assert.equal(said(p, restoreWords(p, cut, ids)), "Subscribe now. Then the end. Please subscribe now, okay?");   // w0-w1 had no neighbour left: back in filmed order
+  assert.equal(said(p, restoreWords(p, cut, ["w6", "w7"])), "Then the end. Please subscribe now, okay?");
+});

@@ -57,6 +57,12 @@ lists every such line with its takes (`*` plays now); `--use 2:1 --apply` plays 
 played before (a re-ordered cut keeps its order; edge "um"s stay out), then re-run from `cut`. Cutmind has the same
 under Edit it myself → Cut.
 
+## Words said out of habit
+`python3 -m editor habits projects/<n>/work` counts "basically", "literally", "honestly", "obviously", "you know," and
+"I mean," (and "actually"/"like" set off by commas) in what the cut plays. Cutting a couple of them tightens a line;
+cutting every one can make the talk sound clipped, so offer it: `--only basically,literally --apply`, then re-run from
+`cut` and look at each join with `editor review`. Cutmind has the same in the Cut tab.
+
 ## Cold open
 `editor pacing` names a later line that grips more than the opening (stronger_line_for_a_cold_open). It's an
 editorial call: propose it. On a yes, `python3 -m editor coldopen projects/<n>/work --apply` (or `--words w40-w48`

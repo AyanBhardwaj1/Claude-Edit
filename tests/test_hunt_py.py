@@ -285,3 +285,22 @@ def test_with_take_places_and_pads_only_by_real_words():
     out = with_take(segs, line, 0)
     # take 1 plays where take 2 did (after the other talk), and its pads stop at the intro's last word
     assert [(s["start"], s["end"]) for s in out] == [(0.0, 0.7), (4.94, 6.75), (0.7, 4.35)]
+
+
+def test_habits_found_in_safe_forms_and_cut(tmp_path, capsys):
+    import json
+    from editor.cli import main
+    from editor.habits import find
+    text = "So basically, you know, it's literally the best. Do you know why? It actually works, and, like, I mean, try it. I like it."
+    tr = [{"src": 0, "start": round(i * 0.4, 3), "end": round(i * 0.4 + 0.3, 3), "text": t} for i, t in enumerate(text.split())]
+    segs = [{"src": 0, "start": 0.0, "end": 12.0}]
+    assert {f["name"]: len(f["hits"]) for f in find(tr, segs)} == {"basically": 1, "you know": 1, "literally": 1, "like": 1, "I mean": 1}
+    assert [f["name"] for f in find(tr, [{"src": 0, "start": 2.0, "end": 12.0}])] == ["literally", "like", "I mean"]   # only what plays
+    work = tmp_path / "w"
+    work.mkdir()
+    (work / "transcript.json").write_text(json.dumps({"words": tr}))
+    (work / "edl.json").write_text(json.dumps({"segments": segs}))
+    assert main(["habits", str(work), "--only", "basically", "--apply"]) == 0
+    out = json.loads((work / "edl.json").read_text())["segments"]
+    # "basically," is 0.4-0.7: cut from the middle of each pause around it
+    assert [(s["start"], s["end"]) for s in out] == [(0.0, 0.35), (0.75, 12.0)]

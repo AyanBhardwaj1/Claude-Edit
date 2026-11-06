@@ -11,7 +11,7 @@ import { addToLibrary } from "@/lib/workflow";
 import { LANGUAGES, translateSubtitles } from "@/lib/translate";
 import { formatTime, playedLength, waitSavings, WAIT_SPEED } from "@/lib/screenrec";
 import { pickTake, takeLines } from "@/lib/takes";
-import { crutches, cutWords } from "@/lib/crutch";
+import { crutches, cutWords, findWords, restoreWords } from "@/lib/crutch";
 import type { Asset, Broll, BrollIn, CaptionAnim, CaptionPreset, Edit, Look, Motion, Project, Range, Settings, Transition } from "@/lib/types";
 
 const ANIM_NAME: Record<CaptionAnim, string> = { pop: "Pop", karaoke: "Karaoke", bounce: "Bounce", words: "Word by word", typewriter: "Typewriter",
@@ -58,6 +58,10 @@ export function Drawer({ project: p, edit, onApply, settings, onMakeMusic, onWor
   }, [e.keep, idx, p.words]);
   const lines = useMemo(() => takeLines(p, e.keep), [p, e.keep]);
   const habits = useMemo(() => crutches(p, e.keep), [p, e.keep]);
+  const [find, setFind] = useState("");
+  const found = useMemo(() => findWords(p, find), [p, find]);
+  const hit = useMemo(() => new Set(found.flat()), [found]);
+  const foundKept = found.filter((h) => h.some((id) => kept.has(id))).length;
   const changed = JSON.stringify(e) !== JSON.stringify(edit);
   const cap = (k: Partial<Edit["captions"]>) => setE({ ...e, captions: { ...e.captions, ...k } });
   const mo = motionOf(e);
@@ -144,11 +148,24 @@ export function Drawer({ project: p, edit, onApply, settings, onMakeMusic, onWor
               </ul>
             </div>
           )}
+          <div className="field">
+            <label htmlFor="find-w">Find in what you said</label>
+            <div className="row">
+              <input id="find-w" className="input grow" type="search" placeholder="A word or a few, e.g. subscribe" value={find}
+                onChange={(ev) => setFind(ev.target.value)}
+                onKeyDown={(ev) => { if (ev.key === "Enter") document.querySelector(".words .w.hit")?.scrollIntoView({ block: "center", behavior: "smooth" }); }} />
+              {found.length > 0 && foundKept > 0 && <button type="button" className="btn sm" onClick={() => setE({ ...e, keep: cutWords(p, e.keep, found.flat()) })}>
+                Cut {foundKept === 1 ? "it" : `all ${foundKept}`}</button>}
+              {found.length > foundKept && <button type="button" className="btn sm" onClick={() => setE({ ...e, keep: restoreWords(p, e.keep, found.flat()) })}>
+                Bring back {found.length - foundKept === 1 ? "the cut one" : `${found.length - foundKept} cut`}</button>}
+            </div>
+            <span className="hint" aria-live="polite">{find.trim() ? (found.length ? `Said ${found.length === 1 ? "once" : `${found.length} times`}${found.length > foundKept ? `, ${found.length - foundKept} of them cut` : ""}. Enter jumps to the first.` : "Not said anywhere.") : ""}</span>
+          </div>
           <div className="words" aria-label="Transcript">
             {p.words.map((w, i) => !w.w.trim() ? null : (
               <span key={w.id}>
                 {i > 0 && (p.words[i - 1].src !== w.src || w.s - p.words[i - 1].e > 1) && <br />}
-                <button className={`w ${kept.has(w.id) ? "" : "cut"}`} aria-pressed={!kept.has(w.id)} onClick={() => toggleWord(w.id)}>{w.w}</button>{" "}
+                <button className={`w ${kept.has(w.id) ? "" : "cut"}${hit.has(w.id) ? " hit" : ""}`} aria-pressed={!kept.has(w.id)} onClick={() => toggleWord(w.id)}>{w.w}</button>{" "}
               </span>
             ))}
           </div>

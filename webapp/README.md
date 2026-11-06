@@ -145,7 +145,11 @@ vertical reel with a cover and a post caption, then change it by typing notes. E
     (`lib/takes.ts`).
 40. **Words you say out of habit**: Edit it myself → Cut counts "basically", "literally", "honestly", "obviously",
     "you know," and "I mean," (and "actually" or "like" set off by commas) in what the cut plays; one click cuts them
-    all. "Do you know", "it actually works" and "I like it" are left alone (`lib/crutch.ts`).
+    all. "Do you know", "it actually works" and "I like it" are left alone (`lib/crutch.ts`; the CLI's
+    `editor habits`).
+41. **Find in what you said**: a search box above the words in Edit it myself → Cut. It highlights every place a word or
+    phrase is said (the last word can be a start: "sub" finds "subscribe"); Enter jumps to the first, and one click
+    cuts them all or brings back the cut ones, keeping the cut's order (`findWords`, `restoreWords`).
 
 ## Privacy and keys
 - Videos never leave the browser: they're processed on the user's computer and kept in IndexedDB.
