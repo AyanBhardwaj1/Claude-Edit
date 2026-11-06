@@ -830,6 +830,8 @@ label.btn:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; 
 .before-post ul { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; }
 .before-post li { display: inline-flex; align-items: center; gap: 5px; }
 .before-post li.ok svg { color: var(--good); } .before-post li.bad svg { color: var(--bad-text); }
+.chapters { margin: 8px 0; padding: 10px 12px; border-radius: 10px; background: var(--surface-2); font-size: 13px; line-height: 1.6;
+  white-space: pre-wrap; font-family: inherit; }
 .name-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }
 .name-list li { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .cold-open { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); display: grid; gap: 8px; justify-items: start; }

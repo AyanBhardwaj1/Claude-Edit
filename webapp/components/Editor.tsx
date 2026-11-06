@@ -44,6 +44,7 @@ async function measureLoudness(blob: Blob): Promise<{ lufs: number; peak: number
   } catch { return null; }
 }
 import { namedNotShown, type Name } from "@/lib/names";
+import { chapterMarks, chapterText, chapterTitles, type Chapter } from "@/lib/chapters";
 import { findPicture } from "@/lib/images";
 import { maskWord } from "@/lib/text";
 import { cutWarmUp, LOOP_HEAD, LOOP_TAIL, loopCheck, SCROLL_SECONDS, scrollTest, type ScrollLine } from "@/lib/scrolltest";
@@ -120,7 +121,9 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
   const [hooks, setHooks] = useState<string[] | null>(null);
   const [hookBusy, setHookBusy] = useState(false);
   const [hookDraft, setHookDraft] = useState("");
-  const [names, setNames] = useState<Name[]>([]);           // apps and brands said but never shown (lib/names.ts)
+  const [names, setNames] = useState<Name[]>([]);
+  const [chapters, setChapters] = useState<Chapter[]>([]);         // YouTube chapters for a long, wide video (lib/chapters.ts)
+  const [chBusy, setChBusy] = useState(false);           // apps and brands said but never shown (lib/names.ts)
   const [logoBusy, setLogoBusy] = useState<string | null>(null);
   const [swore, setSwore] = useState<{ id: string; w: string; at: number }[]>([]);   // swear words said (lib/bleep.ts)
   const [recapBusy, setRecapBusy] = useState(false);
@@ -217,6 +220,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
     setCheck(reelCheck(p, edit, pl.tl));
     setAttn(attention(pl.tl, edit));
     setNames(namedNotShown(pl.tl, edit));
+    setChapters(chapterMarks(pl.tl));
     setSwore(swears(pl.tl).map((w) => ({ id: w.id, w: w.w.trim(), at: w.os })));
     setScroll({ ...scrollTest(pl.tl, edit), loop: loopCheck(pl.tl), cold: strongestLine(pl.tl) }); setShownTest(null);
     void waveform(p, pl.tl).then((w) => { if (gen === mounts.current) setWave(w); });
@@ -784,6 +788,32 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
             </section>
           )}
 
+          {version && fmt === "16:9" && chapterText(chapters, dur) && (() => {
+            const text = chapterText(chapters, dur);
+            const inPost = version.edit.post.caption.includes(text);
+            return (
+              <section className="panel" aria-labelledby="ch-h">
+                <div className="panel-head"><h2 id="ch-h">YouTube chapters</h2>
+                  {(settings.provider === "anthropic" ? settings.anthropicKey : settings.openaiKey) &&
+                    <button className="btn sm" disabled={chBusy || recording} onClick={async () => {
+                      setChBusy(true); setErr("");
+                      try { const pl = player.current; if (pl) setChapters(await chapterTitles(settings, pl.tl, chapters)); }
+                      catch (e) { setErr((e as { userMessage?: string }).userMessage ?? String(e)); }
+                      setChBusy(false); }}>{chBusy ? <><span className="spin" />Naming…</> : <><Icon name="spark" />Name them</>}</button>}</div>
+                <p className="small muted">In the description, these become chapters people can jump to.</p>
+                <pre className="chapters">{text}</pre>
+                <div className="row">
+                  <button type="button" className="btn sm" onClick={() => copy(text)}><Icon name="copy" />Copy</button>
+                  <button type="button" className="btn sm" disabled={inPost || recording || cmp} onClick={async () => {
+                    const before = version.edit;
+                    const caption = before.post.caption.replace(/\n*Chapters\n(?:\d+:\d\d(?::\d\d)? .*\n?)+/g, "").trimEnd();
+                    const fixed = { ...before, post: { ...before.post, caption: `${caption}${caption ? "\n\n" : ""}Chapters\n${text}` } };
+                    await saveManual(p, fixed, "YouTube chapters in the post"); setP({ ...p });
+                    setMsgs((m) => [...m, { who: "ed", v: p.current, text: `Version ${p.current}: the post caption lists ${chapters.length} chapters.` }]);
+                  }}>{inPost ? "In the post" : "Add to the post"}</button>
+                </div>
+              </section>);
+          })()}
           {version && names.length > 0 && (
             <section className="panel" aria-labelledby="names-h">
               <div className="panel-head"><h2 id="names-h">Names you say</h2></div>

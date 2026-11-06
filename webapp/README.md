@@ -133,6 +133,9 @@ vertical reel with a cover and a post caption, then change it by typing notes. E
     not shown and strong language, and says how many need a look. **Fix what I can** applies every fix that doesn't
     change what is said or shown as one version (subtitles on, the warm-up cut, zooms where the picture sits still,
     subtitles raised clear of the app buttons); bleeps, logos and a cold open stay your call (`lib/autofix.ts`).
+37. **YouTube chapters**: a wide video over a minute gets "0:00 Intro, 1:12 …" lines (about one chapter a minute,
+    at sentence starts, YouTube's rules kept: 3 or more, the first at 0:00, each 10 s or longer); **Name them** has
+    the AI title them from what each part says; **Add to the post** puts them in the caption (`lib/chapters.ts`).
 
 ## Privacy and keys
 - Videos never leave the browser: they're processed on the user's computer and kept in IndexedDB.

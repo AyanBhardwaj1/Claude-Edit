@@ -65,6 +65,36 @@ def restore(project: str | Path, n: int) -> Path:
     return project / "work" / "edl.json"
 
 
+def youtube_chapters(project: str | Path, edl: dict) -> str:
+    """The EDL's chapters as YouTube description timestamps ("0:00 Intro" lines), which YouTube turns into chapters
+    when there are at least 3, the first at 0:00 and each at least 10 s long; "" otherwise (with why, in the log)."""
+    chapters = edl.get("chapters") or []
+    if not chapters:
+        return ""
+    work = Path(project) / "work"
+    try:
+        from .anchors import resolve_work
+        chapters = resolve_work({"chapters": chapters}, work).get("chapters", [])
+    except EditorError:
+        pass
+    marks = sorted((float(c["start"]), str(c.get("text", "")).strip()) for c in chapters if "start" in c and c.get("text"))
+    if not marks:
+        return ""
+    marks[0] = (0.0, marks[0][1])                     # YouTube wants the first at 0:00
+    meta = work / "cut_meta.json"
+    end = float(load_json(meta)["duration"]) if meta.exists() else marks[-1][0] + 10
+    lengths = [b[0] - a[0] for a, b in zip(marks, marks[1:] + [(end, "")])]
+    if len(marks) < 3 or min(lengths) < 10:
+        log(f"post: chapters not listed for YouTube ({len(marks)} chapter(s), shortest {min(lengths):.0f} s): it wants "
+            f"3 or more, each 10 s or longer")
+        return ""
+
+    def clock(t: float) -> str:
+        t = int(t)
+        return f"{t // 3600}:{t % 3600 // 60:02d}:{t % 60:02d}" if t >= 3600 else f"{t // 60}:{t % 60:02d}"
+    return "\n".join(f"{clock(t)} {title}" for t, title in marks)
+
+
 def write_post(project: str | Path, caption: str, hashtags: list[str], keywords: list[str] | None = None) -> Path:
     project = Path(project)
     tags = [("#" + re.sub(r"\s+", "", t.lstrip("#"))) for t in hashtags if t.strip("# ")]
@@ -81,7 +111,8 @@ def write_post(project: str | Path, caption: str, hashtags: list[str], keywords:
     paths = [str((project / b["path"]) if not Path(b["path"]).is_absolute() else b["path"])
              for b in edl.get("broll", []) if b.get("path")]
     credits = credit_line(paths)
-    text = caption + (f"\n\n{credits}" if credits else "") + "\n\n" + " ".join(tags) + "\n"
+    marks = youtube_chapters(project, edl)
+    text = caption + (f"\n\n{marks}" if marks else "") + (f"\n\n{credits}" if credits else "") + "\n\n" + " ".join(tags) + "\n"
     out = project / "out" / "post.txt"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(text)
