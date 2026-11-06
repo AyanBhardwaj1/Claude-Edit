@@ -156,6 +156,8 @@ vertical reel with a cover and a post caption, then change it by typing notes. E
     open's rules (a number, a strong word, "you", a question, a name all count for a line). The hook, the ending and
     list items ("the first one", "step 2") always stay, and three lines at least; the lines are listed before anything
     is cut (`lib/fit.ts`; the CLI's `editor fit`).
+43. **Lines you say twice**: the Cut tab lists lines the cut plays twice (the same line said again later, not a dropped
+    retake) with both times; one click cuts the later one (`repeats` in `lib/fit.ts`).
 
 ## Privacy and keys
 - Videos never leave the browser: they're processed on the user's computer and kept in IndexedDB.

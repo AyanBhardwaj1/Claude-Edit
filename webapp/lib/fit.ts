@@ -58,3 +58,22 @@ export function planFit(p: Project, e: Edit, target: number): FitPlan {
 export function applyFit(p: Project, e: Edit, plan: FitPlan): Edit {
   return { ...e, gapCap: plan.gapCap, keep: cutWords(p, e.keep, plan.drop.flatMap((d) => d.ids)) };
 }
+
+export type Repeat = { first: FitLine; again: FitLine };
+
+/** Lines the cut plays twice (the same line said again later, not a retake the cut dropped): the later one is
+ *  usually the one to go. */
+export function repeats(p: Project, e: Pick<Edit, "keep" | "gapCap" | "speed">): Repeat[] {
+  const tl = buildTimeline(p.words, e, p.sources.map((s) => s.duration));
+  const all = sentences(tl);
+  const at = new Map(tl.words.map((w) => [w.id, w]));
+  const line = (s: (typeof all)[number]): FitLine =>
+    ({ ids: s.ids, text: s.text, at: s.at, seconds: at.get(s.ids[s.ids.length - 1])!.oe - at.get(s.ids[0])!.os });
+  const out: Repeat[] = [];
+  all.forEach((s, k) => {
+    if (s.ids.length < 3) return;                         // "Yes." twice isn't a repeat worth a panel
+    const j = all.slice(0, k).findIndex((o) => o.ids.length >= 3 && sameLine(o.text, s.text));
+    if (j >= 0) out.push({ first: line(all[j]), again: line(s) });
+  });
+  return out;
+}

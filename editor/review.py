@@ -276,6 +276,22 @@ def _strong(words: list[dict], edl: dict) -> str | None:
     return f"{len(said)} strong word(s) ({first}): if the user wants it brand-safe, EDL \"bleep\": true"
 
 
+def _said_twice(words: list[dict]) -> str | None:
+    """Lines the cut plays twice (the same line said again later, three words or more): the later one usually goes."""
+    from .plan import _is_retake, norm
+    lines = [ln for ln in spoken_lines(words) if len(ln) >= 3]
+    toks = [[norm(w["text"]) for w in ln if norm(w["text"])] for ln in lines]
+    out = []
+    for k in range(1, len(lines)):
+        j = next((j for j in range(k) if _is_retake(toks[j], toks[k])), None)
+        if j is not None:
+            text = " ".join(str(w["text"]).strip() for w in lines[k])
+            out.append(f'"{text[:50]}" at {float(lines[j][0]["start"]):.1f}s and {float(lines[k][0]["start"]):.1f}s')
+    if not out:
+        return None
+    return "; ".join(out[:3]) + (f" (+{len(out) - 3} more)" if len(out) > 3 else "") + ": cut the later one?"
+
+
 def _habits(words: list[dict]) -> str | None:
     """Words said out of habit in the cut (two or more): "basically" x3, "you know" x1. Cutting them is the user's
     call (editor habits)."""
@@ -435,5 +451,5 @@ def pacing(edl: dict, words: list[dict], duration: float, cuts: list[float] | No
             "visuals_under_1_2s": too_short, "named_not_shown": names[:20],
             "broll_moments": None if len(broll) >= want else f"{len(broll)} (hand edits carry about {round(duration / 6)})",
             "first_word_after_0_6s": late, "no_hook_title": None if has_title else "nothing to read in the first second",
-            "strong_language": _strong(words, edl), "habit_words": _habits(words),
+            "strong_language": _strong(words, edl), "habit_words": _habits(words), "said_twice": _said_twice(words),
             "opens_with_warm_up": warm, "stronger_line_for_a_cold_open": stronger_opening(words), "hook_too_quick_to_read": quick, "loop_seam": loop}

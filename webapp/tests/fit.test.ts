@@ -79,3 +79,16 @@ test("a list item is never cut: the others lean on it", () => {
   const e = { ...defaultEdit(p), keep: [{ from: "w0", to: `w${p.words.length - 1}` }], gapCap: 0.4 };
   assert.ok(planFit(p, e, 30).drop.every((d) => !d.text.startsWith("Step")));
 });
+
+test("lines the cut plays twice are listed, the later one to cut", async () => {
+  const { repeats } = await import("../lib/fit");
+  const p = project();
+  const start = TEXT.slice(0, 5).join(" ").split(" ").length;           // sentence 6 becomes sentence 4 again
+  "Here is the secret you need to know.".split(" ").forEach((w, i) => { p.words[start + i].w = w; });
+  const e = { ...defaultEdit(p), keep: [{ from: "w0", to: `w${p.words.length - 1}` }], gapCap: 0.4 };
+  const r = repeats(p, e);
+  assert.equal(r.length, 1);
+  assert.ok(r[0].again.at > r[0].first.at);
+  assert.match(r[0].again.text, /^Here is the secret/);
+  assert.equal(repeats(p, { ...e, keep: [{ from: "w0", to: `w${start - 1}` }] }).length, 0);   // the repeat cut: nothing
+});
