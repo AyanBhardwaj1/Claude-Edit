@@ -170,6 +170,11 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
       if (ev.key === "?" && !mod) { ev.preventDefault(); setKeys(true); return; }
       if ((ev.key === "c" || ev.key === "C") && !mod && !ev.altKey && prevN !== null) { ev.preventDefault(); flipCompare(); return; }
       if ((ev.key === "n" || ev.key === "N") && !mod && !ev.altKey) { ev.preventDefault(); document.getElementById("note")?.focus(); return; }
+      if ((ev.key === "m" || ev.key === "M") && !mod && !ev.altKey) {     // say a note: start, and M again to stop
+        const mic = document.querySelector<HTMLButtonElement>(".voice-btn");
+        if (mic && !mic.disabled) { ev.preventDefault(); mic.click(); }
+        return;
+      }
       if ((ev.key === "Home" || ev.key === "End") && !mod) { ev.preventDefault(); const v = ev.key === "Home" ? 0 : dur; setT(v); void pl.seek(v); return; }
       if (ev.key === " " && !mod) { ev.preventDefault(); void toggle(); return; }
       const step = ev.key === "ArrowLeft" ? -1 : ev.key === "ArrowRight" ? 1 : ev.key === "," ? -1 / 30 : ev.key === "." ? 1 / 30 : 0;
