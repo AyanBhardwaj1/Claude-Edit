@@ -136,7 +136,8 @@ vertical reel with a cover and a post caption, then change it by typing notes. E
     subtitles raised clear of the app buttons); bleeps, logos and a cold open stay your call (`lib/autofix.ts`).
 37. **YouTube chapters**: a wide video over a minute gets "0:00 Intro, 1:12 …" lines (about one chapter a minute,
     at sentence starts, YouTube's rules kept: 3 or more, the first at 0:00, each 10 s or longer); **Name them** has
-    the AI title them from what each part says; **Add to the post** puts them in the caption (`lib/chapters.ts`).
+    the AI title them from what each part says; **Add to the post** puts them in the caption, and **Show on screen**
+    shows each title at the top as its chapter starts (`lib/chapters.ts`).
 38. **Make a copy**: a copy of a video (its versions too) to try something different, sharing the same footage;
     deleting either keeps what the other uses (`copyProject` in `lib/store.ts`).
 

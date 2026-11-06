@@ -256,6 +256,7 @@ export function describe(a: Edit, b: Edit): string {
   if (JSON.stringify(a.keep) !== JSON.stringify(b.keep) || a.gapCap !== b.gapCap) out.push("the cut");
   if ((a.speed ?? 1) !== (b.speed ?? 1)) out.push("talking speed");
   if ((a.loudness ?? 0) !== (b.loudness ?? 0)) out.push("loudness");
+  if (!!a.chapterPills !== !!b.chapterPills || JSON.stringify(a.chapters ?? []) !== JSON.stringify(b.chapters ?? [])) out.push("chapters");
   if (JSON.stringify(a.bleeps ?? []) !== JSON.stringify(b.bleeps ?? [])) out.push("bleeps");
   if (JSON.stringify(a.captions) !== JSON.stringify(b.captions) || JSON.stringify(a.corrections) !== JSON.stringify(b.corrections)
     || JSON.stringify(a.translation) !== JSON.stringify(b.translation)) out.push(b.translation && !a.translation ? `subtitles in ${b.translation.lang}` : "subtitles");
