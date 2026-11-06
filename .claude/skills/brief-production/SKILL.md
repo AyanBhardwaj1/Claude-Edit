@@ -82,6 +82,9 @@ numbers. Send a 720p preview (`crf 24`) as soon as a complete draft exists, with
 couldn't do (and why), then iterate on notes with the smallest re-render. Final: the named export plus any extra
 cuts the brief asks for (e.g. a 1080×1080 of the key segment: `crop=1080:1080`).
 
+Before sending the first draft at standard or polish effort, spawn one critic sub-agent with
+[critic.md](critic.md) (files, not your opinion), fix what it finds that's real, then send.
+
 Notes loop: change the spec (the smallest edit: one piece, one gain, one caption), re-render with
 `editor produce produce.json --preview --note "<the user's note>"` (only changed pieces re-render; each note is
 saved as out/versions/<name>.vN.mp4 with the spec and a line in project.md; `--versions` lists them). Record any
