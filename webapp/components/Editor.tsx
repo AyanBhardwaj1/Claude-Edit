@@ -27,7 +27,7 @@ import { Icon } from "./Icons";
 import { RecordScreen } from "./ScreenRecorder";
 import { clock } from "./Tiles";
 import { changeItems, type Change } from "@/lib/changes";
-import { attention, type Attention } from "@/lib/attention";
+import { attention, zoomsFor, type Attention } from "@/lib/attention";
 import { Shortcuts } from "./Shortcuts";
 import { VoiceNote } from "./VoiceNote";
 import { anchorSpoken } from "@/lib/moments";
@@ -503,7 +503,16 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
                   <ul>{attn.spots.map((sp) => (
                     <li key={sp.from}><button type="button" className="linkish" onClick={() => { const v = Math.max(0, sp.from - 0.5); setT(v); void player.current?.seek(v); }}>
                       <span className="num">{clock(sp.from)}–{clock(sp.to)}</span> · {sp.text}</button>
-                      <span className="small muted block">{sp.fix}</span></li>))}</ul>
+                      <span className="small muted block">{sp.fix}</span>
+                      {sp.cause === "still" && version && player.current && (
+                        <button type="button" className="btn sm mt-8" disabled={!!busy || recording} onClick={async () => {
+                          const fixed = zoomsFor(player.current!.tl, version.edit, sp);
+                          if (!fixed) { setToast("No words there to zoom on"); return; }
+                          const before = version.edit;
+                          await saveManual(p, fixed, `zooms at ${clock(sp.from)}–${clock(sp.to)} (attention map)`); setP({ ...p });
+                          setMsgs((m) => [...m, { who: "ed", v: p.current, text: `Version ${p.current}: I added zooms at ${clock(sp.from)}–${clock(sp.to)} so the picture keeps changing.`,
+                            changes: changeItems(p, before, fixed) }]);
+                        }}><Icon name="wand" />Add zooms there</button>)}</li>))}</ul>
                   <p className="small faint">The red marks under the timeline. A guide from what is on screen and said, not a forecast.</p>
                 </div>)}
             </section>

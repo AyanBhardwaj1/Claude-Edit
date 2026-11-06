@@ -68,3 +68,20 @@ function describe(c: Cause, from: number, to: number, changes: number[]): { text
   if (c === "quiet") return { text: `${(to - from).toFixed(1)} s with nothing said`, fix: "Tighten the pause (Edit it myself → Cut), or put a picture over it." };
   return { text: "Slow talking", fix: "Cut a few words there, or speed the video up a little (Edit it myself)." };
 }
+
+/** One-click fix for a "same picture" spot: alternating punch-in zooms about every 3 s across it, each on the word
+ *  being said there and held ~1.5 s (the same kind of zoom the AI editor places). Other spots return null. */
+export function zoomsFor(tl: Timeline, e: Edit, spot: Spot): Edit | null {
+  if (spot.cause !== "still") return null;
+  const words = tl.words.filter((w) => w.w.trim());
+  const zooms = [...e.zooms];
+  let k = 0;
+  for (let t = Math.max(0, spot.from); t < spot.to - 0.5; t += 3) {
+    const first = words.find((w) => w.os >= t);
+    if (!first || first.os > spot.to) break;
+    const last = [...words].reverse().find((w) => w.oe <= first.os + 1.6 && w.os >= first.os) ?? first;
+    if (zooms.some((z) => z.anchor.from === first.id)) continue;
+    zooms.push({ anchor: { from: first.id, to: last.id }, scale: k++ % 2 ? 1.25 : 1.15 });
+  }
+  return zooms.length > e.zooms.length ? { ...e, zooms } : null;
+}

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { attention } from "../lib/attention";
+import { attention, zoomsFor } from "../lib/attention";
+import { defaultEdit } from "../lib/edit";
 import { DEFAULT_MOTION } from "../lib/edit";
 import { buildTimeline } from "../lib/timeline";
 import type { Word } from "../lib/types";
@@ -35,4 +36,16 @@ test("dead air is named as such", () => {
 test("an empty timeline has no risk and no spots", () => {
   const empty = buildTimeline([], { keep: [], gapCap: 0.3 }, []);
   assert.deepEqual(attention(empty, { broll: [], zooms: [], motion: still }), { step: 0.5, risk: [], spots: [] });
+});
+
+test("Add zooms there turns a same-picture spot calm, on the words said there", () => {
+  const e = { ...defaultEdit({ words, sources: [{ duration: 20 }], library: [] } as never), keep: [{ from: "w0", to: "w29" }], gapCap: 5, broll: [], zooms: [], motion: still };
+  const before = attention(tl, e);
+  const spot = before.spots.find((s) => s.cause === "still")!;
+  const fixed = zoomsFor(tl, e, spot)!;
+  assert.ok(fixed.zooms.length >= 2, String(fixed.zooms.length));
+  for (const z of fixed.zooms) assert.ok(tl.byId.get(z.anchor.from)!.os >= spot.from - 0.01);
+  const after = attention(tl, fixed);
+  assert.ok(!after.spots.some((s) => s.cause === "still" && s.from <= spot.from + 1), JSON.stringify(after.spots));
+  assert.equal(zoomsFor(tl, e, { ...spot, cause: "quiet" }), null);
 });
