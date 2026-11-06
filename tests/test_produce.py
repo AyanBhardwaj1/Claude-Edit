@@ -210,6 +210,9 @@ def test_init_drafts_a_spec_from_an_inventory(tmp_path):
     assert s.total == pytest.approx(1.9 + 3.4 + 6.0)
     assert produce.auto_captions(s)[0]["text"] == "Hello there."
     assert any("placeholder" in t for t in spec["todo"])
+    auto = spec["audio"]["music"][0]["automation"]                   # dips under the on-camera dialogue
+    assert [0.6 - 0.4, 0] in [[round(x, 2), y] for x, y in auto] or auto[0] == [0.0, 0]
+    assert [0.0, -10] in auto and [1.9, -10] in auto
 
 
 def test_versions_keep_each_note(tmp_path):

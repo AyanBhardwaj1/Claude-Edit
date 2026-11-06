@@ -1116,6 +1116,16 @@ def review(spec: Spec, final: Path | None = None) -> dict:
 
 # ---------------------------------------------------------------- a first spec from the footage
 
+def _measure_lufs(path: Path, a: float, b: float) -> float | None:
+    """Integrated loudness of a stretch of a file (after the same voice clean-up the mix applies)."""
+    import subprocess
+    r = subprocess.run(["ffmpeg", "-hide_banner", "-ss", f"{a}", "-to", f"{b}", "-i", str(path), "-vn", "-af",
+                        f"{VOICE_CLEAN},ebur128", "-f", "null", "-"], capture_output=True, text=True)
+    m = re.findall(r"I:\s+(-?[\d.]+) LUFS", r.stderr)
+    v = float(m[-1]) if m else None
+    return v if v is not None and v > -70 else None
+
+
 def init_spec(folder: str | Path, out: str | Path, inventory_dir: str | Path | None = None, transcribe: bool = True,
               width: int = 1920, height: int = 1080, fps: int = 30) -> dict:
     """A starting spec from a footage folder: each clip trimmed to its speech (a breath either side), voice-over files
@@ -1156,10 +1166,29 @@ def init_spec(folder: str | Path, out: str | Path, inventory_dir: str | Path | N
             caps[voices[-1]["name"]] = rel(words_path)
     if not pieces:
         raise EditorError(f"nothing usable in {folder}")
+    for v in voices:                                  # level every voice to the same loudness (pocket mics are quiet)
+        lufs = _measure_lufs(out.parent / v["src"], v["in"], v["out"])
+        if lufs is not None:
+            v["gain"] = round(max(-12.0, min(15.0, -16.0 - lufs)), 1)
     if last_video:
         pieces.append({"name": "end", "type": "freeze", "from": last_video, "dur": 6.0, "blur": 12, "darken": 0.3,
                        "fade_out": 0.5})
     total = sum(float(p.get("dur", 0)) if "dur" in p else (p["out"] - p["in"]) for p in pieces)
+    # the lesson from the Walk-Free skits ("we can't hear ourselves"): the bed dips 10 dB under on-camera dialogue
+    spans, t = [], 0.0
+    talking = {v["at"] for v in voices}
+    for p in pieces:
+        d = float(p["dur"]) if "dur" in p else p["out"] - p["in"]
+        if p.get("type") == "video" and p["name"] in talking:
+            if spans and abs(spans[-1][1] - t) < 0.05:
+                spans[-1][1] = t + d
+            else:
+                spans.append([t, t + d])
+        t += d
+    dips = []
+    for a_, b_ in spans:
+        dips += [[round(max(0.0, a_ - 0.4), 2), 0], [round(a_, 2), -10], [round(b_, 2), -10],
+                 [round(min(total, b_ + 0.4), 2), 0]]
     spec = {
         "todo": todo + ["order the pieces into the story (inventory.md has what each clip says)",
                         "correct the captions' words (offline transcripts mishear names): captions.replace",
@@ -1170,7 +1199,8 @@ def init_spec(folder: str | Path, out: str | Path, inventory_dir: str | Path | N
         "pieces": pieces,
         "audio": {"voices": voices,
                   "music": [{"src": {"compose": {"mood": "warm", "end_chord_at": round(max(1.0, total - 6.0), 2)}},
-                             "at": 0, "dur": round(total, 2), "gain": -3, "fade_in": 0.5}]},
+                             "at": 0, "dur": round(total, 2), "gain": -3, "fade_in": 0.5,
+                             **({"automation": dips} if dips else {})}]},
         "captions": {"voices": caps, "replace": {}},
         "overlay": {"elements": [{"type": "end_card", "lines": ["TITLE", "website", "names"], "t_in": "end+0.4",
                                   "t_out": "end.end-0.3"}] if last_video else []},
