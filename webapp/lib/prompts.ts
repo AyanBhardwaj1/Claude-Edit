@@ -93,7 +93,8 @@ export const APPLY_NOTE = (note: string) => `The user left this note on the curr
 > ${note}
 
 Change ONLY what the note asks, the smallest change that satisfies it, and return the whole edit with everything else
-exactly as it is now (copy unchanged fields from CURRENT EDIT). If the note is unclear, take the most reasonable reading
+exactly as it is now (copy unchanged fields from CURRENT EDIT). When WHERE THE NOTE POINTS is given, the user's times
+are in the edited video they watched: make the change on those word ids (give or take a second), not elsewhere. If the note is unclear, take the most reasonable reading
 and say what you did. Common notes: "music too loud at the start" -> a music automation dip (-6) on those words; "too
 loud overall" -> level quiet; "different / sadder / more upbeat song" -> another library song by feel; "put the price on
 '20 bucks'" -> a label (style pop) with the exact number on those words; "animate the stats / show the steps as a list" ->

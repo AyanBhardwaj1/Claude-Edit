@@ -82,6 +82,7 @@ vertical reel with a cover and a post caption, then change it by typing notes. E
     (`lib/changes.ts`). A note with a time in it ("at 0:12 zoom in") gives the AI editor the words, pictures and zooms
     at that moment of the edited video, and the At button beside the note box adds where the player is (`lib/moments.ts`).
     Notes sent while the editor is still working wait their turn and are applied in order, each its own version.
+    Or say the note: the mic beside the box writes it down with the listening you chose, for you to check and send.
 23. **Learns from your exports**: Cutmind compares its first draft of each video with the version you export. A change
     you make in two different videos (bigger subtitles, fewer zooms, quieter music, tighter cuts...) is offered once as a
     style rule for next time; a no is remembered too (`lib/learn.ts`). The editor's keyboard shortcuts are one `?` away,
