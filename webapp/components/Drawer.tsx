@@ -12,6 +12,7 @@ import { LANGUAGES, translateSubtitles } from "@/lib/translate";
 import { formatTime, playedLength, waitSavings, WAIT_SPEED } from "@/lib/screenrec";
 import { pickTake, takeLines } from "@/lib/takes";
 import { crutches, cutWords, findWords, restoreWords } from "@/lib/crutch";
+import { applyFit, FIT_TARGETS, planFit } from "@/lib/fit";
 import type { Asset, Broll, BrollIn, CaptionAnim, CaptionPreset, Edit, Look, Motion, Project, Range, Settings, Transition } from "@/lib/types";
 
 const ANIM_NAME: Record<CaptionAnim, string> = { pop: "Pop", karaoke: "Karaoke", bounce: "Bounce", words: "Word by word", typewriter: "Typewriter",
@@ -59,6 +60,9 @@ export function Drawer({ project: p, edit, onApply, settings, onMakeMusic, onWor
   const lines = useMemo(() => takeLines(p, e.keep), [p, e.keep]);
   const habits = useMemo(() => crutches(p, e.keep), [p, e.keep]);
   const [find, setFind] = useState("");
+  const [fitTo, setFitTo] = useState<number | null>(null);
+  const length = useMemo(() => buildTimeline(p.words, e, p.sources.map((x) => x.duration)).duration, [p.words, p.sources, e]);
+  const fit = useMemo(() => (fitTo && fitTo < length ? planFit(p, e, fitTo) : null), [p, e, fitTo, length]);
   const found = useMemo(() => findWords(p, find), [p, find]);
   const hit = useMemo(() => new Set(found.flat()), [found]);
   const foundKept = found.filter((h) => h.some((id) => kept.has(id))).length;
@@ -114,6 +118,25 @@ export function Drawer({ project: p, edit, onApply, settings, onMakeMusic, onWor
           <div className="field"><span className="label">Talking speed</span>
             {opt(e.speed ?? 1, [[1, "As filmed"], [1.1, "1.1×"], [1.2, "1.2×"], [1.3, "1.3×"]], (v) => setE({ ...e, speed: v === 1 ? undefined : v }), "Talking speed")}
             <span className="hint">Faster talking holds attention; your voice keeps its pitch. Pictures and music play as they are.</span></div>
+          {FIT_TARGETS.some((t) => t < length) && (
+            <div className="field"><span className="label" id="fit-h">Fit to a length <span className="muted small num">(now {formatTime(length)})</span></span>
+              <div className="seg" role="group" aria-labelledby="fit-h">
+                {FIT_TARGETS.filter((t) => t < length).map((t) => <button key={t} aria-pressed={fitTo === t} onClick={() => setFitTo(fitTo === t ? null : t)}>Under {t} s</button>)}
+              </div>
+              {fit && (<div className="fit-plan" aria-live="polite">
+                <p className="small">
+                  {fit.gapCap < e.gapCap ? "Tighter pauses" : ""}{fit.gapCap < e.gapCap && fit.drop.length ? ", and cut " : fit.drop.length ? "Cut " : ""}
+                  {fit.drop.length ? (fit.drop.length === 1 ? "the line that grips least" : `the ${fit.drop.length} lines that grip least`) : ""}
+                  {fit.drop.length || fit.gapCap < e.gapCap ? `: ${formatTime(fit.now)} → ${formatTime(fit.after)}.` : ""}
+                  {!fit.reached && ` That's as short as it goes keeping your hook, your ending and three lines: try “Faster talking” too.`}
+                </p>
+                {fit.drop.length > 0 && <ul className="small muted fit-drop">{fit.drop.map((d) => <li key={d.ids[0]}>“{d.text}” <span className="num">({d.seconds.toFixed(1)} s)</span></li>)}</ul>}
+                <button type="button" className="btn sm" onClick={() => { setE(applyFit(p, e, fit)); setFitTo(null); }}>
+                  {fit.drop.length > 1 ? "Cut them" : fit.drop.length ? "Cut it" : "Tighten the pauses"}</button>
+                <span className="hint">Your hook and ending stay. Bring any line back by clicking its words below.</span>
+              </div>)}
+            </div>
+          )}
           {lines.length > 0 && (
             <div className="field"><span className="label" id="takes-h">Lines you said more than once</span>
               <span className="hint">I picked the last complete take of each. Pick another one to play it in its place.</span>
