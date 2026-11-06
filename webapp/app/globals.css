@@ -681,6 +681,81 @@ button.attach { background: none; border: 0; font: inherit; font-size: 13px; tex
   .rec-live .small { flex-basis: 100%; }
 }
 
+/* ---------- film it here: camera + teleprompter (components/FilmRecorder.tsx) ---------- */
+.drop-acts { justify-content: center; }
+.film { position: fixed; inset: 0; z-index: 90; display: grid; grid-template-rows: auto minmax(0, 1fr); background: var(--bg); color: var(--ink);
+  animation: fade .15s ease-out; }
+.film-top { display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--surface); }
+.film-top h2 { display: flex; align-items: center; gap: 8px; font-size: 1.05rem; margin-right: auto; }
+.film-top h2 svg { width: 20px; height: 20px; color: var(--accent-text); }
+.film-state { display: inline-flex; align-items: center; gap: 8px; color: var(--ink-2); }
+.film-body { display: grid; grid-template-columns: minmax(0, 1fr) 380px; min-height: 0; }
+.film-stage { position: relative; min-height: 0; overflow: hidden; background: #000; color: #fff; }
+.film-cam { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; transform: scaleX(-1); background: #000; }
+.film-msg { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 14px; padding: 24px; text-align: center;
+  max-width: 460px; margin: 0 auto; font-size: 15px; }
+.film-msg svg { width: 28px; height: 28px; color: #ffaca4; }
+.film-msg .btn { --b: #fff; --b-h: #e8e8e8; --c: #111; }
+/* the teleprompter: a dimmed band at the top of the picture, right under the camera; the script in white whatever the look */
+.film-stage { --band: 42%; }
+.film-band { position: absolute; left: 0; right: 0; top: 0; height: var(--band); overflow: hidden; cursor: pointer; color: #fff;
+  background: linear-gradient(#000000d9, #000000c4 78%, #0000); }
+.film-band:not(.still) { -webkit-mask-image: linear-gradient(#000 66%, #0000); mask-image: linear-gradient(#000 66%, #0000); }  /* lines fade out below */
+.film-band:focus-visible { box-shadow: inset 0 0 0 3px #fff; }
+.film-mark { position: absolute; left: 6px; z-index: 1; border: 8px solid transparent; border-left: 11px solid #ffd24d; transform: translateY(-50%); }
+.film-text { position: relative; max-width: 34em; margin: 0 auto; padding: 0 28px; font-weight: 650; line-height: 1.32; letter-spacing: -0.005em;
+  text-shadow: 0 1px 2px #000; will-change: transform; overflow-wrap: anywhere; }
+.film-text span.r { color: #ffffff80; }
+.film-text .pb { display: block; height: .45em; }
+.film-band.still { overflow-y: auto; padding: 14px 0 28px; cursor: auto; overscroll-behavior: contain; }
+.film-paused { position: absolute; left: 50%; top: calc(var(--band) + 4px); transform: translateX(-50%); white-space: nowrap; padding: 4px 10px; border-radius: 999px; background: #000000b3; color: #fff;
+  box-shadow: 0 0 0 1px #ffffff40; pointer-events: none; }
+.film-count { position: absolute; inset: 0; display: grid; place-items: center; font: 800 min(38vw, 220px)/1 var(--font-display); color: #fff;
+  text-shadow: 0 6px 40px #000c; pointer-events: none; animation: countpop 1s ease-out both; }
+@keyframes countpop { from { transform: scale(1.35); opacity: 0; } 18% { transform: scale(1); opacity: 1; } to { opacity: .85; } }
+.film-ctrl { position: absolute; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 14px;
+  padding: 28px 16px 18px; background: linear-gradient(#0000, #000000b3); }
+.film-recbtn { display: inline-flex; align-items: center; gap: 12px; min-height: 60px; padding: 0 26px 0 14px; border: 0; border-radius: 999px;
+  background: #fff; color: #111; font: 700 17px/1 var(--font-ui); cursor: pointer; box-shadow: 0 6px 24px #0008; }
+.film-recbtn i { width: 34px; height: 34px; border-radius: 50%; background: #e0261b; transition: border-radius .15s ease, transform .15s ease; }
+.film-recbtn.rec { background: #c8291d; color: #fff; }
+.film-recbtn.rec i { background: #fff; border-radius: 6px; transform: scale(.62); }
+.film-recbtn.count i { background: #555; }
+.film-recbtn:disabled { opacity: .55; cursor: not-allowed; }
+.film-recbtn:focus-visible { box-shadow: 0 0 0 3px #000, 0 0 0 6px #fff; }
+.film-time { font: 700 26px/1 var(--font-ui); color: #fff; text-shadow: 0 1px 3px #000; }
+.film-warn { color: #fff; background: #c8291d; padding: 3px 8px; border-radius: 999px; }
+.film-side { display: grid; align-content: start; gap: 18px; min-height: 0; overflow-y: auto; padding: 18px 18px 0; border-left: 1px solid var(--line);
+  background: var(--surface); }
+.film-side h3 { font-size: 1rem; outline: none; }
+.film-prompt { display: grid; gap: 4px; margin: 0; padding: 14px; border: 1px solid var(--line); border-radius: var(--r-md); min-width: 0; }
+.film-prompt legend { padding: 0 6px; font-weight: 600; font-size: 14px; }
+.film-prompt .field + .field { margin-top: 8px; }
+.film-prompt .check { padding: 4px 0; }
+.film-prompt .row { margin-top: 6px; }
+.film-takes { display: grid; gap: 8px; }
+.film-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.film-take { display: flex; align-items: center; gap: 10px; padding: 6px 6px 6px 12px; border-radius: var(--r-md); background: var(--bg); border: 1px solid var(--line); }
+.film-take > svg { width: 18px; height: 18px; color: var(--accent-text); flex: none; }
+.film-play { width: 100%; max-height: 260px; margin-top: 6px; border-radius: var(--r-sm); background: #000; scroll-margin-bottom: 120px; }
+.film-use { position: sticky; bottom: 0; display: grid; gap: 6px; padding: 14px 0 18px; background: var(--surface); border-top: 1px solid var(--line); }
+.film-use .btn { width: 100%; }
+.film-confirm-back { position: absolute; inset: 0; z-index: 3; display: grid; place-items: center; padding: 16px; background: #000a; }
+.film-confirm { display: grid; gap: 12px; width: min(420px, 100%); padding: 22px; border-radius: var(--r-lg); background: var(--surface); box-shadow: var(--pop); }
+.film-confirm h3 { font-size: 1.1rem; }
+[data-theme="terminal"] .film-recbtn, [data-theme="terminal"] .film-paused { border-radius: 0; }
+@media (max-width: 860px) {
+  /* phones: full screen, portrait. The camera fills most of the screen; the script, teleprompter settings and takes scroll below */
+  .film-body { display: block; overflow-y: auto; }
+  .film-stage { height: calc(100dvh - 128px); min-height: 420px; }
+  .film-side { overflow: visible; border-left: 0; border-top: 1px solid var(--line); padding: 16px 16px 0; }
+  .film-top { padding: 8px 12px; }
+  .film-state { display: none; }
+  .film-stage { --band: 40%; }
+  .film-text { padding: 0 18px; }
+  .film-recbtn { min-height: 56px; font-size: 16px; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 }

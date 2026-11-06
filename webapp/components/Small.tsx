@@ -8,7 +8,7 @@ import { Icon } from "./Icons";
 const IDEAS = ["How I cut my editing time from 3 hours to 20 minutes", "The one setting that made my videos look expensive",
   "3 things I wish I knew before posting my first reel"];
 
-export function Script({ settings }: { settings: Settings }) {
+export function Script({ settings, onFilm }: { settings: Settings; onFilm?: () => void }) {
   const [idea, setIdea] = useState("");
   const [busy, setBusy] = useState(false);
   const [res, setRes] = useState<{ hook: string; script: string; onScreenText: string[] } | null>(null);
@@ -49,6 +49,7 @@ export function Script({ settings }: { settings: Settings }) {
           <div className="row">
             <button className="btn" onClick={async () => { await navigator.clipboard.writeText(`${res.hook}\n\n${res.script}\n\nOn screen:\n${res.onScreenText.join("\n")}`); setCopied(true); }}>
               <Icon name="copy" />{copied ? "Copied" : "Copy script"}</button>
+            {onFilm && <button className="btn primary" onClick={onFilm}><Icon name="camera" />Film it here</button>}
             <button className="btn ghost" onClick={go} disabled={busy}>Write another</button>
           </div>
         </section>

@@ -2,11 +2,12 @@
 import { useEffect, useRef, useState } from "react";
 import { EFFORT, effortOf, type Effort } from "@/lib/effort";
 import { probeVideo } from "@/lib/media";
-import { loadRules } from "@/lib/store";
+import { lastScript, loadRules } from "@/lib/store";
 import { estimate, estimateText } from "@/lib/timings";
 import type { Project, Settings } from "@/lib/types";
-import { createProject, fileMeta, kindOf, listen, makeFirstEdit, REVIEWING } from "@/lib/workflow";
+import { fileMeta, kindOf, makeReel, REVIEWING } from "@/lib/workflow";
 import { EffortPicker } from "./EffortPicker";
+import { FilmPanel } from "./FilmRecorder";
 import { Icon, type IconName } from "./Icons";
 import { RecordScreen } from "./ScreenRecorder";
 import { ScriptBox } from "./ScriptFix";
@@ -21,7 +22,8 @@ const ICON: Record<string, IconName> = { video: "clip", music: "music", image: "
 const size = (b: number) => new Intl.NumberFormat(undefined, { style: "unit", unit: b > 1e9 ? "gigabyte" : "megabyte", maximumFractionDigits: 1 })
   .format(b > 1e9 ? b / 1e9 : b / 1e6);
 
-export function NewVideo({ settings, initial = [], onDone, onSettings, onSaveSettings }: { settings: Settings; initial?: File[];
+export function NewVideo({ settings, initial = [], film = false, onFilmOpened, onDone, onSettings, onSaveSettings }: { settings: Settings;
+  initial?: File[]; film?: boolean; onFilmOpened?: () => void;
   onDone: (p: Project, summary: string) => void; onSettings: () => void; onSaveSettings?: (s: Settings) => void }) {
   const [takes, setTakes] = useState<File[]>([]);
   const [extras, setExtras] = useState<File[]>([]);
@@ -35,7 +37,9 @@ export function NewVideo({ settings, initial = [], onDone, onSettings, onSaveSet
   const [footage, setFootage] = useState(0);
   const [script, setScript] = useState("");
   const effort = picked ?? effortOf(settings);
+  const [filming, setFilming] = useState<{ script: string } | null>(null);
   const input = useRef<HTMLInputElement>(null);
+  const filmBtn = useRef<HTMLButtonElement>(null);
   const hasKey = settings.provider === "anthropic" ? !!settings.anthropicKey : !!settings.openaiKey;
   const canListen = settings.transcriber === "browser" || !!settings.openaiKey;
 
@@ -48,6 +52,9 @@ export function NewVideo({ settings, initial = [], onDone, onSettings, onSaveSet
   }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (initial.length) take(initial, true); }, [initial]);
+  // "Film it here" from Write a script: open the camera with that script on the teleprompter
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { if (film) { setFilming({ script: script.trim() || lastScript() }); onFilmOpened?.(); } }, [film]);
   useEffect(() => {                                   // how long the takes are, for the time estimates
     let live = true;
     void Promise.all(takes.map(async (f) => {
@@ -63,7 +70,8 @@ export function NewVideo({ settings, initial = [], onDone, onSettings, onSaveSet
     return () => window.removeEventListener("beforeunload", warn);
   }, [busy]);
 
-  async function go() {
+  async function go(filmed?: { takes: File[]; script: string }) {
+    const use = filmed ?? { takes, script };
     setBusy(true); setErr(""); setPct(0); setAt(-1);
     const stages = stagesOf(effort);
     const progress = (m: string, p?: number) => {
@@ -74,14 +82,21 @@ export function NewVideo({ settings, initial = [], onDone, onSettings, onSaveSet
     };
     const s = { ...settings, effort };                 // this video's effort; the saved default stays as it is
     try {
-      const p = await createProject(takes, extras, progress);
-      const fixed = await listen(p, s, progress, script);
-      const summary = await makeFirstEdit(p, s, loadRules(), progress);
-      progress("Ready", 100);
-      onDone(p, !fixed ? summary : `${summary} ${fixed.ok ? `Subtitles use your script: ${fixed.message}` : `I kept the words as I heard them: ${fixed.message}`}`);
+      const { project, summary } = await makeReel(use.takes, extras, use.script, s, loadRules(), progress);
+      onDone(project, summary);
     } catch (e) {
       setErr((e as { userMessage?: string }).userMessage ?? (e as Error).message ?? String(e));
     }
+  }
+
+  function closeFilm() { setFilming(null); requestAnimationFrame(() => filmBtn.current?.focus()); }
+  /** "Use these takes": the filmed takes become this video's takes (like a fresh drop) and the teleprompter's script is the
+   *  pasted script, then the reel is made straight away. Without a way to listen yet, they wait here with the key message. */
+  function takeFilmed(files: File[], text: string) {
+    setFilming(null);
+    setTakes(files); setScript(text);
+    if (canListen) void go({ takes: files, script: text });
+    else requestAnimationFrame(() => filmBtn.current?.focus());
   }
 
   if (busy) {
@@ -103,7 +118,7 @@ export function NewVideo({ settings, initial = [], onDone, onSettings, onSaveSet
           </ol>
           {err && <div className="stack mt-16">
             <div className="alert err" role="alert"><Icon name="alert" /><span>{err}</span></div>
-            <div className="row"><button className="btn primary" onClick={go}>Try again</button>
+            <div className="row"><button className="btn primary" onClick={() => void go()}>Try again</button>
               <button className="btn ghost" onClick={() => setBusy(false)}>Back to my files</button></div>
           </div>}
         </section>
@@ -126,7 +141,11 @@ export function NewVideo({ settings, initial = [], onDone, onSettings, onSaveSet
           <Icon name="upload" className="big" />
           <h2>Drop your video here</h2>
           <p className="muted small">One or more takes (MP4, MOV, WebM). Add a song, pictures or clips and the editor can use them.</p>
-          <button className="btn" onClick={() => input.current?.click()}>Choose files</button>
+          <div className="row drop-acts">
+            <button className="btn" onClick={() => input.current?.click()}>Choose files</button>
+            <button ref={filmBtn} className="btn" aria-haspopup="dialog" onClick={() => setFilming({ script })}><Icon name="camera" />Film it here</button>
+          </div>
+          <p className="small faint">Film it here: your camera, with your script scrolling as a teleprompter.</p>
           <input ref={input} type="file" multiple hidden accept="video/*,audio/*,image/*" onChange={(e) => e.target.files && take(e.target.files)} />
         </div>
 
@@ -161,12 +180,13 @@ export function NewVideo({ settings, initial = [], onDone, onSettings, onSaveSet
         </div>
 
         <div className="row">
-          <button className="btn primary lg" disabled={!takes.length || !canListen} onClick={go}><Icon name="wand" />Make my reel</button>
+          <button className="btn primary lg" disabled={!takes.length || !canListen} onClick={() => void go()}><Icon name="wand" />Make my reel</button>
           {files.length > 0 && <button className="btn ghost" onClick={() => { setTakes([]); setExtras([]); }}>Clear</button>}
         </div>
         <p className="small faint">Videos in your first drop are your takes; videos you add after that, and screen recordings, become b-roll clips. Only use music and pictures you own or
           are licensed to use.</p>
       </div>
+      {filming && <FilmPanel initialScript={filming.script} onClose={closeFilm} onUse={takeFilmed} />}
     </div>
   );
 }

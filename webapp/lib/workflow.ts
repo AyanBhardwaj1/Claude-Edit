@@ -25,9 +25,31 @@ export function kindOf(f: File): Asset["kind"] | "take" | null {
   return null;
 }
 
-export async function createProject(takes: File[], extras: File[], onProgress: Progress): Promise<Project> {
-  const p: Project = { id: uid(), title: takes[0].name.replace(/\.\w+$/, "").replace(/[_-]+/g, " "), createdAt: new Date().toISOString(),
+/** A filmed take's name says nothing ("Take 1.webm"): then the video is called after the script's first line. */
+const GENERIC = /^take \d+\.\w+$/i;
+
+/** The title for a new video: the first take's file name, or for takes filmed in Cutmind the script's first line. */
+export function titleFor(takes: { name: string }[], script = ""): string {
+  const first = script.split("\n").map((l) => l.trim()).find(Boolean) ?? "";
+  if (first && GENERIC.test(takes[0]?.name ?? "")) {
+    if (first.length <= 60) return first;
+    const cut = first.slice(0, 60);
+    return `${cut.slice(0, cut.lastIndexOf(" ") > 30 ? cut.lastIndexOf(" ") : 60).replace(/[\s,;:.!?-]+$/, "")}…`;
+  }
+  return (takes[0]?.name ?? "New video").replace(/\.\w+$/, "").replace(/[_-]+/g, " ");
+}
+
+/** An empty project for these takes. A script (pasted, or the teleprompter's from "Film it here") rides along so the
+ *  listen step applies it, and "Paste your script" in Subtitles starts from it. */
+export function blankProject(takes: { name: string }[], script = ""): Project {
+  const p: Project = { id: uid(), title: titleFor(takes, script), createdAt: new Date().toISOString(),
     updatedAt: "", sources: [], words: [], library: [], versions: [], current: 0, status: "new" };
+  if (script.trim()) p.script = script.trim();
+  return p;
+}
+
+export async function createProject(takes: File[], extras: File[], onProgress: Progress, script = ""): Promise<Project> {
+  const p = blankProject(takes, script);
   for (const [i, f] of takes.entries()) {
     onProgress("Copying your video", 2);
     const key = `${p.id}:take${i}`;
@@ -208,6 +230,18 @@ export async function makeFirstEdit(p: Project, s: Settings, rules: StyleRule[],
   p.status = "edited";
   await saveProject(p);
   return summary;
+}
+
+/** New video, start to finish: copy the takes in, listen (applying the script to the subtitles), make the first edit.
+ *  Dropped takes and takes filmed with "Film it here" both come through here. `steps` is for the tests. */
+export async function makeReel(takes: File[], extras: File[], script: string, s: Settings, rules: StyleRule[], onProgress: Progress,
+  steps = { createProject, listen, makeFirstEdit }): Promise<{ project: Project; summary: string }> {
+  const p = await steps.createProject(takes, extras, onProgress, script);
+  const fixed = await steps.listen(p, s, onProgress, script);
+  const summary = await steps.makeFirstEdit(p, s, rules, onProgress);
+  onProgress("Ready", 100);
+  return { project: p, summary: !fixed ? summary
+    : `${summary} ${fixed.ok ? `Subtitles use your script: ${fixed.message}` : `I kept the words as I heard them: ${fixed.message}`}` };
 }
 
 /** The progress line while Best quality runs its review pass. */
