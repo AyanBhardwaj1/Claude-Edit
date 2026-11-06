@@ -20,3 +20,4 @@ library/sfx/
 launches/*
 .claude/skills/launch-video/engine/node_modules/
 .claude/skills/launch-video/.env
+.claude/worktrees/
