@@ -31,7 +31,7 @@ import { Shortcuts } from "./Shortcuts";
 import { VoiceNote } from "./VoiceNote";
 import { declineLearned, learnFromExport } from "@/lib/learn";
 
-type Msg = { who: "you" | "ed"; text: string; rule?: string; changes?: Change[]; learned?: boolean };
+type Msg = { who: "you" | "ed"; text: string; rule?: string; changes?: Change[]; learned?: boolean; v?: number };
 
 export function Editor({ project, settings, firstSummary, onBack, onOpenProject, onOpenAnim }: { project: Project; settings: Settings; firstSummary?: string;
   onBack: () => void; onOpenProject?: (p: Project, summary: string) => void; onOpenAnim?: (id: string) => void }) {
@@ -44,7 +44,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
   const [dur, setDur] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [msgs, setMsgs] = useState<Msg[]>(() => (firstSummary ? [{ who: "ed", text: firstSummary }] :
-    project.versions.map((v, i) => ({ who: "ed" as const, text: `Version ${v.n}: ${v.summary}`,
+    project.versions.map((v, i) => ({ who: "ed" as const, text: `Version ${v.n}: ${v.summary}`, v: v.n,
       changes: i > 0 ? changeItems(project, project.versions[i - 1].edit, v.edit) : undefined }))));
   const [note, setNote] = useState("");
   useEffect(() => {                                   // the note box grows with what's in it (up to its max height)
@@ -226,9 +226,16 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
       const always = /\b(always|from now on|every (video|time)|remember|next time|never again)\b/i.test(text);
       if (r.styleRule && always) addRule(r.styleRule);
       setMsgs((m) => [...m, { who: "ed", text: `Version ${p.current}: ${r.summary}` + (r.styleRule && always ? " I'll remember that for next time." : ""),
-        rule: r.styleRule && !always ? r.styleRule : undefined, changes: changeItems(p, before, after) }]);
+        rule: r.styleRule && !always ? r.styleRule : undefined, changes: changeItems(p, before, after), v: p.current }]);
       return true;
     } catch (e) { setErr((e as { userMessage?: string }).userMessage ?? String(e)); return false; }
+  }
+
+  /** Back to an earlier version; the newer one stays in the versions list (nothing is deleted). */
+  function undoTo(n: number) {
+    const from = p.current;
+    p.current = n;
+    void saveProject(p).then(() => { setP({ ...p }); setToast(`Back to version ${n}. Version ${from} is still in your versions.`); });
   }
 
   /** Put the player on a word of the version on screen (a change's place), or say it isn't in this version. */
@@ -528,6 +535,9 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
                 <div key={i} className={`msg ${m.who}`}>
                   <span className="who-said">{m.who === "you" ? "You" : "Your editor"}</span>
                   <span>{m.text}</span>
+                  {m.v !== undefined && m.v === p.current && prevN !== null && !busy && (
+                    <button type="button" className="btn ghost sm undo-btn" onClick={() => undoTo(prevN)}>
+                      <Icon name="undo" />Undo this</button>)}
                   {m.changes && (m.changes.length
                     ? <ul className="changes small" aria-label={`What changed in this version, measured`}>{m.changes.map((c, k) => <li key={k}>{c.at
                       ? <button type="button" className="linkish" onClick={() => jumpTo(c.at!)} title="Show me where">{c.text}</button>
