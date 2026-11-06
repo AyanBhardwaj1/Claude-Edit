@@ -77,12 +77,14 @@ def _number_run(tokens: list[str], raws: list[str] | None = None) -> tuple[int, 
     ("two, three ideas"), and a number followed by "point" is left as words ("one point five")."""
     raws = raws or []
     total, cur, used, last = 0, 0, 0, None
+    before_and = None          # the run as it stood before an "and": "two hundred and three hundred" is two numbers
     i = 0
     while i < len(tokens):
         t, k = tokens[i], _kind(tokens[i])
         if i > 0 and re.search(r"[,.;:!?]$", raws[i - 1] if i - 1 < len(raws) else ""):
             break
         if t == "and" and last == "scale" and i + 1 < len(tokens) and _kind(tokens[i + 1]) in ("ones", "teen", "tens"):
+            before_and = (total, cur, used)
             i += 1                                    # "two hundred and fifty"
             used += 1
             continue
@@ -96,6 +98,11 @@ def _number_run(tokens: list[str], raws: list[str] | None = None) -> tuple[int, 
                 if rest and 10 <= rest[0] <= 99 and not any(x in SCALES for x in tokens[i:i + rest[1]]):
                     nxt = tokens[i + rest[1]] if i + rest[1] < len(tokens) else ""
                     return None if nxt == "point" else (cur * 100 + rest[0], used + rest[1], True)
+            break
+        if k == "scale" and before_and is not None:   # "...and three hundred": the "and" joined two numbers
+            total, cur, used = before_and
+            break
+        if k == "scale" and SCALES[t] < 1000 and cur >= SCALES[t]:   # "two hundred three hundred": a new number
             break
         if k == "scale":
             cur = max(cur, 1) * SCALES[t]

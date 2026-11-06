@@ -52,6 +52,10 @@ def transcribe(paths: list[str], out_dir: str | Path, model: str = "small", lang
             raise EditorError(f"{path} has no audio track to transcribe")
         variant = {c: _variant(c, model, language, glossary, num_speakers) for c in candidates}
         cached = _find_cache(cache_dir, path, candidates, variant)
+        if not cached and not any(_variant(c, model, language, None, num_speakers) for c in candidates):
+            # a transcript cached before variants existed (the default model and language): its glossary was the
+            # shipped one, so it still stands rather than re-transcribing every existing project once
+            cached = _find_cache(cache_dir, path, candidates)
         if cached:
             data = load_json(cached)
             log(f"[{idx}] cached transcript ({data['engine']}): {cached.name}")
@@ -87,7 +91,7 @@ def _cache_key(path) -> str:
 
 def _variant(engine: str, model: str, language: str | None, glossary: list[str] | None, num_speakers: int | None) -> str:
     """What else changes an engine's transcript: the model (Whisper engines), a forced language, glossary names,
-    the speaker count (Scribe). Empty for the defaults, so caches made before this keep working."""
+    the speaker count (Scribe). Caches from before variants (default model and language) are still found."""
     parts = []
     if engine in ("whisperx", "faster-whisper") and model != "small":
         parts.append(f"m={model}")

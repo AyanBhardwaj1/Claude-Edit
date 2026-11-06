@@ -43,11 +43,12 @@ function numberRun(tokens: string[], raws: string[] = []): [number, number, bool
   type Kind = "ones" | "teen" | "tens" | "scale" | null;
   const kindOf = (t: string): Kind => t in TENS ? "tens" : t in SCALES ? "scale" : t in ONES ? (ONES[t] >= 10 ? "teen" : "ones") : null;
   let total = 0, cur = 0, used = 0, last: Kind = null;
+  let beforeAnd: [number, number, number] | null = null;      // "two hundred and three hundred" is two numbers
   for (let i = 0; i < tokens.length; i++) {
     const t = tokens[i], k = kindOf(t);
     if (i > 0 && /[,.;:!?]$/.test(raws[i - 1] ?? "")) break;          // "two, three ideas"
     if (t === "and" && last === "scale" && i + 1 < tokens.length && ["ones", "teen", "tens"].includes(kindOf(tokens[i + 1]) ?? "")) {
-      used++; continue;                                              // "two hundred and fifty"
+      beforeAnd = [total, cur, used]; used++; continue;              // "two hundred and fifty"
     }
     if (!k) break;
     const ok = last === null ? k !== "scale" || false
@@ -63,6 +64,8 @@ function numberRun(tokens: string[], raws: string[] = []): [number, number, bool
       }
       break;
     }
+    if (k === "scale" && beforeAnd) { [total, cur, used] = beforeAnd; break; }   // "...and three hundred": two numbers
+    if (k === "scale" && SCALES[t] < 1000 && cur >= SCALES[t]) break;            // "two hundred three hundred"
     if (k === "scale") { cur = Math.max(cur, 1) * SCALES[t]; if (SCALES[t] >= 1000) { total += cur; cur = 0; } }
     else cur += k === "tens" ? TENS[t] : ONES[t];
     last = k; used++;

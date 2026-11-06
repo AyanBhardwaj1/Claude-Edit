@@ -251,6 +251,13 @@ def broll_add(files: list[str], category: str, tags: list[str] | None = None, de
             k += 1
         if target.resolve() != src.resolve():          # re-indexing a file already in the library: nothing to copy
             shutil.copy2(src, target)   # copy, never move: raw/ is read-only by rule
+        else:
+            known = next((c for c in db["clips"] if c.get("file") == str(target.relative_to(ROOT))), None)
+            if known:                                  # already listed: update it rather than add a second entry
+                known.update({"category": _slug(category), "tags": tags or known.get("tags", []),
+                              "description": description or known.get("description", "")})
+                added.append(known)
+                continue
         info = probe(target)
         v = info.get("video", {})
         clip = {"id": _unique_id({c["id"] for c in db["clips"]}, _slug(src.stem)), "file": str(target.relative_to(ROOT)),

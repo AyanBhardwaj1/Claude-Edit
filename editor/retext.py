@@ -42,6 +42,19 @@ def _parse(text: str) -> dict[int | None, list[str]]:
     return by_src
 
 
+def _spread(out: list[dict], tokens: list[str], start: float, end: float, base: dict) -> None:
+    """New words over [start, end] in proportion to their length (a little room when the span is empty)."""
+    if end <= start:
+        end = start + 0.05 * len(tokens)
+    weights = [len(t) + 1 for t in tokens]
+    total, acc = sum(weights), 0.0
+    for t, wgt in zip(tokens, weights):
+        s = start + (end - start) * acc / total
+        acc += wgt
+        e = start + (end - start) * acc / total
+        out.append(dict(base, start=round(s, 3), end=round(e, 3), text=t, prob=0.9, retext=True))
+
+
 def align(old: list[dict], new_tokens: list[str]) -> list[dict]:
     a = [_norm(w["text"]) for w in old]
     b = [_norm(t) for t in new_tokens]
@@ -55,11 +68,23 @@ def align(old: list[dict], new_tokens: list[str]) -> list[dict]:
             continue
         else:  # replace / insert: spread the new words over the old span (or the gap)
             if i2 > i1:
-                # never across two clips: the new words take the first clip's part of the span
-                last = max(k for k in range(i1, i2) if old[k].get("src") == old[i1].get("src"))
-                start, end = old[i1]["start"], old[last]["end"]
-                base = dict(old[i1])
-            elif i1 < len(old) and (i1 == 0 or old[i1 - 1].get("src") != old[i1].get("src")):
+                # never across two clips: each clip's run of old words gets a share of the new ones by its size
+                groups, k = [], i1
+                while k < i2:
+                    g = k
+                    while g + 1 < i2 and old[g + 1].get("src") == old[k].get("src"):
+                        g += 1
+                    groups.append((k, g))
+                    k = g + 1
+                toks, left = new_tokens[j1:j2], i2 - i1
+                for n, (ga, gb) in enumerate(groups):
+                    size = gb - ga + 1
+                    take = len(toks) if n == len(groups) - 1 else round(len(toks) * size / left)
+                    part, toks, left = toks[:take], toks[take:], left - size
+                    if part:
+                        _spread(out, part, old[ga]["start"], old[gb]["end"], dict(old[ga]))
+                continue
+            if i1 < len(old) and (i1 == 0 or old[i1 - 1].get("src") != old[i1].get("src")):
                 # words added at the start of a clip: just before its first word, in that clip's own time
                 end = old[i1]["start"]
                 start = max(0.0, end - 0.3 * (j2 - j1))
@@ -68,15 +93,7 @@ def align(old: list[dict], new_tokens: list[str]) -> list[dict]:
                 start = old[i1 - 1]["end"] if i1 > 0 else (old[0]["start"] if old else 0.0)
                 end = old[i1]["start"] if i1 < len(old) else start + 0.3 * (j2 - j1)
                 base = dict(old[min(i1, len(old) - 1)]) if old else {"src": 0}
-            if end <= start:
-                end = start + 0.05 * (j2 - j1)
-            weights = [len(t) + 1 for t in new_tokens[j1:j2]]
-            total, acc = sum(weights), 0.0
-            for t, wgt in zip(new_tokens[j1:j2], weights):
-                s = start + (end - start) * acc / total
-                acc += wgt
-                e = start + (end - start) * acc / total
-                out.append(dict(base, start=round(s, 3), end=round(e, 3), text=t, prob=0.9, retext=True))
+            _spread(out, new_tokens[j1:j2], start, end, base)
     return out
 
 
