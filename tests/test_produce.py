@@ -103,6 +103,8 @@ def test_tiny_production_end_to_end(tmp_path):
     assert info["video"]["width"] == 320 and info.get("has_audio")
     rv = res["review"]
     assert rv["music_under_voice"] and rv["music_under_voice"][0]["gap_db"] is not None     # measured from the stems
+    assert rv["longest_still"]["seconds"] == pytest.approx(2.0, abs=0.05)   # pieces of 2.0, 1.5 (+punch), 1.0 s
+    assert rv["graphics_on_faces"] == []                                    # no faces in test patterns
     assert rv["duration"] == pytest.approx(4.5, abs=0.1) and Path(rv["contact_sheet"]).exists()
     assert any("voice v" in i for i in rv["issues"])        # the voice has no captions: flagged
     hl = probe(Path(res["extras"][2]))

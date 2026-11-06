@@ -788,6 +788,49 @@ def music_gaps(spec: Spec, win: float = 0.4) -> list[dict]:
     return out
 
 
+def _graphics_on_faces(spec: Spec, els: list[dict], dur: float, limit: float = 0.15) -> list[dict]:
+    """At each graphic's mid-time: faces (OpenCV) in the clean base picture vs the overlay's alpha over them."""
+    import subprocess
+    import cv2
+    import numpy as np
+    base = spec.work / "base.mp4"
+    ovs = sorted(spec.work.glob("overlay.*.mov"), key=lambda p: p.stat().st_mtime)
+    ovs = [p for p in ovs if ".part." not in p.name]
+    if not base.exists() or not ovs or not hasattr(cv2, "CascadeClassifier"):
+        return []
+    ov = ovs[-1]
+    face = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
+    W, H = spec.w, spec.h
+    hits, seen = [], set()
+    for e in els:
+        if e.get("type") in ("caption", "flash", "logo_sting", "end_card", "shimmer") or e.get("t_in") is None:
+            continue
+        t0 = float(e["t_in"])
+        t1 = float(e.get("t_out", t0 + 3.5) or t0 + 3.5)
+        t = min((t0 + t1) / 2, t0 + 1.5, dur - 0.05)
+        if round(t) in seen:
+            continue
+        seen.add(round(t))
+
+        def grab(src, fmt, ch):
+            raw = subprocess.run(["ffmpeg", "-v", "error", "-ss", f"{t:.3f}", "-i", str(src), "-frames:v", "1",
+                                  "-f", "rawvideo", "-pix_fmt", fmt, "-"], capture_output=True).stdout
+            return np.frombuffer(raw, np.uint8).reshape(H, W, ch) if len(raw) == W * H * ch else None
+
+        img, rgba = grab(base, "gray", 1), grab(ov, "rgba", 4)
+        if img is None or rgba is None:
+            continue
+        small = cv2.resize(img[:, :, 0], (W // 2, H // 2))
+        for (x, y, w, h) in face.detectMultiScale(small, 1.1, 6, minSize=(W // 30, W // 30)):
+            x, y, w, h = (int(v * 2) for v in (x, y, w, h))
+            alpha = rgba[y:y + h, x:x + w, 3]
+            share = float((alpha > 96).mean()) if alpha.size else 0.0
+            if share > limit:
+                hits.append({"t": round(t, 1), "covered_pct": round(100 * share), "element": e.get("type"),
+                             "face": [x, y, w, h]})
+    return hits
+
+
 def review(spec: Spec, final: Path | None = None) -> dict:
     """What a human checks before sending a draft: length vs target, loudness, captions on every spoken line,
     graphics ending inside the video, and a frame at every graphic (sheets to Read)."""
@@ -859,6 +902,23 @@ def review(spec: Spec, final: Path | None = None) -> dict:
     late = [e for e in els if float(e.get("t_out", e.get("t_in", 0)) or 0) > dur + 0.05]
     if late:
         issues.append(f"{len(late)} overlay element(s) end after the video")
+    # pacing: the longest stretch with nothing new on screen (a new piece, a push/punch, or a graphic arriving)
+    changes = sorted({0.0, spec.total, *[spec.starts[pc["name"]][0] for pc in spec.pieces],
+                      *[spec.starts[pc["name"]][0] + float(pc["punch"][0]) for pc in spec.pieces if pc.get("punch")],
+                      *[spec.starts[pc["name"]][0] + float(pc["push"][0]) for pc in spec.pieces if pc.get("push")],
+                      *[float(e["t_in"]) for e in els if e.get("type") != "caption" and e.get("t_in") is not None],
+                      *[float(t) for e in els for t in e.get("times", []) or []],
+                      *[float(ln["t"]) for e in els for ln in e.get("lines", []) or [] if isinstance(ln, dict) and "t" in ln]})
+    still = max(((b_ - a_, a_) for a_, b_ in zip(changes, changes[1:])), default=(0.0, 0.0))
+    rep["longest_still"] = {"seconds": round(still[0], 1), "at": round(still[1], 1)}
+    limit = float(spec.data.get("output", {}).get("max_still", 7.0))
+    if still[0] > limit:
+        issues.append(f"{still[0]:.1f} s with nothing new on screen from {still[1]:.1f} s (a punch-in, a graphic or "
+                      "a shorter piece would help)")
+    # graphics over faces: faces found in the clean picture, overlay pixels on top of them
+    rep["graphics_on_faces"] = _graphics_on_faces(spec, els, dur)
+    for g in rep["graphics_on_faces"]:
+        issues.append(f"a graphic covers {g['covered_pct']}% of a face at {g['t']:.1f} s")
     # frames at every graphic (not captions), deduped to one per second
     times, seen = [], set()
     for e in sorted(els, key=lambda x: float(x.get("t_in", 0) or 0)):
@@ -883,6 +943,8 @@ def review(spec: Spec, final: Path | None = None) -> dict:
     rep["issues"] = issues
     (out / "review.json").write_text(json.dumps(rep, indent=1))
     lines = [f"# Review of {final.name}", "", f"- length {rep['duration']} s, {rep['lufs']} LUFS, peak {rep['peak']} dBFS",
+             f"- longest stretch with nothing new: {rep['longest_still']['seconds']} s at {rep['longest_still']['at']} s",
+             f"- graphics over faces: {len(rep['graphics_on_faces'])}",
              *[f"- captions on {c['voice']}: {c['covered_pct']}%" for c in cover],
              *[f"- music under {g['voice']}: {g['gap_db']} dB (worst 10%: {g['worst_db']} dB)" for g in gaps
                if g["gap_db"] is not None], "",

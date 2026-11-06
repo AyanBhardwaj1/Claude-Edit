@@ -85,7 +85,8 @@ python3 -m editor produce projects/<name>/produce.json --only mix  # after an au
 `editor produce` ends with a review (`work/produce/review/review.md`): length vs target, loudness, caption coverage
 of every voice (a voice under 60% is flagged: the Walk-Free draft missed the app's spoken Spanish answer), how far
 the music sits under each voice in the speech band (median under 9 dB is flagged; the approved Walk-Free mix had
-skits at about 25 dB and voice-overs at 10-17 dB), late
+skits at about 25 dB and voice-overs at 10-17 dB), the longest stretch with nothing new on screen (over 7 s is
+flagged), graphics covering a face (faces found in the clean picture, overlay pixels on them), late
 graphics, a contact sheet and a frame at every graphic. With `"brief": "BRIEF.md"` in the spec it also flags any
 number on screen that isn't in the brief; list numbers you read off the app's screen in `"numbers_from_screen"`. Read all of it, then look further yourself:
 Contact sheet every ~5 s and frames at every graphic; Read them. Fix overlaps, unreadable text, covered faces, wrong
