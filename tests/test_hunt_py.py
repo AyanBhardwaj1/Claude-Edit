@@ -334,3 +334,11 @@ def test_fit_cuts_the_least_gripping_lines_never_hook_ending_or_list(tmp_path, c
     assert main(["fit", str(work), "--under", "5"]) == 0
     out = capsys.readouterr().out
     assert "normal week" not in out and "weather" not in out and "still over" in out
+
+
+def test_pacing_reports_habit_words_from_two():
+    from editor.review import _habits
+    say = lambda text: [{"id": f"w{i}", "text": t, "start": i * 0.4, "end": i * 0.4 + 0.3} for i, t in enumerate(text.split())]  # noqa: E731
+    assert _habits(say("It is basically done, you know, and it works.")) == \
+        '"basically" x1, "you know" x1: offer to cut them (editor habits <work> --only ... --apply)'
+    assert _habits(say("It is basically done and it works.")) is None

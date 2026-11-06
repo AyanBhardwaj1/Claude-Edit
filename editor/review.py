@@ -276,6 +276,19 @@ def _strong(words: list[dict], edl: dict) -> str | None:
     return f"{len(said)} strong word(s) ({first}): if the user wants it brand-safe, EDL \"bleep\": true"
 
 
+def _habits(words: list[dict]) -> str | None:
+    """Words said out of habit in the cut (two or more): "basically" x3, "you know" x1. Cutting them is the user's
+    call (editor habits)."""
+    from .habits import find
+    out = [{**w, "src": 0} for w in words if "start" in w and "end" in w]
+    found = find(out, [{"src": 0, "start": float("-inf"), "end": float("inf")}])
+    total = sum(len(f["hits"]) for f in found)
+    if total < 2:
+        return None
+    said = ", ".join(f'"{f["name"]}" x{len(f["hits"])}' for f in found[:4])
+    return f"{said}: offer to cut them (editor habits <work> --only ... --apply)"
+
+
 def stillness_zooms(gaps: list[str], words: list[dict], every: float = 6.0, limit: int | None = None) -> list[dict]:
     """Word-anchored zooms for the bare-face stretches pacing reports ("1.0-9.0s"): one about every 6 s (the doctrine's
     one emphasis zoom every 4-8 s, and no more than 10 a minute), on the word being said there and held ~1.5 s,
@@ -422,5 +435,5 @@ def pacing(edl: dict, words: list[dict], duration: float, cuts: list[float] | No
             "visuals_under_1_2s": too_short, "named_not_shown": names[:20],
             "broll_moments": None if len(broll) >= want else f"{len(broll)} (hand edits carry about {round(duration / 6)})",
             "first_word_after_0_6s": late, "no_hook_title": None if has_title else "nothing to read in the first second",
-            "strong_language": _strong(words, edl),
+            "strong_language": _strong(words, edl), "habit_words": _habits(words),
             "opens_with_warm_up": warm, "stronger_line_for_a_cold_open": stronger_opening(words), "hook_too_quick_to_read": quick, "loop_seam": loop}
