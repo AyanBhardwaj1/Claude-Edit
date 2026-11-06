@@ -217,13 +217,14 @@ export class Camera {
     return { width: st?.width ?? 0, height: st?.height ?? 0 };
   }
 
-  record() {
-    if (!this.stream || this.recording) return;
+  /** Start a take; false when the browser couldn't (the error went to onError), so the panel doesn't show "recording". */
+  record(): boolean {
+    if (!this.stream || this.recording) return false;
     const audio = this.stream.getAudioTracks().length > 0;
     this.mime = chooseMimeType((t) => MediaRecorder.isTypeSupported(t) && (audio || !/opus|mp4a/.test(t)));
     try {
       this.rec = new MediaRecorder(this.stream, { ...(this.mime ? { mimeType: this.mime } : {}), videoBitsPerSecond: 8_000_000, audioBitsPerSecond: 128_000 });
-    } catch (e) { this.o.onError(cameraErrorMessage(e)); return; }
+    } catch (e) { this.o.onError(cameraErrorMessage(e)); return false; }
     this.mime = this.rec.mimeType || this.mime;
     this.chunks = [];
     this.discard = false;
@@ -236,7 +237,7 @@ export class Camera {
       if (!this.discard) this.o.onTake({ blob, mime: baseType(this.mime), duration });
     };
     rec.onerror = (ev) => { this.o.onError(cameraErrorMessage((ev as unknown as { error?: unknown }).error ?? ev)); this.stop(); };
-    rec.start(1000);
+    try { rec.start(1000); } catch (e) { this.o.onError(cameraErrorMessage(e)); this.rec = undefined; return false; }
     this.since = performance.now();
     this.until = 0;
     const max = this.o.maxSeconds ?? MAX_TAKE_SECONDS;
@@ -245,6 +246,7 @@ export class Camera {
       this.o.onTick?.(t);
       if (t >= max) { this.o.onMaxed?.(); this.stop(); }
     }, 200);
+    return true;
   }
 
   /** End the take and keep it (onTake gets the file's blob). */
