@@ -130,7 +130,9 @@ vertical reel with a cover and a post caption, then change it by typing notes. E
     (pictures and music play as they are), or a note like "speed it up 10%"; every word, subtitle and picture stays on
     its words (`speed` in the edit, `srcAt`/`outAt` in `lib/timeline.ts`).
 36. **Before you post**: the export panel sums up the reel check, the scroll and loop tests, the app buttons, names
-    not shown and strong language, and says how many need a look.
+    not shown and strong language, and says how many need a look. **Fix what I can** applies every fix that doesn't
+    change what is said or shown as one version (subtitles on, the warm-up cut, zooms where the picture sits still,
+    subtitles raised clear of the app buttons); bleeps, logos and a cold open stay your call (`lib/autofix.ts`).
 
 ## Privacy and keys
 - Videos never leave the browser: they're processed on the user's computer and kept in IndexedDB.

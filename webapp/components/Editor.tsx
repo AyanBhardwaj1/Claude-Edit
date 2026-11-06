@@ -31,6 +31,7 @@ import { attention, spotsNote, zoomsFor, type Attention } from "@/lib/attention"
 import { openWith, strongestLine, type Line } from "@/lib/coldopen";
 import { swears } from "@/lib/bleep";
 import { buildTimeline } from "@/lib/timeline";
+import { fixWhatICan } from "@/lib/autofix";
 import { namedNotShown, type Name } from "@/lib/names";
 import { findPicture } from "@/lib/images";
 import { maskWord } from "@/lib/text";
@@ -681,10 +682,18 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
                       ...(swore.length ? [[swore.every((x) => bleeped.has(x.id)), swore.every((x) => bleeped.has(x.id)) ? "Strong language bleeped" : `${swore.length} strong word${swore.length > 1 ? "s" : ""}, not bleeped`] as [boolean, string]] : []),
                     ];
                     const todo = items.filter(([ok]) => !ok).length;
+                    // the fixes that don't change what is said or shown (lib/autofix.ts); bleeps, logos, the cold open stay yours
+                    const fix = todo ? fixWhatICan(p, version.edit, fmt === "9:16") : null;
                     return (
                       <div className="before-post">
                         <p className="small"><b>Before you post</b> <span className="muted">{todo ? `${todo} thing${todo > 1 ? "s" : ""} to look at (beside the video)` : "everything checks out"}</span></p>
                         <ul>{items.map(([ok, text]) => <li key={text} className={ok ? "ok" : "bad"}><Icon name={ok ? "check" : "alert"} />{text}</li>)}</ul>
+                        {fix && <button type="button" className="btn sm mt-8" disabled={recording || cmp} onClick={async () => {
+                          const before = version.edit;
+                          await saveManual(p, fix.edit, "fix what I can"); setP({ ...p }); setExp(null);
+                          setMsgs((m) => [...m, { who: "ed", v: p.current, text: `Version ${p.current}: ${fix.done.join("; ")}. Export again when you're happy with it.`,
+                            changes: changeItems(p, before, fix.edit) }]);
+                        }}><Icon name="wand" />Fix what I can</button>}
                       </div>);
                   })()}
                   <div className="row"><button className="btn ghost sm" onClick={() => { setExp(null); void exportAll(); }}>Also make every shape (4 files, about {Math.ceil(4 * dur / 60)} min)</button>
