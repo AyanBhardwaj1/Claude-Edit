@@ -35,3 +35,15 @@ test("the first word is timed on the edited reel, not the raw clip", () => {
   const r = scrollTest(buildTimeline(ws, e, [15]), e);
   assert.ok(r.lines.find((l) => l.id === "read")!.ok);
 });
+
+test("the loop: a sign-off or dead air at the end fails, a clean last word passes", async () => {
+  const { loopCheck } = await import("../lib/scrolltest");
+  const e = edit();
+  const clean = buildTimeline(say("rent is the biggest bill you pay and here is how"), e, [10]);
+  assert.ok(loopCheck(clean).ok);
+  const bye = buildTimeline(say("here is how to save money thanks for watching bye now"), e, [10]);
+  assert.match(loopCheck(bye).text, /sign-off/);
+  const ws = [...say("rent is the biggest bill you pay and here is how"), { id: "w10", src: 0, s: 4, e: 6.5, w: " " }];   // a kept silent stretch
+  const quiet = buildTimeline(ws, { ...e, keep: [{ from: "w0", to: "w10" }] }, [10]);
+  assert.match(loopCheck(quiet).text, /s of nothing after the last word/);
+});

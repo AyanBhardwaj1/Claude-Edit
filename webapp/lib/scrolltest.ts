@@ -7,7 +7,7 @@ import { spanOf, type Timeline } from "./timeline";
 import type { Edit } from "./types";
 
 export const SCROLL_SECONDS = 3;
-export type ScrollLine = { id: "hook" | "read" | "moves" | "open"; ok: boolean; text: string; fix?: string };
+export type ScrollLine = { id: "hook" | "read" | "moves" | "open" | "loop"; ok: boolean; text: string; fix?: string };
 
 const WEAK = ["so", "um", "uh", "okay", "ok", "hey", "hi", "hello", "today", "alright", "well", "like"];
 
@@ -38,4 +38,22 @@ export function scrollTest(tl: Timeline, e: Edit): { lines: ScrollLine[]; passed
     ? { id: "open", ok: false, text: `It opens with “${first.w.trim()}”: a warm-up, not the point.`, fix: "In Edit it myself → Cut, click the first words to cut them." }
     : { id: "open", ok: true, text: "The first word is already the point." });
   return { lines, passed: lines.filter((l) => l.ok).length };
+}
+
+/** The loop: a reel replays itself, so the last second runs straight into the first. Dead air or a trailing goodbye at
+ *  the end is where people swipe instead of watching it again. */
+export const LOOP_TAIL = 2.5, LOOP_HEAD = 2;
+const GOODBYE = /\b(bye|see you|thanks for watching|that's it|peace|follow for more|subscribe)\b/i;
+
+export function loopCheck(tl: Timeline): ScrollLine & { id: "loop" } {
+  const spoken = tl.words.filter((w) => w.w.trim());
+  const last = spoken[spoken.length - 1];
+  if (!last) return { id: "loop", ok: false, text: "Nothing is said, so there's nothing to loop.", fix: "Bring some words back (Edit it myself → Cut)." };
+  const air = tl.duration - last.oe;
+  const tail = spoken.filter((w) => w.os >= tl.duration - 3).map((w) => w.w.trim()).join(" ");
+  if (GOODBYE.test(tail)) return { id: "loop", ok: false, text: `It ends on “${tail.split(" ").slice(-4).join(" ")}”: a sign-off tells people to swipe.`,
+    fix: "End on your last real point: cut the sign-off (Edit it myself → Cut)." };
+  if (air > 0.6) return { id: "loop", ok: false, text: `${air.toFixed(1)} s of nothing after the last word before it starts again.`,
+    fix: "Cut the quiet ending, or lower the longest pause kept (Edit it myself → Cut)." };
+  return { id: "loop", ok: true, text: "It goes straight from the last word back to the hook: easy to watch twice." };
 }
