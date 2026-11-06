@@ -92,8 +92,8 @@ const mmss = (t: number) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).
 
 /** The weak spots as a note for the AI editor, with times it pins to the words there (lib/moments.ts). */
 export function spotsNote(spots: Spot[]): string {
-  const what = (s: Spot) => s.cause === "still" ? `the same picture for ${Math.round(s.to - s.from)} seconds`
-    : s.cause === "quiet" ? `nothing said for ${Math.round(s.to - s.from)} seconds` : "slow talking";
+  const what = (s: Spot) => s.cause === "still" ? `the same picture for ${Math.floor(s.to - s.from)} seconds`
+    : s.cause === "quiet" ? `nothing said for ${Math.max(1, Math.floor(s.to - s.from))} seconds` : "slow talking";
   const parts = spots.map((s) => `at ${mmss(s.from)} to ${mmss(s.to)} (${what(s)})`);
   return `Viewers may drift ${parts.join("; and ")}. Keep them watching there: a picture, a card or a zoom on what I'm ` +
     "saying, or a tighter cut. Don't cut any of my points.";
