@@ -74,15 +74,19 @@ def place_card(aspect: float, kind: str, face: dict, W: int, H: int, side: str =
         w = min(zw, zh * aspect, 0.88 * W)
         return w, w / aspect
 
+    # on a reel the apps draw their like / comment / share column down the right (from ~85% across, 36-88% down,
+    # editor/safezone.py): a card reaching that low stays left of it
+    right = 0.84 * W if H > 1.5 * W else W - margin
     if side in ("auto", "above"):                              # above the face, as low as the brows allow
         top, bottom = SAFE_TOP * H, c["y0"] - 0.01 * H
         if bottom - top > 0.06 * H:
-            w, h = fit(W - 2 * margin, bottom - top)
+            edge = right if bottom > 0.35 * H else W - margin
+            w, h = fit(edge - margin, bottom - top)
             if w >= min_w:
-                cx = min(max(face["cx"], margin + w / 2), W - margin - w / 2)
+                cx = min(max(face["cx"], margin + w / 2), edge - w / 2)
                 return {"mode": "card", "x": cx / W, "y": (bottom - h / 2) / H, "width": w / W,
                         "how": "above the face"}
-    sides = {"left": (margin, c["x0"] - 0.01 * W), "right": (c["x1"] + 0.01 * W, W - margin)}
+    sides = {"left": (margin, c["x0"] - 0.01 * W), "right": (c["x1"] + 0.01 * W, right)}
     order = [side] if side in sides else sorted(sides, key=lambda k: sides[k][0] - sides[k][1])
     for k in order:                                             # beside the eyes-to-chin zone
         x0, x1 = sides[k]
