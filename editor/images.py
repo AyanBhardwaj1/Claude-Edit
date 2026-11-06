@@ -163,6 +163,12 @@ def fetch(which: str | int, project: str | Path, name: str | None = None) -> dic
     else:
         hit = {"url": str(which), "title": name or Path(urllib.parse.urlparse(str(which)).path).stem, "creator": "",
                "license": "unknown", "page": str(which), "source": "link", "kind": "photo"}
+    return save_hit(hit, project, name)
+
+
+def save_hit(hit: dict, project: str | Path, name: str | None = None) -> dict:
+    """Download one result (a dict from search/logo) into <project>/broll/web/ and record its credit."""
+    project = Path(project)
     try:
         data, final = _get_bytes(hit["url"])
     except EditorError:

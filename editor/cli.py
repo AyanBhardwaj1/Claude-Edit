@@ -229,6 +229,11 @@ def main(argv=None):
     q.add_argument("--project", required=True)
     q.add_argument("--name")
 
+    p = sub.add_parser("names", help="apps and brands said but never shown; --logos fetches their logos (Simple Icons)")
+    p.add_argument("work_dir")
+    p.add_argument("--logos", action="store_true", help="download each name's logo into <project>/broll/web/ and print an EDL entry")
+    p.add_argument("--apply", action="store_true", help="with --logos: add those entries to edl.json (card above the head)")
+
     p = sub.add_parser("triage", help="classify raw/ clips: a-roll (founder-to-camera) vs reusable / one-off b-roll")
     p.add_argument("project")
 
@@ -800,6 +805,40 @@ def cmd_images(args):
                   f"{' by ' + r['creator'][:40] if r.get('creator') else ''}  ({r['source']})")
     else:
         print(images.fetch(args.which, args.project, args.name)["path"])
+
+
+def cmd_names(args):
+    """Names said but never shown (the pacing check), with times and word anchors; --logos fetches each one's
+    Simple Icons logo (CC0) and prints a broll entry; --apply adds the entries to the EDL."""
+    import json
+    from .anchors import load_words, resolve_work
+    from .review import named_not_shown
+    work = Path(args.work_dir)
+    edl_path = work / "edl.json"
+    edl = load_json(edl_path)
+    names = named_not_shown(resolve_work(edl, work), load_words(work))
+    if not names:
+        print("every name you say is shown (or none is said)")
+        return 0
+    entries = []
+    for n in names:
+        line = f"{n['start']:6.1f}s  {n['name']}  (words {n['words']})"
+        if args.logos:
+            from . import images
+            try:
+                got = images.save_hit(images.logo(n["name"])[0], work.parent, n["name"])
+                path = str(Path(got["path"]).relative_to(work.parent))
+                entry = {"path": path, "treatment": "card-above-head", "words": n["words"]}
+                entries.append(entry)
+                line += f"  ->  {json.dumps(entry)}"
+            except EditorError as e:
+                line += f"  (no logo: {e})"
+        print(line)
+    if args.apply and entries:
+        edl.setdefault("broll", []).extend(entries)
+        save_json(edl_path, edl)
+        log(f"names: {len(entries)} logo card(s) added to {edl_path}: re-run from render")
+    return 0
 
 
 def cmd_triage(args):

@@ -250,6 +250,44 @@ def punch_cuts(edl: dict, meta: dict) -> list[float]:
     return [float(s["start"]) for s in meta.get("timeline", [])[1:]]
 
 
+def named_not_shown(edl: dict, words: list[dict]) -> list[dict]:
+    """Names said but never shown: a capitalised word mid-sentence (or a run, "Claude Code") that isn't a common word,
+    with no picture on screen as it's said (a text card counts only if it spells the name), at any of its mentions.
+    [{name, start, words: "w12-w13"}] at the first mention; the same rule as Cutmind's lib/names.ts."""
+    def core(t):
+        return str(t).strip().strip(".,!?;:\"'()“”‘’")
+
+    def capital(t):
+        c = core(t)
+        return len(c) > 1 and c[:1].isupper() and c.lower() not in STOPWORDS
+    on = [(float(b["start"]) - 0.3, float(b["start"]) + float(b["dur"]) + 0.3, bool(b.get("path")) and b.get("treatment") != "text-pop",
+           str(b.get("text", "")).lower()) for b in edl.get("broll", []) if "start" in b and "dur" in b]
+    spoken = [w for w in words if str(w.get("text", "")).strip()]
+    mentions, i = [], 0
+    while i < len(spoken):
+        w, prev = spoken[i], spoken[i - 1] if i else None
+        start = prev is None or str(prev["text"]).rstrip().endswith((".", "!", "?")) or float(w["start"]) - float(prev["end"]) > 1.0
+        if start or not capital(w["text"]):
+            i += 1
+            continue
+        run = [w]
+        while i + 1 < len(spoken) and capital(spoken[i + 1]["text"]) and not str(run[-1]["text"]).rstrip().endswith((".", "!", "?", ",", ";", ":")):
+            i += 1
+            run.append(spoken[i])
+        name, t = " ".join(core(x["text"]) for x in run), float(run[0]["start"])
+        covered = any(a <= t <= b and (pic or name.lower() in text) for a, b, pic, text in on)
+        mentions.append({"name": name, "start": round(t, 2), "words": f"{run[0].get('id', '')}-{run[-1].get('id', '')}", "covered": covered})
+        i += 1
+    covered = {m["name"].lower() for m in mentions if m["covered"]}
+    out, seen = [], set()
+    for m in mentions:
+        if m["name"].lower() in covered or m["name"].lower() in seen:
+            continue
+        seen.add(m["name"].lower())
+        out.append({k: m[k] for k in ("name", "start", "words")})
+    return out
+
+
 def pacing(edl: dict, words: list[dict], duration: float, cuts: list[float] | None = None) -> dict:
     """What a hand edit would fix (from Reel Studio's draft checks): bare face over 4.5 s, over 10 s with zooms
     only, too many zooms, visuals that flash by, big word cards over budget, names said but never shown,
@@ -277,13 +315,7 @@ def pacing(edl: dict, words: list[dict], duration: float, cuts: list[float] | No
                  for b in broll if float(b["dur"]) < 1.2 and b.get("treatment") not in ("post-wall", "icon-wall")]
     pops = [b for b in broll if b.get("treatment") == "text-pop" and b.get("style", "pop") == "pop"]
     shown = [(float(b["start"]) - 0.3, float(b["start"]) + float(b["dur"]) + 0.3) for b in broll]
-    names = []
-    for k, w in enumerate(words):
-        core = w["text"].strip(".,!?;:\"'()")
-        prev = words[k - 1]["text"] if k else "."
-        if core[:1].isupper() and core.lower() not in STOPWORDS and not prev.rstrip().endswith((".", "!", "?")) \
-                and not any(a <= w["start"] <= b for a, b in shown) and core not in names:
-            names.append(core)
+    names = [n["name"] for n in named_not_shown(edl, words)]
     per_min = len(zooms) / max(duration / 60, 1e-6)
     want = 0.75 * duration / 6
     # the first second decides: speech from the first frames, and something to read before the first word lands

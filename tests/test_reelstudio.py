@@ -244,3 +244,25 @@ def write_wav(path, x, sr=48000):
         w.setsampwidth(2)
         w.setframerate(sr)
         w.writeframes((np.clip(x, -1, 1) * 32767).astype(np.int16).tobytes())
+
+
+def test_named_not_shown_runs_cards_and_cli(tmp_path, monkeypatch, capsys):
+    from editor import images
+    from editor.cli import main
+    from editor.review import named_not_shown
+    ws = [dict(w, id=f"w{i}") for i, w in enumerate(words("I moved from Notion to Claude Code. Then I tried Obsidian and Notion"))]
+    assert [n["name"] for n in named_not_shown({"broll": []}, ws)] == ["Notion", "Claude Code", "Obsidian"]
+    assert named_not_shown({"broll": []}, ws)[1]["words"] == "w5-w6"
+    card = {"broll": [{"treatment": "text-pop", "text": "Step 1", "start": 1.0, "dur": 1.0}]}      # a label doesn't show Notion
+    assert named_not_shown(card, ws)[0]["name"] == "Notion"
+    spelled = {"broll": [{"treatment": "text-pop", "text": "Why I left Notion", "start": 1.0, "dur": 1.0}]}
+    assert "Notion" not in [n["name"] for n in named_not_shown(spelled, ws)]
+    # the CLI: --logos --apply adds a card per name (the download faked: no network in tests)
+    work = tmp_path / "p" / "work"
+    work.mkdir(parents=True)
+    (work / "edl.json").write_text('{"segments": [], "broll": []}')
+    (work / "cut_words.json").write_text(__import__("json").dumps({"words": ws}))
+    monkeypatch.setattr(images, "save_hit", lambda hit, project, name=None: {"path": str(tmp_path / "p" / "broll" / "web" / f"{name}.png")})
+    assert main(["names", str(work), "--logos", "--apply"]) == 0
+    edl = __import__("json").loads((work / "edl.json").read_text())
+    assert [b["words"] for b in edl["broll"]] == ["w3-w3", "w5-w6", "w10-w10"] and edl["broll"][0]["treatment"] == "card-above-head"

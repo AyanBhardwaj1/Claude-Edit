@@ -1,5 +1,6 @@
 """The reel render's picture key: what may change without a re-encode (sound) and what may not (picture)."""
 import json
+from pathlib import Path
 
 from editor.render import PRESETS, _picture_key
 
@@ -49,3 +50,18 @@ def test_a_treatment_png_rewritten_with_the_same_pixels_keeps_the_picture(tmp_pa
     assert _key(tmp_path, {}, broll=broll) == k1
     png.write_bytes(b"\x89PNG new pixels")
     assert _key(tmp_path, {}, broll=broll) != k1
+
+
+def test_transparent_card_picture_goes_on_white(tmp_path):
+    from PIL import Image
+    from editor.render import _on_white
+    logo = tmp_path / "logo.png"
+    im = Image.new("RGBA", (100, 100), (0, 0, 0, 0))
+    im.paste((0, 0, 0, 255), (30, 30, 70, 70))                    # a black logo on nothing
+    im.save(logo)
+    flat = Path(_on_white(str(logo), tmp_path / "flat.png"))
+    out = Image.open(flat).convert("RGB")
+    assert out.size == (132, 132) and out.getpixel((2, 2)) == (255, 255, 255) and out.getpixel((66, 66)) == (0, 0, 0)
+    photo = tmp_path / "photo.png"
+    Image.new("RGB", (50, 50), (200, 10, 10)).save(photo)
+    assert _on_white(str(photo), tmp_path / "x.png") == str(photo)    # opaque pictures are used as they are
