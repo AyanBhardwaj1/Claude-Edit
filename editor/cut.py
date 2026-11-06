@@ -44,6 +44,19 @@ def cut(edl_path: str | Path, out_dir: str | Path, transcript: str | Path | None
     width, height = v0["width"] - v0["width"] % 2, v0["height"] - v0["height"] % 2
     global_speed = float(edl.get("speed", 1.0))
 
+    # pieces of one take that touch (end == next start) play as one: cut apart they'd get a fade at the seam (a dip in
+    # the voice), a punch-in change and a transition, a hard cut where nothing was cut. The plan's "meet in the
+    # middle" and the takes / habits / fit / coldopen rewrites all write such pairs.
+    merged: list[dict] = []
+    for seg in segments:
+        last = merged[-1] if merged else None
+        if (last and last["src"] == seg["src"] and abs(last["end"] - seg["start"]) < 1e-3
+                and float(last.get("speed", global_speed)) == float(seg.get("speed", global_speed))):
+            merged[-1] = {**last, "end": seg["end"]}
+        else:
+            merged.append(dict(seg))
+    segments = merged
+
     seg_dir = out_dir / "segments"
     seg_dir.mkdir(parents=True, exist_ok=True)
     jobs, timeline, t = [], [], 0.0

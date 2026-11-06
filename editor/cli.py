@@ -1079,9 +1079,11 @@ def cmd_habits(args):
     if not args.apply:
         print("cut them: editor habits <work> --apply (or --only basically,literally)")
         return 0
-    before = sum(s["end"] - s["start"] for s in edl.get("segments", []))
+    from .fit import _duration
+    speed = float(edl.get("speed", 1.0) or 1.0)
+    before = _duration(edl.get("segments", []), speed)
     edl["segments"] = cut(edl.get("segments", []), words, [h for f in found for h in f["hits"]])
-    after = sum(s["end"] - s["start"] for s in edl["segments"])
+    after = _duration(edl["segments"], speed)
     save_json(edl_path, edl)
     log(f"habits: cut {sum(len(f['hits']) for f in found)} ({before - after:.1f} s) from {edl_path}: re-run from cut")
     return 0

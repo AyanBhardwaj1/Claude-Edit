@@ -360,3 +360,32 @@ def test_fit_cuts_a_line_whole_and_honours_segment_speed():
     assert [d["text"] for d in plan["drop"]] == ["The weather was fine and calm."]
     assert len(plan["segments"]) == 2                    # one cut for the line: no silent slivers left inside it
     assert _duration([{"start": 0, "end": 2, "speed": 2.0}, {"start": 2, "end": 4}], 1.0) == 3.0
+
+
+def test_takes_keeps_the_word_before_ahead_of_the_picked_take():
+    from editor.takes import take_lines, with_take
+    def w(t, a, b):
+        return {"src": 0, "start": a, "end": b, "text": t}
+    line = [("Say", 0.0, 0.2), ("this", 0.25, 0.45), ("line", 0.5, 0.7), ("now.", 0.75, 0.98)]
+    tr = ([w("Hello", 0.0, 0.45), w("there.", 0.5, 1.0)] + [w(t, 1.02 + a, 1.02 + b) for t, a, b in line]
+          + [w("Okay.", 2.5, 2.98)] + [w(t, 3.0 + a, 3.0 + b) for t, a, b in line] + [w("Bye.", 4.6, 4.9)])
+    segs = [{"src": 0, "start": 0.0, "end": 1.01}, {"src": 0, "start": 2.45, "end": 4.95}]
+    out = with_take(segs, take_lines(tr, segs)[0], 0)
+    # "Okay." (2.45-2.98) still plays before the swapped line (take 1, 1.0-2.1), then "Bye."
+    assert [(s["start"], s["end"]) for s in out] == [(0.0, 1.0), (2.45, 2.98), (1.0, 2.1), (4.08, 4.95)]
+
+
+def test_cut_plays_touching_pieces_of_one_take_as_one(tmp_path):
+    import json
+    import subprocess
+    from editor.cut import cut
+    clip = tmp_path / "clip.mp4"
+    subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "testsrc=s=320x240:r=30:d=4", "-f", "lavfi", "-i",
+                    "sine=f=300:d=4", "-shortest", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", str(clip)], check=True)
+    edl = {"sources": [{"path": str(clip), "duration": 4.0}], "speed": 1.0,
+           "segments": [{"src": 0, "start": 0.2, "end": 1.6}, {"src": 0, "start": 1.6, "end": 3.0}, {"src": 0, "start": 3.2, "end": 3.8}]}
+    (tmp_path / "edl.json").write_text(json.dumps(edl))
+    cut(tmp_path / "edl.json", tmp_path)
+    meta = json.loads((tmp_path / "cut_meta.json").read_text())
+    tl = meta.get("timeline") or meta.get("segments")
+    assert [(s["src_start"], s["src_end"]) for s in tl] == [(0.2, 3.0), (3.2, 3.8)]     # one seamless piece, then a real cut
