@@ -469,9 +469,9 @@ def caption_cards(words: list[dict], voice: str, src_in: float, src_out: float, 
             text = " ".join(str(w.get("text", w.get("word", ""))).strip() for w in cur).strip()
             for k, v in (replace or {}).items():
                 text = re.sub(rf"(?i)\b{re.escape(k)}\b", v, text)
-            if text:
+            end = min(float(cur[-1]["end"]) + 0.15, src_out)
+            if text and end - float(cur[0]["start"]) >= 0.25:
                 text = text[0].upper() + text[1:]
-                end = min(float(cur[-1]["end"]) + 0.15, src_out)
                 cards.append({"type": "caption", "text": text, "t_in": f"@{voice}:{float(cur[0]['start']):.2f}",
                               "t_out": f"@{voice}:{end:.2f}"})
             cur.clear()
@@ -523,6 +523,9 @@ def scripted_words(words: list[dict], a: float, b: float, script: str) -> list[d
 
 def script_cards(words: list[dict], voice: str, a: float, b: float, lines: list[str]) -> list[dict]:
     """One caption card per script line, timed by aligning the whole script onto the recognised words."""
+    texts = [ln["text"] if isinstance(ln, dict) else str(ln) for ln in lines]
+    subs = [ln.get("sub") if isinstance(ln, dict) else None for ln in lines]
+    lines = texts
     tokens, owner = [], []
     for i, line in enumerate(lines):
         for t in str(line).split():
@@ -536,11 +539,81 @@ def script_cards(words: list[dict], voice: str, a: float, b: float, lines: list[
         ws = [w for w, o in zip(timed, owner) if o == i]
         if not ws:
             continue
-        cards.append({"type": "caption", "text": str(line).strip(), "t_in": f"@{voice}:{float(ws[0]['start']):.2f}",
-                      "t_out": f"@{voice}:{min(float(ws[-1]['end']) + 0.15, b):.2f}"})
+        t_in = float(ws[0]["start"])
+        longest = 0.8 + 0.5 * len(ws)              # a reading pace cap: a misaligned short line can't hang for seconds
+        t_out = min(float(ws[-1]["end"]) + 0.15, b, t_in + longest)
+        if t_out - t_in < 0.25:
+            continue
+        card = {"type": "caption", "text": str(line).strip(), "t_in": f"@{voice}:{t_in:.2f}",
+                "t_out": f"@{voice}:{t_out:.2f}"}
+        if subs[i]:
+            card["sub"] = subs[i]
+        cards.append(card)
     for x, y in zip(cards, cards[1:]):
         x["t_out"] = min(x["t_out"], y["t_in"], key=lambda r: float(r.split(":")[1]))
     return cards
+
+
+def brief_lines(text: str) -> list[dict]:
+    """Caption lines from a brief: "0:31 ¿Cuál es...?" lines, with an indented "(translation)" line as its sub."""
+    out = []
+    for raw in text.splitlines():
+        m = re.match(r"^\s*(\d{1,2}:\d{2})\s+(\S.*)$", raw)
+        if m:
+            out.append({"at": m.group(1), "text": m.group(2).strip()})
+        elif out and re.match(r"^\s+\(.+\)\s*$", raw):
+            out[-1]["sub"] = raw.strip()
+    return out
+
+
+STOP = set("a an the and or but to of in on at for with by from as is it its it's that this be are was were i you "
+           "we he she they my our your his her their me us them so not no do does did just".split())
+
+
+def _tokens(text: str, content: bool = False) -> list[str]:
+    toks = [t for t in re.sub(r"[^\w' ]", " ", text.lower()).split() if t]
+    return [t for t in toks if t not in STOP and len(t) > 2] if content else toks
+
+
+def captions_from_brief(spec_path: str | Path, brief: str | Path) -> dict:
+    """Give each voice its lines from the brief's caption list: each line goes to the voice whose recognised words
+    share the most with it (in order), then `lines` makes one card per line timed on what was heard."""
+    spec = Spec(spec_path)
+    lines = brief_lines(Path(brief).read_text())
+    caps = spec.data.setdefault("captions", {})
+    vmap = caps.setdefault("voices", {})
+    heard = {}
+    for name, src in vmap.items():
+        cfg = src if isinstance(src, dict) else {"words": src}
+        data = json.loads(spec.p(cfg["words"]).read_text())
+        ws = data["words"] if isinstance(data, dict) else data
+        v = spec.voices.get(name, {})
+        a, b = float(v.get("in", 0)), float(v.get("out", 1e9))
+        heard[name] = (cfg["words"], set(_tokens(" ".join(str(w.get("text", w.get("word", "")))
+                                                          for w in ws if a <= float(w["start"]) < b), content=True)))
+    if not heard:
+        raise EditorError("captions.voices is empty: map each voice to its words file first (produce init does)")
+    assigned = {n: [] for n in heard}
+    lost = []
+    for ln in lines:
+        toks = _tokens(ln["text"], content=True)
+        if not toks:
+            lost.append(ln)
+            continue
+        score, best = max(((sum(t in heard[n][1] for t in toks) / len(toks), n) for n in heard), default=(0, None))
+        if best and score >= 0.5:
+            assigned[best].append({k: ln[k] for k in ("text", "sub") if k in ln})
+        else:
+            lost.append(ln)
+    for n, ls in assigned.items():
+        if ls:
+            vmap[n] = {"words": heard[n][0], "lines": ls}
+    Path(spec_path).write_text(json.dumps(spec.data, indent=1, ensure_ascii=False) + "\n")
+    report = {"assigned": {n: len(ls) for n, ls in assigned.items() if ls},
+              "unmatched": [f"{ln['at']} {ln['text']}" for ln in lost]}
+    log(f"produce: captions from the brief: {sum(report['assigned'].values())} line(s) placed, "
+        f"{len(lost)} unmatched (write those as overlay captions by hand)")
+    return report
 
 
 # ---------------------------------------------------------------- overlay
@@ -1350,6 +1423,14 @@ def main(argv=None) -> int:
                     help="quick 720p look at one stretch after a note (times or references like d7c d7c.end)")
     ap.add_argument("--note", help="save this render as the next version (out/versions/), with the user's note")
     ap.add_argument("--versions", action="store_true", help="list the saved versions")
+    if argv and argv[0] == "captions-from-brief":
+        cp = argparse.ArgumentParser(prog="editor produce captions-from-brief",
+                                     description="put the brief's caption lines on the voices that say them")
+        cp.add_argument("spec")
+        cp.add_argument("brief")
+        ca = cp.parse_args(argv[1:])
+        print(json.dumps(captions_from_brief(ca.spec, ca.brief), indent=1, ensure_ascii=False))
+        return 0
     if argv and argv[0] == "init":
         ip = argparse.ArgumentParser(prog="editor produce init",
                                      description="a starting spec from a footage folder (runs inventory first)")

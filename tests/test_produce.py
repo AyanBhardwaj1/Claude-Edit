@@ -264,3 +264,26 @@ def test_validation_catches_problems_before_rendering(tmp_path):
     assert any("punhc" in w for w in warnings)                       # a typo is a warning
     with pytest.raises(EditorError, match="nothing rendered"):
         produce.produce(path)
+
+
+def test_captions_from_a_brief_land_on_the_voice_that_says_them(tmp_path):
+    w = lambda t, a, b: {"text": t, "start": a, "end": b}  # noqa: E731
+    heard1 = "bro why are you walk in the sun".split()
+    heard2 = "heat is the deadliest weather in america".split()
+    (tmp_path / "v1.json").write_text(json.dumps([w(t, 1 + i * 0.3, 1.25 + i * 0.3) for i, t in enumerate(heard1)]))
+    (tmp_path / "v2.json").write_text(json.dumps([w(t, 0.5 + i * 0.3, 0.75 + i * 0.3) for i, t in enumerate(heard2)]))
+    spec = base_spec()
+    spec["audio"]["voices"] = [{"name": "v1", "src": "voice.wav", "in": 0, "out": 5, "at": "a"},
+                               {"name": "v2", "src": "voice.wav", "in": 0, "out": 5, "at": "b"}]
+    spec["captions"] = {"voices": {"v1": "v1.json", "v2": "v2.json"}}
+    path = write_spec(tmp_path, spec)
+    brief = tmp_path / "brief.md"
+    brief.write_text("## Captions\n```\n0:00 Bro. Why are you walking in the sun?\n0:08 Heat is the deadliest weather in "
+                     "America.\n     (El calor es el clima más mortal.)\n0:12 A line nobody recorded about trees.\n```\n")
+    rep = produce.captions_from_brief(path, brief)
+    assert rep["assigned"] == {"v1": 1, "v2": 1} and rep["unmatched"] == ["0:12 A line nobody recorded about trees."]
+    s = produce.Spec(path)
+    cards = s.resolve(produce.auto_captions(s))
+    assert [c["text"] for c in cards] == ["Bro. Why are you walking in the sun?", "Heat is the deadliest weather in America."]
+    assert cards[1]["sub"] == "(El calor es el clima más mortal.)"
+    assert cards[0]["t_in"] == pytest.approx(1.0) and cards[1]["t_in"] == pytest.approx(2.0 + 0.5)

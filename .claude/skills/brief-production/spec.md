@@ -56,6 +56,7 @@ lower than under voice-over (the review measures it in the speech band).
 - `"v1": "work/inventory/scene1.words.json"`: cards from the recognised words.
 - `"v1": {"words": "...", "lines": ["Exact line one.", "Line two."]}`: the script's lines, one card each, timed on what was heard.
 - `"v1": {"words": "...", "script": "The script as text."}`: the script's words, cards break automatically.
+`editor produce captions-from-brief spec.json BRIEF.md` fills `lines` from the brief's caption list.
 Hand-written `caption` elements in the overlay are fine too (`t_in`/`t_out` as references).
 
 ## Extras
