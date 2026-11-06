@@ -8,8 +8,8 @@ from __future__ import annotations
 import re
 
 from .habits import cut
-from .plan import _is_retake, norm
-from .review import grip, spoken_lines
+from .plan import norm
+from .review import grip, same_sentence, spoken_lines
 
 
 _LIST = re.compile(r"\b(first|second|third|fourth|fifth|number (one|two|three|four|five|\d+)|step|tip|part|finally|lastly)\b", re.I)
@@ -46,7 +46,7 @@ def plan_fit(edl: dict, cut_words: list[dict], transcript: list[dict], target: f
     scored = []
     for k, line in enumerate(lines[1:-1], 1):
         text = " ".join(str(w["text"]).strip() for w in line)
-        again = any(_is_retake(toks(o), toks(line)) for o in lines[:k])
+        again = any(same_sentence(toks(o), toks(line)) for o in lines[:k])
         names = any(re.match(r"^[A-Z][a-z]", re.sub(r"^[^A-Za-z]+", "", str(w["text"]))) and not re.match(r"^I('|$)", str(w["text"]))
                     for w in line[1:])
         # a list item ("The first one is", "Number two", "Step 3", "Finally") is structure: the others lean on it

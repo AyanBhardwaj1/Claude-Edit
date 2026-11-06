@@ -276,14 +276,31 @@ def _strong(words: list[dict], edl: dict) -> str | None:
     return f"{len(said)} strong word(s) ({first}): if the user wants it brand-safe, EDL \"bleep\": true"
 
 
+def same_sentence(a: list[str], b: list[str]) -> bool:
+    """The same sentence said again (normalised words, fillers out): near-identical whole lines, not just the same
+    opening as a retake test allows. Four core words or fewer must match exactly; longer lines must share the last word
+    and 85% of their words in order (as Cutmind's sameSentence)."""
+    from difflib import SequenceMatcher
+    from .plan import FILLERS
+    x, y = [w for w in a if w and w not in FILLERS], [w for w in b if w and w not in FILLERS]
+    if not x or not y:
+        return False
+    if x == y:
+        return True
+    if min(len(x), len(y)) <= 4 or x[-1] != y[-1]:
+        return False
+    common = sum(m.size for m in SequenceMatcher(None, x, y, autojunk=False).get_matching_blocks())
+    return common >= 0.85 * max(len(x), len(y))
+
+
 def _said_twice(words: list[dict]) -> str | None:
     """Lines the cut plays twice (the same line said again later, three words or more): the later one usually goes."""
-    from .plan import _is_retake, norm
+    from .plan import norm
     lines = [ln for ln in spoken_lines(words) if len(ln) >= 3]
     toks = [[norm(w["text"]) for w in ln if norm(w["text"])] for ln in lines]
     out = []
     for k in range(1, len(lines)):
-        j = next((j for j in range(k) if _is_retake(toks[j], toks[k])), None)
+        j = next((j for j in range(k) if same_sentence(toks[j], toks[k])), None)
         if j is not None:
             text = " ".join(str(w["text"]).strip() for w in lines[k])
             out.append(f'"{text[:50]}" at {float(lines[j][0]["start"]):.1f}s and {float(lines[k][0]["start"]):.1f}s')

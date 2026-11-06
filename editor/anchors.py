@@ -200,7 +200,7 @@ def moment(work: str | Path, at, around: float = 1.5) -> str:
     for seg in meta["timeline"]:
         if seg["start"] <= t < seg["end"] or (t == seg["end"] == meta["duration"]):
             src = seg["src_start"] + (t - seg["start"]) * seg.get("speed", 1.0)
-            lines.append(f"  segment {seg['index']}: source {seg['src']} at {src:.2f} s (EDL segments are source "
+            lines.append(f"  segment {_edl_name(seg)}: source {seg['src']} at {src:.2f} s (EDL segments are source "
                          f"seconds; speed {seg.get('speed', 1.0)})")
             break
     near = [w for w in words if w["end"] >= t - around and w["start"] <= t + around]
@@ -235,3 +235,9 @@ def moment(work: str | Path, at, around: float = 1.5) -> str:
     if title and t <= float(title.get("dur", title.get("end", 0)) or 0):
         lines.append(f"  hook title: {title.get('text')!r}")
     return "\n".join(lines)
+
+
+def _edl_name(seg: dict) -> str:
+    """The EDL segment(s) a cut piece came from: "3", or "3-4" when touching EDL segments play as one piece."""
+    ks = seg.get("edl") or [seg["index"]]
+    return str(ks[0]) if len(ks) == 1 else f"{ks[0]}-{ks[-1]}"

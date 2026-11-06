@@ -389,6 +389,9 @@ def test_cut_plays_touching_pieces_of_one_take_as_one(tmp_path):
     meta = json.loads((tmp_path / "cut_meta.json").read_text())
     tl = meta.get("timeline") or meta.get("segments")
     assert [(s["src_start"], s["src_end"]) for s in tl] == [(0.2, 3.0), (3.2, 3.8)]     # one seamless piece, then a real cut
+    assert [s["edl"] for s in tl] == [[0, 1], [2]]                                     # named as in edl.json
+    from editor.anchors import _edl_name
+    assert [_edl_name(s) for s in tl] == ["0-1", "2"]
 
 
 def test_pacing_reports_lines_said_twice():
@@ -397,3 +400,19 @@ def test_pacing_reports_lines_said_twice():
     words = [{"id": f"w{i}", "text": t, "start": i * 0.4, "end": i * 0.4 + 0.3} for i, t in enumerate(text.split())]
     assert _said_twice(words) == '"Here is the secret you need." at 0.0s and 4.0s: cut the later one?'
     assert _said_twice(words[:10]) is None
+
+
+def test_edl_changes_length_uses_a_segments_own_speed():
+    from editor.versions import edl_changes
+    old = {"segments": [{"src": 0, "start": 0, "end": 4}]}
+    new = {"segments": [{"src": 0, "start": 0, "end": 4, "speed": 2.0}]}
+    assert edl_changes(old, new)[0] == "length 4.0 s -> 2.0 s (-2.0 s)"
+
+
+def test_said_twice_needs_the_same_sentence_not_the_same_opening():
+    from editor.review import _said_twice, same_sentence
+    say = lambda text: [{"id": f"w{i}", "text": t, "start": i * 0.4, "end": i * 0.4 + 0.3} for i, t in enumerate(text.split())]  # noqa: E731
+    assert _said_twice(say("I'm going to show you three tools. Then more. I'm going to show you how it works.")) is None
+    assert _said_twice(say("I use it every day. Then more. I use it every week now.")) is None
+    assert not same_sentence("so i use notion".split(), "and i use figma".split())
+    assert same_sentence("um follow for part two".split(), "follow for part two".split())

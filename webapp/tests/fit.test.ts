@@ -92,3 +92,14 @@ test("lines the cut plays twice are listed, the later one to cut", async () => {
   assert.match(r[0].again.text, /^Here is the secret/);
   assert.equal(repeats(p, { ...e, keep: [{ from: "w0", to: `w${start - 1}` }] }).length, 0);   // the repeat cut: nothing
 });
+
+test("said twice means the same sentence, not the same opening", async () => {
+  const { sameSentence } = await import("../lib/fit");
+  assert.equal(sameSentence("So I use Notion.", "And I use Figma."), false);
+  assert.equal(sameSentence("It's so good.", "It's so bad."), false);
+  assert.equal(sameSentence("I love this.", "I love you."), false);
+  assert.equal(sameSentence("I'm going to show you three tools.", "I'm going to show you how it works."), false);
+  assert.equal(sameSentence("Here is the secret you need to know.", "Here is the secret you need to know."), true);
+  assert.equal(sameSentence("Um, follow for part two.", "Follow for part two!"), true);
+  assert.equal(sameSentence("Here is the one secret you really need to know.", "Here is the secret you really need to know."), true);
+});
