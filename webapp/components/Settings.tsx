@@ -299,8 +299,37 @@ function Backup() {
             onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void restore(f); }} /></label>
       </div>
       <p className="small faint">Last backup from this browser: {last ? ago(last) : "never"}</p>
+      <Storage />
       <p className="small" role="status" aria-live="polite">{busy ? <><span className="spin" aria-hidden="true" /> {busy}</> :
         say ? <span className={say.ok ? "say-ok" : "say-bad"}>{say.text}</span> : null}</p>
+    </div>
+  );
+}
+
+/** How much this browser holds for Cutmind, and asking it not to clear the videos when space runs low. */
+function Storage() {
+  const [info, setInfo] = useState<{ used: number; quota: number; kept: boolean } | null>(null);
+  const [note, setNote] = useState("");
+  useEffect(() => {
+    const st = typeof navigator !== "undefined" ? navigator.storage : undefined;
+    if (!st?.estimate) return;
+    void Promise.all([st.estimate(), st.persisted ? st.persisted() : Promise.resolve(false)])
+      .then(([e, kept]) => setInfo({ used: e.usage ?? 0, quota: e.quota ?? 0, kept }));
+  }, []);
+  if (!info) return null;
+  const mb = (n: number) => (n >= 1e9 ? `${(n / 1e9).toFixed(1)} GB` : `${Math.max(0.1, n / 1e6).toFixed(1)} MB`);
+  const keep = async () => {
+    const ok = await navigator.storage.persist?.().catch(() => false);
+    setInfo({ ...info, kept: !!ok });
+    setNote(ok ? "" : "Your browser said no (some only agree once you've used the site a while, or bookmarked it). Keep a backup.");
+  };
+  return (
+    <div className="small">
+      <p className="faint">Cutmind uses {mb(info.used)} of this browser&apos;s storage{info.quota ? ` (about ${mb(info.quota)} available)` : ""}.</p>
+      {info.kept ? <p className="say-ok">This browser keeps your videos even when space runs low.</p> : (
+        <p className="row"><span className="muted">When space runs low, a browser may clear sites&apos; data, videos included.</span>
+          <button className="btn sm ghost" onClick={keep}>Ask to keep my videos</button></p>)}
+      {note && <p className="say-bad" role="status">{note}</p>}
     </div>
   );
 }
