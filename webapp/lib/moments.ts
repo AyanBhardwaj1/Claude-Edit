@@ -9,9 +9,9 @@ const clock = (t: number) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60))
 /** Times mentioned in a note, in seconds of the edited video: "0:12", "1:05.5", "12s", "12 sec", "12 seconds". */
 export function noteTimes(note: string): number[] {
   const out: number[] = [];
-  const re = /\b(\d{1,2}):([0-5]\d(?:\.\d+)?)\b|\b(\d{1,3}(?:\.\d+)?)\s*(?:s|secs?|seconds?)\b/gi;
+  const re = /\b(\d{1,2}):([0-5]\d(?:\.\d+)?)\b|\b(\d{1,2})\s*m(?:in)?\s*(\d{1,2}(?:\.\d+)?)\s*s(?:ecs?|econds?)?\b|\b(\d{1,3}(?:\.\d+)?)\s*(?:s|secs?|seconds?)\b/gi;
   for (const m of note.matchAll(re)) {
-    const t = m[1] !== undefined ? Number(m[1]) * 60 + Number(m[2]) : Number(m[3]);
+    const t = m[1] !== undefined ? Number(m[1]) * 60 + Number(m[2]) : m[3] !== undefined ? Number(m[3]) * 60 + Number(m[4]) : Number(m[5]);
     if (Number.isFinite(t) && !out.some((x) => Math.abs(x - t) < 0.05)) out.push(t);
   }
   return out.slice(0, 6);
