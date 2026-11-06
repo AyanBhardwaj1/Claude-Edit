@@ -4,6 +4,7 @@
 const { chromium } = require("playwright");
 const fs = require("fs");
 const PORT = process.argv[2] || "3370", OUT = process.argv[3] || ".";
+fs.mkdirSync(OUT, { recursive: true });
 const BASE = `http://localhost:${PORT}`;
 const AXE = fs.readFileSync(require.resolve("axe-core/axe.min.js"), "utf8");
 
