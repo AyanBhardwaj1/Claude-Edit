@@ -47,6 +47,10 @@ STYLES = {
     "studio": dict(fonts=["Montserrat SemiBold", "Montserrat Bold", "Inter SemiBold", "Arial"], size=0.097,
                    upper=True, max_words=3, max_chars=16, primary="#FFFFFF", active=None, emph="#FFFFFF",
                    outline=0.0074, shadow=0.0, pop=1.0, width_k=0.62),
+    # phrase at a time in a soft dark box (the Walk-Free demo look): calm, readable, good for explainers and demos
+    "boxed": dict(fonts=["DM Sans SemiBold", "DM Sans", "Inter SemiBold", "Montserrat SemiBold", "Arial"], size=0.05,
+                  upper=False, max_words=9, max_chars=40, primary="#FFFFFF", active=None, emph="#FFFFFF",
+                  outline=0.0, shadow=0.0, pop=1.0, width_k=0.5, box="#1f241c", box_opacity=0.6),
     "minimal": dict(fonts=["Inter Medium", "Montserrat Medium", "Helvetica Neue", "Arial"], size=0.048,
                     upper=False, lower=True, max_words=4, max_chars=26, primary="#FFFFFF", active=None,
                     emph="#FFFFFF", outline=0.0, shadow=0.003, pop=1.0, width_k=0.52),
@@ -132,10 +136,12 @@ def build(words_path: str | Path, out: str | Path, width: int = 1080, height: in
     font = resolve(look["font"]) if look.get("font") else resolve_font(st["fonts"])
     title_font = resolve(look["title_font"]) if look.get("title_font") else resolve_font(STYLES["bold"]["fonts"])
     border, outline_col = 1, ass_color("#000000")
-    if look.get("box"):   # opaque box behind each line (BorderStyle 3: the outline colour fills the box)
+    if look.get("box") or st.get("box"):   # a box behind each line (BorderStyle 3: the outline colour fills it)
         border = 3
-        box = look["box"] if isinstance(look["box"], str) else "#000000"
-        outline_col = ass_color(box, int(round(255 * (1 - float(look.get("box_opacity", 1.0))))))
+        box = look.get("box") or st.get("box")
+        box = box if isinstance(box, str) else "#000000"
+        opacity = float(look.get("box_opacity", st.get("box_opacity", 1.0)))
+        outline_col = ass_color(box, int(round(255 * (1 - opacity))))
         outline = round(max(outline, 0.012 * base), 1)
         shadow = 0
     y = POSITIONS[position][0 if vertical else 1] * height

@@ -23,6 +23,7 @@ python3 -m editor captions projects/<n>/work/cut_words.json -o projects/<n>/work
 | `clean` | sentence case, up to ~6 words, soft shadow | educational, B2B, YouTube |
 | `minimal` | lowercase, small, no highlight | aesthetic, vlog, voiceover |
 | `studio` | Montserrat SemiBold, 3 words, UPPER, white with a solid black outline, no highlight, under the chin | Reel Studio's proven default: clean, readable, works for anything |
+| `boxed` | DM Sans, a whole phrase at a time (up to 2 lines) in a soft dark box (#1f241c, 60%), sentence case | explainers, demos, calm talking pieces; the look of the Walk-Free demo the user loved; matches Cutmind's Boxed |
 
 Text fixes (EDL `"captions"`, applied to the timed words, captions and SRT alike):
 ```jsonc
