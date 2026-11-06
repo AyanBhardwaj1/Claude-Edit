@@ -236,6 +236,9 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
       const mod = ev.metaKey || ev.ctrlKey;
       if (ev.key === "?" && !mod) { ev.preventDefault(); setKeys(true); return; }
       if ((ev.key === "c" || ev.key === "C") && !mod && !ev.altKey && prevN !== null) { ev.preventDefault(); flipCompare(); return; }
+      if ((ev.key === "t" || ev.key === "T" || ev.key === "l" || ev.key === "L") && !mod && !ev.altKey && !cmp) {
+        ev.preventDefault(); void startRun(ev.key.toLowerCase() === "t" ? "scroll" : "loop"); return;
+      }
       if ((ev.key === "n" || ev.key === "N") && !mod && !ev.altKey) { ev.preventDefault(); document.getElementById("note")?.focus(); return; }
       if ((ev.key === "m" || ev.key === "M") && !mod && !ev.altKey) {     // say a note: start, and M again to stop
         const mic = document.querySelector<HTMLButtonElement>(".voice-btn");
@@ -397,7 +400,24 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
   };
   const copy = async (text: string) => { try { await navigator.clipboard.writeText(text); setToast("Caption copied"); } catch { setToast("Couldn't copy: select the text instead"); } };
   const post = version ? postText(p, version.edit) : "";
-  const warm = shownTest === "scroll" && version ? cutWarmUp(p.words, version.edit) : null;
+  /** The one-click fix for a scroll test finding, when there is one. */
+  const scrollFix = (l: ScrollLine): { label: string; edit: Edit; what: string; said: string } | null => {
+    const ed = version?.edit, pl = player.current;
+    if (!ed || !pl) return null;
+    if (l.id === "open") {
+      const w = cutWarmUp(p.words, ed);
+      return w && { label: `Cut “${w.cut}”`, edit: w.edit, what: `cut the warm-up “${w.cut}”`, said: `it now opens on the point, without “${w.cut}”.` };
+    }
+    if (l.id === "moves") {
+      const z = zoomsFor(pl.tl, ed, { from: 0.4, to: SCROLL_SECONDS, cause: "still", risk: 1, text: "", fix: "" });
+      return z && { label: "Add a zoom there", edit: z, what: "a zoom in the first seconds (scroll test)", said: "a zoom now moves the picture in the first seconds." };
+    }
+    if (l.id === "read" && !ed.captions.enabled) {
+      const on = { ...ed, captions: { ...ed.captions, enabled: true } };
+      return { label: "Turn subtitles on", edit: on, what: "subtitles on", said: "subtitles are on, so it reads with the sound off." };
+    }
+    return null;
+  };
   const e = version?.edit;
   const motionCards = e?.broll.filter((b) => b.treatment === "motion").length ?? 0;
   const pics = e?.broll.filter((b) => b.treatment !== "text-pop" && b.treatment !== "motion").length ?? 0, cards = e ? e.broll.length - pics - motionCards : 0;
@@ -497,13 +517,12 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
                     {scroll.lines.filter((l) => !l.ok).concat(scroll.lines.filter((l) => l.ok)).map((l) => (
                       <li key={l.id} className={l.ok ? "ok" : "bad"}><Icon name={l.ok ? "check" : "alert"} />
                         <span className="grow">{l.text}{!l.ok && l.fix && <span className="small block fix">{l.fix}</span>}
-                          {l.id === "open" && !l.ok && version && warm && (
+                          {!l.ok && (() => { const f = scrollFix(l); return f && (
                             <button type="button" className="btn sm" disabled={recording} onClick={async () => {
-                              const before = version.edit;
-                              await saveManual(p, warm.edit, `cut the warm-up “${warm.cut}”`); setP({ ...p });
-                              setMsgs((m) => [...m, { who: "ed", v: p.current, text: `Version ${p.current}: it now opens on the point, without “${warm.cut}”.`,
-                                changes: changeItems(p, before, warm.edit) }]);
-                            }}><Icon name="wand" />Cut “{warm.cut}”</button>)}</span></li>))}
+                              const before = version!.edit;
+                              await saveManual(p, f.edit, f.what); setP({ ...p });
+                              setMsgs((m) => [...m, { who: "ed", v: p.current, text: `Version ${p.current}: ${f.said}`, changes: changeItems(p, before, f.edit) }]);
+                            }}><Icon name="wand" />{f.label}</button>); })()}</span></li>))}
                   </ul>
                 </div>)}
               {shownTest === "loop" && (
