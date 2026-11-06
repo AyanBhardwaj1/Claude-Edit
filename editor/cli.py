@@ -248,6 +248,11 @@ def main(argv=None):
     p.add_argument("--apply", action="store_true", help="write them to edl.json (on-screen chapter pills, and the "
                    "YouTube timestamps in the post); re-run from captions")
 
+    p = sub.add_parser("coldopen", help="open on the reel's strongest line (pacing suggests it): move it to the front")
+    p.add_argument("work_dir")
+    p.add_argument("--words", help="the line's words instead, e.g. w40-w48 (editor words <work>)")
+    p.add_argument("--apply", action="store_true", help="write the new segment order to edl.json; re-run from cut")
+
     p = sub.add_parser("triage", help="classify raw/ clips: a-roll (founder-to-camera) vs reusable / one-off b-roll")
     p.add_argument("project")
 
@@ -927,6 +932,57 @@ def cmd_chapters(args):
         edl["chapters"] = [{"words": c["words"], "text": c["text"]} for c in chs]
         save_json(meta["edl"], edl)
         log(f"chapters: {len(chs)} written to {meta['edl']}: re-run from captions (pills on screen, timestamps in the post)")
+    return 0
+
+
+def cmd_coldopen(args):
+    """The cold open: the line's source range becomes the first segment and is cut out of where it was (the rest
+    plays in order after it). Word-anchored b-roll, zooms and captions follow their words; anything placed by
+    seconds doesn't, so check those after."""
+    from .anchors import load_words
+    from .review import strongest_line
+    work = Path(args.work_dir)
+    edl_path = work / "edl.json"
+    edl, words = load_json(edl_path), load_words(work)
+    if args.words:
+        a, _, b = args.words.partition("-")
+        ids = [w["id"] for w in words]
+        if a not in ids or (b or a) not in ids:
+            raise EditorError(f"{args.words}: those words aren't in the cut (editor words {work})")
+        i, j = ids.index(a), ids.index(b or a)
+        line = {"ids": ids[min(i, j):max(i, j) + 1], "text": " ".join(w["text"] for w in words[min(i, j):max(i, j) + 1])}
+    else:
+        line = strongest_line(words)
+        if not line:
+            print("no line grips more than the opening: it already opens strong")
+            return 0
+    tr = load_json(work / "transcript.json")["words"]
+    src_words = [tr[int(x[1:])] for x in line["ids"] if x and x[1:].isdigit() and int(x[1:]) < len(tr)]
+    if not src_words or len({w.get("src", 0) for w in src_words}) > 1:
+        raise EditorError("that line spans two takes: pick its words with --words")
+    src = src_words[0].get("src", 0)
+    a, b = max(0.0, min(w["start"] for w in src_words) - 0.05), max(w["end"] for w in src_words) + 0.15
+    rest, front = [], []
+    for seg in edl.get("segments", []):
+        if seg.get("src", 0) != src or seg["end"] <= a or seg["start"] >= b:
+            rest.append(seg)
+            continue
+        keep = {k: v for k, v in seg.items() if k != "text"}
+        # the kept part of the line moves up front (a pause the cut removed stays removed)...
+        x, y = max(seg["start"], a), min(seg["end"], b)
+        if y - x >= 0.05:
+            front.append({**keep, "start": round(x, 3), "end": round(y, 3)})
+        for x, y in ((seg["start"], a), (b, seg["end"])):          # ...and what's left either side stays in place
+            if y - x >= 0.05:
+                rest.append({**keep, "start": round(x, 3), "end": round(y, 3)})
+    if not front:
+        raise EditorError("that line isn't in the cut's segments")
+    front[0]["text"] = line["text"]
+    print(f"open with: {line['text']!r} (take {src}, {a:.2f}-{b:.2f}s), then the rest in order")
+    if args.apply:
+        edl["segments"] = [*front, *rest]
+        save_json(edl_path, edl)
+        log(f"coldopen: {edl_path} now opens on that line: re-run from cut; check the hook title still opens it")
     return 0
 
 

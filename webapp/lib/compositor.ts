@@ -61,7 +61,7 @@ export function buildScene(p: Project, e: Edit, tl: Timeline, media: Map<string,
     const next = sorted[k + 1]?.span;
     if (next && next[0] < end && next[0] > start + 0.3) end = next[0];              // the next visual cuts this one short
     const layer: Layer = { b, start, end: Math.min(end, tl.duration), asset, el: b.asset ? media.get(b.asset) : undefined, plan: clipPlan(asset) };
-    layer.place = placeLayer(p, tl, layer);
+    layer.place = placeLayer(p, tl, layer, e);
     layers.push(layer);
   });
   const cuts = tl.segments.slice(1).map((s) => s.outStart);
@@ -119,7 +119,7 @@ function faceZone(p: Project, tl: Timeline, start: number, end: number): FaceZon
   return z;
 }
 
-function placeLayer(p: Project, tl: Timeline, L: Layer): Layer["place"] {
+function placeLayer(p: Project, tl: Timeline, L: Layer, e: Edit): Layer["place"] {
   const t = L.b.treatment;
   if (t === "framed") {
     const frame = framedLayout({ W, H, aw: L.asset?.width ?? 16, ah: L.asset?.height ?? 9, face: faceZone(p, tl, L.start, L.end), full: L.b.full });
@@ -133,7 +133,8 @@ function placeLayer(p: Project, tl: Timeline, L: Layer): Layer["place"] {
   const aspect = phone ? 9 / 19.5 : aw / ah;
   const kind = L.asset?.credit?.source === "simple-icons" ? "logo" : "photo";
   const minW = (kind === "logo" ? 0.22 : 0.3) * U;
-  const capTop = 0.75 * H - 1.35 * 105;
+  // the subtitles' top where they really are (moved up, made bigger, or off): side cards stay above them
+  const capTop = e.captions.enabled ? e.captions.position * H - 0.7 * e.captions.size * (U / 1080) : 0.95 * H;
   const still = L.asset?.kind === "image" && !phone;
   const core = face?.core ?? { x0: W * 0.3, x1: W * 0.7, y0: H * 0.3, y1: H * 0.5 };
   const fit = (zw: number, zh: number) => { const w = Math.min(zw, zh * aspect, 0.88 * W, 0.88 * U * Math.max(1, aspect)); return { w, h: w / aspect }; };

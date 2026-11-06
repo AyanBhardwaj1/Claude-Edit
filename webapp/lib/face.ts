@@ -14,6 +14,7 @@ export async function trackFaces(sources: Source[], urls: string[], onProgress: 
   const out: FaceSample[] = [];
   const total = sources.reduce((a, s) => a + s.duration, 0);
   let done = 0;
+  try {
   for (const [k, s] of sources.entries()) {
     const v = document.createElement("video");
     v.muted = true; v.playsInline = true; v.src = urls[k];
@@ -39,7 +40,7 @@ export async function trackFaces(sources: Source[], urls: string[], onProgress: 
     }
     done += s.duration;
   }
-  det.close();
+  } finally { det.close(); }                         // a failed frame still frees the detector
   return out;
 }
 

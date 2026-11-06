@@ -100,18 +100,23 @@ export function analyze(words: Word[]): Analysis {
   });
   // kept words: drop phrases, then stutters ("I was, I was") and edge fillers inside kept phrases
   const keepIdx: number[] = [];
-  ph.forEach((p, i) => {
+  // a retake plays where its line was first said: take 2 re-recording only the opening still opens the cut
+  const firstOf = (i: number) => Math.min(...(groups.get(find(i)) ?? [i]));
+  const order = ph.map((_, i) => i).sort((a, b) => firstOf(a) - firstOf(b) || a - b);
+  order.forEach((i) => {
+    const p = ph[i];
     if (drop.has(i)) return;
     const idx = p.idx.filter((k, n) => !(FILLERS.has(bare(words[k].w)) && (n === 0 || n === p.idx.length - 1)));
     for (let n = 0; n < idx.length; n++) {
-      let stutter = false;
+      let stutter = 0;
       for (const len of [3, 2, 1]) {
         const a = idx.slice(n, n + len).map((k) => bare(words[k].w)), b = idx.slice(n + len, n + 2 * len).map((k) => bare(words[k].w));
         if (a.length === len && b.length === len && a.join(" ") === b.join(" ") &&
             (len > 1 || ["i", "the", "a", "to", "and", "it", "we", "you"].includes(a[0])) &&
-            words[idx[n + len]].s - words[idx[n + len - 1]].e <= 1.0) { stutter = true; break; }
+            words[idx[n + len]].s - words[idx[n + len - 1]].e <= 1.0) { stutter = len; break; }
       }
-      if (!stutter) keepIdx.push(idx[n]);
+      if (stutter) { n += stutter - 1; continue; }          // drop the whole first copy ("I was, I was going")
+      keepIdx.push(idx[n]);
     }
   });
   const defaultKeep: Range[] = [];

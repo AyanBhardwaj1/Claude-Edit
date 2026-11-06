@@ -175,9 +175,9 @@ export function fromAi(p: Project, base: Edit, given: AiEdit, webAssets: Map<str
     if (item.treatment === "framed") Object.assign(item, framedFields(b));
     broll.push(item);
   }
-  for (const [key, a] of webAssets) {
-    const w = (ai.webPictures ?? []).find((x) => `web:${x.query}` === key);
-    if (!w) continue;
+  for (const w of ai.webPictures ?? []) {             // every mention: the same picture can go on two
+    const a = webAssets.get(w.query);
+    if (!a) continue;
     const r = okRange(w, `web picture "${w.query}"`);
     if (r) broll.push({ id: id(), anchor: r, asset: a.key, treatment: treat(w.treatment) });
   }

@@ -49,3 +49,11 @@ word so consonants aren't clipped.
 
 Then write a short summary for the user: old → new runtime, the hook you chose,
 and the 3-5 biggest cuts.
+
+## Cold open
+`editor pacing` names a later line that grips more than the opening (stronger_line_for_a_cold_open). It's an
+editorial call: propose it. On a yes, `python3 -m editor coldopen projects/<n>/work --apply` (or `--words w40-w48`
+for another line) moves that line's kept parts to the front and leaves the rest in order (a pause the cut removed
+stays removed), then re-run from `cut`. Word-anchored b-roll, zooms and captions follow their words; check that the
+hook title still opens the reel.
+

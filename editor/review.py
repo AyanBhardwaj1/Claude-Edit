@@ -197,6 +197,12 @@ _LEANS = re.compile(r"^(step|tip|part|number|first(ly)?|second(ly)?|third(ly)?|n
 
 
 def stronger_opening(words: list[dict]) -> str | None:
+    best = strongest_line(words)
+    return (f'"{best["text"]}" at {best["start"]:.1f}s ({", ".join(best["why"])}) grips more than the opening: '
+            f'a cold open? (editor coldopen <work>)') if best else None
+
+
+def strongest_line(words: list[dict]) -> dict | None:
     """A later line that grips more than the one the cut opens with (a number, a strong word, "you", a question,
     short), as a cold-open suggestion; lines that lean on what came before ("Step two", "Then") never count. The
     same rule as Cutmind's lib/coldopen.ts."""
@@ -239,8 +245,8 @@ def stronger_opening(words: list[dict]) -> str | None:
             continue
         sc, why = score(line)
         if sc >= 3 and sc > opener and (best is None or sc > best[0]):
-            best = (sc, text, float(line[0]["start"]), why)
-    return f'"{best[1]}" at {best[2]:.1f}s ({", ".join(best[3])}) grips more than the opening: a cold open?' if best else None
+            best = (sc, text, float(line[0]["start"]), why, [w.get("id") for w in line])
+    return {"text": best[1], "start": best[2], "why": best[3], "ids": best[4]} if best else None
 
 
 def punch_cuts(edl: dict, meta: dict) -> list[float]:

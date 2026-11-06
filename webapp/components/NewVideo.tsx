@@ -17,7 +17,9 @@ const STAGES = ["Copying your video", "Listening to your video", "Finding your r
   "Picking your best takes and planning the edit", "Finding pictures online", REVIEWING, "Ready"];
 /** The steps this effort runs: no face finding when Fast, the review pass only for Best quality. */
 const stagesOf = (e: Effort) => STAGES.filter((s) => (s !== FACE || EFFORT[e].faces) && (s !== REVIEWING || EFFORT[e].review));
-const stageAt = (stages: string[], msg: string) => stages.findIndex((s) => msg.startsWith(s.split(" ")[0]) && msg.includes(s.split(" ")[1] ?? ""));
+// the whole stage name ("Finding your face" isn't "Finding your retakes"); the pictures step says how many it finds
+const stageAt = (stages: string[], msg: string) => stages.findIndex((s) =>
+  msg.startsWith(s) || (s === "Finding pictures online" && /^Finding \d+ pictures? online/.test(msg)));
 const ICON: Record<string, IconName> = { video: "clip", music: "music", image: "image" };
 const size = (b: number) => new Intl.NumberFormat(undefined, { style: "unit", unit: b > 1e9 ? "gigabyte" : "megabyte", maximumFractionDigits: 1 })
   .format(b > 1e9 ? b / 1e9 : b / 1e6);
@@ -39,6 +41,9 @@ export function NewVideo({ settings, initial = [], film = false, onFilmOpened, o
   const effort = picked ?? effortOf(settings);
   const [filming, setFilming] = useState<{ script: string } | null>(null);
   const input = useRef<HTMLInputElement>(null);
+  const made = useRef<Project | null>(null);            // the video a failed run already made: Try again carries on with it
+  const alive = useRef(true);
+  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   const filmBtn = useRef<HTMLButtonElement>(null);
   const hasKey = settings.provider === "anthropic" ? !!settings.anthropicKey : !!settings.openaiKey;
   const canListen = settings.transcriber === "browser" || !!settings.openaiKey;
@@ -46,6 +51,7 @@ export function NewVideo({ settings, initial = [], film = false, onFilmOpened, o
   const [skipped, setSkipped] = useState("");
   function take(files: FileList | File[], fresh = false) {
     const fs = [...files];
+    made.current = null;   // new takes: the next try makes a new project
     const bad = fs.filter((f) => !kindOf(f)).map((f) => f.name);   // say so: a silent drop looks broken
     setSkipped(bad.length ? `${bad.slice(0, 3).join(", ")}${bad.length > 3 ? ` and ${bad.length - 3} more` : ""} ${bad.length === 1 ? "isn't" : "aren't"} a video, a song or a picture, so I left ${bad.length === 1 ? "it" : "them"} out. Takes are video files (MP4, MOV or WebM).` : "");
     const vids = fs.filter((f) => kindOf(f) === "video");
@@ -85,10 +91,12 @@ export function NewVideo({ settings, initial = [], film = false, onFilmOpened, o
     };
     const s = { ...settings, effort };                 // this video's effort; the saved default stays as it is
     try {
-      const { project, summary } = await makeReel(use.takes, extras, use.script, s, loadRules(), progress);
-      onDone(project, summary);
+      const { project, summary } = await makeReel(use.takes, extras, use.script, s, loadRules(), progress, undefined,
+        { made: made.current, onMade: (p) => { made.current = p; } });
+      made.current = null;
+      if (alive.current) onDone(project, summary);     // left the page meanwhile: it's in My videos, no jump
     } catch (e) {
-      setErr((e as { userMessage?: string }).userMessage ?? (e as Error).message ?? String(e));
+      if (alive.current) setErr((e as { userMessage?: string }).userMessage ?? (e as Error).message ?? String(e));
     }
   }
 

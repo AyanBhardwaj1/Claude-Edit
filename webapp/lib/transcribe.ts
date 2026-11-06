@@ -9,9 +9,9 @@ import type { Word } from "./types";
 type Progress = (msg: string, pct?: number) => void;
 
 export async function transcribe(file: Blob, src: number, firstId: number, engine: "openai" | "browser", openaiKey: string,
-                                 onProgress: Progress): Promise<Word[]> {
+                                 onProgress: Progress, decoded?: Float32Array): Promise<Word[]> {
   onProgress("Listening to your video", 2);
-  const audio = await decodeMono(file, 16000);
+  const audio = decoded ?? await decodeMono(file, 16000);      // decoded once by the caller when it has it
   const raw = engine === "openai" && openaiKey ? await viaOpenAI(audio, openaiKey, onProgress) : await inBrowser(audio, onProgress);
   return raw.filter((w) => w.w.trim()).map((w, i) => ({ id: `w${firstId + i}`, src, s: +w.s.toFixed(3), e: +Math.max(w.e, w.s + 0.05).toFixed(3),
     w: w.w.trim(), p: w.p }));
