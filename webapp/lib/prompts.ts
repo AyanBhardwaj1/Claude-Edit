@@ -25,7 +25,8 @@ state the claim or question, anchored from the first kept word to the end of the
 first ~4 seconds.
 
 CAPTIONS: keep the default (studio: 3 words, upper case, white with a black outline, under the chin) unless the video
-or a note gives a reason. Never below 80 px. Fix mishearings with "corrections" (whole misheard phrase -> right words)
+or a note gives a reason. "boxed" is calm subtitles: a whole phrase at a time in a clean sans on a dark rounded box at the
+bottom (good for demos, tutorials, wide videos and screen-heavy edits); "block" is the word-by-word look on a black box. Never below 80 px. Fix mishearings with "corrections" (whole misheard phrase -> right words)
 only when the topic makes it certain ("pay pal" -> "PayPal", "see sharp" -> "C#"); slang, filler and names you don't
 recognise stay. Numbers become digits automatically.
 
@@ -37,8 +38,13 @@ its keys exactly), then real pictures from the web ("webPictures": every brand, 
 "kind": "photo"}), then a "labels" text card (a numbered step "2: Editing" with style "label", or one key number or
 word with style "pop", at most 2 pops). Never a stranger standing in for a specific real person. Each asset once. Every
 number or claim on screen matches the spoken words exactly. Treatments: card-above-head (default for a picture),
-side-card, phone-card (apps, sites, posts), full-frame (footage or a picture that IS the moment; hides the face, keep it
-short), split-top (needs size: a page, a chart). Anchor each on its whole phrase; a picture stays about 2 s; don't
+side-card, phone-card (a phone-shaped app screen, a post), full-frame (footage or a picture that IS the moment; hides the
+face, keep it short), split-top (needs size: a page, a chart), framed (for screenshots and screen recordings of apps or
+websites, the LIBRARY marks them "screenshot" / "screen recording": the screen on a soft backdrop with rounded corners
+and a slow push; give "focus" {x, y} (0-1 across and down the picture) on the thing being said, and a "punch"
+{at: seconds into the shot, zoom about 1.6} when the line points at one button, number or field; on a reel it moves the
+speaker below the screen, so it never covers the face; "full": true only when the user asks for the screen full-frame).
+Anchor each on its whole phrase; a picture stays about 2 s; don't
 start the next visual less than ~1.5 s after one. Face-hiding treatments cover at most about half the runtime.
 
 ANIMATED CARDS ("motionCards", optional, at most 3 a minute): when the speaker says a number, a short list, a before and
@@ -92,7 +98,8 @@ and say what you did. Common notes: "music too loud at the start" -> a music aut
 loud overall" -> level quiet; "different / sadder / more upbeat song" -> another library song by feel; "put the price on
 '20 bucks'" -> a label (style pop) with the exact number on those words; "animate the stats / show the steps as a list" ->
 motionCards on those words; "show X when I say X" -> a webPicture or
-library picture anchored on X; "wrong place / bigger / beside me" -> change that visual's treatment or anchor; "cut the
+library picture anchored on X; "wrong place / bigger / beside me" -> change that visual's treatment or anchor; "zoom into the button / show the
+screen properly" -> that screen framed with focus (and a punch on the words); "calmer / normal subtitles" -> captions boxed; "cut the
 part about X" -> drop those words from keep; "it cut my joke" -> restore the words or a larger gapCap; "the caption
 says X but I said Y" -> a correction; "zoom in when I say X" -> a zoom on those words; "it's mirrored" -> mirror true; "make the captions pop / karaoke / bouncy" -> motion.captionAnim; "add transitions /
 smoother cuts" -> motion.transition; "make it look cinematic / warmer / black and white" -> motion.look; "highlight in
@@ -112,7 +119,8 @@ better, and copy every other field from CURRENT EDIT exactly. Check, in this ord
 3. CAPTIONS: fix mishearings in "corrections" only where the topic makes the right word certain; sizes stay readable.
 4. VISUALS: the screen changes every 3-5 seconds over the KEPT words (a picture, a label, an animated card or a zoom), no
    window bare for more than ~4 s, nothing new less than ~1.5 s after the last, each asset once, zooms never back to back.
-   Every number or claim on screen matches the spoken words exactly.
+   Every number or claim on screen matches the spoken words exactly. Screenshots and screen recordings are framed, with a
+   focus on what the line is about.
 5. THE FACE: never cover the face with card treatments for long; face-hiding treatments (full-frame, split-top, animated
    cards) stay short and cover at most about half the runtime; prefer card-above-head or side-card.
 6. MUSIC, COVER and POST follow the rules above (exactly 5 hashtags, the user's voice, no em dashes).
@@ -144,7 +152,7 @@ export const EDIT_SCHEMA = {
     keep: { type: "array", items: RANGE },
     gapCap: { type: "number" },
     captions: { type: "object", properties: {
-      enabled: { type: "boolean" }, preset: { type: "string", enum: ["studio", "bold", "white", "boxed", "minimal"] },
+      enabled: { type: "boolean" }, preset: { type: "string", enum: ["studio", "bold", "white", "block", "boxed", "minimal"] },
       size: { type: "number" }, position: { type: "number" }, textCase: { type: "string", enum: ["upper", "as-is", "lower"] },
       maxWords: { type: "number" } } },
     corrections: { type: "array", items: { type: "object", properties: { from: { type: "string" }, to: { type: "string" } },
@@ -153,8 +161,11 @@ export const EDIT_SCHEMA = {
     labels: { type: "array", items: { type: "object", properties: { text: { type: "string" }, from: { type: "string" },
       to: { type: "string" }, style: { type: "string", enum: ["label", "pop"] } }, required: ["text", "from", "to"] } },
     broll: { type: "array", items: { type: "object", properties: { asset: { type: "string" }, from: { type: "string" },
-      to: { type: "string" }, treatment: { type: "string", enum: ["card-above-head", "side-card", "phone-card", "full-frame", "split-top"] },
-      side: { type: "string", enum: ["left", "right", "auto"] } }, required: ["asset", "from", "to"] } },
+      to: { type: "string" }, treatment: { type: "string", enum: ["card-above-head", "side-card", "phone-card", "full-frame", "split-top", "framed"] },
+      side: { type: "string", enum: ["left", "right", "auto"] },
+      focus: { type: "object", properties: { x: { type: "number" }, y: { type: "number" } }, required: ["x", "y"] },
+      punch: { type: "object", properties: { at: { type: "number" }, zoom: { type: "number" } }, required: ["at"] },
+      full: { type: "boolean" } }, required: ["asset", "from", "to"] } },
     webPictures: { type: "array", items: { type: "object", properties: { query: { type: "string" },
       kind: { type: "string", enum: ["logo", "photo"] }, from: { type: "string" }, to: { type: "string" },
       treatment: { type: "string", enum: ["card-above-head", "side-card", "phone-card", "full-frame", "split-top"] } },

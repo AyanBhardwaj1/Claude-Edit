@@ -6,8 +6,9 @@ import { motionOf } from "./edit";
 import { faceAt } from "./face";
 import { clamp01, cutFx, ease, enter, LOOK_FILTER, lookOverlay, lightColour, rnd } from "./motion";
 import { activeBrand, hasBrand } from "./brand";
+import { backdropFor, framedLayout, framedView, type FaceZone, type FramedLayout } from "./framed";
 import { drawBackground, drawScene, type Anim, type Scene as CardScene } from "./studio";
-import { captionWords, chunk, type Cue } from "./text";
+import { boxedChars, boxedCues, boxedLines, captionWords, chunk, type Cue } from "./text";
 import { spanOf, type Timeline } from "./timeline";
 import type { Asset, Broll, Edit, Format, Project } from "./types";
 
@@ -27,13 +28,17 @@ export function setFormat(f: Format = "9:16") {
 export type Layer = {
   b: Broll; start: number; end: number; asset?: Asset;
   el?: HTMLImageElement | HTMLVideoElement;
-  place?: { x: number; y: number; w: number; h: number; tilt: number; mode: "card" | "split" | "phone" };
+  place?: { x: number; y: number; w: number; h: number; tilt: number; mode: "card" | "split" | "phone" | "framed"; frame?: FramedLayout };
 };
+
+/** Boxed subtitles' type size: the caption size setting scaled to a clean subtitle line (105 -> about 59 px). */
+const boxedSize = (e: Edit) => e.captions.size * 0.56 * (U / 1080);
 
 export type Scene = { tl: Timeline; cues: Cue[]; layers: Layer[]; zooms: { s: number; e: number; scale: number }[]; cuts: number[]; emph: Set<string> };
 
 export function buildScene(p: Project, e: Edit, tl: Timeline, media: Map<string, HTMLImageElement | HTMLVideoElement>): Scene {
-  let cues = e.captions.enabled ? chunk(captionWords(tl.words, e.corrections), e.captions.maxWords) : [];
+  const cw = e.captions.enabled ? captionWords(tl.words, e.corrections) : [];
+  let cues = e.captions.preset === "boxed" ? boxedCues(cw, boxedChars(W, boxedSize(e))) : chunk(cw, e.captions.maxWords);
   if (e.captions.enabled && e.translation?.lines.length) {
     // translated subtitles: one cue per phrase, the whole line as one "word" (drawn wrapped, see drawCaptions)
     cues = e.translation.lines.map((l) => { const a = tl.byId.get(l.from), b = tl.byId.get(l.to);
@@ -94,8 +99,28 @@ function faceOut(p: Project, tl: Timeline, t: number) {
   return { cx, cy, fw, fh, core: { x0: cx - eyeD, x1: cx + eyeD, y0: eyes - 0.5 * eyeD, y1: cy + fh / 2 } };
 }
 
+/** The eyes-to-chin zone over a layer's window (the union of its start, middle and end), or null when the face is known to
+ *  be off screen: faces were tracked and none was seen then. Untracked footage (Fast effort) assumes a centred speaker. */
+function faceZone(p: Project, tl: Timeline, start: number, end: number): FaceZone | null {
+  const tracked = !!p.faces?.length;
+  let z: FaceZone | null = null;
+  for (const t of [start + 0.02, (start + end) / 2, Math.max(start, end - 0.05)]) {
+    const seg = tl.segments.find((s) => t >= s.outStart && t < s.outEnd) ?? tl.segments[0];
+    if (!seg) continue;
+    if (tracked && !faceAt(p.faces, seg.src, seg.start + (t - seg.outStart))) continue;
+    const f = faceOut(p, tl, t);
+    if (!f) continue;
+    z = z ? { x0: Math.min(z.x0, f.core.x0), x1: Math.max(z.x1, f.core.x1), y0: Math.min(z.y0, f.core.y0), y1: Math.max(z.y1, f.core.y1) } : { ...f.core };
+  }
+  return z;
+}
+
 function placeLayer(p: Project, tl: Timeline, L: Layer): Layer["place"] {
   const t = L.b.treatment;
+  if (t === "framed") {
+    const frame = framedLayout({ W, H, aw: L.asset?.width ?? 16, ah: L.asset?.height ?? 9, face: faceZone(p, tl, L.start, L.end), full: L.b.full });
+    return { ...frame.region, tilt: 0, mode: frame.mode === "split" ? "split" : "framed", frame };
+  }
   if (t === "full-frame" || t === "text-pop" || t === "motion") return undefined;
   if (t === "split-top") return { x: 0, y: 0, w: W, h: H * 0.42, tilt: 0, mode: "split" };
   const face = faceOut(p, tl, (L.start + L.end) / 2);
@@ -159,7 +184,8 @@ export function drawFrame(g: CanvasRenderingContext2D, p: Project, e: Edit, scen
   g.fillStyle = "#000"; g.fillRect(0, 0, W, H);
   const active = scene.layers.filter((L) => t >= L.start && t < L.end);
   const split = active.find((L) => L.place?.mode === "split");
-  const full = active.some((L) => L.b.treatment === "full-frame");
+  // a full-frame picture or a framed screen holds the speaker's zoom still (a framed split also keeps the face where placed)
+  const full = active.some((L) => L.b.treatment === "full-frame" || L.b.treatment === "framed");
   const seg = scene.tl.segments.findIndex((s) => t >= s.outStart && t < s.outEnd);
   let zoom = full ? 1 : zoomAt(scene, t);
   if (!full && m.transition === "punch" && seg % 2 === 1) zoom *= 1.07;          // jump cuts alternate a punch-in
@@ -175,7 +201,7 @@ export function drawFrame(g: CanvasRenderingContext2D, p: Project, e: Edit, scen
       if (split) {   // the speaker moves under the picture: a band from the hair line down
         const band = H - split.place!.h;
         const bandH = c.w * band / W;
-        const y = Math.min(Math.max(c.y + 0.1 * c.h, 0), c.sh - bandH);
+        const y = Math.min(Math.max(c.y + (split.place!.frame?.bandFrom ?? 0.1) * c.h, 0), c.sh - bandH);
         g.drawImage(video, c.x, y, c.w, bandH, 0, split.place!.h, W, band);
       } else g.drawImage(video, c.x, c.y, c.w, c.h, 0, 0, W, H);
       g.restore();
@@ -219,6 +245,7 @@ function drawLayer(g: CanvasRenderingContext2D, L: Layer, t: number, brollIn: Pa
   const b = L.b;
   if (b.treatment === "text-pop") return drawTextPop(g, L, t);
   if (b.treatment === "motion") return drawCard(g, L, t);
+  if (b.treatment === "framed") return drawFramed(g, L, t, kenBurns);
   const el = L.el;
   if (!el) return;
   const [iw, ih] = dims(el);
@@ -263,6 +290,35 @@ function drawLayer(g: CanvasRenderingContext2D, L: Layer, t: number, brollIn: Pa
     g.scale(kb, kb);
     drawCover(g, el, iw, ih, -P.w / 2, -P.h / 2, P.w, P.h);
     g.restore();
+  }
+  g.restore();
+}
+
+/** An app screen on a soft backdrop (lib/framed.ts): rounded corners, a soft shadow, a slow push and an optional punch-in.
+ *  The picture is drawn once, straight from the source rectangle into the screen box, so it stays at native sharpness. */
+function drawFramed(g: CanvasRenderingContext2D, L: Layer, t: number, kenBurns: boolean) {
+  const F = L.place?.frame;
+  if (!F) return;
+  const { brand } = activeBrand();
+  const bg = L.b.backdrop && /^#[0-9a-f]{6}$/i.test(L.b.backdrop) ? L.b.backdrop : backdropFor(hasBrand(brand) ? brand.accent : null);
+  const local = t - L.start, dur = L.end - L.start;
+  const S = F.screen, cx = S.x + S.w / 2, cy = S.y + S.h / 2;
+  g.save();
+  g.beginPath(); g.rect(F.region.x, F.region.y, F.region.w, F.region.h); g.clip();
+  g.fillStyle = bg; g.fillRect(F.region.x, F.region.y, F.region.w, F.region.h);
+  // opaque from the first frame (it cuts in and out like the backdrop); the screen settles 96.5% -> 100% over 0.3 s
+  const s = 0.965 + 0.035 * ease.out(clamp01(local / 0.3));
+  g.translate(cx, cy); g.scale(s, s); g.translate(-cx, -cy);
+  g.shadowColor = `rgba(0,0,0,${F.shadow.alpha})`; g.shadowBlur = F.shadow.blur; g.shadowOffsetY = F.shadow.dy;
+  g.fillStyle = bg; rounded(g, S.x, S.y, S.w, S.h, F.radius); g.fill();
+  g.shadowColor = "transparent"; g.shadowBlur = 0; g.shadowOffsetY = 0;
+  const el = L.el;
+  const [iw, ih] = el ? dims(el) : [0, 0];
+  if (el && iw) {
+    const v = framedView(iw, ih, S, local, dur, L.b.focus, L.b.punch, kenBurns ? undefined : 0);
+    g.imageSmoothingEnabled = true; g.imageSmoothingQuality = "high";
+    rounded(g, S.x, S.y, S.w, S.h, F.radius); g.clip();
+    g.drawImage(el, v.x, v.y, v.w, v.h, S.x, S.y, S.w, S.h);
   }
   g.restore();
 }
@@ -330,13 +386,44 @@ const PRESET = {
   studio: { weight: 600, active: null, outline: 8, box: false },
   bold: { weight: 900, active: "#FFE600", outline: 9, box: false },
   white: { weight: 800, active: null, outline: 4, box: false },
-  boxed: { weight: 700, active: null, outline: 0, box: true },
+  block: { weight: 700, active: null, outline: 0, box: true },
+  boxed: { weight: 600, active: null, outline: 0, box: true },      // drawn by drawBoxed: a phrase at a time
   minimal: { weight: 500, active: null, outline: 0, box: false },
 } as const;
 
 const NUMERIC = /[0-9$£€%]/;
+export const BOXED = { fill: "rgba(31,36,28,0.6)", radius: 10, font: "Figtree" };   // #1f241c at 60%, 10 px corners
+
+/** Boxed subtitles: the whole phrase at once in a clean sans, white on one dark rounded box, bottom centre, at most 2 lines
+ *  of about 42 characters (fewer on a narrow reel). It fades in over 0.12 s; no word pops. */
+function drawBoxed(g: CanvasRenderingContext2D, e: Edit, text: string, alpha: number, split: boolean) {
+  const caseFn = (x: string) => (e.captions.textCase === "upper" ? x.toUpperCase() : e.captions.textCase === "lower" ? x.toLowerCase() : x);
+  const phrase = caseFn(text.trim());
+  if (!phrase) return;
+  let size = boxedSize(e);
+  const font = (sz: number) => `600 ${sz}px "${e.captions.font}", ${BOXED.font}, "DM Sans", Geist, Inter, Arial, sans-serif`;
+  let lines: string[] = [phrase];
+  for (let k = 0; k < 12; k++) {
+    g.font = font(size);
+    lines = boxedLines(phrase, boxedChars(W, size), 2) ?? wrap(g, phrase, W * 0.86);
+    if (lines.every((l) => g.measureText(l).width <= W * 0.88) || size < 0.028 * U) break;
+    size *= 0.92;
+  }
+  const lh = 1.28 * size, padX = 0.55 * size, padY = 0.32 * size;
+  const bw = Math.max(...lines.map((l) => g.measureText(l).width)) + 2 * padX, bh = lines.length * lh + 2 * padY;
+  // wide: bottom centre; a reel with a split view: under the face; square and feed splits: on the bottom edge
+  const low = split && H / W < 1.5;
+  const cy = W > H ? 0.88 * H : (split ? 0.82 : e.captions.position) * H;
+  const top = low ? H - 0.03 * U - bh : Math.min(cy - bh / 2, H - 0.03 * H - bh);
+  g.save(); g.globalAlpha = alpha;
+  g.fillStyle = BOXED.fill; rounded(g, W / 2 - bw / 2, top, bw, bh, BOXED.radius * (U / 1080)); g.fill();
+  g.textAlign = "center"; g.textBaseline = "middle"; g.fillStyle = "#fff";
+  lines.forEach((l, i) => g.fillText(l, W / 2, top + padY + lh * (i + 0.5) + 0.04 * size));
+  g.restore();
+}
 
 function drawTranslated(g: CanvasRenderingContext2D, e: Edit, text: string, alpha: number, split: boolean) {
+  if (e.captions.preset === "boxed") return drawBoxed(g, e, text, alpha, split);
   const st = PRESET[e.captions.preset];
   const caseFn = (x: string) => (e.captions.textCase === "upper" ? x.toUpperCase() : e.captions.textCase === "lower" ? x.toLowerCase() : x);
   let size = e.captions.size * 0.82 * (U / 1080);
@@ -364,6 +451,12 @@ function drawCaptions(g: CanvasRenderingContext2D, e: Edit, scene: Scene, t: num
   const cue = scene.cues.find((c) => t >= c.start && t < c.end);
   if (!cue) return;
   if (e.translation?.lines.length) return drawTranslated(g, e, cue.words[0].text, clamp01((t - cue.start) / 0.12), split);
+  if (e.captions.preset === "boxed") {
+    // fade in only after a gap: back-to-back phrases swap in place, so the box doesn't blink
+    const prev = scene.cues[scene.cues.indexOf(cue) - 1];
+    const alpha = prev && cue.start - prev.end < 0.1 ? 1 : ease.out(clamp01((t - cue.start) / 0.12));
+    return drawBoxed(g, e, cue.words.map((w) => w.text).join(" "), alpha, split);
+  }
   const m = motionOf(e);
   const anim = m.captionAnim;
   const st = PRESET[e.captions.preset];

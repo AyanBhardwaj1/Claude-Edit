@@ -18,15 +18,19 @@ export type Asset = {
   entry?: number;                 // music: seconds in to start (a bar before the first big hit)
   web?: boolean;
   ai?: boolean;                   // made by an AI image model (labelled; platforms want an AI label)
+  screen?: boolean;               // looks like a screenshot / screen recording (flat UI colours; lib/framed.ts looksLikeScreen)
 };
 
-export type Treatment = "card-above-head" | "side-card" | "phone-card" | "full-frame" | "split-top" | "text-pop" | "motion";
+export type Treatment = "card-above-head" | "side-card" | "phone-card" | "full-frame" | "split-top" | "framed" | "text-pop" | "motion";
 
 export type Broll = {
   id: string; anchor: Range; treatment: Treatment;
   asset?: string;                 // library key (image or clip)
   text?: string; style?: "label" | "pop"; side?: "left" | "right" | "auto"; tilt?: number;
   card?: MotionCard; palette?: string;   // treatment "motion": an animated card drawn by Motion Studio's engine
+  // treatment "framed" (app screens, lib/framed.ts): focus 0-1 in the asset, a punch-in `at` seconds into the shot,
+  // a backdrop colour (default: a tint of the brand accent, else ivory #f4f1e6), full = cover the frame even over the face
+  focus?: { x: number; y: number }; punch?: { at: number; zoom: number }; backdrop?: string; full?: boolean;
 };
 
 export type MotionCard = { kind: "number" | "list" | "compare" | "bars" | "statement" | "title"; text: string; sub?: string; items?: string[];
@@ -34,7 +38,9 @@ export type MotionCard = { kind: "number" | "list" | "compare" | "bars" | "state
 
 export type Zoom = { anchor: Range; scale: number };
 
-export type CaptionPreset = "studio" | "bold" | "white" | "boxed" | "minimal";
+// boxed: a phrase at a time on a dark rounded box, bottom centre (up to 2 lines of ~42 characters); block: the older
+// word-by-word look on a black box
+export type CaptionPreset = "studio" | "bold" | "white" | "block" | "boxed" | "minimal";
 
 export type Captions = {
   enabled: boolean; preset: CaptionPreset; size: number; position: number;

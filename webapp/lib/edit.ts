@@ -28,7 +28,10 @@ export function defaultEdit(p: Project): Edit {
   };
 }
 
-const TREATMENTS: Treatment[] = ["card-above-head", "side-card", "phone-card", "full-frame", "split-top", "text-pop", "motion"];
+const TREATMENTS: Treatment[] = ["card-above-head", "side-card", "phone-card", "full-frame", "split-top", "framed", "text-pop", "motion"];
+export const CAPTION_PRESETS = ["studio", "bold", "white", "block", "boxed", "minimal"] as const;
+/** What picking the boxed subtitle style brings with it unless said otherwise: a clean sans in sentence case. */
+export const BOXED_DEFAULTS = { font: "Figtree", textCase: "as-is" } as const;
 const CARD_KINDS = ["number", "list", "compare", "bars", "statement", "title"] as const;
 
 /** What the AI sends back (see prompts.ts EDIT_SCHEMA). Every field is checked before it reaches the project. */
@@ -38,7 +41,8 @@ export type AiEdit = {
   captions?: Partial<Captions>; corrections?: { from: string; to: string }[];
   hook?: { text: string; from: string; to: string } | null;
   labels?: { text: string; from: string; to: string; style?: "label" | "pop" }[];
-  broll?: { asset: string; from: string; to: string; treatment?: string; side?: string }[];
+  broll?: { asset: string; from: string; to: string; treatment?: string; side?: string;
+    focus?: { x: number; y: number }; punch?: { at: number; zoom?: number }; full?: boolean; backdrop?: string }[];
   webPictures?: { query: string; kind: "logo" | "photo"; from: string; to: string; treatment?: string }[];
   zooms?: { from: string; to: string; scale?: number }[];
   motionCards?: { kind: string; text?: string; sub?: string; items?: string[]; value?: number; prefix?: string; suffix?: string; from: string; to: string }[];
@@ -74,12 +78,17 @@ export function fromAi(p: Project, base: Edit, ai: AiEdit, webAssets: Map<string
     e.captions = {
       ...e.captions,
       enabled: c.enabled ?? e.captions.enabled,
-      preset: (["studio", "bold", "white", "boxed", "minimal"] as const).includes(c.preset as never) ? c.preset! : e.captions.preset,
+      preset: CAPTION_PRESETS.includes(c.preset as never) ? c.preset! : e.captions.preset,
       size: clamp(c.size, 80, 160, e.captions.size), position: clamp(c.position, 0.5, 0.88, e.captions.position),
       textCase: (["upper", "as-is", "lower"] as const).includes(c.textCase as never) ? c.textCase! : e.captions.textCase,
       maxWords: Math.round(clamp(c.maxWords, 1, 4, e.captions.maxWords)),
       font: typeof c.font === "string" && c.font.length < 40 ? c.font : e.captions.font,
     };
+    // newly boxed: a clean sans in sentence case, unless the answer chose a font or case itself
+    if (e.captions.preset === "boxed" && base.captions.preset !== "boxed") {
+      if (!c.font && e.captions.font === "Montserrat") e.captions.font = BOXED_DEFAULTS.font;
+      if (!c.textCase) e.captions.textCase = BOXED_DEFAULTS.textCase;
+    }
   }
   if (ai.motion) e.motion = cleanMotion({ ...motionOf(e), ...ai.motion });
   if (ai.corrections) e.corrections = ai.corrections.filter((c) => c.from?.trim() && c.to?.trim()).slice(0, 60);
@@ -102,8 +111,10 @@ export function fromAi(p: Project, base: Edit, ai: AiEdit, webAssets: Map<string
     if (!r) continue;
     const a = lib.get(b.asset);
     if (!a || a.kind === "music") { problems.push(`picture ${b.asset}: not in the library`); continue; }
-    broll.push({ id: id(), anchor: r, asset: a.key, treatment: treat(b.treatment),
-      side: (["left", "right", "auto"] as const).includes(b.side as never) ? (b.side as Broll["side"]) : "auto" });
+    const item: Broll = { id: id(), anchor: r, asset: a.key, treatment: treat(b.treatment),
+      side: (["left", "right", "auto"] as const).includes(b.side as never) ? (b.side as Broll["side"]) : "auto" };
+    if (item.treatment === "framed") Object.assign(item, framedFields(b));
+    broll.push(item);
   }
   for (const [key, a] of webAssets) {
     const w = (ai.webPictures ?? []).find((x) => `web:${x.query}` === key);
@@ -146,6 +157,18 @@ export function fromAi(p: Project, base: Edit, ai: AiEdit, webAssets: Map<string
       hashtags: uniq, keywords: (ai.post.keywords ?? e.post.keywords).slice(0, 8) };
   }
   return { edit: e, problems };
+}
+
+/** A framed screen's own fields, checked: focus inside the picture, a punch-in inside the shot, a hex backdrop. */
+export function framedFields(b: { focus?: unknown; punch?: unknown; full?: unknown; backdrop?: unknown }): Partial<Broll> {
+  const out: Partial<Broll> = {};
+  const f = b.focus as { x?: unknown; y?: unknown } | undefined | null;
+  if (f && Number.isFinite(Number(f.x)) && Number.isFinite(Number(f.y))) out.focus = { x: clamp(f.x, 0, 1, 0.5), y: clamp(f.y, 0, 1, 0.5) };
+  const p = b.punch as { at?: unknown; zoom?: unknown } | undefined | null;
+  if (p && p.at !== null && Number.isFinite(Number(p.at))) out.punch = { at: clamp(p.at, 0, 30, 0.8), zoom: clamp(p.zoom ?? 1.6, 1.05, 2.5, 1.6) };
+  if (b.full === true) out.full = true;
+  if (typeof b.backdrop === "string" && /^#[0-9a-f]{6}$/i.test(b.backdrop)) out.backdrop = b.backdrop;
+  return out;
 }
 
 export function cleanMotion(m: Partial<Motion>): Motion {
