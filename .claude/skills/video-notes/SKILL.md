@@ -42,7 +42,9 @@ something that can't change silently (a number on screen, a claim, a name, the l
   bed) re-uses the encoded picture and swaps in the new mix: on the 3-minute Walk-Free spec that took 28 s, not
   3m39s. Say the number before starting when the user is short of time (they asked "how long?" before, every time).
 - Production, a quick look first: `--range <piece> <piece>.end` (720p, seconds).
-- Reel: re-run from the earliest affected stage (`editor auto ... --from captions|render`).
+- Reel: re-run from the earliest affected stage (`editor auto ... --from audio|captions|render`). A sound-only note
+  (music level, a dip, effects) keeps the encoded picture there too: the render remuxes the new sound (a fixture reel:
+  20 s -> 1.2 s).
 
 ## 4. Check what really changed, then save
 - Production: `python3 -m editor produce produce.json --changes`; reel: `python3 -m editor version <project> --changes`.
