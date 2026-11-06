@@ -47,3 +47,33 @@ test("the loop: a sign-off or dead air at the end fails, a clean last word passe
   const quiet = buildTimeline(ws, { ...e, keep: [{ from: "w0", to: "w10" }] }, [10]);
   assert.match(loopCheck(quiet).text, /s of nothing after the last word/);
 });
+
+test("cutting the warm-up drops the leading so/um/today and moves the hook title onto the new first word", async () => {
+  const { cutWarmUp } = await import("../lib/scrolltest");
+  const ws = say("so um today rent is the biggest bill you pay");
+  const e = edit({ broll: [{ ...hook, anchor: { from: "w0", to: "w4" } }] as never, zooms: [{ anchor: { from: "w1", to: "w1" }, scale: 1.2 }],
+    music: { asset: null, level: "under-voice", startAt: null, automation: [] } } as never);
+  const r = cutWarmUp(ws, e)!;
+  assert.equal(r.cut, "so um today");
+  assert.deepEqual(r.edit.keep, [{ from: "w3", to: "w9" }]);
+  assert.deepEqual(r.edit.broll[0].anchor, { from: "w3", to: "w4" });
+  assert.deepEqual(r.edit.zooms[0].anchor, { from: "w3", to: "w3" });
+  const tl = buildTimeline(ws, r.edit, [10]);
+  const after = scrollTest(tl, r.edit);
+  assert.ok(after.lines.find((l) => l.id === "open")!.ok);
+  assert.ok(after.lines.find((l) => l.id === "hook")!.ok);
+  assert.equal(e.keep[0].from, "w0", "the given edit is untouched");
+  assert.equal(cutWarmUp(say("rent is the biggest bill you pay and here is how"), edit()), null);
+  assert.equal(cutWarmUp(say("so um ok fine"), edit({ keep: [{ from: "w0", to: "w3" }] })), null);   // too little left
+});
+
+test("a warm-up that is a whole take keeps the next take; a hook title alone isn't the picture moving", async () => {
+  const { cutWarmUp } = await import("../lib/scrolltest");
+  const ws: Word[] = [{ id: "a0", src: 0, s: 0, e: 0.3, w: "Okay" }, { id: "a1", src: 0, s: 0.4, e: 0.6, w: "so" },
+    ...["rent", "is", "the", "biggest", "bill"].map((w, i) => ({ id: `b${i}`, src: 1, s: i * 0.4, e: i * 0.4 + 0.3, w }))];
+  const r = cutWarmUp(ws, edit({ keep: [{ from: "a0", to: "b4" }] }))!;
+  assert.deepEqual(r.edit.keep, [{ from: "b0", to: "b4" }]);
+  const e = edit({ broll: [{ ...hook, anchor: { from: "w1", to: "w3" } }] as never });
+  const moves = scrollTest(buildTimeline(say("rent is the biggest bill you pay and here is how"), e, [10]), e).lines.find((l) => l.id === "moves")!;
+  assert.equal(moves.ok, false);
+});

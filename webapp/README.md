@@ -107,6 +107,8 @@ vertical reel with a cover and a post caption, then change it by typing notes. E
     scroller got from them: a hook on screen, words to read, the picture moving, an opening that is the point, each
     with its fix (`lib/scrolltest.ts`). The speakers are muted; an export keeps its sound. **Loop test** plays the last
     2.5 seconds straight into the first 2, as the apps replay a reel, and flags dead air or a sign-off at the end.
+    When it opens with a warm-up ("so", "um", "today"), **Cut “so um”** removes it in one click and moves anything
+    anchored there (the hook title, zooms) onto the new first word.
 30. **Raise them**: when the app's caption block covers the subtitles, one click moves them to the lowest spot all three
     platforms leave clear, as its own version (`clearPosition` in `lib/safezones.ts`).
 

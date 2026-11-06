@@ -168,7 +168,7 @@ def review(video: str | Path, work_dir: str | Path, out_dir: str | Path | None =
         path = out_dir / f"review_{s0 // per_sheet + 1}.png"
         sheet.save(path)
         sheets.append(str(path))
-    pace = pacing(edl, words, meta["duration"])
+    pace = pacing(edl, words, meta["duration"], punch_cuts(edl, meta))
     report = {"video": str(video), "cuts": len(cuts), "issues": issues, "sheets": sheets,
               "passed": not issues, "pacing": pace}
     save_json(out_dir / "review.json", report)
@@ -187,17 +187,25 @@ STOPWORDS = {"i", "i'm", "i've", "i'll", "i'd", "the", "a", "and", "so", "but", 
              "august", "september", "october", "november", "december"}
 
 
-def pacing(edl: dict, words: list[dict], duration: float) -> dict:
+def punch_cuts(edl: dict, meta: dict) -> list[float]:
+    """Output times of the cuts where the auto punch-in alternates the framing (a visible change, like a zoom)."""
+    if float(edl.get("auto_punch_in", 1.0)) <= 1.0:
+        return []
+    return [float(s["start"]) for s in meta.get("timeline", [])[1:]]
+
+
+def pacing(edl: dict, words: list[dict], duration: float, cuts: list[float] | None = None) -> dict:
     """What a hand edit would fix (from Reel Studio's draft checks): bare face over 4.5 s, over 10 s with zooms
     only, too many zooms, visuals that flash by, big word cards over budget, names said but never shown,
     and too few b-roll moments for the length (hand edits carry about one per 6 s); the first second: speech
-    starting after 0.6 s, or no hook title on screen; and the loop (reels replay on their own): dead air over 0.6 s
+    starting after 0.6 s, an opener like "so" / "um" / "today", or no hook title on screen (`cuts`: punch-in cuts, which count as a change of picture for
+    the bare-face check); and the loop (reels replay on their own): dead air over 0.6 s
     after the last word, or a sign-off in the last 3 s."""
     broll = [b for b in edl.get("broll", []) if "start" in b and "dur" in b]
     zooms = [z for z in edl.get("zooms", []) if "start" in z and "end" in z]
     hook = lambda b: b.get("treatment") == "text-pop" and b.get("style") == "label" and float(b["start"]) < 1.0  # noqa: E731
     vis = sorted([(float(b["start"]), float(b["start"]) + float(b["dur"])) for b in broll if not hook(b)] +
-                 [(float(z["start"]), float(z["end"])) for z in zooms])
+                 [(float(z["start"]), float(z["end"])) for z in zooms] + [(c, c) for c in cuts or []])
     gaps, t = [], 0.0
     for a, b in vis + [(duration, duration)]:
         if a - t > 4.5:
@@ -225,6 +233,10 @@ def pacing(edl: dict, words: list[dict], duration: float) -> dict:
     # the first second decides: speech from the first frames, and something to read before the first word lands
     first = next((w for w in words if str(w.get("text", "")).strip()), None)
     late = f"{first['start']:.1f}s" if first and float(first["start"]) > 0.6 else None
+    weak = {"so", "um", "uh", "okay", "ok", "hey", "hi", "hello", "today", "alright", "well", "like"}
+    opener = re.sub(r"[^a-z']", "", str(first["text"]).lower()) if first else ""
+    warm = (f"opens with \"{str(first['text']).strip()}\": a warm-up, not the point; drop it from the first segment"
+            if opener in weak else None)
     has_title = bool(edl.get("title")) or any(hook(b) for b in broll)
     spoken = [w for w in words if str(w.get("text", "")).strip()]
     air = duration - float(spoken[-1]["end"]) if spoken else 0.0
@@ -238,4 +250,4 @@ def pacing(edl: dict, words: list[dict], duration: float) -> dict:
             "visuals_under_1_2s": too_short, "named_not_shown": names[:20],
             "broll_moments": None if len(broll) >= want else f"{len(broll)} (hand edits carry about {round(duration / 6)})",
             "first_word_after_0_6s": late, "no_hook_title": None if has_title else "nothing to read in the first second",
-            "loop_seam": loop}
+            "opens_with_warm_up": warm, "loop_seam": loop}

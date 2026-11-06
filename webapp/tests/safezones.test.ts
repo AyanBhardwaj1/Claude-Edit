@@ -24,3 +24,10 @@ test("covered subtitles get the lowest position every platform leaves clear", as
   assert.deepEqual(subtitlesCovered(caps(big, 200)), []);
   assert.ok(big < p);
 });
+
+test("big boxed subtitles are measured at two lines, so Raise them really clears them", async () => {
+  const { clearPosition } = await import("../lib/safezones");
+  const boxed = (position: number, size: number) => ({ captions: { enabled: true, preset: "boxed", size, position, textCase: "upper", maxWords: 3, font: "Montserrat" } }) as never;
+  const p = clearPosition(boxed(0.8, 160))!;
+  assert.ok(p !== null && p + (3.2 * 0.56 * 160) / 2 / 1920 <= 0.77, String(p));
+});

@@ -39,7 +39,7 @@ python3 -m editor render projects/<n>/work -o projects/<n>/out/<n>_youtube.mp4 -
 5. Spot-check exact moments with `python3 -m editor frames <file> -o <dir> --at <t> ...`.
 5b. `python3 -m editor pacing projects/<n>/work`: bare face over 4.5 s, over 10 s with zooms only, more than 10
    zooms a minute, more than 2 big word cards, visuals under 1.2 s, names said but never shown, and too few b-roll
-   moments for the length, the first second (speech starting after 0.6 s, no hook title to read) and the loop seam
+   moments for the length, the first second (speech starting after 0.6 s, a warm-up opener like "so" / "um" / "today", no hook title to read) and the loop seam
    (reels replay on their own: over 0.6 s of nothing after the last word, or a sign-off like "thanks for watching" in
    the last 3 s; end the cut on the last real point). `check` also fails black stretches of 0.5 s or more.
 5c. Vertical posts: `python3 -m editor safezone <file> --work projects/<n>/work` measures the captions from

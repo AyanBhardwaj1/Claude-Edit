@@ -3,13 +3,23 @@
   "linux-x86_64-4cpu": {
    "audio:rush": {
     "last": "2026-11-06",
-    "rate": 12.351,
-    "runs": 15
+    "rate": 10.167,
+    "runs": 17
+   },
+   "audio:standard": {
+    "last": "2026-11-06",
+    "rate": 9.005,
+    "runs": 1
    },
    "captions:rush": {
     "last": "2026-11-06",
-    "rate": 0.185,
-    "runs": 15
+    "rate": 0.122,
+    "runs": 17
+   },
+   "captions:standard": {
+    "last": "2026-11-06",
+    "rate": 0.092,
+    "runs": 1
    },
    "capture:standard": {
     "last": "2026-11-06",
@@ -18,8 +28,13 @@
    },
    "check:rush": {
     "last": "2026-11-06",
-    "rate": 19.118,
-    "runs": 2
+    "rate": 18.846,
+    "runs": 4
+   },
+   "check:standard": {
+    "last": "2026-11-06",
+    "rate": 77.146,
+    "runs": 1
    },
    "composite:rush": {
     "last": "2026-11-06",
@@ -33,7 +48,12 @@
    },
    "cut:rush": {
     "last": "2026-11-06",
-    "rate": 12.79,
+    "rate": 8.027,
+    "runs": 3
+   },
+   "cut:standard": {
+    "last": "2026-11-06",
+    "rate": 0.787,
     "runs": 1
    },
    "mix:rush": {
@@ -68,18 +88,33 @@
    },
    "plan:rush": {
     "last": "2026-11-06",
-    "rate": 0.667,
+    "rate": 0.729,
+    "runs": 3
+   },
+   "plan:standard": {
+    "last": "2026-11-06",
+    "rate": 0.708,
     "runs": 1
    },
    "render:rush": {
     "last": "2026-11-06",
-    "rate": 129.884,
+    "rate": 106.009,
+    "runs": 3
+   },
+   "render:standard": {
+    "last": "2026-11-06",
+    "rate": 147.777,
     "runs": 1
    },
    "track:rush": {
     "last": "2026-11-06",
-    "rate": 8.884,
-    "runs": 14
+    "rate": 7.369,
+    "runs": 16
+   },
+   "track:standard": {
+    "last": "2026-11-06",
+    "rate": 8.72,
+    "runs": 1
    },
    "transcribe:rush": {
     "last": "2026-11-06",

@@ -13,6 +13,8 @@ const db = (x: number) => Math.pow(10, x / 20);
 
 type Pair = { a: HTMLVideoElement; b: HTMLVideoElement; gainA: GainNode; gainB: GainNode };
 
+const STOPPED = "The export stopped before the end (playback was paused or the video changed). Export again.";
+
 export class Player {
   tl!: Timeline;
   scene!: Scene;
@@ -31,6 +33,7 @@ export class Player {
   private raf = 0;
   private recDest?: MediaStreamAudioDestinationNode;
   private speakers?: GainNode;
+  private stopRec?: () => void;            // ends an export in progress (see record)
   private silent = false;
   private woosh?: AudioBuffer;
   private fired = new Set<string>();
@@ -155,7 +158,15 @@ export class Player {
   set muted(m: boolean) { this.silent = m; if (this.speakers) this.speakers.gain.value = m ? 0 : 1; }
   get muted() { return this.silent; }
 
+  /** Stops playback; an export in progress ends with an error (see record). */
   pause() {
+    const stop = this.stopRec;
+    this.stopRec = undefined;
+    stop?.();
+    this.halt();
+  }
+
+  private halt() {
     this.playing = false;
     cancelAnimationFrame(this.raf);
     this.cur?.pause();
@@ -249,7 +260,7 @@ export class Player {
   }
 
   private finish() {
-    this.pause();
+    this.halt();
     this.t = this.tl.duration;
     this.onTime?.(this.t);
     this.onEnd?.();
@@ -293,15 +304,22 @@ export class Player {
     const done = new Promise<void>((ok) => (rec.onstop = () => ok()));
     const prevTime = this.onTime, prevEnd = this.onEnd;
     this.onTime = (t) => { onProgress(Math.round((100 * t) / this.tl.duration)); prevTime?.(t); };
-    const ended = new Promise<void>((ok) => (this.onEnd = () => ok()));
-    await this.seek(0);
-    rec.start(1000);
-    await this.play(0);
-    await ended;
-    await new Promise((ok) => setTimeout(ok, 250));
-    rec.stop();
-    await done;
-    this.onTime = prevTime; this.onEnd = prevEnd;
+    // a pause or a dispose (another version loading) mid-export would leave this waiting for an end that never comes
+    const ended = new Promise<void>((ok, no) => { this.onEnd = () => ok(); this.stopRec = () => no(new Error(STOPPED)); });
+    let stopped = false;
+    try {
+      await this.seek(0);
+      rec.start(1000);
+      await this.play(0);
+      await ended;
+      await new Promise((ok) => setTimeout(ok, 250));
+    } catch (e) { stopped = true; throw e; }
+    finally {
+      this.stopRec = undefined;
+      if (rec.state !== "inactive") rec.stop();
+      if (!stopped) await done;
+      this.onTime = prevTime; this.onEnd = prevEnd;
+    }
     return { blob: new Blob(chunks, { type: mime.split(";")[0] || "video/webm" }), ext: mime.includes("mp4") ? "mp4" : "webm" };
   }
 
