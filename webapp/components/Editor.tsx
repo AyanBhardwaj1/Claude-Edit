@@ -27,6 +27,7 @@ import { Icon } from "./Icons";
 import { RecordScreen } from "./ScreenRecorder";
 import { clock } from "./Tiles";
 import { changeList } from "@/lib/changes";
+import { Shortcuts } from "./Shortcuts";
 
 type Msg = { who: "you" | "ed"; text: string; rule?: string; changes?: string[] };
 
@@ -49,6 +50,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
   const [exp, setExp] = useState<{ pct: number; video?: string; ext?: string; cover?: string; caption?: string; label?: string; srt?: string } | null>(null);
   const [err, setErr] = useState("");
   const [toast, setToast] = useState("");
+  const [keys, setKeys] = useState(false);
   const [clips, setClips] = useState<Clip[] | null>(null);
   const [clipBusy, setClipBusy] = useState("");
   const [hooks, setHooks] = useState<string[] | null>(null);
@@ -139,6 +141,9 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
       if (el.closest("input, textarea, select, [contenteditable]") || (!!exp && exp.pct < 100)) return;
       const pl = player.current; if (!pl) return;
       const mod = ev.metaKey || ev.ctrlKey;
+      if (ev.key === "?" && !mod) { ev.preventDefault(); setKeys(true); return; }
+      if ((ev.key === "n" || ev.key === "N") && !mod && !ev.altKey) { ev.preventDefault(); document.getElementById("note")?.focus(); return; }
+      if ((ev.key === "Home" || ev.key === "End") && !mod) { ev.preventDefault(); const v = ev.key === "Home" ? 0 : dur; setT(v); void pl.seek(v); return; }
       if (ev.key === " " && !mod) { ev.preventDefault(); void toggle(); return; }
       const step = ev.key === "ArrowLeft" ? -1 : ev.key === "ArrowRight" ? 1 : ev.key === "," ? -1 / 30 : ev.key === "." ? 1 / 30 : 0;
       if (step && !mod) { ev.preventDefault(); const v = Math.max(0, Math.min(dur, pl.t + step * (ev.shiftKey ? 5 : 1))); setT(v); void pl.seek(v); return; }
@@ -284,6 +289,8 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
             <input type="range" className="scrub" min={0} max={dur || 1} step={0.01} value={t} aria-label="Position"
               onChange={(ev) => { const v = +ev.target.value; setT(v); void player.current?.seek(v); }} />
             <span className="time">{clock(t)} / {clock(dur)}</span>
+            <button className="btn ghost icon sm keys-btn" onClick={() => setKeys(true)} aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)"
+              aria-haspopup="dialog"><kbd aria-hidden="true">?</kbd></button>
           </div>
           {track && dur > 0 && (
             <div className="track" aria-hidden="true" onPointerDown={(ev) => {
@@ -502,6 +509,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
         </div>
       </div>
       {toast && <div className="toast" role="status">{toast}</div>}
+      <Shortcuts open={keys} onClose={() => setKeys(false)} />
     </div>
   );
 }

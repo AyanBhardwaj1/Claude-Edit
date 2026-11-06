@@ -774,3 +774,12 @@ button.attach { background: none; border: 0; font: inherit; font-size: 13px; tex
 .msg .changes li { margin: 2px 0; }
 .msg p.changes { padding-left: 0; }
 .msg .changes.warn { color: var(--bad-text); }
+/* Editor: keyboard shortcuts dialog (components/Shortcuts.tsx) */
+.keys-btn kbd { background: transparent; padding: 0; font-size: 13px; color: inherit; }
+dialog.shortcuts { width: min(440px, calc(100vw - 32px)); padding: 18px 20px; border: 1px solid var(--line); border-radius: var(--r-lg);
+  background: var(--surface); color: var(--ink); box-shadow: 0 24px 60px #0006; }
+dialog.shortcuts::backdrop { background: #0008; }
+dialog.shortcuts h2 { font-size: 17px; margin: 0; }
+dialog.shortcuts dl { margin: 12px 0; display: grid; gap: 2px; }
+dialog.shortcuts .row-key { display: flex; justify-content: space-between; align-items: center; gap: 14px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+dialog.shortcuts dt { display: flex; gap: 4px; flex-wrap: wrap; } dialog.shortcuts dd { margin: 0; text-align: right; color: var(--ink-2); font-size: 14px; }
