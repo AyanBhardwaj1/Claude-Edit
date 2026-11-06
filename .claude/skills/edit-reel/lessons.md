@@ -4,6 +4,10 @@ Read this before planning any non-trivial edit. After every video, append 1-5 le
 broke, what the user loved or rejected), newest first, one line each, under a dated heading. Preferences go to
 style memory (`editor style note`), timings to `editor effort record`; this file is for craft and process.
 
+## 2026-11-06 Overnight tooling
+- [process] Gate every commit on the tests in the same command (pytest ... | grep -q passed && git commit): a ';' let a failing test get committed once
+- [audio] loudnorm can drop the tail of short mixes: pad the mastered mix to the exact length
+
 ## 2026-11-05 Walk-Free hackathon demo (2:56, 16:9, brief-driven, rush effort, about 35 min)
 What the user loved (draft 4: "wow that's really good"): app screens on an ivory frame at 92% with rounded corners
 and a soft shadow, slow push-ins and punch-ins on what's being said, small model-name pills, captions in a dark box,
