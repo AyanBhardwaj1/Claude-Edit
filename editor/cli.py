@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import shutil
 import sys
 from pathlib import Path
@@ -235,6 +236,12 @@ def main(argv=None):
     p.add_argument("work_dir")
     p.add_argument("--logos", action="store_true", help="download each name's logo into <project>/broll/web/ and print an EDL entry")
     p.add_argument("--apply", action="store_true", help="with --logos: add those entries to edl.json (card above the head)")
+
+    p = sub.add_parser("variants", help="the same reel with other hook titles, one file each (for trial reels)")
+    p.add_argument("project")
+    p.add_argument("--hooks", nargs="+", required=True, help="the other hook titles, e.g. --hooks \"Stop filming daily\" \"One hour, a week of videos\"")
+    p.add_argument("--preset", default="reels")
+    p.add_argument("--auto-args", default="", help="the rest of your usual `editor auto` flags, in quotes (style, music...)")
 
     p = sub.add_parser("triage", help="classify raw/ clips: a-roll (founder-to-camera) vs reusable / one-off b-roll")
     p.add_argument("project")
@@ -854,6 +861,45 @@ def cmd_names(args):
         edl.setdefault("broll", []).extend(entries)
         save_json(edl_path, edl)
         log(f"names: {len(entries)} logo card(s) added to {edl_path}: re-run from render")
+    return 0
+
+
+def cmd_variants(args):
+    """Render the reel once per hook title (out/<name>_<preset> - hook B.mp4, ...), then put the EDL and captions back.
+    The hook is the EDL "title", or a hook card (a plain text-pop label in the first second) when there is one."""
+    import shlex
+    project = Path(args.project)
+    edl_path = project / "work" / "edl.json"
+    original = edl_path.read_text()
+    extra = shlex.split(args.auto_args)
+    base = ["auto", str(project), "--preset", args.preset, *extra]
+    out_dir = project / "out"
+    made = []
+    try:
+        for k, hook in enumerate(args.hooks):
+            edl = json.loads(original)
+            # the hook card: a plain label on screen in the first second (anchors resolved to find when it starts)
+            from .anchors import resolve_work
+            first = next((b for b in resolve_work(json.loads(original), project / "work").get("broll", [])
+                          if b.get("treatment") == "text-pop" and b.get("style") == "label" and float(b.get("start", 9)) < 1.0), None)
+            card = next((b for b in edl.get("broll", []) if first and b.get("treatment") == "text-pop"
+                         and b.get("text") == first.get("text")), None)
+            if card is not None:
+                card["text"] = hook
+            else:
+                edl["title"] = hook
+            save_json(edl_path, edl)
+            log(f"variants: hook {chr(66 + k)}: {hook!r}")
+            main([*base, "--from", "captions", "--to", "render"])
+            src = out_dir / f"{project.name}_{args.preset}.mp4"
+            dest = out_dir / f"{project.name}_{args.preset} - hook {chr(66 + k)}.mp4"
+            src.replace(dest)
+            made.append(dest)
+    finally:
+        edl_path.write_text(original)                  # the reel's own hook back, captions and render to match
+        main([*base, "--from", "captions", "--to", "render"])
+    for k, (f, hook) in enumerate(zip(made, args.hooks)):
+        print(f"hook {chr(66 + k)}: {f}  ({hook})")
     return 0
 
 
