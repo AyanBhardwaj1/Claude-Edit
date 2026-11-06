@@ -225,6 +225,10 @@ def test_pacing_checks():
                         "start": 0.0, "dur": 1.5}], "zooms": []}
     assert "need about 2.9s" in pacing(quick, ws, 30.0)["hook_too_quick_to_read"]
     assert "warm-up" in pacing(edl, words("So today I quit Notion"), 30.0)["opens_with_warm_up"]
+    from editor.review import stronger_opening
+    assert "4000" in stronger_opening(words("Hi everyone. I want to share my week. I lost 4000 dollars on one bad habit."))
+    assert stronger_opening(words("I lost 4000 dollars on one bad habit. Hi everyone. I want to share my week.")) is None
+    assert stronger_opening(words("I plan my week. Step two, I never move the camera. Then I film 5 videos.")) is None
     bye = words("here is the trick thanks for watching")
     assert "sign-off" in pacing(edl, bye, bye[-1]["end"] + 0.2)["loop_seam"]
 

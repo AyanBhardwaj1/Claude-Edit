@@ -28,6 +28,7 @@ import { RecordScreen } from "./ScreenRecorder";
 import { clock } from "./Tiles";
 import { changeItems, type Change } from "@/lib/changes";
 import { attention, spotsNote, zoomsFor, type Attention } from "@/lib/attention";
+import { openWith, strongestLine, type Line } from "@/lib/coldopen";
 import { cutWarmUp, LOOP_HEAD, LOOP_TAIL, loopCheck, SCROLL_SECONDS, scrollTest, type ScrollLine } from "@/lib/scrolltest";
 import { clearPosition, PLATFORM_NAMES, subtitlesCovered, ZONES, type Platform } from "@/lib/safezones";
 import { Shortcuts } from "./Shortcuts";
@@ -68,7 +69,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
   const [appUi, setAppUi] = useState<Platform | null>(null);   // draw Reels / TikTok / Shorts UI over the preview
   // the scroll test (the first 3 seconds, sound off) and the loop test (the end running back into the start), then
   // what a viewer got from them
-  const [scroll, setScroll] = useState<{ lines: ScrollLine[]; passed: number; loop: ScrollLine } | null>(null);
+  const [scroll, setScroll] = useState<{ lines: ScrollLine[]; passed: number; loop: ScrollLine; cold: Line | null } | null>(null);
   const [shownTest, setShownTest] = useState<"scroll" | "loop" | null>(null);
   const run = useRef<null | { kind: "scroll" } | { kind: "loop"; phase: "tail" | "head" }>(null);
   const [running, setRunning] = useState<"scroll" | "loop" | null>(null);
@@ -81,7 +82,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
     if (show) setShownTest(r.kind);
   };
   async function startRun(kind: "scroll" | "loop") {
-    const pl = player.current; if (!pl) return;
+    const pl = player.current; if (!pl || exportingRef.current) return;
     const was = run.current?.kind;
     endRun(pl, false);
     if (was === kind) return;                                   // the button again stops it
@@ -107,6 +108,10 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
   const [attn, setAttn] = useState<Attention | null>(null);
   const [track, setTrack] = useState<{ segs: [number, number][]; layers: { s: number; e: number; text: boolean; label: string }[]; zooms: [number, number][] } | null>(null);
   const [all, setAll] = useState<{ f: Format; url: string; ext: string }[] | null>(null);
+  // true for a whole export, Export all's version reloads between formats included: nothing may start playback then
+  const [exporting, setExporting] = useState(false);
+  const exportingRef = useRef(false);
+  const busyExport = (on: boolean) => { exportingRef.current = on; setExporting(on); };
   // export files are whole videos in memory: free the ones no longer shown
   const shownUrls = useRef<string[]>([]);
   useEffect(() => {
@@ -185,7 +190,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
     canvas.current!.dataset.cuts = pl.scene.cuts.map((c) => c.toFixed(3)).join(",");   // for tests and tools
     setCheck(reelCheck(p, edit, pl.tl));
     setAttn(attention(pl.tl, edit));
-    setScroll({ ...scrollTest(pl.tl, edit), loop: loopCheck(pl.tl) }); setShownTest(null);
+    setScroll({ ...scrollTest(pl.tl, edit), loop: loopCheck(pl.tl), cold: strongestLine(pl.tl) }); setShownTest(null);
     void waveform(p, pl.tl).then((w) => { if (gen === mounts.current) setWave(w); });
     setTrack({ segs: pl.tl.segments.map((x) => [x.outStart, x.outEnd]), zooms: pl.scene.zooms.map((z) => [z.s, z.e]),
       layers: pl.scene.layers.map((L) => ({ s: L.start, e: L.end, text: L.b.treatment === "text-pop", label: L.b.text ?? L.b.card?.text ?? p.library.find((x) => x.key === L.b.asset)?.name ?? "Picture" })) });
@@ -229,7 +234,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
   useEffect(() => {
     const onKey = (ev: KeyboardEvent) => {
       const el = ev.target as HTMLElement;
-      if (el.closest("input, textarea, select, [contenteditable]") || (!!exp && exp.pct < 100)) return;
+      if (el.closest("input, textarea, select, [contenteditable]") || (!!exp && exp.pct < 100) || exportingRef.current) return;
       if (keys || el.closest("dialog") || document.querySelector("dialog[open]")) return;   // a dialog is in front
       if ((ev.key === " " || ev.key === "Enter") && el.closest("button, a, [role=button], summary")) return;   // pressing a button
       const pl = player.current; if (!pl) return;
@@ -274,7 +279,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
   async function send(given?: string) {
     const text = (given ?? note).trim();
     if (!text) return;
-    if (exp && exp.pct < 100) { setToast("Wait for the export to finish: a new version now would stop it"); return; }
+    if ((exp && exp.pct < 100) || exportingRef.current) { setToast("Wait for the export to finish: a new version now would stop it"); return; }
     const hasKey = settings.provider === "anthropic" ? !!settings.anthropicKey : !!settings.openaiKey;
     setMsgs((m) => [...m, { who: "you", text }]);
     if (given === undefined) setNote("");
@@ -340,6 +345,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
   async function exportAll() {
     if (!version) return;
     endRun(player.current, false);              // a scroll or loop test still running would stop the recording
+    busyExport(true);
     const keep = p.format ?? "9:16";
     const out: { f: Format; url: string; ext: string }[] = [];
     setAll(null); setPlaying(true);
@@ -355,7 +361,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
     } catch (e) { setErr(String(e)); }
     p.format = keep;
     await mount(version.edit);
-    setExp(null); setAll(out); setPlaying(false);
+    setExp(null); setAll(out); setPlaying(false); busyExport(false);
     if (out.length) offerLearned();
   }
 
@@ -363,6 +369,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
     const pl = player.current;
     if (!pl) return;
     endRun(pl, false);                          // a scroll or loop test still running would stop the recording
+    busyExport(true);
     setExp({ pct: 0 }); setPlaying(true);
     try {
       const { blob, ext } = await pl.record((pct) => setExp((x) => ({ ...x!, pct })));
@@ -373,7 +380,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
         srt: version ? URL.createObjectURL(new Blob([srt(p, version.edit, pl.tl)], { type: "application/x-subrip" })) : undefined });
       offerLearned();
     } catch (e) { setErr(String(e)); setExp(null); }
-    setPlaying(false);
+    setPlaying(false); busyExport(false);
   }
 
   /** A composed bed becomes the video's music the way a picked song does: a new version with music.asset set. */
@@ -426,7 +433,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
   const shape = FORMATS[fmt];
   const base = p.title.replace(/[\\/:*?"<>|]+/g, "").slice(0, 80) + ` - Version ${p.current}` + (fmt === "9:16" ? "" : ` (${shape.name.toLowerCase()} ${fmt.replace(":", "x")})`);
   const reshape = async (f: Format) => { if (f === fmt || recording) return; p.format = f; await saveProject(p); setExp(null); setP({ ...p }); };
-  const recording = !!exp && exp.pct < 100;
+  const recording = exporting || (!!exp && exp.pct < 100);
   const did: [boolean, string][] = e ? [
     [true, `Kept your best takes · ${clock(dur)} long`],
     [e.captions.enabled, e.captions.enabled ? "Added subtitles" : "Subtitles off"],
@@ -524,6 +531,17 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
                               setMsgs((m) => [...m, { who: "ed", v: p.current, text: `Version ${p.current}: ${f.said}`, changes: changeItems(p, before, f.edit) }]);
                             }}><Icon name="wand" />{f.label}</button>); })()}</span></li>))}
                   </ul>
+                  {scroll.cold && version && (
+                    <div className="cold-open">
+                      <p className="small"><b>Your strongest line</b> is “{scroll.cold.text}” at {clock(scroll.cold.at)}: {scroll.cold.why.join(", ")}.
+                        {" "}Opening on it is the classic fix for a slow start; the rest plays in order after it.</p>
+                      <button type="button" className="btn sm" disabled={recording} onClick={async () => {
+                        const line = scroll.cold!, before = version.edit, fixed = openWith(p.words, before, line);
+                        await saveManual(p, fixed, `open with “${line.text}”`); setP({ ...p });
+                        setMsgs((m) => [...m, { who: "ed", v: p.current, text: `Version ${p.current}: it now opens with “${line.text}”, then plays the rest in order.`,
+                          changes: changeItems(p, before, fixed) }]);
+                      }}><Icon name="wand" />Open with it</button>
+                    </div>)}
                 </div>)}
               {shownTest === "loop" && (
                 <div className="scroll-res" role="status">

@@ -90,3 +90,15 @@ def test_word_anchor_picks_the_same_occurrence_as_a_phrase():
     assert second[0]["start"] == 1.5 and second[1]["end"] == 2.1
     assert find(words, {"words": "w2-w3#3"}) is None
     assert find(words, {"words": ["w0", "w3"]})[1]["end"] == 2.1              # the end word after the start
+
+
+def test_word_anchor_stays_inside_one_play_of_a_repeated_stretch():
+    from editor.anchors import find
+    # cold open w44-w49 (0-3 s), then the body w40-w60 from 4 s
+    cold = [{"id": f"w{i}", "text": "x", "start": (i - 44) * 0.5, "end": (i - 44) * 0.5 + 0.4} for i in range(44, 50)]
+    body = [{"id": f"w{i}", "text": "x", "start": 4 + (i - 40) * 0.6, "end": 4 + (i - 40) * 0.6 + 0.5} for i in range(40, 61)]
+    words = cold + body
+    a, b = find(words, {"words": "w46-w52"})                 # w52 is only in the body: the body's w46
+    assert a["start"] == 4 + 6 * 0.6 and b["start"] == 4 + 12 * 0.6
+    a, b = find(words, {"words": "w49-w44"})                 # backwards, within the cold open
+    assert a["start"] == 0.0 and b["start"] == 2.5

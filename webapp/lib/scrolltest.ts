@@ -17,12 +17,15 @@ export const readTime = (text: string) => 0.4 + 0.25 * text.trim().split(/\s+/).
 /** How long the hook title is on screen, as the compositor shows it: its words plus a short hold, at least 2 s,
  *  unless the next picture or card starts sooner. */
 function hookShown(tl: Timeline, e: Edit, hook: Edit["broll"][number]): number {
-  const sp = spanOf(tl, hook.anchor, 0.13);
-  if (!sp) return 0;
+  // the compositor's rule (lib/compositor.ts buildScene): layers sorted by start; only the next one cuts a layer
+  // short, and only when it starts more than 0.3 s after it
+  const sorted = e.broll.map((b) => ({ b, sp: spanOf(tl, b.anchor, 0.13) })).filter((x) => x.sp).sort((x, y) => x.sp![0] - y.sp![0]);
+  const k = sorted.findIndex((x) => x.b === hook);
+  if (k < 0) return 0;
+  const sp = sorted[k].sp!;
   let end = Math.max(sp[1] + 0.15, sp[0] + 2.0);
-  const next = e.broll.filter((b) => b !== hook).map((b) => spanOf(tl, b.anchor, 0.13)?.[0])
-    .filter((x): x is number => x !== undefined && x > sp[0] + 0.3).sort((a, b) => a - b)[0];
-  if (next !== undefined && next < end) end = next;
+  const next = sorted[k + 1]?.sp;
+  if (next && next[0] < end && next[0] > sp[0] + 0.3) end = next[0];
   return Math.min(end, tl.duration) - sp[0];
 }
 
@@ -115,5 +118,6 @@ export function cutWarmUp(words: Word[], e: Edit): { edit: Edit; cut: string } |
   next.broll.forEach((b) => move(b.anchor));
   next.zooms.forEach((z) => move(z.anchor));
   next.music?.automation?.forEach((m) => move(m.anchor));
+  next.translation?.lines.forEach((l) => move(l));          // translated subtitles start on the new first word too
   return { edit: next, cut: said.map((i) => words[i].w.trim()).join(" ") };
 }
