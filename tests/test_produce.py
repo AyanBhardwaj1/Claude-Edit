@@ -361,6 +361,20 @@ def test_an_audio_only_note_keeps_the_encoded_picture(tmp_path):
     assert md5(out, "0:v") != v1
 
 
+def test_a_stretch_the_recogniser_guessed_is_not_captioned_but_reported():
+    good = [("it", .95), ("counts", .93), ("trees", .97), ("nobody", .9), ("mapped", .94)]
+    guess = [("can", .5), ("sense", .6), ("of", .7), ("humor", .55), ("is", .6), ("the", .7), ("my", .5)]
+    words = [{"text": t, "prob": p, "start": i * 0.4, "end": i * 0.4 + 0.3}
+             for i, (t, p) in enumerate(good + guess + good)]
+    produce.UNSURE.clear()
+    kept = produce._drop_unsure(words, "v3", 0, 99)
+    assert [w["text"] for w in kept] == [t for t, _ in good + good]
+    assert produce.UNSURE and produce.UNSURE[0][0] == "v3" and "humor" in produce.UNSURE[0][3]
+    produce.UNSURE.clear()
+    assert produce._drop_unsure(words[:5], "v3", 0, 99) == words[:5] and not produce.UNSURE   # all sure: untouched
+    assert produce._drop_unsure([{"text": "x", "start": 0, "end": 1}], "v", 0, 9)[0]["text"] == "x"   # no confidences
+
+
 def test_a_script_line_nobody_said_in_that_voice_is_reported_not_hidden():
     heard = [("the", 1.0, 1.2), ("shadiest", 1.25, 1.8), ("route", 1.85, 2.2), ("he", 3.0, 3.1), ("asked", 3.15, 3.5),
              ("out", 3.55, 3.7), ("loud", 3.75, 4.1)]

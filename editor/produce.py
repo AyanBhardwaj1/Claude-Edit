@@ -680,6 +680,7 @@ def auto_captions(spec: Spec) -> list[dict]:
         return []
     out = []
     UNHEARD.clear()
+    UNSURE.clear()
     for name, src in c.get("voices", {}).items():
         v = spec.voices.get(name)
         if not v:
@@ -693,9 +694,44 @@ def auto_captions(spec: Spec) -> list[dict]:
             continue
         if cfg.get("script"):                 # the script as text: its words, the recogniser's timing
             words = scripted_words(words, a, b, cfg["script"])
+        else:
+            words = _drop_unsure(words, name, a, b)
         out += caption_cards(words, name, a, b, int(c.get("max_chars", 42)), int(c.get("lines", 2)),
                              float(c.get("gap", 0.6)), c.get("replace"), float(c.get("max_dur", 3.5)))
     return out
+
+
+UNSURE: list[tuple[str, float, float, str]] = []    # (voice, from, to, what was guessed) stretches not captioned
+
+
+def _drop_unsure(words: list[dict], voice: str, a: float, b: float, k: int = 7, thr: float = 0.75,
+                 min_run: int = 5) -> list[dict]:
+    """Stretches the recogniser guessed (another language, a mumble, names it doesn't know: a run of words whose
+    rolling confidence is under 0.75) make garbage captions ("can sense of humor is the my" for Spanish). Leave them
+    out, and say where, so they get captioned from the script or by ear."""
+    ws = [w for w in words if a <= float(w["start"]) < b]
+    probs = [w.get("prob", w.get("conf")) for w in ws]
+    if not ws or any(p is None for p in probs):
+        return words
+    bad = []
+    for i in range(len(ws)):
+        lo, hi = max(0, i - k // 2), min(len(ws), i + k // 2 + 1)
+        bad.append(sum(probs[lo:hi]) / (hi - lo) < thr)
+    drop, run = set(), []
+    for i, x in enumerate(bad + [False]):
+        if x:
+            run.append(i)
+            continue
+        if len(run) >= min_run:
+            drop |= set(run)
+            r = [ws[j] for j in run]
+            UNSURE.append((voice, float(r[0]["start"]), float(r[-1]["end"]),
+                           " ".join(str(w.get("text", w.get("word", ""))) for w in r)))
+            log(f"captions {voice}: {r[0]['start']:.1f}-{r[-1]['end']:.1f} s (source) the recogniser was guessing, "
+                "not captioned: give the voice its script lines (captions-from-brief) or caption it by ear")
+        run = []
+    keep = {id(w) for j, w in enumerate(ws) if j not in drop}
+    return [w for w in words if not (a <= float(w["start"]) < b) or id(w) in keep]
 
 
 def scripted_words(words: list[dict], a: float, b: float, script: str) -> list[dict]:
@@ -1319,6 +1355,9 @@ def review(spec: Spec, final: Path | None = None) -> dict:
         if pct < 60:
             issues.append(f"voice {name} ({a:.1f}-{a + d:.1f} s) has captions on only {pct}% of it")
     rep["captions"] = cover
+    for voice, t0, t1, guess in UNSURE:
+        issues.append(f"voice {voice} {t0:.1f}-{t1:.1f} s (source) isn't captioned: the recogniser was guessing "
+                      f"(\"{guess[:40]}\"). Give it the script's lines, or caption it by ear")
     gaps = music_gaps(spec)
     rep["music_under_voice"] = gaps
     for g in gaps:
@@ -2018,6 +2057,9 @@ def main(argv=None) -> int:
             print(f"  caption {card['t_in']:7.2f}-{card['t_out']:7.2f}  {card['text']}")
         for voice, line in UNHEARD:
             print(f"warning caption line not heard in {voice}, dropped: {line}")
+        for voice, t0, t1, guess in UNSURE:
+            print(f"warning {voice} {t0:.1f}-{t1:.1f} s (source): the recogniser was guessing (\"{guess[:50]}\"), "
+                  "not captioned: use script lines or caption it by ear")
         if ov or auto:
             ov = (json.loads(spec.p(ov).read_text()) if isinstance(ov, str) else ov) or {}
             els = spec.resolve({**ov, "elements": list(ov.get("elements", [])) + auto}).get("elements", [])

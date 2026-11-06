@@ -17,7 +17,7 @@ from pathlib import Path
 
 import numpy as np
 
-from .util import EditorError, load_json, log, probe
+from .util import EditorError, load_json, log, probe, run
 
 IMAGE_EXT = (".png", ".jpg", ".jpeg", ".webp")
 
@@ -99,6 +99,18 @@ def render(cut_dir: str | Path, out: str | Path, preset: str = "reels", audio: s
     dec_h = int(round(src_h * pre / 2) * 2)
     sx = dec_w / src_w
 
+    from .sfx import plan_events
+    sfx_events = plan_events(edl, meta["duration"], transitions=trans) if sfx else []
+    picture = _picture_key(cut_dir, p, captions, track, zooms, punch_in, grade, lut, sharpen, fit, broll, crf,
+                           auto_color, draft, edl, trans)
+    stamp = Path(str(out) + ".picture")
+    if Path(out).exists() and stamp.exists() and stamp.read_text() == picture:
+        # a sound-only note (music level, a dip, effects): keep the encoded picture, rebuild only the audio
+        _remux_audio(Path(out), cut_dir, audio, broll or [], sfx_events)
+        log(f"render: same picture as last time, new sound only (remuxed, no re-encode) -> {out}")
+        return Path(out)
+    stamp.unlink(missing_ok=True)
+
     seg_of_frame = _segment_index(timeline, n_frames, fps)
     face_x, face_y, has_face = _face_path(track, timeline, n_frames, fps)
     zoom = _zoom_curve(seg_of_frame, zooms, punch_in, n_frames, fps) * tx.zoom_boost(trans, n_frames, fps)
@@ -109,8 +121,6 @@ def render(cut_dir: str | Path, out: str | Path, preset: str = "reels", audio: s
         ["ffmpeg", "-hide_banner", "-loglevel", "error", "-i", str(src), "-vf",
          f"scale={dec_w}:{dec_h}:flags=lanczos:in_color_matrix=bt709:in_range=tv",
          "-f", "rawvideo", "-pix_fmt", "bgr24", "-"], stdout=subprocess.PIPE)
-    from .sfx import plan_events
-    sfx_events = plan_events(edl, meta["duration"], transitions=trans) if sfx else []
     progress = edl.get("progress_bar")
     luts = _color_luts(src, timeline, auto_color) if auto_color > 0 else None
     enc_cmd, enc_log = _encoder_cmd(out, out_w, out_h, fps_str, cut_dir, audio, captions, grade, lut, sharpen,
@@ -166,6 +176,7 @@ def render(cut_dir: str | Path, out: str | Path, preset: str = "reels", audio: s
         enc_log.seek(0)
         raise EditorError("encoder failed:\n" + enc_log.read().decode(errors="replace")[-3000:])
     log(f"wrote {out}")
+    stamp.write_text(picture)
     from .genai import provenance
     ai = [Path(b["path"]).name for b in broll or [] if provenance(b["path"])]
     if ai:
@@ -196,6 +207,60 @@ def still(cut_dir: str | Path, t: float, preset: str = "reels", track: str | Pat
     y0 = int(round(min(max(y0, 0), src_h - base_h)))
     crop = frame[y0:y0 + int(base_h), x0:x0 + int(base_w)]
     return cv2.resize(crop, (out_w, out_h), interpolation=cv2.INTER_AREA if crop.shape[1] > out_w else cv2.INTER_LANCZOS4)
+
+
+def _picture_key(cut_dir, p, captions, track, zooms, punch_in, grade, lut, sharpen, fit, broll, crf, auto_color,
+                 draft, edl, trans) -> str:
+    """Everything the encoded picture depends on, and nothing it doesn't (music, sound effects, b-roll sound, post)."""
+    import hashlib
+    import json
+
+    def sig(f, content=False):
+        f = Path(f) if f else None
+        if not f or not f.exists():
+            return None
+        return hashlib.sha1(f.read_bytes()).hexdigest() if content else [str(f), f.stat().st_mtime_ns, f.stat().st_size]
+    cut_dir = Path(cut_dir)
+    # "settings" only records the CLI choices (music level too); the ones that shape the picture are keyed directly
+    pic_edl = {k: v for k, v in edl.items() if k not in ("music", "sfx", "post", "notes", "todo", "settings")}
+    br = [{**{k: v for k, v in b.items() if k != "nat"}, "_file": sig(b.get("path"))} for b in broll or []]
+    blob = [sig(cut_dir / "cut.mkv"), sig(cut_dir / "cut_meta.json", True), sig(captions, True), sig(track, True),
+            zooms, punch_in, grade, sig(lut), sharpen, fit, br, crf, auto_color, draft, p, pic_edl, trans]
+    return hashlib.sha1(json.dumps(blob, sort_keys=True, default=str).encode()).hexdigest()
+
+
+def _remux_audio(out: Path, cut_dir, audio, broll, sfx_events) -> None:
+    """The final sound (voice + b-roll natural sound + effects, as the encoder mixes it) onto the existing video."""
+    cmd = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", str(audio) if audio else str(Path(cut_dir) / "cut.mkv")]
+    parts, labels, idx = ["[0:a:0]aresample=48000,aformat=channel_layouts=stereo[a0]"], "", 1
+    for b in broll:
+        path = str(b["path"])
+        if b.get("nat") is None or Path(path).suffix.lower() in IMAGE_EXT or not probe(path)["has_audio"]:
+            continue
+        start, dur = float(b["start"]), float(b["dur"])
+        cmd += ["-ss", f"{float(b.get('src_start', 0)):.3f}", "-t", f"{dur:.3f}", "-i", path]
+        ms = int(round(start * 1000))
+        parts.append(f"[{idx}:a:0]aresample=48000,aformat=channel_layouts=stereo,volume={float(b['nat'])}dB,"
+                     f"afade=t=in:d=0.15,afade=t=out:st={max(dur - 0.3, 0):.3f}:d=0.3,adelay={ms}|{ms}[m{idx}]")
+        labels += f"[m{idx}]"
+        idx += 1
+    for e in sfx_events:
+        cmd += ["-i", e["file"]]
+        ms = int(round(e["start"] * 1000))
+        parts.append(f"[{idx}:a]aresample=48000,volume={e['db']}dB,adelay={ms}|{ms}[m{idx}]")
+        labels += f"[m{idx}]"
+        idx += 1
+    n = labels.count("[")
+    parts.append(f"[a0]{labels}amix=inputs={n + 1}:duration=first:normalize=0,alimiter=limit=0.89:level=false[aout]"
+                 if n else "[a0]anull[aout]")
+    sound = out.with_name(out.stem + ".sound.m4a")
+    run(cmd + ["-filter_complex", ";".join(parts), "-map", "[aout]", "-c:a", "aac", "-b:a", "320k", "-ar", "48000",
+               str(sound)])
+    tmp = out.with_name(out.stem + ".remux" + out.suffix)
+    run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", str(out), "-i", str(sound), "-map", "0:v",
+         "-map", "1:a", "-c", "copy", "-shortest", "-movflags", "+faststart", str(tmp)])
+    tmp.replace(out)
+    sound.unlink(missing_ok=True)
 
 
 def _encoder_cmd(out, w, h, fps_str, cut_dir, audio, captions, grade, lut, sharpen, broll, crf, p,

@@ -183,14 +183,34 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
     if (playing) { pl.pause(); setPlaying(false); } else { setPlaying(true); await pl.play(); }
   }
 
+  // Notes sent while the editor is still working wait their turn and are applied in order, each its own version.
+  const queue = useRef<string[]>([]);
+  const working = useRef(false);
+  const [waiting, setWaiting] = useState(0);
   async function send() {
     const text = note.trim();
-    if (!text || busy) return;
+    if (!text) return;
     const hasKey = settings.provider === "anthropic" ? !!settings.anthropicKey : !!settings.openaiKey;
     setMsgs((m) => [...m, { who: "you", text }]);
     setNote("");
     if (!hasKey) { setMsgs((m) => [...m, { who: "ed", text: "I can't change the video from a note without an AI editor. Add your key in Settings, or use \"Edit it myself\"." }]); return; }
-    setBusy("Working on your note…"); setErr("");
+    queue.current.push(text);
+    if (working.current) { setWaiting(queue.current.length); setToast("Got it: I'll do that right after this note"); return; }
+    working.current = true; setErr("");
+    while (queue.current.length) {
+      const next = queue.current.shift()!;
+      setWaiting(queue.current.length);
+      const ok = await applyOne(next);
+      if (!ok && queue.current.length) {
+        setMsgs((m) => [...m, { who: "ed", text: `I stopped there, so ${queue.current.length === 1 ? "your next note wasn't" : `your next ${queue.current.length} notes weren't`} applied. Send ${queue.current.length === 1 ? "it" : "them"} again when you're ready.` }]);
+        queue.current = [];
+      }
+    }
+    setWaiting(0); working.current = false; setBusy("");
+  }
+
+  async function applyOne(text: string): Promise<boolean> {
+    setBusy("Working on your note…");
     try {
       const before = (p.versions.find((v) => v.n === p.current) ?? p.versions[p.versions.length - 1]).edit;
       const r = await applyUserNote(p, settings, loadRules(), text, (m) => setBusy(m));
@@ -200,8 +220,8 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
       if (r.styleRule && always) addRule(r.styleRule);
       setMsgs((m) => [...m, { who: "ed", text: `Version ${p.current}: ${r.summary}` + (r.styleRule && always ? " I'll remember that for next time." : ""),
         rule: r.styleRule && !always ? r.styleRule : undefined, changes: changeList(p, before, after) }]);
-    } catch (e) { setErr((e as { userMessage?: string }).userMessage ?? String(e)); }
-    setBusy("");
+      return true;
+    } catch (e) { setErr((e as { userMessage?: string }).userMessage ?? String(e)); return false; }
   }
 
   /** After an export: a change the user has now made in two videos, offered as a style rule (lib/learn.ts). */
@@ -507,7 +527,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
                   )}
                 </div>
               ))}
-              {busy && <div className="msg ed busy"><span className="spin" aria-hidden="true" />{busy}</div>}
+              {busy && <div className="msg ed busy"><span className="spin" aria-hidden="true" />{busy}{waiting > 0 && <span className="small faint">{` · ${waiting} more note${waiting === 1 ? "" : "s"} waiting`}</span>}</div>}
             </div>
             {err && <div className="alert err mt-12" role="alert"><Icon name="alert" /><span>{err}</span></div>}
             <div className="composer">
@@ -519,7 +539,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
                 aria-label={`Add the time ${clock(t)} to your note`}
                 onClick={() => { setNote((n) => `At ${clock(t)}, ${n.replace(/^at \d+:\d\d,\s*/i, "")}`);
                   document.getElementById("note")?.focus(); }}><span className="num">At {clock(t)}</span></button>}
-              <button className="btn primary" onClick={send} disabled={!!busy || !note.trim()}><Icon name="send" />Send</button>
+              <button className="btn primary" onClick={send} disabled={!note.trim()}><Icon name="send" />{busy ? "Queue" : "Send"}</button>
             </div>
             <p className="hint note-hint" id="note-hint">For example: &ldquo;music too loud at the start&rdquo;, &ldquo;at 0:12 zoom in&rdquo; (the At button adds where the player is), &ldquo;show the Spotify logo when I say
               Spotify&rdquo;, &ldquo;cut the part about my cat&rdquo;. Enter sends, Shift+Enter starts a new line.</p>
