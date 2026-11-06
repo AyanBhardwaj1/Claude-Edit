@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { deleteProject, listProjects } from "@/lib/store";
+import { copyProject, deleteProject, listProjects } from "@/lib/store";
 import type { Project } from "@/lib/types";
 import { Icon } from "./Icons";
 import { VideoTile } from "./Tiles";
@@ -44,7 +44,8 @@ export function Library({ onOpen, onNew, onSample }: { onOpen: (p: Project) => v
       {ps && ps.length > 0 && !shown.length && <p className="muted">Nothing matches &ldquo;{q}&rdquo;.</p>}
       <div className="tiles">
         {shown.map((p) => <VideoTile key={p.id} p={p} onOpen={() => onOpen(p)}
-          onDelete={async () => { await deleteProject(p); setPs(await listProjects()); }} />)}
+          onDelete={async () => { await deleteProject(p); setPs(await listProjects()); }}
+          onCopy={async () => { await copyProject(p); setPs(await listProjects()); }} />)}
       </div>
     </div>
   );
