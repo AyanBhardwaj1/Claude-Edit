@@ -896,6 +896,88 @@ def init_spec(folder: str | Path, out: str | Path, inventory_dir: str | Path | N
     return spec
 
 
+# ---------------------------------------------------------------- post kit: subtitles, chapters, cover
+
+def _all_captions(spec: Spec) -> list[dict]:
+    ov = spec.data.get("overlay") or {}
+    ov = json.loads(spec.p(ov).read_text()) if isinstance(ov, str) else ov
+    els = spec.resolve({**ov, "elements": list(ov.get("elements", [])) + auto_captions(spec)}).get("elements", [])
+    return sorted((e for e in els if e.get("type") == "caption"), key=lambda e: float(e["t_in"]))
+
+
+def _srt_time(t: float) -> str:
+    ms = int(round(max(0.0, t) * 1000))
+    h, ms = divmod(ms, 3600000)
+    m, ms = divmod(ms, 60000)
+    sec, ms = divmod(ms, 1000)
+    return f"{h:02d}:{m:02d}:{sec:02d},{ms:03d}"
+
+
+def _sharpest(video: Path, t: float, window: float = 1.0) -> float:
+    """The least blurred moment within `window` s of t (people move: the exact second is often a smear)."""
+    import subprocess
+    import cv2
+    import numpy as np
+    info = probe(video)
+    w, h = info["video"]["width"] // 4, info["video"]["height"] // 4
+    a = max(0.0, t - window)
+    raw = subprocess.run(["ffmpeg", "-v", "error", "-ss", f"{a:.3f}", "-t", f"{2 * window:.3f}", "-i", str(video),
+                          "-vf", f"fps=10,scale={w}:{h},format=gray", "-f", "rawvideo", "-"],
+                         capture_output=True).stdout
+    n = len(raw) // (w * h)
+    if n == 0:
+        return t
+    frames = np.frombuffer(raw[:n * w * h], np.uint8).reshape(n, h, w)
+    sharp = [cv2.Laplacian(f, cv2.CV_64F).var() for f in frames]
+    return round(a + int(np.argmax(sharp)) / 10, 2)
+
+
+def post_kit(spec: Spec, final: Path) -> dict:
+    """<name>.srt (from every caption card), <name>_chapters.txt (YouTube chapters from pieces with a "chapter"
+    or post.chapters), and <name>_cover.jpg (a clean frame from the base picture, with a title) when asked."""
+    post = spec.data.get("post", {})
+    out, issues = {}, []
+    caps = _all_captions(spec)
+    if caps and post.get("srt", True):
+        srt = final.with_suffix(".srt")
+        blocks = []
+        for i, c in enumerate(caps, 1):
+            text = c["text"] + (f"\n{c['sub']}" if c.get("sub") else "")
+            blocks.append(f"{i}\n{_srt_time(float(c['t_in']))} --> {_srt_time(float(c['t_out']))}\n{text}\n")
+        srt.write_text("\n".join(blocks))
+        out["srt"] = str(srt)
+    chapters = [(spec.t(t), title) for t, title in post.get("chapters", [])] or \
+        [(spec.starts[pc["name"]][0], pc["chapter"]) for pc in spec.pieces if pc.get("chapter")]
+    if chapters:
+        chapters.sort()
+        if chapters[0][0] > 0.5:
+            issues.append("YouTube chapters must start at 0:00: the first one was moved there")
+        chapters[0] = (0.0, chapters[0][1])
+        if len(chapters) < 3:
+            issues.append("YouTube needs at least 3 chapters to show them")
+        short = [t for (t, _), (n, _) in zip(chapters, chapters[1:] + [(spec.total, "")]) if n - t < 10]
+        if short:
+            issues.append(f"{len(short)} chapter(s) shorter than 10 s (YouTube ignores the list then)")
+        txt = final.with_name(final.stem + "_chapters.txt")
+        txt.write_text("".join(f"{int(t // 60)}:{int(t % 60):02d} {title}\n" for t, title in chapters))
+        out["chapters"] = str(txt)
+    cov = post.get("cover")
+    if cov:
+        from .cover import cover
+        base = spec.work / "base.mp4"
+        src = base if base.exists() else final
+        dst = final.with_name(final.stem + "_cover.jpg")
+        at = _sharpest(src, spec.t(cov["at"]), float(cov.get("window", 1.0))) if "at" in cov else None
+        cover(src, dst, title=cov.get("title", ""), at=at,
+              accent=cov.get("accent", "#FFE600"), highlight=cov.get("highlight"),
+              preset="youtube" if spec.w >= spec.h else "reels")
+        out["cover"] = str(dst)
+    out["issues"] = issues
+    for i in issues:
+        log(f"produce: post: {i}")
+    return out
+
+
 # ---------------------------------------------------------------- versions (one per note)
 
 def save_version(spec: Spec, note: str, files: list[str]) -> dict:
@@ -963,7 +1045,7 @@ def produce(spec_path: str | Path, only: str | None = None, jobs: int = 4, want_
     from . import effort as eff
     spec = Spec(spec_path)
     spec.work.mkdir(parents=True, exist_ok=True)
-    stages = [only] if only else ["pieces", "overlay", "mix", "composite", "extras", "review"]
+    stages = [only] if only else ["pieces", "overlay", "mix", "composite", "extras", "post", "review"]
     res, timing = {"total": spec.total}, {}
     base, ov, audio = spec.work / "base.mp4", None, spec.work / "mix.wav"
     for st in stages:
@@ -990,13 +1072,16 @@ def produce(spec_path: str | Path, only: str | None = None, jobs: int = 4, want_
         elif st == "extras":
             if spec.file.exists():
                 res["extras"] = [str(p) for p in extras(spec, spec.file)]
+        elif st == "post":
+            if spec.file.exists():
+                res["post"] = post_kit(spec, spec.file)
         elif st == "review":
             if (eff.normalise(effort) or "standard") == "rush" and not only:
                 log("produce: review skipped at rush effort (run --only review when there's a minute)")
                 continue
             res["review"] = review(spec)
         else:
-            raise EditorError(f"unknown stage {st!r} (pieces, overlay, mix, composite, extras, review)")
+            raise EditorError(f"unknown stage {st!r} (pieces, overlay, mix, composite, extras, post, review)")
         timing[st] = round(time.monotonic() - t0, 1)
         stage = {"pieces": "pieces", "overlay": "overlay", "mix": "mix", "composite": "composite"}.get(st)
         if stage and timing[st] > 2:                        # cached stages teach nothing
@@ -1015,7 +1100,7 @@ def main(argv=None) -> int:
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("spec")
     ap.add_argument("--plan", action="store_true", help="print the timeline and resolved overlay times; render nothing")
-    ap.add_argument("--only", choices=["pieces", "overlay", "mix", "composite", "extras", "review"])
+    ap.add_argument("--only", choices=["pieces", "overlay", "mix", "composite", "extras", "post", "review"])
     ap.add_argument("-j", "--jobs", type=int, default=4)
     ap.add_argument("--preview", action="store_true", help="also write a 720p preview")
     ap.add_argument("--effort", default="standard", help="for the learned timings (rush, standard, polish)")

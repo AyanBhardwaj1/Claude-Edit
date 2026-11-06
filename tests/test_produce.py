@@ -88,8 +88,15 @@ def test_tiny_production_end_to_end(tmp_path):
     spec["extras"] = [{"name": "sq", "from": "a", "to": "b.end", "size": [180, 180]},
                       {"name": "vert", "kind": "band", "size": [180, 320], "title": "It's 100°F: walk home"},
                       {"name": "hl", "kind": "band", "size": [180, 320], "ranges": [["a", "a+1"], ["c", "c.end"]]}]
+    spec["overlay"] = {"elements": [{"type": "caption", "text": "Hello there", "t_in": "a+0.2", "t_out": "a+1.4"}]}
+    spec["pieces"][0]["chapter"] = "Intro"
+    spec["post"] = {"chapters": [], "cover": {"at": "a+1", "title": "Tiny"}}
     path = write_spec(tmp_path, spec)
     res = produce.produce(path)
+    kit = res["post"]
+    assert "00:00:00,200 --> 00:00:01,400\nHello there" in Path(kit["srt"]).read_text()
+    assert Path(kit["chapters"]).read_text() == "0:00 Intro\n" and any("3 chapters" in i for i in kit["issues"])
+    assert Path(kit["cover"]).exists()
     out = Path(res["file"])
     info = probe(out)
     assert info["duration"] == pytest.approx(4.5, abs=0.1)
