@@ -667,6 +667,25 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
                     {exp.srt && <a className="btn" href={exp.srt} download={`${base}${version?.edit.translation ? ` ${version.edit.translation.lang}` : ""}.srt`}>Subtitles .srt</a>}
                     <button className="btn ghost" onClick={() => copy(post)}><Icon name="copy" />Copy caption</button>
                   </div>
+                  {version && (() => {
+                    // everything the editor checks, in one place, at the moment of posting
+                    const bleeped = new Set(version.edit.bleeps ?? []);
+                    const covered = fmt === "9:16" ? subtitlesCovered(version.edit) : [];
+                    const items: [boolean, string][] = [
+                      ...(check ? [[check.score >= 80, `Reel check ${check.score}/100`] as [boolean, string]] : []),
+                      ...(scroll ? [[scroll.passed === 4, `Scroll test ${scroll.passed} of 4`] as [boolean, string],
+                        [scroll.loop.ok, scroll.loop.ok ? "Loops cleanly" : "The loop has a seam"] as [boolean, string]] : []),
+                      ...(fmt === "9:16" ? [[!covered.length, covered.length ? `Subtitles under ${covered.map((x) => PLATFORM_NAMES[x]).join(", ")}'s caption` : "Subtitles clear of the app buttons"] as [boolean, string]] : []),
+                      ...(names.length ? [[false, `${names.length} name${names.length > 1 ? "s" : ""} said, not shown`] as [boolean, string]] : []),
+                      ...(swore.length ? [[swore.every((x) => bleeped.has(x.id)), swore.every((x) => bleeped.has(x.id)) ? "Strong language bleeped" : `${swore.length} strong word${swore.length > 1 ? "s" : ""}, not bleeped`] as [boolean, string]] : []),
+                    ];
+                    const todo = items.filter(([ok]) => !ok).length;
+                    return (
+                      <div className="before-post">
+                        <p className="small"><b>Before you post</b> <span className="muted">{todo ? `${todo} thing${todo > 1 ? "s" : ""} to look at (beside the video)` : "everything checks out"}</span></p>
+                        <ul>{items.map(([ok, text]) => <li key={text} className={ok ? "ok" : "bad"}><Icon name={ok ? "check" : "alert"} />{text}</li>)}</ul>
+                      </div>);
+                  })()}
                   <div className="row"><button className="btn ghost sm" onClick={() => { setExp(null); void exportAll(); }}>Also make every shape (4 files, about {Math.ceil(4 * dur / 60)} min)</button>
                     <button className="btn ghost sm" aria-expanded={alts !== null} onClick={() => setAlts(alts ? null : [hooks?.[0] ?? "", hooks?.[1] ?? ""])}>Test other hooks (trial reels)</button></div>
                   {alts && (
@@ -743,8 +762,8 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
               <p className="small muted">You name {names.length === 1 ? "this" : "these"} but never show {names.length === 1 ? "it" : "them"}. A logo on the name helps people remember it.</p>
               <ul className="name-list">{names.map((n) => (
                 <li key={n.from}>
-                  <button type="button" className="linkish" onClick={() => { const v = Math.max(0, n.at - 0.6); setT(v); void player.current?.seek(v); }}>
-                    <span className="num">{clock(n.at)}</span> {n.text}</button>
+                  <button type="button" className="chip" onClick={() => { const v = Math.max(0, n.at - 0.6); setT(v); void player.current?.seek(v); }}
+                    title={`Play from where you say ${n.text}`}>{clock(n.at)} {n.text}</button>
                   <button type="button" className="btn sm" disabled={!!logoBusy || recording} onClick={async () => {
                     setLogoBusy(n.from);
                     try {
