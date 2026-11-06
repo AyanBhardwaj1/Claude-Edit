@@ -38,6 +38,8 @@ const P = {
   search: <><circle cx="11" cy="11" r="6" /><path d="m20 20-4.5-4.5" /></>,
   menu: <><path d="M4 7h16M4 12h16M4 17h16" /></>,
   screen: <><rect x="3.5" y="4.5" width="17" height="11.5" rx="2" /><path d="M9 20h6M12 16v4" /><circle cx="12" cy="10.25" r="2.25" fill="currentColor" stroke="none" /></>,
+  camera: <><path d="M4 8.5A1.5 1.5 0 0 1 5.5 7h2l1.5-2h6l1.5 2h2A1.5 1.5 0 0 1 20 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5v-9Z" /><circle cx="12" cy="12.75" r="3.25" /></>,
+  close: <><path d="M6.5 6.5l11 11M17.5 6.5l-11 11" /></>,
 };
 
 export type IconName = keyof typeof P;

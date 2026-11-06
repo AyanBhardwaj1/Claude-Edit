@@ -25,6 +25,10 @@ export function Dashboard({ user, settings, theme, onNew, onOpen, onGo, onSample
   const [welcome, setWelcome] = useState(false);
   useEffect(() => { try { setWelcome(!localStorage.getItem(`cutmind.welcomed.${user.id}`)); } catch { /* storage blocked */ } }, [user.id]);
   const dismiss = () => { setWelcome(false); try { localStorage.setItem(`cutmind.welcomed.${user.id}`, "1"); } catch { /* storage blocked */ } };
+  const NEWS = `cutmind.news.2026-11.${user.id}`;
+  const [news, setNews] = useState(false);
+  useEffect(() => { try { setNews(!localStorage.getItem(NEWS)); } catch { /* storage blocked */ } }, [NEWS]);
+  const hideNews = () => { setNews(false); try { localStorage.setItem(NEWS, "1"); } catch { /* storage blocked */ } };
   const [over, setOver] = useState(false);
   const [lookPicked, setLookPicked] = useState(false);
   const input = useRef<HTMLInputElement>(null);
@@ -122,6 +126,25 @@ export function Dashboard({ user, settings, theme, onNew, onOpen, onGo, onSample
         </div>
 
         <div className="stack">
+          {news && !welcome && (
+            <section className="panel news" aria-labelledby="news-h">
+              <div className="panel-head"><h2 id="news-h">New in Cutmind</h2>
+                <button className="btn ghost icon sm" aria-label="Hide what's new" onClick={hideNews}>&times;</button></div>
+              <ul className="setup news-list">
+                <li><span className="what grow"><b>Film it here</b>: record takes in Cutmind with your script on a teleprompter.</span>
+                  <button className="btn sm" onClick={() => onNew()}>Try it</button></li>
+                <li><span className="what grow"><b>Make music</b>: an original song for your video, made in your browser, free to post.</span></li>
+                <li><span className="what grow"><b>Record my screen</b>: show your app, and the loading waits play six times faster.</span>
+                  <button className="btn sm" onClick={() => onNew()}>Try it</button></li>
+                <li><span className="what grow"><b>Paste your script</b>: every name spelled right in your subtitles.</span>
+                  <button className="btn sm" onClick={() => onNew()}>Try it</button></li>
+                <li><span className="what grow"><b>Product demos</b>: screenshots become framed scenes that zoom in on what you mean.</span>
+                  <button className="btn sm" onClick={() => onGo("animate")}>Try it</button></li>
+                <li><span className="what grow"><b>Fast, Balanced or Best</b>: you choose how long the editor takes.</span>
+                  <button className="btn sm" onClick={() => onGo("settings")}>Choose</button></li>
+              </ul>
+            </section>
+          )}
           {doneCount < steps.length && (
             <section className="panel" aria-labelledby="setup-h">
               <div className="panel-head"><h2 id="setup-h">Get set up</h2><span className="small faint num">{doneCount} of {steps.length}</span></div>

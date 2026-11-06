@@ -585,6 +585,7 @@ def auto_captions(spec: Spec) -> list[dict]:
     if not c:
         return []
     out = []
+    UNHEARD.clear()
     for name, src in c.get("voices", {}).items():
         v = spec.voices.get(name)
         if not v:
@@ -610,6 +611,9 @@ def scripted_words(words: list[dict], a: float, b: float, script: str) -> list[d
     return align(heard, script.split()) if heard else []
 
 
+UNHEARD: list[tuple[str, str]] = []   # (voice, line) script lines nothing in their voice matched
+
+
 def script_cards(words: list[dict], voice: str, a: float, b: float, lines: list[str]) -> list[dict]:
     """One caption card per script line, timed by aligning the whole script onto the recognised words."""
     texts = [ln["text"] if isinstance(ln, dict) else str(ln) for ln in lines]
@@ -627,6 +631,11 @@ def script_cards(words: list[dict], voice: str, a: float, b: float, lines: list[
     for i, line in enumerate(lines):
         ws = [w for w, o in zip(timed, owner) if o == i]
         if not ws:
+            continue
+        if all(w.get("retext") for w in ws) and float(ws[-1]["end"]) - float(ws[0]["start"]) < 0.25 * len(ws):
+            UNHEARD.append((voice, str(line).strip()))   # nothing of it was recognised in this voice: say so, don't hide it
+            log(f"captions {voice}: line {i + 1} wasn't heard in this voice, dropped: {str(line).strip()!r} "
+                "(give it to the voice that says it, or a hand-written caption)")
             continue
         t_in = float(ws[0]["start"])
         longest = 0.8 + 0.5 * len(ws)              # a reading pace cap: a misaligned short line can't hang for seconds
@@ -1597,6 +1606,83 @@ def produce(spec_path: str | Path, only: str | None = None, jobs: int = 4, want_
     return res
 
 
+def _clock(x) -> float | str:
+    """"1:23" / "1:23.5" -> seconds; numbers stay numbers; anything else is a reference."""
+    m = re.fullmatch(r"(\d+):(\d{1,2}(?:\.\d+)?)", str(x).strip())
+    if m:
+        return int(m[1]) * 60 + float(m[2])
+    return float(x) if re.fullmatch(r"-?[\d.]+", str(x)) else str(x)
+
+
+def what_is_at(spec: Spec, ref) -> dict:
+    """Everything on screen and in the mix at one moment of the output: the piece (and its source second), voices
+    speaking (and their source second), music / beds / effects playing, graphics visible. A user's note ("at 1:23 the
+    music is too loud") becomes the exact spec entry to change."""
+    from .overlay import element_end
+    t = spec.t(_clock(ref))
+    out = {"t": round(t, 2), "clock": f"{int(t // 60)}:{t % 60:05.2f}", "piece": None, "voices": [], "audio": [],
+           "graphics": []}
+    for pc in spec.pieces:
+        a, b = spec.starts[pc["name"]]
+        if a <= t < b or (t == b == spec.total):
+            off = t - a
+            row = {"name": pc["name"], "type": pc.get("type", "video"), "offset": round(off, 2)}
+            if pc.get("src"):
+                row["src"] = pc["src"]
+            if pc.get("type", "video") == "video" and not pc.get("_ramps"):
+                row["source_second"] = round(float(pc.get("in", 0)) + off * float(pc.get("speed", 1.0)), 2)
+            out["piece"] = row
+            break
+    au = spec.data.get("audio", {})
+    for v in au.get("voices", []):
+        a = spec.t(v.get("at", 0))
+        length = float(v.get("out", 1e9)) - float(v.get("in", 0))
+        if a <= t < a + length:
+            out["voices"].append({"name": v.get("name", v["src"]), "src": v["src"],
+                                  "source_second": round(float(v.get("in", 0)) + t - a, 2), "gain": v.get("gain", 0)})
+    for kind in ("music", "beds", "sfx"):
+        for i, m in enumerate(au.get(kind, [])):
+            a = spec.t(m.get("at", 0))
+            if kind == "sfx":
+                hit = abs(t - a) <= 1.0
+            else:
+                length = float(m["dur"]) if "dur" in m else (float(m["out"]) - float(m.get("in", 0)) if "out" in m
+                                                              else spec.total - a)
+                hit = a <= t < a + length
+            if hit:
+                src = m.get("src")
+                out["audio"].append({"list": kind, "index": i, "at": round(a, 2), "gain": m.get("gain", 0),
+                                     "src": src if isinstance(src, str) else next(iter(src), "?")})
+    ov = spec.data.get("overlay")
+    if isinstance(ov, str):
+        ov = json.loads(spec.p(ov).read_text())
+    els = spec.resolve(list((ov or {}).get("elements", [])) + auto_captions(spec))
+    for i, e in enumerate(els):
+        t_in = e.get("t_in")
+        if t_in is None and e.get("times"):
+            t_in = min(e["times"])
+        if t_in is not None and float(t_in) <= t <= element_end(e):
+            out["graphics"].append({"index": i, "type": e.get("type"), "text": " / ".join(_texts(e))[:70],
+                                    "t_in": float(t_in), "t_out": round(element_end(e), 2)})
+    return out
+
+
+def _print_at(w: dict) -> None:
+    print(f"at {w['clock']} ({w['t']} s)")
+    pc = w["piece"]
+    if pc:
+        print(f"  picture  {pc['name']} ({pc['type']}) +{pc['offset']} s" + (f", {pc['src']}" if pc.get("src") else "")
+              + (f" at source {pc['source_second']} s" if "source_second" in pc else ""))
+    for v in w["voices"]:
+        print(f"  voice    {v['name']} at source {v['source_second']} s (gain {v['gain']} dB)")
+    for m in w["audio"]:
+        print(f"  {m['list']:<8} [{m['index']}] {m['src']} from {m['at']} s (gain {m['gain']} dB)")
+    for g in w["graphics"]:
+        print(f"  graphic  #{g['index']} {g['type']} {g['t_in']}-{g['t_out']}  {g['text']}")
+    if pc:
+        print(f"  look:    editor produce <spec> --range {pc['name']} {pc['name']}.end")
+
+
 def main(argv=None) -> int:
     import argparse
     ap = argparse.ArgumentParser(prog="editor produce", description=__doc__,
@@ -1611,6 +1697,9 @@ def main(argv=None) -> int:
                     help="quick 720p look at one stretch after a note (times or references like d7c d7c.end)")
     ap.add_argument("--note", help="save this render as the next version (out/versions/), with the user's note")
     ap.add_argument("--versions", action="store_true", help="list the saved versions")
+    ap.add_argument("--at", nargs="+", metavar="TIME",
+                    help="what's on screen and in the mix at these moments (1:23, 83.5 or a reference): turns a note "
+                         "with a timestamp into the spec entry to change")
     if argv and argv[0] == "captions-from-brief":
         cp = argparse.ArgumentParser(prog="editor produce captions-from-brief",
                                      description="put the brief's caption lines on the voices that say them")
@@ -1646,11 +1735,17 @@ def main(argv=None) -> int:
         auto = auto_captions(spec)
         for card in spec.resolve(auto):
             print(f"  caption {card['t_in']:7.2f}-{card['t_out']:7.2f}  {card['text']}")
+        for voice, line in UNHEARD:
+            print(f"warning caption line not heard in {voice}, dropped: {line}")
         if ov or auto:
             ov = (json.loads(spec.p(ov).read_text()) if isinstance(ov, str) else ov) or {}
             els = spec.resolve({**ov, "elements": list(ov.get("elements", [])) + auto}).get("elements", [])
             late = [e for e in els if float(e.get("t_out", e.get("t_in", 0)) or 0) > spec.total + 0.01]
             print(f"overlay: {len(els)} elements" + (f", {len(late)} end after the video" if late else ""))
+        return 0
+    if a.at:
+        for x in a.at:
+            _print_at(what_is_at(spec, x))
         return 0
     if a.versions:
         vlog = spec.file.parent / "versions" / "versions.json"

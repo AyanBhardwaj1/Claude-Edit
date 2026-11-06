@@ -42,6 +42,7 @@ export default function App() {
   const [project, setProject] = useState<Project | null>(null);
   const [summary, setSummary] = useState<string | undefined>();
   const [pending, setPending] = useState<File[]>([]);
+  const [film, setFilm] = useState(false);          // "Film it here" from Write a script: New video opens the camera
   const [count, setCount] = useState<number | null>(null);
   const [theme, setThemeState] = useState<ThemeId>("studio");
   const [menu, setMenu] = useState(false);
@@ -181,7 +182,7 @@ export default function App() {
         {screen === "home" && <Dashboard user={user} settings={settings} theme={theme} onSample={sample} onNew={(files) => { setPending(files ?? []); go("new"); }}
           onOpen={(p) => open(p)} onGo={(s) => go(s)} />}
         {screen === "videos" && <Library onOpen={(p) => open(p)} onNew={() => go("new")} onSample={sample} />}
-        {screen === "new" && <NewVideo settings={settings} initial={pending} onSettings={() => go("settings")}
+        {screen === "new" && <NewVideo settings={settings} initial={pending} film={film} onFilmOpened={() => setFilm(false)} onSettings={() => go("settings")}
           onSaveSettings={(s) => { saveSettings(s); setSettings(s); }} onDone={(p, s) => { setPending([]); open(p, s); }} />}
         {screen === "editor" && project && (project.versions.length
           ? <Editor key={project.id} project={project} settings={settings} firstSummary={summary} onBack={() => go("videos")}
@@ -190,7 +191,7 @@ export default function App() {
               <p>Something stopped it before the first edit. Delete it from My videos and make it again from New video.</p>
               <button className="btn" onClick={() => go("videos")}><Icon name="arrowLeft" />My videos</button></div></div>)}
         {screen === "animate" && <Studio key={animId ?? "list"} settings={settings} openId={animId} onSettings={() => go("settings")} />}
-        {screen === "script" && <Script settings={settings} />}
+        {screen === "script" && <Script settings={settings} onFilm={() => { setFilm(true); go("new"); }} />}
         {screen === "style" && <StyleRules />}
         {screen === "settings" && <Settings settings={settings} user={user} theme={theme} onTheme={pickTheme} onUser={setUser} onSignOut={leave}
           onSave={(s) => { saveSettings(s); setSettings(s); }} />}

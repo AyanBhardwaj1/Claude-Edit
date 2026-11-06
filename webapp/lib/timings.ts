@@ -80,3 +80,18 @@ export function estimateText(est: { seconds: number; learned: boolean }, what = 
   const t = formatEstimate(est.seconds);
   return t[0].toUpperCase() + t.slice(1) + (what ? ` ${what}` : "") + (est.learned ? " on this device" : " (estimate)");
 }
+
+const LABEL: Record<string, string> = {
+  "listen:openai": "Listening (OpenAI)", "listen:browser": "Listening (in your browser)", faces: "Finding your face",
+  "edit:fast": "AI edit, Fast", "edit:balanced": "AI edit, Balanced", "edit:best": "AI edit, Best quality",
+};
+
+/** What this device has measured, for Settings: one line per stage it has timed. */
+export function learnedSummary(): { stage: string; perMinute: number; videos: number }[] {
+  const book = load();
+  return Object.keys(LABEL).filter((k) => book[k]?.n > 0)
+    .map((k) => ({ stage: LABEL[k], perMinute: Math.round(book[k].r), videos: book[k].n }));
+}
+
+/** Forget every measurement on this device (estimates go back to the built-in guesses). */
+export function resetLearned() { writeLocal(KEY, "{}"); }

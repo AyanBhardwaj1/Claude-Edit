@@ -8,6 +8,7 @@ One JSON file is the whole video. Paths are relative to the spec's folder. Times
 python3 -m editor produce init projects/<name>/raw -o projects/<name>/produce.json   # a first draft
 python3 -m editor produce projects/<name>/produce.json --plan                       # table, captions, checks
 python3 -m editor produce projects/<name>/produce.json --range d7b d7c.end          # quick look at a stretch
+python3 -m editor produce projects/<name>/produce.json --at 1:23 s4+2               # what's on screen / in the mix then
 python3 -m editor produce projects/<name>/produce.json --preview --note "<note>"    # render + version
 python3 -m editor produce projects/<name>/produce.json --only mix|overlay|composite|extras|post|review
 ```

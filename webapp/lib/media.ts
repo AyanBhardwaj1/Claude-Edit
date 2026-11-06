@@ -11,7 +11,17 @@ export async function probeVideo(url: string): Promise<{ duration: number; width
     v.onloadedmetadata = () => ok();
     v.onerror = () => bad(new Error("This file can't be played in your browser. Try an MP4 (H.264) or MOV."));
   });
-  return { duration: v.duration, width: v.videoWidth, height: v.videoHeight };
+  // a WebM made by MediaRecorder ("Film it here", some phone and screen recorders) has no length in its header: the browser
+  // finds it once asked to seek past the end
+  if (!Number.isFinite(v.duration)) {
+    await new Promise<void>((ok) => {
+      const done = () => { if (Number.isFinite(v.duration)) { v.removeEventListener("durationchange", done); clearTimeout(t); ok(); } };
+      const t = setTimeout(() => { v.removeEventListener("durationchange", done); ok(); }, 8000);
+      v.addEventListener("durationchange", done);
+      v.currentTime = 1e7;
+    });
+  }
+  return { duration: Number.isFinite(v.duration) ? v.duration : 0, width: v.videoWidth, height: v.videoHeight };
 }
 
 export async function probeImage(url: string): Promise<{ width: number; height: number }> {
