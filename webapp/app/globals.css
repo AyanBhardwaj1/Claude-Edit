@@ -684,3 +684,6 @@ button.attach { background: none; border: 0; font: inherit; font-size: 13px; tex
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 }
+.news-list li { align-items: center; gap: 10px; }
+.news-list .what { line-height: 1.45; }
+.news-list .what b { color: var(--ink); }
