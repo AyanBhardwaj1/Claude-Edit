@@ -257,6 +257,17 @@ def test_script_lines_become_captions_timed_on_misheard_words():
     assert fixed[0]["text"] == "Meta's" and fixed[-1]["start"] == pytest.approx(7.29)
 
 
+def test_a_script_line_nobody_said_in_that_voice_is_reported_not_hidden():
+    heard = [("the", 1.0, 1.2), ("shadiest", 1.25, 1.8), ("route", 1.85, 2.2), ("he", 3.0, 3.1), ("asked", 3.15, 3.5),
+             ("out", 3.55, 3.7), ("loud", 3.75, 4.1)]
+    words = [{"text": t, "start": a, "end": b} for t, a, b in heard]
+    produce.UNHEARD.clear()
+    cards = produce.script_cards(words, "v3", 0, 20, ["The shadiest route.", "Because that's the way home?",
+                                                      "He asked out loud."])
+    assert [c["text"] for c in cards] == ["The shadiest route.", "He asked out loud."]
+    assert produce.UNHEARD == [("v3", "Because that's the way home?")]
+
+
 def test_validation_catches_problems_before_rendering(tmp_path):
     spec = base_spec(pieces=[
         {"name": "a", "type": "framed", "src": "missing.png", "dur": 2, "punhc": [0.5, 1.5, 0.2, 0.2]},

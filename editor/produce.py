@@ -585,6 +585,7 @@ def auto_captions(spec: Spec) -> list[dict]:
     if not c:
         return []
     out = []
+    UNHEARD.clear()
     for name, src in c.get("voices", {}).items():
         v = spec.voices.get(name)
         if not v:
@@ -610,6 +611,9 @@ def scripted_words(words: list[dict], a: float, b: float, script: str) -> list[d
     return align(heard, script.split()) if heard else []
 
 
+UNHEARD: list[tuple[str, str]] = []   # (voice, line) script lines nothing in their voice matched
+
+
 def script_cards(words: list[dict], voice: str, a: float, b: float, lines: list[str]) -> list[dict]:
     """One caption card per script line, timed by aligning the whole script onto the recognised words."""
     texts = [ln["text"] if isinstance(ln, dict) else str(ln) for ln in lines]
@@ -627,6 +631,11 @@ def script_cards(words: list[dict], voice: str, a: float, b: float, lines: list[
     for i, line in enumerate(lines):
         ws = [w for w, o in zip(timed, owner) if o == i]
         if not ws:
+            continue
+        if all(w.get("retext") for w in ws) and float(ws[-1]["end"]) - float(ws[0]["start"]) < 0.25 * len(ws):
+            UNHEARD.append((voice, str(line).strip()))   # nothing of it was recognised in this voice: say so, don't hide it
+            log(f"captions {voice}: line {i + 1} wasn't heard in this voice, dropped: {str(line).strip()!r} "
+                "(give it to the voice that says it, or a hand-written caption)")
             continue
         t_in = float(ws[0]["start"])
         longest = 0.8 + 0.5 * len(ws)              # a reading pace cap: a misaligned short line can't hang for seconds
@@ -1646,6 +1655,8 @@ def main(argv=None) -> int:
         auto = auto_captions(spec)
         for card in spec.resolve(auto):
             print(f"  caption {card['t_in']:7.2f}-{card['t_out']:7.2f}  {card['text']}")
+        for voice, line in UNHEARD:
+            print(f"warning caption line not heard in {voice}, dropped: {line}")
         if ov or auto:
             ov = (json.loads(spec.p(ov).read_text()) if isinstance(ov, str) else ov) or {}
             els = spec.resolve({**ov, "elements": list(ov.get("elements", [])) + auto}).get("elements", [])
