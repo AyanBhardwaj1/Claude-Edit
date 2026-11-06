@@ -208,3 +208,22 @@ test("reel check: scores the sample's first edit and flags real problems", async
   assert.equal(r2.checks.find((c) => c.id === "hook")!.ok, false);
   assert.equal(r2.checks.find((c) => c.id === "subs")!.ok, false);
 });
+
+test("reel check: the song must stay well under the voice while people talk", async () => {
+  const { reelCheck } = await import("../lib/score");
+  const { speechGap, MIN_GAP } = await import("../lib/mix");
+  const ws: Word[] = "bro why are you walking in the sun".split(" ").map((w, i) => ({ id: `w${i}`, src: 0, s: 1 + i * 0.4, e: 1.3 + i * 0.4, w }));
+  const p = project(ws);
+  p.library = [{ key: "song", name: "lofi.m4a", kind: "music", feel: "upbeat", rms: 0.1 }];
+  const e = defaultEdit(p);
+  e.music.asset = "song";
+  const tl = buildTimeline(ws, e, [10]);
+  assert.ok(speechGap(e, tl).gap >= MIN_GAP);
+  assert.equal(reelCheck(p, e, tl).checks.find((c) => c.id === "hear")!.ok, true);
+  e.music.automation = [{ anchor: { from: "w2", to: "w5" }, db: 10 }];
+  const bad = reelCheck(p, e, buildTimeline(ws, e, [10])).checks.find((c) => c.id === "hear")!;
+  assert.equal(bad.ok, false);
+  assert.match(bad.detail, /only 9 dB/);
+  p.sources[0].rms = 0.01;
+  assert.ok(reelCheck(p, e, tl).checks.some((c) => c.id === "voice" && !c.ok));
+});

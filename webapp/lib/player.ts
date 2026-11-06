@@ -4,10 +4,10 @@
 // set a measured gap under the voice, dipping under words and lifting in pauses, and a whoosh on picture entrances.
 
 import { buildScene, drawFrame, H, setFormat, W, type Scene } from "./compositor";
+import { LEVEL_GAP } from "./mix";
 import { buildTimeline, spanOf, type Timeline } from "./timeline";
 import type { Edit, Project } from "./types";
 
-const LEVEL_GAP = { "under-voice": 19, quiet: 24, "loud-intro": 19 } as const;
 const db = (x: number) => Math.pow(10, x / 20);
 
 type Pair = { a: HTMLVideoElement; b: HTMLVideoElement; gainA: GainNode; gainB: GainNode };
