@@ -714,7 +714,9 @@ def caption_cards(words: list[dict], voice: str, src_in: float, src_out: float, 
         if cur:
             text = " ".join(str(w.get("text", w.get("word", ""))).strip() for w in cur).strip()
             for k, v in (replace or {}).items():
-                text = re.sub(rf"(?i)\b{re.escape(k)}\b", v, text)
+                # (?<!\w)/(?!\w), not \b: keys that start or end in a symbol ("c#", ".net", "c++") match too;
+                # the replacement is literal (a backslash in it is not a regex escape)
+                text = re.sub(rf"(?i)(?<!\w){re.escape(k)}(?!\w)", lambda _m, v=v: str(v), text)
             end = min(float(cur[-1]["end"]) + 0.15, src_out)
             if text and end - float(cur[0]["start"]) >= 0.25:
                 text = text[0].upper() + text[1:]

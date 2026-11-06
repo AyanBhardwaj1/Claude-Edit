@@ -4,7 +4,7 @@
 import { callJson } from "./ai";
 import type { Timeline } from "./timeline";
 import { captionWords, chunk } from "./text";
-import type { Edit, Project, Settings, Translation } from "./types";
+import type { Edit, Project, Settings, Translation, Word } from "./types";
 
 export const LANGUAGES = ["Spanish", "Portuguese", "French", "German", "Italian", "Hindi", "Arabic", "Japanese", "Korean", "Chinese (Simplified)",
   "Indonesian", "Turkish", "Russian", "Dutch", "Polish", "Vietnamese"];
@@ -53,4 +53,18 @@ export function srt(p: Project, e: Edit, tl: Timeline): string {
     cues = chunk(captionWords(tl.words, e.corrections, e.bleeps), Math.max(e.captions.maxWords, 6)).map((c) => ({ s: c.start, e: c.end, text: c.words.map((w) => w.text).join(" ") }));
   }
   return cues.map((c, i) => `${i + 1}\n${stamp(c.s)} --> ${stamp(c.e)}\n${c.text}\n`).join("\n");
+}
+
+/** Translated lines after words are cut: a line anchored on a cut word moves onto the nearest kept word inside its
+ *  phrase; a line with none of its words left goes. */
+export function keptTranslation(words: Word[], tr: Translation, kept: Set<string>): Translation {
+  const idx = new Map(words.map((w, i) => [w.id, i]));
+  return { ...tr, lines: tr.lines.flatMap((l) => {
+    const a = idx.get(l.from), b = idx.get(l.to);
+    if (a === undefined || b === undefined) return [l];
+    const [lo, hi] = a <= b ? [a, b] : [b, a];
+    let f = lo; while (f <= hi && !kept.has(words[f].id)) f++;
+    let t = hi; while (t >= lo && !kept.has(words[t].id)) t--;
+    return f > t ? [] : [{ ...l, from: words[f].id, to: words[t].id }];
+  }) };
 }

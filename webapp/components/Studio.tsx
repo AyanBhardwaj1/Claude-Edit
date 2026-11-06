@@ -316,9 +316,15 @@ function StudioEditor({ anim, settings, onBack, onVoice }: { anim: Anim; setting
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // the animation as it is now: slow work (a voiceover, an AI picture, a font load) lands on this, not on the copy it
+  // started from, so edits made meanwhile aren't undone
+  const latest = useRef(a);
+  latest.current = a;
   const update = useCallback((next: Anim) => {
+    latest.current = next;
     setA(next);
-    void document.fonts.load(`800 80px ${fontOf(next.font).family}`).catch(() => undefined).then(() => player.current?.setAnim(next));
+    void document.fonts.load(`800 80px ${fontOf(next.font).family}`).catch(() => undefined)
+      .then(() => { if (latest.current === next) player.current?.setAnim(next); });   // two quick font picks: the last wins
     void saveAnim(next);
   }, []);
   const scene = (id: string, k: Partial<Scene>) => update({ ...a, scenes: a.scenes.map((s) => (s.id === id ? { ...s, ...k } : s)) });
@@ -350,8 +356,11 @@ function StudioEditor({ anim, settings, onBack, onVoice }: { anim: Anim; setting
   async function revoice(name: string) {
     setErr(""); setBusy("Recording the voiceover…");
     try {
-      const next = structuredClone(a);
-      await onVoice(next, name, setBusy);
+      const voiced = structuredClone(a);
+      await onVoice(voiced, name, setBusy);
+      const now = latest.current;                         // keep what changed while the voice was recorded
+      const next = { ...now, voice: voiced.voice, scenes: now.scenes.map((s) => {
+        const v = voiced.scenes.find((x) => x.id === s.id); return v ? { ...s, duration: v.duration } : s; }) };
       player.current?.setUrls(await urlsFor(next));
       update(next);
     } catch (e) { setErr((e as { userMessage?: string }).userMessage ?? String(e)); }
@@ -359,7 +368,8 @@ function StudioEditor({ anim, settings, onBack, onVoice }: { anim: Anim; setting
   }
 
   async function setPicture(id: string, key: string, more: Partial<Scene> = {}) {
-    const next = { ...a, scenes: a.scenes.map((x) => (x.id === id ? { ...x, image: key, ...more } : x)) };
+    const base = latest.current;                          // an AI picture can take 30 s: don't undo edits made meanwhile
+    const next = { ...base, scenes: base.scenes.map((x) => (x.id === id ? { ...x, image: key, ...more } : x)) };
     player.current?.setUrls(await urlsFor(next));
     update(next);
   }

@@ -1,13 +1,14 @@
 "use client";
 import { useMemo, useState } from "react";
 import { indexOf } from "@/lib/timeline";
+import { parseTags } from "@/lib/text";
 import { BOXED_DEFAULTS, BROLL_INS, CAPTION_ANIMS, LOOKS, motionOf, TRANSITIONS } from "@/lib/edit";
 import { LOOK_NAME } from "@/lib/motion";
 import { aiPicture } from "@/lib/images";
 import { saveProject } from "@/lib/store";
 import { buildTimeline } from "@/lib/timeline";
 import { addToLibrary } from "@/lib/workflow";
-import { LANGUAGES, translateSubtitles } from "@/lib/translate";
+import { keptTranslation, LANGUAGES, translateSubtitles } from "@/lib/translate";
 import { formatTime, playedLength, waitSavings, WAIT_SPEED } from "@/lib/screenrec";
 import type { Asset, Broll, BrollIn, CaptionAnim, CaptionPreset, Edit, Look, Motion, Project, Range, Settings, Transition } from "@/lib/types";
 
@@ -34,6 +35,7 @@ export function Drawer({ project: p, edit, onApply, settings, onMakeMusic, onWor
   scan?: Scan; onFindWaits?: (key: string) => void; onStopScan?: () => void; onClip?: () => void }) {
   const [tab, setTab] = useState<(typeof TABS)[number]>("Cut");
   const [e, setE] = useState<Edit>(() => structuredClone(edit));
+  const [tagsText, setTagsText] = useState<string | null>(null);   // hashtags as typed, until the field is left
   const [base, setBase] = useState(edit);
   if (base !== edit) { setBase(edit); setE(structuredClone(edit)); }     // a new version from outside (a note, a style, made music)
   const [picFor, setPicFor] = useState<string | null>(null);
@@ -71,7 +73,9 @@ export function Drawer({ project: p, edit, onApply, settings, onMakeMusic, onWor
       const last = keep[keep.length - 1];
       if (last && idx.get(last.to) === i - 1 && p.words[i - 1].src === w.src) last.to = w.id; else keep.push({ from: w.id, to: w.id });
     });
-    setE({ ...e, keep });
+    // a translated subtitle anchored on a word just cut moves onto the nearest kept word inside its phrase
+    const translation = e.translation && keptTranslation(p.words, e.translation, next);
+    setE({ ...e, keep, ...(translation ? { translation } : {}) });
   }
 
   const music = p.library.filter((a) => a.kind === "music");
@@ -130,7 +134,11 @@ export function Drawer({ project: p, edit, onApply, settings, onMakeMusic, onWor
               <select id="lang" className="select w-200" value={lang} onChange={(ev) => setLang(ev.target.value)}>{LANGUAGES.map((l) => <option key={l}>{l}</option>)}</select>
               <button className="btn" disabled={!hasKey || tBusy} onClick={async () => {
                 setTBusy(true); setTErr("");
-                try { const tl = buildTimeline(p.words, e, p.sources.map((x) => x.duration)); setE({ ...e, translation: await translateSubtitles(settings!, tl, lang) }); }
+                try {
+                  const tl = buildTimeline(p.words, e, p.sources.map((x) => x.duration));
+                  const tr = await translateSubtitles(settings!, tl, lang);
+                  setE((cur) => ({ ...cur, translation: tr }));          // keep what was changed while it translated
+                }
                 catch (err) { setTErr((err as { userMessage?: string }).userMessage ?? String(err)); }
                 setTBusy(false); }}>{tBusy ? <><span className="spin" />Translating…</> : "Translate"}</button>
               {e.translation && <button className="btn ghost" onClick={() => setE({ ...e, translation: undefined })}>Back to as spoken</button>}
@@ -256,7 +264,7 @@ export function Drawer({ project: p, edit, onApply, settings, onMakeMusic, onWor
                   const blob = await aiPicture(settings!.openaiKey, imgPrompt, imgSize);
                   const name = `AI ${imgPrompt.trim().slice(0, 28)}.png`;
                   const [added] = await addToLibrary(p, [new File([blob], name, { type: "image/png" })]);
-                  const a = p.library.find((x) => x.name === added);
+                  const a = [...p.library].reverse().find((x) => x.name === added);   // the one just added, not an older same-named one
                   if (a) { a.ai = true; a.credit = { title: imgPrompt.trim().slice(0, 120), creator: "AI (OpenAI gpt-image-1)", license: "ai", page: "", source: "openai" }; setPicFor(a.key); }
                   await saveProject(p);
                   setImgPrompt("");
@@ -310,8 +318,10 @@ export function Drawer({ project: p, edit, onApply, settings, onMakeMusic, onWor
           </div>
           <div className="field">
             <label htmlFor="tags">Hashtags (exactly 5 work best)</label>
-            <input id="tags" className="input" value={e.post.hashtags.join(" ")} autoComplete="off" spellCheck={false} onChange={(ev) => setE({ ...e, post: { ...e.post,
-              hashtags: ev.target.value.split(/[\s,]+/).filter(Boolean).map((h) => "#" + h.replace(/^#+/, "")) } })} />
+            <input id="tags" className="input" value={tagsText ?? e.post.hashtags.join(" ")} autoComplete="off" spellCheck={false} onChange={(ev) => {
+              setTagsText(ev.target.value);                            // the text as typed: spaces and commas stay while typing
+              setE({ ...e, post: { ...e.post, hashtags: parseTags(ev.target.value) } });
+            }} onBlur={() => setTagsText(null)} />
             <span className="hint num">{e.post.hashtags.length} of 5</span>
           </div>
         </>)}

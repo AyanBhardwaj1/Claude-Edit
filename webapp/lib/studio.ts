@@ -183,8 +183,10 @@ export function planScenes(text: string): Scene[] {
     push({ kind: "statement", text: u, emphasis: emphasisOf(u) });
     i++;
   }
-  if (out.length && out[out.length - 1].kind !== "cta") push({ kind: "cta", text: out[0].text.split(/\s+/).slice(0, 6).join(" "), sub: "Follow for more" });
-  return out.slice(0, 14);
+  if (!out.length) return out;
+  // at most 14 scenes, and the closing call to action always survives the cut
+  if (out[out.length - 1].kind !== "cta") push({ kind: "cta", text: out[0].text.split(/\s+/).slice(0, 6).join(" "), sub: "Follow for more" });
+  return out.length > 14 ? [...out.slice(0, 13), out[out.length - 1]] : out;
 }
 
 export function newAnim(text: string, scenes: Scene[], opts: Partial<Anim> = {}): Anim {
@@ -462,7 +464,7 @@ function fade(g: Ctx, text: string, font: string, colour: string, x: number, y: 
 }
 
 const fmtNum = (v: number, done: boolean, target: number) => {
-  const dec = Math.abs(target % 1) > 0 ? 1 : 0;
+  const dec = Math.min(3, (String(target).split(".")[1] ?? "").length);   // 2.25% stays 2.25%, not 2.3%
   const n = done ? target : v;
   return n >= 1000 ? Math.round(n).toLocaleString("en-US") : n.toFixed(dec);
 };
@@ -545,10 +547,11 @@ export function drawScene(g: Ctx, a: Anim, s: Scene, local: number, W: number, H
       const k = ease.back(clamp01(local / 0.5));
       g.save(); g.translate(m, (tall ? 0.22 : 0.16) * H); g.scale(k, k);
       g.fillStyle = p.accent; g.font = `900 ${0.32 * U}px Georgia, serif`; g.fillText("“", -0.02 * U, 0.2 * U); g.restore();
-      const letters = Math.floor(s.text.length * clamp01((local - 0.3) / Math.max(0.6, s.duration * 0.55)));
-      const shown = s.text.slice(0, letters);
       const F3 = (sz: number) => `${Math.min(F.weight, 700)} ${sz}px ${F.family}`;
       const { size, lines } = fit(g, F3, s.text, W - 2 * m, box.h, 0.085 * U, 1.25);
+      // letters counted on the text as drawn (single spaces), so double spaces or new lines don't drop the end
+      const drawn = lines.map((l) => l.join(" ")).join(" ");
+      const shown = drawn.slice(0, Math.floor(drawn.length * clamp01((local - 0.3) / Math.max(0.6, s.duration * 0.55))));
       g.font = F3(size); g.fillStyle = p.ink; g.textAlign = "left";
       let c = 0, y = box.y + 0.08 * H;
       for (const l of lines) { const str = l.join(" "); const part = shown.slice(c, c + str.length); g.fillText(part, m, y); c += str.length + 1; y += size * 1.25; }
@@ -811,7 +814,8 @@ export function drawAnim(g: Ctx, a: Anim, t: number) {
   const p = paletteOf(a.palette);
   background(g, p, W, H, t);
   const tl = timeline(a);
-  const i = Math.max(0, tl.findIndex((x) => t >= x.start && t < x.end));
+  let i = tl.findIndex((x) => t >= x.start && t < x.end);
+  if (i < 0) i = tl.length && t >= tl[tl.length - 1].end ? tl.length - 1 : 0;   // the very end is the last scene, not the first
   const cur = tl[i] ?? tl[tl.length - 1];
   if (!cur) return;
   const local = t - cur.start;

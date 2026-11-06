@@ -114,3 +114,11 @@ def test_anchored_text_card_is_held_long_enough_to_read():
     assert abs(pic["dur"] - 1.2) < 1e-6                                 # pictures keep their minimum
     told = resolve({"broll": [dict(hook, dur=1.0)]}, words)["broll"][0]
     assert told["dur"] == 1.0                                           # an explicit dur still wins
+
+
+def test_produce_caption_replacements_match_symbol_words():
+    from editor.produce import caption_cards
+    words = [{"text": t, "start": i * 0.4, "end": i * 0.4 + 0.3} for i, t in enumerate("we ported it from c# to .net and c++".split())]
+    cards = caption_cards(words, "v1", 0.0, 10.0, replace={"c#": "C#", ".net": ".NET", "c++": "C++", "ported": r"re\wrote"})
+    text = " ".join(c["text"] for c in cards)
+    assert "C#" in text and ".NET" in text and "C++" in text and r"re\wrote" in text, text
