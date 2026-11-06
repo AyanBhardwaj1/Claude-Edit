@@ -169,6 +169,9 @@ vertical reel with a cover and a post caption, then change it by typing notes. E
 - Videos never leave the browser: they're processed on the user's computer and kept in IndexedDB.
 - API keys go **straight from the browser to Anthropic or OpenAI**. This app's server never receives them.
   They're kept for the tab only, unless the user ticks "Remember my keys".
+- With "Your Claude or ChatGPT plan" there is no key and no AI call at all: the user copies each request into their own
+  chat and pastes the reply back. Cutmind never asks for a Claude or ChatGPT login (those plans have no sign-in for
+  other apps, and using another app's login would break their terms).
 - With a database connected it also keeps accounts (see Pages). `/api/read` reads a public web page's text when a user asks
   Motion Studio to animate a link (public addresses only, 2 MB, 8 s, text only).
 - The server also searches for licensed pictures (Openverse, Wikimedia Commons, Simple Icons:
