@@ -108,7 +108,7 @@ EDL-level `"grain": 3-6` gives the whole video a subtle film texture under the c
 `review` knows these are designed, so it doesn't flag their luma jumps as flash frames. Check a frame at the
 peak of each (`editor frames out.mp4 --at <t>`). Record a favourite: `editor style note ... --set reel.transition=whip-left`.
 
-## Motion graphics, three engines (pick per animation)
+## Motion graphics, four engines (pick per animation)
 1. **Built in, no setup** (`editor/graphics.py`, Pillow → transparent ProRes 4444):
    ```bash
    python3 -m editor graphic counter     -o projects/<n>/broll/dau.mov --to 3000 --label "daily active users" --y 0.56
@@ -126,6 +126,19 @@ peak of each (`editor frames out.mp4 --at <t>`). Record a favourite: `editor sty
 2. **claude-video-studio skill** (HyperFrames + GSAP, 21 studio looks): render with a transparent
    background (`--format mov`), lay it out for 1080x1920, then add it as an `overlay`. Needs Node 22+.
 3. **manim-video skill**: diagrams, equations, data stories, rendered and added the same way.
+4. **`editor overlay`: one designed track for the whole timeline** (Node Playwright, `editor/overlay/README.md`).
+   Use it when the graphics follow a script across the video (demo, launch, hackathon, explainer): captions in a
+   custom box, Meta-style model/feature tags, chips, counters, checklists, callouts, lower thirds, a URL band,
+   an end card, a logo sting, 23 types in one JSON spec with the brand in `"theme"` (colours, fonts by name from
+   `assets/fonts`, any size: 1080x1920 too). `editor graphic` stays the pick for a few one-off reel graphics.
+   ```bash
+   python3 -m editor overlay projects/<n>/work/overlay.json projects/<n>/work/overlay.mov -j 3   # --from/--to for a part
+   python3 -m editor overlay still broll/app.png broll/app_framed.mp4 --dur 4 --punch 1.2 1.35 0.3 0.4
+   ```
+   One MOV (png, rgba) at output size: add it as a single `"mode": "overlay"` entry over the whole video, or
+   composite with ffmpeg `overlay=0:0:format=auto`. `overlay still` puts a screenshot or screen recording at 92%
+   with rounded corners on a backdrop (Ken Burns, optional punch-in). Read stills at a few element times
+   before delivery; unchanged frames are reused, so long holds cost nothing.
 Spawn one sub-agent per animation, in parallel (video-use rule); each brief is self-contained: output path,
 size/fps, palette, font, frame-by-frame timeline, "do not ask questions".
 Placement: never over the face. `review` flags overlays that hide it. Chest height (y 0.45-0.65) is the safe band.

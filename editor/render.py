@@ -57,7 +57,8 @@ def render(cut_dir: str | Path, out: str | Path, preset: str = "reels", audio: s
            captions: str | None = None, track: str | None = None, zooms: list[dict] | None = None,
            punch_in: float | None = None, grade: str = "natural", lut: str | None = None,
            sharpen: float = 0.35, fit: str = "crop", broll: list[dict] | None = None, crf: int | None = None,
-           fps_cap: float = 60.0, auto_color: float = 0.5, sfx: bool = True, draft: bool = False) -> Path:
+           fps_cap: float = 60.0, auto_color: float = 0.5, sfx: bool = True, draft: bool = False,
+           speed: str | None = None) -> Path:
     cut_dir = Path(cut_dir)
     meta = load_json(cut_dir / "cut_meta.json")
     src = cut_dir / "cut.mkv"
@@ -65,6 +66,8 @@ def render(cut_dir: str | Path, out: str | Path, preset: str = "reels", audio: s
     if draft:   # a fast look: half size, fastest encode, no sharpening (captions and layout are unchanged)
         p.update(size=tuple(int(v // 4 * 2) for v in p["size"]), crf=26, speed="ultrafast")
         sharpen, auto_color = 0, 0
+    elif speed:                     # effort: x264 preset (rush veryfast, standard slow, polish slower)
+        p["speed"] = speed
     out_w, out_h = p["size"]
     fps_str, fps = meta["fps_str"], meta["fps"]
     if fps > fps_cap:

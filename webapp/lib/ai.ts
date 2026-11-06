@@ -3,7 +3,8 @@
 
 import { motionOf } from "./edit";
 import type { AiEdit } from "./edit";
-import { APPLY_NOTE, EDIT_SCHEMA, FIRST_EDIT, SCRIPT_SCHEMA, SYSTEM, WRITE_SCRIPT } from "./prompts";
+import { DEFAULT_MAX_TOKENS, type AiChoice } from "./effort";
+import { APPLY_NOTE, EDIT_SCHEMA, FIRST_EDIT, REVIEW_EDIT, SCRIPT_SCHEMA, SYSTEM, WRITE_SCRIPT } from "./prompts";
 import type { Edit, Project, Settings, StyleRule } from "./types";
 
 export class AiError extends Error {
@@ -35,16 +36,21 @@ function anthropicHeaders(key: string): Record<string, string> {
     "content-type": "application/json" };
 }
 
-export async function callJson(s: Settings, system: string, user: string, schema: Json, name: string): Promise<Json> {
+/** One JSON answer from the AI. `choice` (lib/effort.ts) sets the model and answer budget; without it, the user's model and
+ *  16000 tokens. A preferred model the key can't use falls back to the user's own model once; an answer budget the model
+ *  refuses or runs out of falls back to the usual 16000 once. */
+export async function callJson(s: Settings, system: string, user: string, schema: Json, name: string, choice?: AiChoice): Promise<Json> {
   const anthropic = s.provider === "anthropic";
   const key = anthropic ? s.anthropicKey : s.openaiKey;
   if (!key) throw new AiError("no key", `Add your ${anthropic ? "Anthropic" : "OpenAI"} API key in Settings first.`);
-  const model = anthropic ? s.anthropicModel : s.openaiModel;
+  let model = choice?.model || (anthropic ? s.anthropicModel : s.openaiModel);
+  let fallback = choice?.fallback ?? null;
+  let maxTokens = choice?.maxTokens ?? DEFAULT_MAX_TOKENS;
   for (let attempt = 0; attempt < 3; attempt++) {
     const r = anthropic
       ? await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST", headers: anthropicHeaders(key),
-        body: JSON.stringify({ model, max_tokens: 16000, system, messages: [{ role: "user", content: user }],
+        body: JSON.stringify({ model, max_tokens: maxTokens, system, messages: [{ role: "user", content: user }],
           tools: [{ name, description: "Return the result.", input_schema: schema }], tool_choice: { type: "tool", name } }),
       })
       : await fetch("https://api.openai.com/v1/chat/completions", {
@@ -55,12 +61,20 @@ export async function callJson(s: Settings, system: string, user: string, schema
     if (r.status === 429 || r.status >= 500) { await new Promise((ok) => setTimeout(ok, 2000 * (attempt + 1) ** 2)); continue; }
     if (!r.ok) {
       const body = await r.text();
+      if (r.status === 404 && fallback && fallback !== model) {           // the effort's model isn't open to this key
+        console.warn(`model ${model} unavailable, using ${fallback}`);
+        model = fallback; fallback = null; attempt--; continue;
+      }
+      if (r.status === 400 && anthropic && maxTokens > DEFAULT_MAX_TOKENS && /max_tokens/.test(body)) {
+        maxTokens = DEFAULT_MAX_TOKENS; attempt--; continue;            // an older model with a smaller answer limit
+      }
       throw new AiError(`${r.status} ${body.slice(0, 300)}`, r.status === 401 ? "Your API key was not accepted. Check it in Settings." :
         r.status === 404 ? `The model "${model}" isn't available to your key. Pick another in Settings.` :
           `The AI couldn't finish (${r.status}). ${body.slice(0, 160)}`);
     }
     const data = await r.json();
     if (anthropic) {
+      if (data.stop_reason === "max_tokens" && maxTokens < DEFAULT_MAX_TOKENS) { maxTokens = DEFAULT_MAX_TOKENS; continue; }   // Fast ran out of room
       const block = (data.content as { type: string; input?: Json }[]).find((c) => c.type === "tool_use");
       if (block?.input) return block.input;
     } else {
@@ -101,15 +115,21 @@ export function transcriptText(p: Project): string {
 
 const rulesText = (rules: StyleRule[]) => (rules.length ? rules.map((r) => `- ${r.text}`).join("\n") : "(none yet)");
 
-export async function firstEdit(s: Settings, p: Project, rules: StyleRule[]): Promise<AiEdit> {
-  const user = `${FIRST_EDIT}\n\nVideo title: ${p.title}\n\n${transcriptText(p)}`;
-  return (await callJson(s, SYSTEM.replace("{{rules}}", rulesText(rules)), user, EDIT_SCHEMA as unknown as Json, "submit_edit")) as AiEdit;
+export async function firstEdit(s: Settings, p: Project, rules: StyleRule[], choice?: AiChoice, hint = ""): Promise<AiEdit> {
+  const user = `${FIRST_EDIT}${hint ? ` ${hint}` : ""}\n\nVideo title: ${p.title}\n\n${transcriptText(p)}`;
+  return (await callJson(s, SYSTEM.replace("{{rules}}", rulesText(rules)), user, EDIT_SCHEMA as unknown as Json, "submit_edit", choice)) as AiEdit;
 }
 
-export async function applyNote(s: Settings, p: Project, current: Edit, note: string, rules: StyleRule[]): Promise<AiEdit> {
+export async function applyNote(s: Settings, p: Project, current: Edit, note: string, rules: StyleRule[], choice?: AiChoice): Promise<AiEdit> {
   const cur = toAiShape(current);
   const user = `${APPLY_NOTE(note)}\n\nCURRENT EDIT:\n${JSON.stringify(cur)}\n\n${transcriptText(p)}`;
-  return (await callJson(s, SYSTEM.replace("{{rules}}", rulesText(rules)), user, EDIT_SCHEMA as unknown as Json, "submit_edit")) as AiEdit;
+  return (await callJson(s, SYSTEM.replace("{{rules}}", rulesText(rules)), user, EDIT_SCHEMA as unknown as Json, "submit_edit", choice)) as AiEdit;
+}
+
+/** Best quality: a second look at the first edit by a strict senior editor; returns the whole (improved) edit. */
+export async function reviewEdit(s: Settings, p: Project, current: Edit, rules: StyleRule[], choice?: AiChoice): Promise<AiEdit> {
+  const user = `${REVIEW_EDIT}\n\nVideo title: ${p.title}\n\nCURRENT EDIT:\n${JSON.stringify(toAiShape(current))}\n\n${transcriptText(p)}`;
+  return (await callJson(s, SYSTEM.replace("{{rules}}", rulesText(rules)), user, EDIT_SCHEMA as unknown as Json, "submit_edit", choice)) as AiEdit;
 }
 
 export async function writeScript(s: Settings, idea: string, rules: StyleRule[]) {

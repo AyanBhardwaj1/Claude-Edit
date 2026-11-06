@@ -57,6 +57,7 @@ KEYS = {
     "reel.progress_bar": ("bool", "progress bar on top"),
     "reel.hook_title": ("bool", "on-screen hook title"),
     "reel.chapters": ("bool", "step pills for numbered videos"),
+    "reel.effort": ("cat", "default effort: rush, standard or polish (speed vs quality)"),
     # launch videos (launch-video plan.json)
     "launch.format": ("cat", "aspect ratio (16:9, 9:16, 1:1, 4:5)"),
     "launch.variants": ("cat", "how many formats to deliver (one, both)"),

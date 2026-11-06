@@ -1,0 +1,37 @@
+{
+ "machines": {
+  "linux-x86_64-4cpu": {
+   "capture:standard": {
+    "last": "2026-11-06",
+    "rate": 771.429,
+    "runs": 1
+   },
+   "composite:rush": {
+    "last": "2026-11-06",
+    "rate": 45.273,
+    "runs": 1
+   },
+   "mix:standard": {
+    "last": "2026-11-06",
+    "rate": 8.523,
+    "runs": 1
+   },
+   "overlay:standard": {
+    "last": "2026-11-06",
+    "rate": 56.761,
+    "runs": 1
+   },
+   "pieces:standard": {
+    "last": "2026-11-06",
+    "rate": 103.5,
+    "runs": 1
+   },
+   "transcribe:rush": {
+    "last": "2026-11-06",
+    "rate": 18.0,
+    "runs": 1
+   }
+  }
+ },
+ "version": 1
+}

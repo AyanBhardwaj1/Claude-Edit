@@ -1,18 +1,26 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { EFFORT, effortOf, type Effort } from "@/lib/effort";
+import { probeVideo } from "@/lib/media";
 import { loadRules } from "@/lib/store";
+import { estimate, estimateText } from "@/lib/timings";
 import type { Project, Settings } from "@/lib/types";
-import { createProject, kindOf, listen, makeFirstEdit } from "@/lib/workflow";
+import { createProject, kindOf, listen, makeFirstEdit, REVIEWING } from "@/lib/workflow";
+import { EffortPicker } from "./EffortPicker";
 import { Icon, type IconName } from "./Icons";
 
-const STAGES = ["Copying your video", "Listening to your video", "Finding your retakes", "Finding your face",
-  "Picking your best takes and planning the edit", "Finding pictures online", "Ready"];
+const FACE = "Finding your face";
+const STAGES = ["Copying your video", "Listening to your video", "Finding your retakes", FACE,
+  "Picking your best takes and planning the edit", "Finding pictures online", REVIEWING, "Ready"];
+/** The steps this effort runs: no face finding when Fast, the review pass only for Best quality. */
+const stagesOf = (e: Effort) => STAGES.filter((s) => (s !== FACE || EFFORT[e].faces) && (s !== REVIEWING || EFFORT[e].review));
+const stageAt = (stages: string[], msg: string) => stages.findIndex((s) => msg.startsWith(s.split(" ")[0]) && msg.includes(s.split(" ")[1] ?? ""));
 const ICON: Record<string, IconName> = { video: "clip", music: "music", image: "image" };
 const size = (b: number) => new Intl.NumberFormat(undefined, { style: "unit", unit: b > 1e9 ? "gigabyte" : "megabyte", maximumFractionDigits: 1 })
   .format(b > 1e9 ? b / 1e9 : b / 1e6);
 
-export function NewVideo({ settings, initial = [], onDone, onSettings }: { settings: Settings; initial?: File[];
-  onDone: (p: Project, summary: string) => void; onSettings: () => void }) {
+export function NewVideo({ settings, initial = [], onDone, onSettings, onSaveSettings }: { settings: Settings; initial?: File[];
+  onDone: (p: Project, summary: string) => void; onSettings: () => void; onSaveSettings?: (s: Settings) => void }) {
   const [takes, setTakes] = useState<File[]>([]);
   const [extras, setExtras] = useState<File[]>([]);
   const [over, setOver] = useState(false);
@@ -20,6 +28,10 @@ export function NewVideo({ settings, initial = [], onDone, onSettings }: { setti
   const [msg, setMsg] = useState("");
   const [pct, setPct] = useState(0);
   const [err, setErr] = useState("");
+  const [at, setAt] = useState(-1);
+  const [picked, setPicked] = useState<Effort | null>(null);   // this video's choice; until then the saved default
+  const [footage, setFootage] = useState(0);
+  const effort = picked ?? effortOf(settings);
   const input = useRef<HTMLInputElement>(null);
   const hasKey = settings.provider === "anthropic" ? !!settings.anthropicKey : !!settings.openaiKey;
   const canListen = settings.transcriber === "browser" || !!settings.openaiKey;
@@ -33,6 +45,14 @@ export function NewVideo({ settings, initial = [], onDone, onSettings }: { setti
   }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (initial.length) take(initial, true); }, [initial]);
+  useEffect(() => {                                   // how long the takes are, for the time estimates
+    let live = true;
+    void Promise.all(takes.map(async (f) => {
+      const url = URL.createObjectURL(f);
+      try { return (await probeVideo(url)).duration || 0; } catch { return 0; } finally { URL.revokeObjectURL(url); }
+    })).then((d) => { if (live) setFootage(d.reduce((a, x) => a + x, 0)); });
+    return () => { live = false; };
+  }, [takes]);
   useEffect(() => {
     if (!busy) return;
     const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); };
@@ -41,12 +61,19 @@ export function NewVideo({ settings, initial = [], onDone, onSettings }: { setti
   }, [busy]);
 
   async function go() {
-    setBusy(true); setErr(""); setPct(0);
-    const progress = (m: string, p?: number) => { setMsg(m); if (p !== undefined) setPct((x) => Math.max(x, p)); };
+    setBusy(true); setErr(""); setPct(0); setAt(-1);
+    const stages = stagesOf(effort);
+    const progress = (m: string, p?: number) => {
+      setMsg(m);
+      if (p !== undefined) setPct((x) => Math.max(x, p));
+      const i = stageAt(stages, m);
+      if (i >= 0) setAt((x) => Math.max(x, i));       // a step never goes back (the review can look for pictures again)
+    };
+    const s = { ...settings, effort };                 // this video's effort; the saved default stays as it is
     try {
       const p = await createProject(takes, extras, progress);
-      await listen(p, settings, progress);
-      const summary = await makeFirstEdit(p, settings, loadRules(), progress);
+      await listen(p, s, progress);
+      const summary = await makeFirstEdit(p, s, loadRules(), progress);
       progress("Ready", 100);
       onDone(p, summary);
     } catch (e) {
@@ -55,17 +82,18 @@ export function NewVideo({ settings, initial = [], onDone, onSettings }: { setti
   }
 
   if (busy) {
-    const at = STAGES.findIndex((s) => msg.startsWith(s.split(" ")[0]) && msg.includes(s.split(" ")[1] ?? ""));
+    const stages = stagesOf(effort);
     return (
       <div className="page narrow">
         <div className="page-head"><div><h1>Making your reel</h1><p>Everything runs in this tab, so keep it open. Your video isn&apos;t uploaded
           anywhere{settings.transcriber === "openai" ? " (only its sound goes to OpenAI for the transcript)" : ""}.</p></div></div>
         <section className="panel">
-          <p aria-live="polite"><b>{msg || "Starting…"}</b></p>
+          <div className="row"><p aria-live="polite" className="grow"><b>{msg || "Starting…"}</b></p>
+            <span className="badge">{EFFORT[effort].label}</span></div>
           <div className="progress" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(pct)} aria-label="Progress">
             <i style={{ transform: `scaleX(${Math.min(99, pct) / 100})` }} /></div>
           <ol className="steps">
-            {STAGES.slice(0, -1).map((s, i) => (
+            {stages.slice(0, -1).map((s, i) => (
               <li key={s} className={i < at ? "done" : i === at ? "now" : ""}>
                 <span className="tick">{i < at ? <Icon name="check" /> : null}</span>{s}
               </li>))}
@@ -112,6 +140,15 @@ export function NewVideo({ settings, initial = [], onDone, onSettings }: { setti
             ))}
           </div>
         )}
+
+        <div className="stack tight">
+          <EffortPicker legend="How much time should I take?" value={effort} onChange={setPicked} time={(e) => {
+            if (!takes.length || !footage) return null;
+            return estimateText(estimate(e, footage, { transcriber: settings.transcriber, ai: hasKey }));
+          }} />
+          {onSaveSettings && effort !== effortOf(settings) && <p className="small">
+            <button className="link" onClick={() => onSaveSettings({ ...settings, effort })}>Make {EFFORT[effort].label} my default</button></p>}
+        </div>
 
         <div className="row">
           <button className="btn primary lg" disabled={!takes.length || !canListen} onClick={go}><Icon name="wand" />Make my reel</button>

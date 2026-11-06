@@ -340,14 +340,42 @@ def main(argv=None):
     p = sub.add_parser("timeline", help="print the cut's words on the OUTPUT timeline (for placing zooms/b-roll)")
     p.add_argument("work_dir")
 
+    p = sub.add_parser("compose", help="original music + SFX synthesized from scratch (royalty-free): "
+                                       "bed, lofi, riser, sfx, ambience, list")
+    from .compose import add_arguments as _compose_arguments   # import-light: argparse only
+    _compose_arguments(p)
+
+    p = sub.add_parser("overlay", add_help=False, prefix_chars="+",
+                       help="designed overlay track: JSON spec -> transparent PNG-in-MOV (Node Playwright); "
+                            "also `overlay frame OUT_DIR` / `overlay still SRC OUT` (screens on a rounded backdrop)")
+    p.add_argument("overlay_args", nargs=argparse.REMAINDER)
+
+    p = sub.add_parser("effort", help="speed vs quality: what rush/standard/polish do, how long they take here")
+    esub = p.add_subparsers(dest="effort_cmd", required=True)
+    q = esub.add_parser("show", help="estimates for each effort, from timings learned on this machine")
+    q.add_argument("--length", type=float, default=60.0, help="media length, seconds")
+    q.add_argument("--budget", type=float, metavar="MIN", help="mark the effort that fits this many minutes")
+    q.add_argument("--stages", nargs="*", help="stages to count (default: the editor auto stages; productions: "
+                                               "capture pieces overlay mix composite)")
+    q = esub.add_parser("record", help="log how long a hand-run stage took, so the next plan is better")
+    q.add_argument("stage")
+    q.add_argument("seconds", type=float)
+    q.add_argument("--media", type=float, required=True, help="seconds of media the stage worked on")
+    q.add_argument("--effort", default="standard")
+    q = esub.add_parser("timings", help="the learned seconds-per-minute rates on this machine")
+
     p = sub.add_parser("auto", help="run the whole pipeline on a project folder")
     p.add_argument("project", help="projects/<name> (clips in raw/, played in filename order)")
     p.add_argument("--from", dest="from_stage", choices=STAGES, default="transcribe")
     p.add_argument("--to", dest="to_stage", choices=STAGES, default="check")
-    p.add_argument("--model", default="small")
+    p.add_argument("--model", help="whisper model (default: from --effort: base, small or medium)")
     p.add_argument("--language")
     p.add_argument("--engine", choices=["auto", "whisperx", "faster-whisper", "scribe", "vosk"], default="auto",
                    help="auto tries whisperx, faster-whisper, scribe (ELEVENLABS_API_KEY), vosk (offline)")
+    p.add_argument("--effort", help="rush | standard | polish (or fast | balanced | best): trade time for quality "
+                                    "(default: learned reel.effort, else standard)")
+    p.add_argument("--budget", type=float, metavar="MIN",
+                   help="time budget in minutes: picks the best effort whose learned estimate fits")
     # flags left unset fall back to the learned style (editor style show --kind reel), then built-in defaults
     p.add_argument("--fillers", choices=["none", "standard", "aggressive"])
     p.add_argument("--max-gap", type=float)
@@ -592,7 +620,7 @@ def cmd_render(args):
     render(work, args.out, preset=args.preset, audio=default(args.audio, "voice.wav"), captions=captions,
            track=default(args.track, "track.json"), punch_in=args.punch_in, grade=args.grade, lut=args.lut,
            sharpen=args.sharpen, fit=args.fit, broll=broll, crf=args.crf, auto_color=args.auto_color, draft=args.draft,
-           sfx=not args.no_sfx)
+           sfx=not args.no_sfx, speed=getattr(args, "encode_speed", None))
 
 
 def cmd_check(args):
@@ -887,6 +915,31 @@ def cmd_timeline(args):
             print(f"  {fmt_ts(g[0]['start'])}-{fmt_ts(g[-1]['end'])}  {' '.join(w['text'] for w in g)}")
 
 
+def cmd_compose(args):
+    from .compose import run
+    return run(args)
+
+
+def cmd_overlay(args):
+    from .overlay import main as overlay_main
+    return overlay_main(args.overlay_args)
+
+
+def cmd_effort(args):
+    from . import effort as eff
+    if args.effort_cmd == "show":
+        print(eff.table(args.length, args.stages, args.budget))
+    elif args.effort_cmd == "record":
+        r = eff.record(args.stage, args.effort, args.seconds, args.media)
+        print(f"{args.stage} at {eff.normalise(args.effort)}: now {r:.1f} s per media minute on {eff.machine()}")
+    else:
+        data = eff.load().get("machines", {}).get(eff.machine(), {})
+        if not data:
+            print(f"nothing learned yet on {eff.machine()} (built-in guesses are used)")
+        for k, v in sorted(data.items()):
+            print(f"{k:<24} {v['rate']:>8.1f} s/min  ({v['runs']} runs, last {v.get('last', '?')})")
+
+
 def cmd_auto(args):
     project = Path(args.project)
     raw, work, out_dir = project / "raw", project / "work", project / "out"
@@ -896,6 +949,13 @@ def cmd_auto(args):
     given_db = args.music_db is not None
     brand, settings = _resolve_style(args, work)
     _record_settings(work, brand, settings)
+    effort, prof, media = _resolve_effort(args, project, raw, work, brand, stages)
+    if args.model is None:
+        args.model = prof["model"]
+    args.encode_speed = prof["encode"]
+    if args.crf is None and prof["crf_delta"] and not args.draft:
+        from .render import PRESETS as _P
+        args.crf = _P[args.preset]["crf"] + prof["crf_delta"]
     args.music_db_given = given_db or args.music_db != AUTO_STYLE["music_db"][1]   # explicit or learned level wins
     out_file = out_dir / f"{project.name}_{args.preset}{'_draft' if args.draft else ''}.mp4"
     music = args.music
@@ -903,7 +963,10 @@ def cmd_auto(args):
         music = next((str(p) for p in sorted((project / "music").iterdir()) if p.is_file()), None)
 
     from .render import PRESETS
+    from . import effort as eff
+    import time as _time
     for stage in stages:
+        t0 = _time.monotonic()
         if stage == "check" and args.draft:
             log("=== check === skipped for a draft (render without --draft to deliver)")
             continue
@@ -962,7 +1025,7 @@ def cmd_auto(args):
             if args.fit == "crop":
                 from .track import track
                 try:
-                    track(work / "cut.mkv", work / "track.json")
+                    track(work / "cut.mkv", work / "track.json", sample_fps=prof["track_fps"])
                 except EditorError as e:
                     log(f"track skipped, reframing will centre-crop: {e}")
         elif stage == "captions":
@@ -987,13 +1050,64 @@ def cmd_auto(args):
             from .qa import check, sheet, write_report
             write_report(check(out_file, preset=args.preset), out_dir / "qa.json")
             sheet(out_file, out_dir / "contact_sheet.png")
-            from .review import review
-            review(out_file, work, out_dir / "review")
-            from .cover import cover
-            edl = load_json(work / "edl.json")
-            cover(out_file, out_dir / "cover.jpg", title=args.title or edl.get("title", ""),
-                  highlight=edl.get("emphasis"), work=work, preset=args.preset)
-    log(f"done: {', '.join(stages)}" + (f" -> {out_file}" if "render" in stages else ""))
+            if prof["review"]:
+                from .review import review
+                review(out_file, work, out_dir / "review")
+            else:
+                log(f"effort {effort}: per-cut review skipped (run editor review, or --effort standard, when there's time)")
+            if prof["cover"]:
+                from .cover import cover
+                edl = load_json(work / "edl.json")
+                cover(out_file, out_dir / "cover.jpg", title=args.title or edl.get("title", ""),
+                      highlight=edl.get("emphasis"), work=work, preset=args.preset)
+        took = _time.monotonic() - t0
+        if not args.draft or stage not in ("render", "check"):
+            seconds_of = media["source"] if stage in ("transcribe", "plan", "cut") else _output_seconds(work, media)
+            try:
+                eff.record(stage, effort, took, seconds_of)
+            except EditorError as e:
+                log(f"timings not recorded for {stage}: {e}")
+        log(f"--- {stage}: {took:.1f} s")
+    log(f"done: {', '.join(stages)} (effort {effort})" + (f" -> {out_file}" if "render" in stages else ""))
+
+
+def _output_seconds(work: Path, media: dict) -> float:
+    meta = work / "cut_meta.json"
+    return float(load_json(meta)["duration"]) if meta.exists() else media["source"] * 0.8
+
+
+def _resolve_effort(args, project: Path, raw: Path, work: Path, brand: str | None, stages: list[str]):
+    """Explicit --effort > --budget (best effort that fits) > learned reel.effort > standard."""
+    from . import effort as eff
+    from .util import probe
+    source = 0.0
+    if raw.exists():
+        for f in sorted(raw.iterdir()):
+            if f.suffix.lower() in VIDEO_EXT:
+                try:
+                    source += float(probe(f)["duration"])
+                except (EditorError, KeyError, ValueError, TypeError):
+                    pass
+    media = {"source": source or 60.0}
+    chosen = eff.normalise(args.effort)
+    if chosen is None and args.budget:
+        chosen, ests, fits = eff.choose(args.budget, media["source"], stages)
+        msg = ", ".join(f"{e['effort']} ~{eff.fmt_secs(e['seconds'])}" for e in ests)
+        log(f"effort: budget {args.budget:g} min -> {chosen} ({msg})")
+        if not fits:
+            log("effort: even rush is estimated over budget: deliver a --draft first, skip optional b-roll and "
+                "graphics, and say what was dropped")
+    if chosen is None and not args.no_learned_style:
+        from . import style
+        learned = style.resolve("reel.effort", "reel", brand)
+        chosen = eff.normalise(learned) if learned else None
+        if chosen:
+            log(f"effort: {chosen} (learned)")
+    chosen = chosen or "standard"
+    est = eff.estimate(chosen, media["source"], stages)
+    log(f"effort: {chosen}, about {eff.fmt_secs(est['seconds'])} for these stages "
+        f"({'learned' if est['learned'] else 'guessed'}): {eff.PROFILE[chosen]['what']}")
+    return chosen, eff.PROFILE[chosen], media
 
 
 def _parse_broll(spec: str) -> dict:

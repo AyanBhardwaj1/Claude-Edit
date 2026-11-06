@@ -11,6 +11,9 @@ video-use's launch edits:
     transient lands exactly on the visible frame;
   * effects sit well under the voice (-18 to -26 dB relative) and are mixed before the limiter.
 EDL: "sfx": "auto" (default) | "none" | [{"type": "whoosh", "at": 5.6, "db": -20}, ...]
+Types: whoosh pop click riser impact ding whip glitch, plus thud (a card landing), shutter (a screenshot)
+and paper (a page turn) from editor.compose, whose studio set (`editor compose sfx <name> --library`)
+can also be filed into library/sfx/<type>/ to replace the built-in synths.
 Auto also scores transitions: whips and zooms get a whoosh, glitches a glitch, shakes an impact.
 """
 from __future__ import annotations
@@ -27,7 +30,9 @@ SR = 48000
 CACHE = Path(__file__).resolve().parent.parent / "library" / "sfx"
 # type: (attack seconds = time from file start to the transient, default level dB)
 TYPES = {"whoosh": (0.22, -22.0), "pop": (0.0, -20.0), "click": (0.0, -24.0), "riser": (1.1, -24.0),
-         "impact": (0.0, -18.0), "ding": (0.0, -22.0), "whip": (0.12, -21.0), "glitch": (0.0, -24.0)}
+         "impact": (0.0, -18.0), "ding": (0.0, -22.0), "whip": (0.12, -21.0), "glitch": (0.0, -24.0),
+         "thud": (0.0, -20.0), "shutter": (0.0, -22.0), "paper": (0.3, -24.0)}
+COMPOSED = {"thud", "shutter", "paper"}  # synthesized by editor.compose.fx (studio set: `editor compose sfx`)
 AUDIO_EXT = {".wav", ".mp3", ".flac", ".ogg", ".m4a", ".aif", ".aiff"}
 TRANSITION_SFX = {"whip": "whip", "zoom": "whoosh", "glitch": "glitch", "shake": "impact"}
 
@@ -102,6 +107,9 @@ def synth(kind: str) -> np.ndarray:
         n = int(0.9 * SR)
         t = np.arange(n) / SR
         y = sum(a * np.sin(2 * np.pi * f * t) for f, a in ((1320, 1.0), (2640, 0.35), (3960, 0.12))) * _env(n, 0.002, 0.25)
+    elif kind in COMPOSED:
+        from .compose.fx import mono
+        y = mono(kind)
     else:
         raise ValueError(f"unknown sfx type {kind}")
     return (y / (np.max(np.abs(y)) + 1e-9) * 0.89).astype(np.float32)

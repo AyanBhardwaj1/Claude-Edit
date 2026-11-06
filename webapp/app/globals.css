@@ -149,6 +149,24 @@ p { margin: 0; text-wrap: pretty; }
 [data-theme="terminal"] .seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); box-shadow: none; }
 .seg button:focus-visible { box-shadow: var(--focus); }
 
+/* speed vs quality (components/EffortPicker.tsx): three radio cards */
+.effort { border: 0; margin: 0; padding: 0; min-width: 0; }
+.effort > legend { padding: 0; margin-bottom: 8px; }
+.effort-opts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.effort-opt { position: relative; display: grid; gap: 6px; align-content: start; min-width: 0; padding: 12px 14px; border-radius: var(--r-md);
+  background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); cursor: pointer; transition: box-shadow .15s ease, background-color .15s ease; }
+.set-sec .effort-opt { background: var(--bg); }
+.effort-opt:hover { box-shadow: inset 0 0 0 1px var(--line-strong); }
+.effort-opt:has(input:checked) { background: var(--accent-soft); box-shadow: inset 0 0 0 2px var(--accent); }
+.effort-opt:has(input:focus-visible) { box-shadow: inset 0 0 0 2px var(--accent), var(--focus); }
+.eo-name { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px; color: var(--ink); }
+.eo-dot { width: 16px; height: 16px; flex: none; border-radius: 50%; box-shadow: inset 0 0 0 2px var(--line-strong); transition: box-shadow .15s ease; }
+.effort-opt:has(input:checked) .eo-dot { box-shadow: inset 0 0 0 5px var(--accent); }
+.eo-sub { display: grid; gap: 4px; font-size: 13px; line-height: 1.45; }
+.eo-time { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+.eo-line { color: var(--ink-2); }
+@media (max-width: 640px) { .effort-opts { grid-template-columns: 1fr; } }
+
 /* ---------- surfaces ---------- */
 .panel { background: var(--surface); border: var(--panel-border); border-radius: var(--r-lg); padding: 22px; min-width: 0; }
 .panel.flush { padding: 0; overflow: hidden; }

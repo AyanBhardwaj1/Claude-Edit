@@ -4,6 +4,7 @@
 // shared by everyone in this browser.
 
 import { createStore, del, get, keys, set } from "idb-keyval";
+import { effortOf } from "./effort";
 import type { Anim } from "./studio";
 import type { Project, Settings, StyleRule } from "./types";
 
@@ -59,13 +60,14 @@ export async function deleteAnim(a: Anim) {
 
 export const DEFAULT_SETTINGS: Settings = {
   provider: "anthropic", anthropicKey: "", openaiKey: "", anthropicModel: "claude-sonnet-5-5", openaiModel: "",
-  transcriber: "openai", rememberKeys: false,
+  transcriber: "openai", rememberKeys: false, effort: "balanced",
 };
 
 export function loadSettings(): Settings {
   if (typeof window === "undefined") return DEFAULT_SETTINGS;
   try {
     const s = { ...DEFAULT_SETTINGS, ...JSON.parse(read("ce.settings") || "{}") } as Settings;
+    s.effort = effortOf(s);
     const session = JSON.parse(sessionStorage.getItem(k("ce.keys")) || "{}");
     return { ...s, anthropicKey: s.anthropicKey || session.anthropicKey || "", openaiKey: s.openaiKey || session.openaiKey || "" };
   } catch { return DEFAULT_SETTINGS; }
@@ -82,6 +84,14 @@ export function loadRules(): StyleRule[] {
   try { return JSON.parse(read("ce.style") || "[]"); } catch { return []; }
 }
 export function saveRules(r: StyleRule[]) { localStorage.setItem(k("ce.style"), JSON.stringify(r)); changed(); }
+
+/** Per-device values for this account that never sync (lib/timings.ts). Storage can be off (private mode): then nothing is kept. */
+export function readLocal(base: string): string | null {
+  try { return read(base); } catch { return null; }
+}
+export function writeLocal(base: string, value: string) {
+  try { localStorage.setItem(k(base), value); } catch { /* storage full or off */ }
+}
 
 /** Tells lib/sync.ts that a preference changed (it pushes them when server accounts are on). */
 function changed() { if (typeof window !== "undefined") window.dispatchEvent(new Event("cutmind:prefs")); }

@@ -1,12 +1,14 @@
 // The whole workflow: takes in -> transcript and analysis -> first edit (AI or deterministic) -> notes -> versions.
 
-import { applyNote, firstEdit } from "./ai";
+import { applyNote, firstEdit, listModels, reviewEdit } from "./ai";
 import { analyze } from "./analyze";
 import { defaultEdit, describe, fromAi, type AiEdit } from "./edit";
+import { aiChoice, effortOf, EFFORT, type AiChoice } from "./effort";
 import { trackFaces } from "./face";
 import { findPicture } from "./images";
 import { activeRms, decodeMono, musicFeel, probeImage, probeVideo, uid } from "./media";
 import { getMedia, putMedia, saveProject } from "./store";
+import { record } from "./timings";
 import { transcribe } from "./transcribe";
 import type { Asset, Edit, Project, Settings, StyleRule } from "./types";
 
@@ -72,7 +74,27 @@ export async function mediaUrls(p: Project): Promise<Map<string, string>> {
   return m;
 }
 
+const footage = (p: Project) => p.sources.reduce((a, x) => a + (x.duration || 0), 0);
+const since = (t0: number) => (performance.now() - t0) / 1000;
+
+/** The model and answer budget for this effort. The effort's preferred model is used only when the key's model list has it
+ *  (asked once per key; if the list can't be read, the user's own model stays). */
+const known = new Map<string, Promise<string[] | null>>();
+async function choiceFor(s: Settings): Promise<AiChoice> {
+  const effort = effortOf(s);
+  const key = s.provider === "anthropic" ? s.anthropicKey : s.openaiKey;
+  if (s.provider !== "anthropic" || !EFFORT[effort].anthropicModel || !key) return aiChoice(s, effort, null);
+  if (!known.has(key)) known.set(key, Promise.race([
+    listModels("anthropic", key).then((r) => r.models).catch(() => null),
+    new Promise<null>((ok) => setTimeout(() => ok(null), 6000)),
+  ]));
+  return aiChoice(s, effort, await known.get(key)!);
+}
+
+/** Transcript, retakes and (unless the effort is Fast) the face. `s.effort` is this video's effort. */
 export async function listen(p: Project, s: Settings, onProgress: Progress) {
+  const effort = effortOf(s);
+  const t0 = performance.now();
   p.words = [];
   for (const src of p.sources) {
     const blob = (await getMedia(src.mediaKey))!;
@@ -84,19 +106,24 @@ export async function listen(p: Project, s: Settings, onProgress: Progress) {
   if (!p.words.length) throw new Error("I couldn't hear any speech in this video. Is the sound on?");
   onProgress("Finding your retakes", 40);
   p.analysis = analyze(p.words);
-  onProgress("Finding your face", 45);
-  try {
-    const urls = await mediaUrls(p);
-    p.faces = await trackFaces(p.sources, p.sources.map((x) => urls.get(x.mediaKey)!), (pct) => onProgress("Finding your face", 45 + pct * 0.1));
-    urls.forEach((u) => URL.revokeObjectURL(u));
-  } catch { p.faces = []; }                         // the reframe falls back to the centre
+  record("listen", effort, since(t0), footage(p), s.transcriber);
+  if (EFFORT[effort].faces) {
+    onProgress("Finding your face", 45);
+    const t1 = performance.now();
+    try {
+      const urls = await mediaUrls(p);
+      p.faces = await trackFaces(p.sources, p.sources.map((x) => urls.get(x.mediaKey)!), (pct) => onProgress("Finding your face", 45 + pct * 0.1));
+      urls.forEach((u) => URL.revokeObjectURL(u));
+      record("faces", effort, since(t1), footage(p));
+    } catch { p.faces = []; }                       // the reframe falls back to the centre
+  } else p.faces = [];                              // Fast: no face finding, the reframe stays centred
   p.status = "transcribed";
   await saveProject(p);
 }
 
-async function webPictures(p: Project, ai: AiEdit, onProgress: Progress): Promise<Map<string, Asset>> {
+async function webPictures(p: Project, ai: AiEdit, onProgress: Progress, limit = 16): Promise<Map<string, Asset>> {
   const out = new Map<string, Asset>();
-  const want = (ai.webPictures ?? []).slice(0, 16);
+  const want = (ai.webPictures ?? []).slice(0, limit);
   if (want.length) onProgress(`Finding ${want.length} pictures online`, 70);
   await Promise.all(want.map(async (w) => {
     const existing = p.library.find((a) => a.key === `web:${w.query}`);
@@ -115,14 +142,29 @@ export async function makeFirstEdit(p: Project, s: Settings, rules: StyleRule[],
     summary = "No AI editor connected, so I made a simple cut: I removed the pauses and repeated starts and added subtitles" +
       (base.music.asset ? " and your song." : ".") + " Add an API key in Settings and I can pick your best takes, add pictures and write your caption.";
   } else {
+    const plan = EFFORT[effortOf(s)];
+    const t0 = performance.now();
     onProgress("Picking your best takes and planning the edit", 55);
-    const ai = await firstEdit(s, p, rules);
-    const web = await webPictures(p, ai, onProgress);
+    const choice = await choiceFor(s);
+    const ai = await firstEdit(s, p, rules, choice, plan.hint);
+    const web = await webPictures(p, ai, onProgress, plan.pictures);
     const res = fromAi(p, base, ai, web);
     edit = res.edit;
-    const wanted = (ai.webPictures ?? []).length, found = web.size;
+    const wanted = Math.min(plan.pictures, (ai.webPictures ?? []).length), found = web.size;
     summary = (ai.summary ?? "Here's your first edit.") + (wanted > found ? ` I couldn't find ${wanted - found} of the pictures online.` : "");
     if (res.problems.length) console.warn("edit problems", res.problems);
+    if (plan.review) {
+      onProgress(REVIEWING, 80);
+      try {
+        const again = await reviewEdit(s, p, edit, rules, choice);
+        const more = await webPictures(p, again, onProgress, plan.pictures);
+        const rev = fromAi(p, edit, again, more);
+        if (rev.problems.length) console.warn("review problems", rev.problems);
+        edit = rev.edit;
+        if (again.summary) summary = again.summary;
+      } catch (e) { console.warn("review pass failed, keeping the first edit", e); }
+    }
+    if (!p.parent) record("edit", effortOf(s), since(t0), footage(p));
   }
   p.versions = [{ n: 1, edit, note: "First draft", summary, at: new Date().toISOString() }];
   p.current = 1;
@@ -131,12 +173,16 @@ export async function makeFirstEdit(p: Project, s: Settings, rules: StyleRule[],
   return summary;
 }
 
+/** The progress line while Best quality runs its review pass. */
+export const REVIEWING = "Reviewing the edit like a senior editor";
+
+/** Notes are one pass at every effort, with the effort's model and answer budget (the saved default effort). */
 export async function applyUserNote(p: Project, s: Settings, rules: StyleRule[], note: string, onProgress: Progress):
   Promise<{ summary: string; styleRule: string | null }> {
   const cur = p.versions.find((v) => v.n === p.current) ?? p.versions[p.versions.length - 1];
   onProgress("Working on your note", 30);
-  const ai = await applyNote(s, p, cur.edit, note, rules);
-  const web = await webPictures(p, ai, onProgress);
+  const ai = await applyNote(s, p, cur.edit, note, rules, await choiceFor(s));
+  const web = await webPictures(p, ai, onProgress, EFFORT[effortOf(s)].pictures);
   const { edit } = fromAi(p, cur.edit, ai, web);
   const n = Math.max(...p.versions.map((v) => v.n)) + 1;
   const summary = ai.summary || describe(cur.edit, edit);

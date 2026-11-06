@@ -163,7 +163,7 @@ test("clips: the AI's picks are checked (ids, length, overlaps) and ranked", asy
   globalThis.fetch = (async () => new Response(JSON.stringify({ content: [{ type: "tool_use", name: "submit_clips", input: answer }] }),
     { status: 200, headers: { "content-type": "application/json" } })) as typeof fetch;
   try {
-    const s = { provider: "anthropic", anthropicKey: "k", openaiKey: "", anthropicModel: "m", openaiModel: "", transcriber: "browser", rememberKeys: false } as const;
+    const s = { provider: "anthropic", anthropicKey: "k", openaiKey: "", anthropicModel: "m", openaiModel: "", transcriber: "browser", rememberKeys: false, effort: "balanced" } as const;
     const clips = await findClips(s, p);
     assert.deepEqual(clips.map((c) => c.title), ["Good one", "Fine"]);
     assert.equal(clips[0].seconds > 20, true);
