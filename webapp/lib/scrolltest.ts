@@ -3,6 +3,7 @@
  *  picture moving, and an opening that is the point (no throat clearing). From the edit alone, no AI. */
 import { changeTimes } from "./attention";
 import { hookOf } from "./hooks";
+import { readTime } from "./text";
 import { indexOf, keptIndexes, spanOf, type Timeline } from "./timeline";
 import type { Edit, Range, Word } from "./types";
 
@@ -11,8 +12,7 @@ export type ScrollLine = { id: "hook" | "read" | "moves" | "open" | "loop"; ok: 
 
 export const WEAK = ["so", "um", "uh", "okay", "ok", "hey", "hi", "hello", "today", "alright", "well", "like"];
 
-/** About how long a short line takes to read on a phone: a moment to notice it, then ~4 words a second. */
-export const readTime = (text: string) => 0.4 + 0.25 * text.trim().split(/\s+/).filter(Boolean).length;
+export { readTime } from "./text";
 
 /** How long the hook title is on screen, as the compositor shows it: its words plus a short hold, at least 2 s,
  *  unless the next picture or card starts sooner. */
@@ -23,7 +23,7 @@ function hookShown(tl: Timeline, e: Edit, hook: Edit["broll"][number]): number {
   const k = sorted.findIndex((x) => x.b === hook);
   if (k < 0) return 0;
   const sp = sorted[k].sp!;
-  let end = Math.max(sp[1] + 0.15, sp[0] + 2.0);
+  let end = Math.max(sp[1] + 0.15, sp[0] + Math.max(2.0, readTime(hook.text ?? "")));   // held long enough to read
   const next = sorted[k + 1]?.sp;
   if (next && next[0] < end && next[0] > sp[0] + 0.3) end = next[0];
   return Math.min(end, tl.duration) - sp[0];
