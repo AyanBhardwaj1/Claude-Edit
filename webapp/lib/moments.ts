@@ -43,3 +43,11 @@ export function momentsText(tl: Timeline, e: Pick<Edit, "broll" | "zooms">, note
     return lines.join("\n");
   }).join("\n");
 }
+
+/** A spoken note that points at "here" ("cut this part", "the music's too loud here") means where the player is:
+ *  prefix that time, unless the note already says a time. */
+export function anchorSpoken(text: string, playerAt: number): string {
+  if (noteTimes(text).length || !/\b(here|this (part|bit|moment|spot|line|word|shot)|right now|at this point|just now)\b/i.test(text)) return text;
+  const at = `${Math.floor(playerAt / 60)}:${String(Math.floor(playerAt % 60)).padStart(2, "0")}`;
+  return `At ${at}, ${text.charAt(0).toLowerCase()}${text.slice(1)}`;
+}

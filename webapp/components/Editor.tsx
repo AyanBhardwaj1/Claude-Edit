@@ -29,6 +29,7 @@ import { clock } from "./Tiles";
 import { changeItems, type Change } from "@/lib/changes";
 import { Shortcuts } from "./Shortcuts";
 import { VoiceNote } from "./VoiceNote";
+import { anchorSpoken } from "@/lib/moments";
 import { declineLearned, learnFromExport } from "@/lib/learn";
 
 type Msg = { who: "you" | "ed"; text: string; rule?: string; changes?: Change[]; learned?: boolean; v?: number };
@@ -563,7 +564,8 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
                 autoComplete="off" onChange={(ev) => setNote(ev.target.value)}
                 onKeyDown={(ev) => { if (ev.key === "Enter" && !ev.shiftKey && !ev.nativeEvent.isComposing) { ev.preventDefault(); void send(); } }} />
               <VoiceNote settings={settings} disabled={recording}
-                onText={(t) => { setNote((n) => (n.trim() ? `${n.trim()} ${t}` : t)); document.getElementById("note")?.focus(); }} />
+                onText={(t) => { const said = anchorSpoken(t, player.current?.t ?? 0);
+                  setNote((n) => (n.trim() ? `${n.trim()} ${said}` : said)); document.getElementById("note")?.focus(); }} />
               {dur > 0 && <button type="button" className="btn ghost sm at-btn" title="Add where the player is to your note"
                 aria-label={`Add the time ${clock(t)} to your note`}
                 onClick={() => { setNote((n) => `At ${clock(t)}, ${n.replace(/^at \d+:\d\d,\s*/i, "")}`);
