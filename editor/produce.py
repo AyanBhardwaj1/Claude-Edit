@@ -1073,6 +1073,9 @@ def _loudnorm(src: Path, out: Path, lufs: float, tp: float, total: float | None 
 ENCODE = {"rush": "veryfast", "standard": "veryfast", "polish": "slow"}    # final composite x264 preset by effort
 
 
+LAST_REMUX = False     # the last composite only swapped in new sound: its time teaches nothing
+
+
 def _picture_key(spec: Spec, ov: Path | None, effort: str) -> str:
     """The final picture as content: the pieces, how they join, the overlay, the encode settings."""
     o = spec.data.get("output", {})
@@ -1105,6 +1108,8 @@ def composite(spec: Spec, base: Path, ov: Path | None, audio: Path, out: Path | 
              "-c:v", "copy", "-c:a", "aac", "-b:a", o.get("audio_bitrate", "320k"), "-movflags", "+faststart", str(tmp)])
         tmp.replace(out)
         log("produce: composite: same picture as last time, new sound only (remuxed, no re-encode)")
+        global LAST_REMUX
+        LAST_REMUX = True
         return out
     stamp.unlink(missing_ok=True)
     vf = (["-filter_complex", "[0:v][1:v]overlay=0:0:format=auto,format=yuv420p[v]", "-map", "[v]"] if ov
@@ -1909,6 +1914,9 @@ def produce(spec_path: str | Path, only: str | None = None, jobs: int = 4, want_
             raise EditorError(f"unknown stage {st!r} (pieces, overlay, mix, composite, extras, post, review)")
         timing[st] = round(time.monotonic() - t0, 1)
         stage = {"pieces": "pieces", "overlay": "overlay", "mix": "mix", "composite": "composite"}.get(st)
+        global LAST_REMUX
+        if st == "composite" and LAST_REMUX:                # a remux isn't an encode
+            stage, LAST_REMUX = None, False
         if stage and timing[st] > 2:                        # cached stages teach nothing
             try:
                 eff.record(stage, effort, timing[st], spec.total)
