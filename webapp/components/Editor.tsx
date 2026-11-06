@@ -453,9 +453,13 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
               <textarea id="note" rows={1} value={note} placeholder="Tell your editor what to change…" aria-describedby="note-hint"
                 autoComplete="off" onChange={(ev) => setNote(ev.target.value)}
                 onKeyDown={(ev) => { if (ev.key === "Enter" && !ev.shiftKey && !ev.nativeEvent.isComposing) { ev.preventDefault(); void send(); } }} />
+              {dur > 0 && <button type="button" className="btn ghost sm at-btn" title="Add where the player is to your note"
+                aria-label={`Add the time ${clock(t)} to your note`}
+                onClick={() => { setNote((n) => `At ${clock(t)}, ${n.replace(/^at \d+:\d\d,\s*/i, "")}`);
+                  document.getElementById("note")?.focus(); }}><span className="num">At {clock(t)}</span></button>}
               <button className="btn primary" onClick={send} disabled={!!busy || !note.trim()}><Icon name="send" />Send</button>
             </div>
-            <p className="hint note-hint" id="note-hint">For example: &ldquo;music too loud at the start&rdquo;, &ldquo;show the Spotify logo when I say
+            <p className="hint note-hint" id="note-hint">For example: &ldquo;music too loud at the start&rdquo;, &ldquo;at 0:12 zoom in&rdquo; (the At button adds where the player is), &ldquo;show the Spotify logo when I say
               Spotify&rdquo;, &ldquo;cut the part about my cat&rdquo;. Enter sends, Shift+Enter starts a new line.</p>
             <div className="attach-row">
               <label className="attach">
