@@ -10,6 +10,8 @@ style memory (`editor style note`), timings to `editor effort record`; this file
 - [process] Anything awaiting playback to end (an export) must also end on pause, dispose or a version change, or it hangs: give it a stop path and test 'start a test, then export'.
 - [process] Every new playback/export path needs the plain case re-run too (play, then Export): a guard added for a scroll test made Export-while-playing fail, and only an independent review caught it.
 - [process] Check a test run's exit code, not a tail of its output: a piped 'pytest | tail -1' printed '1 failed' and the commit went ahead.
+- [craft] A cut where nothing is cut still shows: two touching pieces of one take got a fade, a punch-in change and a transition at the seam. Anything that splits segments must leave them merged (editor cut now merges them).
+- [process] Have an independent reviewer read each new feature within the hour: the last three rounds today found 12 real bugs the tests missed (anchors lost on a take swap, a bleep that stopped bleeping, words reordered).
 
 ## 2026-11-06 Afternoon bug hunt
 - [process] Before committing web code, stage every new file it imports (git status shows them as ??): a commit with Editor.tsx but not the new lib/safezones.ts it imported left the branch unbuildable until the next commit.
