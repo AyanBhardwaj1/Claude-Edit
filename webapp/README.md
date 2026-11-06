@@ -96,6 +96,10 @@ vertical reel with a cover and a post caption, then change it by typing notes. E
 26. **Attention map**: a lane under the timeline marks, second by second, where viewers may drift (the same picture for
     more than ~3 s, dead air, slow talking), and the Reel check lists the weakest spots with a fix; click one to go
     there (`lib/attention.ts`). A guide from what is on screen and said, not a forecast.
+    **Add zooms there** fixes a same-picture spot in one click (a new version, so Undo works); **Ask your editor to fix
+    these** sends the weak spots as one timed note.
+27. **Show the app's buttons**: draws Reels, TikTok or Shorts UI over the 9:16 preview and says when its caption block
+    covers your subtitles (`lib/safezones.ts`, the same zones as `editor safezone`).
 
 ## Privacy and keys
 - Videos never leave the browser: they're processed on the user's computer and kept in IndexedDB.
