@@ -102,3 +102,15 @@ def test_word_anchor_stays_inside_one_play_of_a_repeated_stretch():
     assert a["start"] == 4 + 6 * 0.6 and b["start"] == 4 + 12 * 0.6
     a, b = find(words, {"words": "w49-w44"})                 # backwards, within the cold open
     assert a["start"] == 0.0 and b["start"] == 2.5
+
+
+def test_anchored_text_card_is_held_long_enough_to_read():
+    from editor.anchors import resolve
+    words = [{"id": f"w{i}", "text": t, "start": i * 0.3, "end": i * 0.3 + 0.25} for i, t in enumerate("rent is the biggest bill".split())]
+    hook = {"treatment": "text-pop", "style": "label", "text": "The one bill you can cut today", "words": "w0-w1"}
+    out = resolve({"broll": [dict(hook)]}, words)["broll"][0]
+    assert out["dur"] >= 0.4 + 0.25 * 7 - 1e-6                         # 7 words: 2.15 s, not the 1.2 s minimum
+    pic = resolve({"broll": [{"path": "a.png", "words": "w0-w1"}]}, words)["broll"][0]
+    assert abs(pic["dur"] - 1.2) < 1e-6                                 # pictures keep their minimum
+    told = resolve({"broll": [dict(hook, dur=1.0)]}, words)["broll"][0]
+    assert told["dur"] == 1.0                                           # an explicit dur still wins
