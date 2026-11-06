@@ -361,10 +361,13 @@ def test_transitions_keep_every_piece_on_time(tmp_path):
     spec = base_spec(pieces=[{"name": "a", "type": "color", "dur": 1.0, "color": "red"},
                              {"name": "b", "type": "color", "dur": 1.0, "color": "blue",
                               "transition": {"type": "dissolve", "dur": 0.4}},
-                             {"name": "c", "type": "color", "dur": 1.0, "color": "green", "transition": "whip"}])
+                             {"name": "c", "type": "color", "dur": 1.0, "color": "green", "transition": "whip"},
+                             {"name": "d", "type": "color", "dur": 0.5, "color": "white"},          # a plain cut...
+                             {"name": "e", "type": "color", "dur": 0.5, "color": "black",
+                              "transition": "dip_white"}])                                            # ...then one more
     s = produce.Spec(write_spec(tmp_path, spec))
     base = produce.pieces(s)
-    assert probe(base)["duration"] == pytest.approx(3.0, abs=0.05)
+    assert probe(base)["duration"] == pytest.approx(4.0, abs=0.05)
 
     def rgb(t):
         raw = subprocess.run(["ffmpeg", "-v", "error", "-ss", str(t), "-i", str(base), "-frames:v", "1", "-vf",

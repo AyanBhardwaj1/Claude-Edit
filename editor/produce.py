@@ -493,7 +493,7 @@ def _join_with_transitions(spec: Spec, base: Path) -> None:
     ins, graph = [], []
     for i, pc in enumerate(spec.pieces):
         ins += ["-i", str(_piece_path(spec, pc))]
-        graph.append(f"[{i}:v]settb=AVTB,fps={spec.fps},format=yuv420p[p{i}]")
+        graph.append(f"[{i}:v]fps={spec.fps},format=yuv420p,setsar=1,settb=AVTB[p{i}]")   # one timebase for xfade
     cur, t = "p0", spec.pieces[0]["_dur"]
     for i, pc in enumerate(spec.pieces[1:], 1):
         tr = pc.get("transition")
@@ -505,7 +505,7 @@ def _join_with_transitions(spec: Spec, base: Path) -> None:
             graph.append(f"[h{i}][p{i}]xfade=transition={name}:duration={d}:offset={t:.4f}[j{i}]")
             # the frame held is consumed by the overlap: total length is unchanged
         else:
-            graph.append(f"[{cur}][p{i}]concat=n=2:v=1:a=0[j{i}]")
+            graph.append(f"[{cur}][p{i}]concat=n=2:v=1:a=0,settb=AVTB[j{i}]")
         cur = f"j{i}"
         t += pc["_dur"]
     run(["ffmpeg", "-y", *ins, "-filter_complex", ";".join(graph), "-map", f"[{cur}]", "-r", str(spec.fps),
