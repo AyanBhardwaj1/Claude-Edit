@@ -209,6 +209,9 @@ def test_pacing_checks():
     assert rep["visuals_under_1_2s"] == ["a.png at 0.2s"]
     assert rep["named_not_shown"] == ["Spotify"]                       # Notion is said while a.png is up
     assert rep["broll_moments"].startswith("1 ")
+    assert rep["no_hook_title"] and rep["first_word_after_0_6s"] is None        # speech from 0.0 s, no title
+    titled = pacing(dict(edl, title="I quit Notion"), [dict(w, start=w["start"] + 1.0, end=w["end"] + 1.0) for w in ws], 30.0)
+    assert titled["no_hook_title"] is None and titled["first_word_after_0_6s"]
 
 
 def write_wav(path, x, sr=48000):
