@@ -120,6 +120,7 @@ export function chunk(words: CapWord[], maxWords: number): Cue[] {
     const next = cues[k + 1];
     if (next && next.start - c.end < 2) c.end = next.start - 0.02; else c.end += 0.15;
     c.end = Math.max(c.end, c.start + 0.3);
+    if (next) c.end = Math.min(c.end, Math.max(c.start + 0.05, next.start - 0.02));   // a short cue never runs into the next
   });
   return cues;
 }

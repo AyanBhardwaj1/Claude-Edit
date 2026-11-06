@@ -28,7 +28,8 @@ import { RecordScreen } from "./ScreenRecorder";
 import { clock } from "./Tiles";
 import { changeItems, type Change } from "@/lib/changes";
 import { attention, spotsNote, zoomsFor, type Attention } from "@/lib/attention";
-import { PLATFORM_NAMES, subtitlesCovered, ZONES, type Platform } from "@/lib/safezones";
+import { SCROLL_SECONDS, scrollTest, type ScrollLine } from "@/lib/scrolltest";
+import { clearPosition, PLATFORM_NAMES, subtitlesCovered, ZONES, type Platform } from "@/lib/safezones";
 import { Shortcuts } from "./Shortcuts";
 import { VoiceNote } from "./VoiceNote";
 import { anchorSpoken } from "@/lib/moments";
@@ -65,6 +66,17 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
   const [toast, setToast] = useState("");
   const [keys, setKeys] = useState(false);
   const [appUi, setAppUi] = useState<Platform | null>(null);   // draw Reels / TikTok / Shorts UI over the preview
+  // the scroll test: the first 3 seconds, sound off, then what a scroller got from them
+  const [scroll, setScroll] = useState<{ lines: ScrollLine[]; passed: number } | null>(null);
+  const [scrolled, setScrolled] = useState(false);
+  const scrollRun = useRef(false);
+  const endScroll = (pl: Player | null, show: boolean) => {
+    if (!scrollRun.current) return;
+    scrollRun.current = false;
+    if (pl) { pl.pause(); pl.muted = false; }
+    setPlaying(false);
+    if (show) setScrolled(true);
+  };
   const lastBlob = useRef<Blob | null>(null);
   const [clips, setClips] = useState<Clip[] | null>(null);
   const [clipBusy, setClipBusy] = useState("");
@@ -136,14 +148,16 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
     if (!canvas.current || gen !== mounts.current) { urls.forEach((u) => URL.revokeObjectURL(u)); return; }
     player.current?.dispose();
     const pl = new Player(canvas.current, p, edit, urls);
-    pl.onTime = setT;
-    pl.onEnd = () => setPlaying(false);
+    scrollRun.current = false;
+    pl.onTime = (x) => { setT(x); if (scrollRun.current && x >= SCROLL_SECONDS) endScroll(pl, true); };
+    pl.onEnd = () => { endScroll(pl, true); setPlaying(false); };
     player.current = pl;
     await pl.load();
     if (!canvas.current || gen !== mounts.current) return;
     canvas.current!.dataset.cuts = pl.scene.cuts.map((c) => c.toFixed(3)).join(",");   // for tests and tools
     setCheck(reelCheck(p, edit, pl.tl));
     setAttn(attention(pl.tl, edit));
+    setScroll(scrollTest(pl.tl, edit)); setScrolled(false);
     void waveform(p, pl.tl).then((w) => { if (gen === mounts.current) setWave(w); });
     setTrack({ segs: pl.tl.segments.map((x) => [x.outStart, x.outEnd]), zooms: pl.scene.zooms.map((z) => [z.s, z.e]),
       layers: pl.scene.layers.map((L) => ({ s: L.start, e: L.end, text: L.b.treatment === "text-pop", label: L.b.text ?? L.b.card?.text ?? p.library.find((x) => x.key === L.b.asset)?.name ?? "Picture" })) });
@@ -218,6 +232,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
   async function toggle() {
     const pl = player.current;
     if (!pl) return;
+    if (scrollRun.current) { endScroll(pl, false); return; }
     if (playing) { pl.pause(); setPlaying(false); } else { setPlaying(true); await pl.play(); }
   }
 
@@ -423,7 +438,36 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
                   <button key={pl ?? "off"} type="button" aria-pressed={appUi === pl} onClick={() => setAppUi(pl)}>{pl ? PLATFORM_NAMES[pl] : "Off"}</button>))}
               </div>
               {version && appUi && subtitlesCovered(version.edit).includes(appUi) && (
-                <p className="say-bad">{PLATFORM_NAMES[appUi]} covers part of your subtitles: raise them (Edit it myself → Subtitles → Position: Higher).</p>)}
+                <p className="say-bad">{PLATFORM_NAMES[appUi]} covers part of your subtitles.{" "}
+                  {clearPosition(version.edit) !== null
+                    ? <button type="button" className="btn sm" onClick={async () => {
+                        const pos = clearPosition(version.edit)!; const before = version.edit;
+                        const fixed = { ...before, captions: { ...before.captions, position: pos } };
+                        await saveManual(p, fixed, "subtitles raised clear of the app buttons"); setP({ ...p });
+                        setMsgs((m) => [...m, { who: "ed", v: p.current, text: `Version ${p.current}: I raised the subtitles so Reels, TikTok and Shorts don't cover them.`,
+                          changes: changeItems(p, before, fixed) }]);
+                      }}><Icon name="wand" />Raise them</button>
+                    : <>Make them smaller (Edit it myself → Subtitles → Size).</>}</p>)}
+            </div>)}
+          {scroll && dur > 0 && (
+            <div className="scroll-test">
+              <button type="button" className="btn ghost sm" disabled={recording || cmp} aria-pressed={scrollRun.current}
+                onClick={async () => {
+                  const pl = player.current; if (!pl) return;
+                  if (scrollRun.current) { endScroll(pl, false); return; }
+                  pl.pause(); setScrolled(false); scrollRun.current = true; pl.muted = true;
+                  await pl.seek(0); setT(0); setPlaying(true); await pl.play(0);
+                }}><Icon name="play" />{scrollRun.current ? "Stop the scroll test" : `Scroll test: first ${SCROLL_SECONDS} s, sound off`}</button>
+              {scrolled && (
+                <div className="scroll-res" role="status">
+                  <p><b>{scroll.passed === 4 ? "They'd stop scrolling." : scroll.passed >= 2 ? "Some would stop." : "Most would scroll past."}</b>{" "}
+                    <span className="muted">{scroll.passed} of 4 for the first {SCROLL_SECONDS} seconds with the sound off, the way most people see it.</span></p>
+                  <ul className="checks" aria-label="Scroll test results">
+                    {scroll.lines.filter((l) => !l.ok).concat(scroll.lines.filter((l) => l.ok)).map((l) => (
+                      <li key={l.id} className={l.ok ? "ok" : "bad"}><Icon name={l.ok ? "check" : "alert"} />
+                        <span className="grow">{l.text}{!l.ok && l.fix && <span className="small block fix">{l.fix}</span>}</span></li>))}
+                  </ul>
+                </div>)}
             </div>)}
           {track && dur > 0 && (
             <div className="track" aria-hidden="true" onPointerDown={(ev) => {
