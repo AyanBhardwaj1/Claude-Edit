@@ -83,7 +83,7 @@ def with_take(segments: list[dict], line: dict, n: int, pad_before: float = 0.06
                       (((x, y),) if y <= a or x >= b else ((x, a), (b, y))) if py - px >= 0.05]
         held = [(a, b) for s_, a, b in real if s_ == src and min(seg["end"], b) - max(seg["start"], a) > 0.05]
         if at is None and held:     # the line played here: the picked take plays here too
-            first = min(a for a, _ in held) - pad_before
+            first = min(a for a, _ in held)          # the take's own start: a piece cut at its padded start counts
             at = len(out) + sum(1 for _, y in pieces if y <= first + 1e-6)
         keep = {k: v for k, v in seg.items() if k != "text"}
         out += [{**keep, "start": round(x, 3), "end": round(y, 3)} for x, y in pieces]

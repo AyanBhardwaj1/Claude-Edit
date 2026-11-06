@@ -256,6 +256,7 @@ def main(argv=None):
     p = sub.add_parser("takes", help="lines said more than once: which take plays, and play another one instead")
     p.add_argument("work_dir")
     p.add_argument("--use", metavar="LINE:TAKE", help="play this take of this line (numbers as listed, e.g. 2:1)")
+    p.add_argument("--clips", action="store_true", help="write each take as a short clip to work/takes/ to watch them")
     p.add_argument("--apply", action="store_true", help="write the segments to edl.json; re-run from cut")
 
     p = sub.add_parser("habits", help="words said out of habit (basically, literally, 'you know,'): count them, cut them")
@@ -1016,6 +1017,21 @@ def cmd_takes(args):
     if not lines:
         print("no line was said more than once")
         return 0
+    if args.clips:
+        from .util import run
+        out = work / "takes"
+        out.mkdir(exist_ok=True)
+        sources = edl.get("sources", [])
+        for n, L in enumerate(lines, 1):
+            for k, t in enumerate(L["takes"], 1):
+                if t["src"] >= len(sources):
+                    continue
+                a, b = max(0.0, t["start"] - 0.15), t["end"] + 0.25
+                dest = out / f"line{n}_take{k}.mp4"
+                run(["ffmpeg", "-y", "-ss", f"{a:.3f}", "-t", f"{b - a:.3f}", "-i", sources[t["src"]]["path"],
+                     "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-pix_fmt", "yuv420p", "-c:a", "aac",
+                     "-movflags", "+faststart", str(dest)])
+        log(f"takes: each take as a clip in {out} (line<N>_take<K>.mp4) to watch before picking")
     if not args.use:
         for n, L in enumerate(lines, 1):
             print(f"line {n}:")
@@ -1063,9 +1079,11 @@ def cmd_habits(args):
     if not args.apply:
         print("cut them: editor habits <work> --apply (or --only basically,literally)")
         return 0
-    before = sum(s["end"] - s["start"] for s in edl.get("segments", []))
+    from .fit import _duration
+    speed = float(edl.get("speed", 1.0) or 1.0)
+    before = _duration(edl.get("segments", []), speed)
     edl["segments"] = cut(edl.get("segments", []), words, [h for f in found for h in f["hits"]])
-    after = sum(s["end"] - s["start"] for s in edl["segments"])
+    after = _duration(edl["segments"], speed)
     save_json(edl_path, edl)
     log(f"habits: cut {sum(len(f['hits']) for f in found)} ({before - after:.1f} s) from {edl_path}: re-run from cut")
     return 0

@@ -281,6 +281,18 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
         ev.preventDefault(); void startRun(ev.key.toLowerCase() === "t" ? "scroll" : "loop"); return;
       }
       if ((ev.key === "n" || ev.key === "N") && !mod && !ev.altKey) { ev.preventDefault(); document.getElementById("note")?.focus(); return; }
+      if (ev.key === "/" && !mod && !ev.altKey) {          // find in what you said: Edit it myself → Cut → Find
+        ev.preventDefault();
+        const focus = () => {
+          if (!document.getElementById("find-w")) document.getElementById("tab-Cut")?.click();
+          requestAnimationFrame(() => document.getElementById("find-w")?.focus());
+        };
+        if (!document.getElementById("tab-Cut")) {
+          [...document.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent?.trim() === "Edit it myself")?.click();
+          setTimeout(focus, 50);
+        } else focus();
+        return;
+      }
       if ((ev.key === "m" || ev.key === "M") && !mod && !ev.altKey) {     // say a note: start, and M again to stop
         const mic = document.querySelector<HTMLButtonElement>(".voice-btn");
         if (mic && !mic.disabled) { ev.preventDefault(); mic.click(); }

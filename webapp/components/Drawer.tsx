@@ -1,16 +1,16 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { indexOf } from "@/lib/timeline";
 import { parseTags } from "@/lib/text";
 import { BOXED_DEFAULTS, BROLL_INS, CAPTION_ANIMS, LOOKS, motionOf, TRANSITIONS } from "@/lib/edit";
 import { LOOK_NAME } from "@/lib/motion";
 import { aiPicture } from "@/lib/images";
-import { saveProject } from "@/lib/store";
+import { getMedia, saveProject } from "@/lib/store";
 import { buildTimeline } from "@/lib/timeline";
 import { addToLibrary } from "@/lib/workflow";
 import { LANGUAGES, translateSubtitles } from "@/lib/translate";
 import { formatTime, playedLength, waitSavings, WAIT_SPEED } from "@/lib/screenrec";
-import { pickTake, takeLines } from "@/lib/takes";
+import { pickTake, takeLines, type Take } from "@/lib/takes";
 import { crutches, cutWords, findWords, restoreWords } from "@/lib/crutch";
 import { applyFit, FIT_TARGETS, planFit } from "@/lib/fit";
 import type { Asset, Broll, BrollIn, CaptionAnim, CaptionPreset, Edit, Look, Motion, Project, Range, Settings, Transition } from "@/lib/types";
@@ -59,9 +59,39 @@ export function Drawer({ project: p, edit, onApply, settings, onMakeMusic, onWor
   }, [e.keep, idx, p.words]);
   const lines = useMemo(() => takeLines(p, e.keep), [p, e.keep]);
   const habits = useMemo(() => crutches(p, e.keep), [p, e.keep]);
+  // hear a take before picking it: that stretch of the original footage, played on its own
+  const ear = useRef<{ v: HTMLVideoElement; url: string; src: number } | null>(null);
+  const [hearing, setHearing] = useState<string | null>(null);
+  const stopHearing = () => { ear.current?.v.pause(); setHearing(null); };
+  useEffect(() => () => { if (ear.current) { ear.current.v.pause(); URL.revokeObjectURL(ear.current.url); ear.current = null; } }, []);
+  async function hear(t: Take) {
+    if (hearing === t.range.from) { stopHearing(); return; }
+    ear.current?.v.pause();
+    if (!ear.current || ear.current.src !== t.src) {
+      const blob = await getMedia(p.sources[t.src]?.mediaKey ?? "");
+      if (!blob) return;
+      if (ear.current) URL.revokeObjectURL(ear.current.url);
+      const v = document.createElement("video");
+      v.playsInline = true; v.preload = "auto";
+      const url = URL.createObjectURL(blob); v.src = url;
+      ear.current = { v, url, src: t.src };
+    }
+    const v = ear.current.v, end = t.e + 0.1;
+    v.currentTime = Math.max(0, t.s - 0.05);
+    v.ontimeupdate = () => { if (v.currentTime >= end) stopHearing(); };
+    v.onended = stopHearing;
+    setHearing(t.range.from);
+    await v.play().catch(() => setHearing(null));
+  }
   const [find, setFind] = useState("");
   const [fitTo, setFitTo] = useState<number | null>(null);
-  const length = useMemo(() => buildTimeline(p.words, e, p.sources.map((x) => x.duration)).duration, [p.words, p.sources, e]);
+  const cutTl = useMemo(() => buildTimeline(p.words, e, p.sources.map((x) => x.duration)), [p.words, p.sources, e]);
+  const length = cutTl.duration;
+  // words a minute as it plays (talking speed included), from the cut's spoken words over its length
+  const wpm = useMemo(() => {
+    const n = cutTl.words.filter((w) => w.w.trim()).length;
+    return cutTl.duration > 5 && n > 10 ? Math.round(n / (cutTl.duration / 60)) : 0;
+  }, [cutTl]);
   const fit = useMemo(() => (fitTo && fitTo < length ? planFit(p, e, fitTo) : null), [p, e, fitTo, length]);
   const found = useMemo(() => findWords(p, find), [p, find]);
   const hit = useMemo(() => new Set(found.flat()), [found]);
@@ -117,7 +147,7 @@ export function Drawer({ project: p, edit, onApply, settings, onMakeMusic, onWor
           </div>
           <div className="field"><span className="label">Talking speed</span>
             {opt(e.speed ?? 1, [[1, "As filmed"], [1.1, "1.1×"], [1.2, "1.2×"], [1.3, "1.3×"]], (v) => setE({ ...e, speed: v === 1 ? undefined : v }), "Talking speed")}
-            <span className="hint">Faster talking holds attention; your voice keeps its pitch. Pictures and music play as they are.</span></div>
+            <span className="hint">{wpm ? `You talk at about ${wpm} words a minute${wpm < 150 ? ": unhurried for a reel, where 160 to 190 feels brisk" : wpm > 200 ? ": already quick" : ""}. ` : ""}Faster talking holds attention; your voice keeps its pitch. Pictures and music play as they are.</span></div>
           {FIT_TARGETS.some((t) => t < length) && (
             <div className="field"><span className="label" id="fit-h">Fit to a length <span className="muted small num">(now {formatTime(length)})</span></span>
               <div className="seg" role="group" aria-labelledby="fit-h">
@@ -151,6 +181,11 @@ export function Drawer({ project: p, edit, onApply, settings, onMakeMusic, onWor
                         </button>
                       ))}
                     </div>
+                    <span className="hear"><span className="small muted">Hear</span>{L.takes.map((t, k) => (
+                      <button key={`hear-${t.range.from}`} type="button" className="btn ghost sm" onClick={() => void hear(t)}
+                        aria-label={hearing === t.range.from ? `Stop take ${k + 1}` : `Hear take ${k + 1}`} title={`“${t.text}”`}>
+                        <Icon name={hearing === t.range.from ? "stop" : "play"} />{k + 1}</button>
+                    ))}</span>
                     <p className="small muted take-text">{L.playing < 0 ? "None of these plays now. " : ""}“{L.takes[L.playing < 0 ? L.takes.length - 1 : L.playing].text}”</p>
                   </li>
                 ))}
