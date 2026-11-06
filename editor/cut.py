@@ -33,6 +33,9 @@ def cut(edl_path: str | Path, out_dir: str | Path, transcript: str | Path | None
     segments = edl["segments"]
     if not segments:
         raise EditorError("EDL has no segments")
+    for k, seg in enumerate(segments):     # checked before merging: a backwards piece must not hide in a merge
+        if seg["end"] - seg["start"] <= 0:
+            raise EditorError(f"EDL segment {k} has non-positive duration: {seg}")
     sources = [probe(s["path"]) for s in edl["sources"]]
     for s, info in zip(edl["sources"], sources):   # front-camera selfies: "mirror": true flips the picture back
         info["mirror"] = bool(s.get("mirror", edl.get("mirror", False)))

@@ -1,6 +1,6 @@
 // The whole workflow: takes in -> transcript and analysis -> first edit (AI or deterministic) -> notes -> versions.
 
-import { applyNote, firstEdit, listModels, reviewEdit } from "./ai";
+import { aiReady, applyNote, firstEdit, listModels, reviewEdit } from "./ai";
 import { analyze } from "./analyze";
 import { defaultEdit, describe, fromAi, type AiEdit } from "./edit";
 import { aiChoice, effortOf, EFFORT, type AiChoice } from "./effort";
@@ -206,7 +206,7 @@ async function webPictures(p: Project, ai: AiEdit, onProgress: Progress, limit =
 
 export async function makeFirstEdit(p: Project, s: Settings, rules: StyleRule[], onProgress: Progress): Promise<string> {
   const base = defaultEdit(p);
-  const key = s.provider === "anthropic" ? s.anthropicKey : s.openaiKey;
+  const key = aiReady(s);
   let edit: Edit = base, summary: string;
   if (!key) {
     summary = "No AI editor connected, so I made a simple cut: I removed the pauses and repeated starts and added subtitles" +
@@ -223,7 +223,7 @@ export async function makeFirstEdit(p: Project, s: Settings, rules: StyleRule[],
     const wanted = Math.min(plan.pictures, new Set((ai.webPictures ?? []).map((w) => w.query)).size), found = web.size;   // by query
     summary = (ai.summary ?? "Here's your first edit.") + (wanted > found ? ` I couldn't find ${wanted - found} of the pictures online.` : "");
     if (res.problems.length) console.warn("edit problems", res.problems);
-    if (plan.review) {
+    if (plan.review && s.provider !== "chat") {     // with your plan, one copy-and-paste per video is enough
       onProgress(REVIEWING, 80);
       try {
         const again = await reviewEdit(s, p, edit, rules, choice);
@@ -234,7 +234,7 @@ export async function makeFirstEdit(p: Project, s: Settings, rules: StyleRule[],
         if (again.summary) summary = again.summary;
       } catch (e) { console.warn("review pass failed, keeping the first edit", e); }
     }
-    if (!p.parent) record("edit", effortOf(s), since(t0), footage(p));
+    if (!p.parent && s.provider !== "chat") record("edit", effortOf(s), since(t0), footage(p));   // not your copy-and-paste time
   }
   // lines said more than once: say which take plays and where to pick another (the user's call, not a guess)
   const twice = takeLines(p, edit.keep).length;

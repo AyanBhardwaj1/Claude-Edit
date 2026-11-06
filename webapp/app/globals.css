@@ -792,6 +792,16 @@ button.attach { background: none; border: 0; font: inherit; font-size: 13px; tex
 dialog.shortcuts { width: min(440px, calc(100vw - 32px)); padding: 18px 20px; border: 1px solid var(--line); border-radius: var(--r-lg);
   background: var(--surface); color: var(--ink); box-shadow: 0 24px 60px #0006; }
 dialog.shortcuts::backdrop { background: #0008; }
+dialog.relay { width: min(560px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow: auto; padding: 18px 20px; border: 1px solid var(--line);
+  border-radius: var(--r-lg); background: var(--surface); color: var(--ink); }
+dialog.relay::backdrop { background: #0008; }
+dialog.relay h2 { font-size: 17px; margin: 0; }
+.relay-steps { margin: 14px 0 10px; padding-left: 20px; display: grid; gap: 14px; }
+.relay-steps li { display: grid; gap: 8px; }
+.relay-steps details { flex-basis: 100%; min-width: 0; }
+.relay-steps textarea { width: 100%; font-size: 12px; }
+.relay-actions { justify-content: flex-end; margin-top: 6px; }
+.plan-note a { color: var(--accent-text); }
 dialog.shortcuts h2 { font-size: 17px; margin: 0; }
 dialog.shortcuts dl { margin: 12px 0; display: grid; gap: 2px; }
 dialog.shortcuts .row-key { display: flex; justify-content: space-between; align-items: center; gap: 14px; padding: 6px 0; border-bottom: 1px solid var(--line); }

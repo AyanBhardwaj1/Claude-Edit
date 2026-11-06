@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { listModels } from "@/lib/ai";
+import { aiReady, listModels, type KeyProvider } from "@/lib/ai";
 import { accountMode, AuthError, changePassword, rename, type Mode, type User } from "@/lib/auth";
 import { makeBackup, restoreBackup } from "@/lib/backup";
 import { brandOf } from "@/lib/brand";
@@ -20,7 +20,7 @@ export function Settings({ settings, user, theme, onTheme, onUser, onSignOut, on
   onTheme: (t: ThemeId) => void; onUser: (u: User) => void; onSignOut: () => void; onSave: (s: S) => void }) {
   const [s, setS] = useState<S>(settings);
   const [models, setModels] = useState<{ anthropic: string[]; openai: string[] }>({ anthropic: [], openai: [] });
-  const [checking, setChecking] = useState<S["provider"] | null>(null);
+  const [checking, setChecking] = useState<KeyProvider | null>(null);
   const [msg, setMsg] = useState<Note>(null);
   const [saved, setSaved] = useState<Note>(null);
   const [show, setShow] = useState({ anthropic: false, openai: false });
@@ -43,7 +43,7 @@ export function Settings({ settings, user, theme, onTheme, onUser, onSignOut, on
     return () => { if (u) URL.revokeObjectURL(u); };
   }, [b.logo]);
 
-  async function check(provider: S["provider"]) {
+  async function check(provider: KeyProvider) {
     setMsg(null);
     const key = provider === "anthropic" ? s.anthropicKey : s.openaiKey;
     if (!key) return setMsg({ ok: false, text: "Paste a key first, then check it." });
@@ -60,7 +60,7 @@ export function Settings({ settings, user, theme, onTheme, onUser, onSignOut, on
     setChecking(null);
   }
 
-  const keyField = (p: S["provider"]) => {
+  const keyField = (p: KeyProvider) => {
     const label = p === "anthropic" ? "Anthropic" : "OpenAI";
     const val = p === "anthropic" ? s.anthropicKey : s.openaiKey;
     const list = models[p];
@@ -154,10 +154,20 @@ export function Settings({ settings, user, theme, onTheme, onUser, onSignOut, on
           <div className="stack">
             <div className="field"><span className="label">Who edits your videos</span>
               <div className="seg" role="group" aria-label="Who edits your videos">
-                {(["anthropic", "openai"] as const).map((p) => (
-                  <button key={p} aria-pressed={s.provider === p} onClick={() => set({ provider: p })}>{p === "anthropic" ? "Anthropic" : "OpenAI"}</button>))}
+                {(["anthropic", "openai", "chat"] as const).map((p) => (
+                  <button key={p} aria-pressed={s.provider === p} onClick={() => set({ provider: p })}>
+                    {p === "anthropic" ? "Anthropic key" : p === "openai" ? "OpenAI key" : "Your Claude or ChatGPT plan"}</button>))}
               </div>
             </div>
+            {s.provider === "chat" && (
+              <div className="alert plan-note" role="note"><Icon name="key" /><span>
+                <b>No key needed: use the plan you already pay for</b> (Claude Pro or Max, ChatGPT Plus or Pro, or any chat AI). At each AI step
+                Cutmind shows you the request: copy it into a chat at{" "}
+                <a href="https://claude.ai/new" target="_blank" rel="noreferrer">claude.ai</a> or{" "}
+                <a href="https://chatgpt.com/" target="_blank" rel="noreferrer">chatgpt.com</a>, then paste the answer back. These plans don&apos;t offer
+                apps like this a way to sign in, so Cutmind never asks for your account or password. It&apos;s a few more clicks than a key, and
+                Cutmind sends nothing anywhere itself. Long videos make long requests: use a model with a big context.</span></div>
+            )}
             {keyField("anthropic")}
             {keyField("openai")}
             {msg && <div className={`alert ${msg.ok ? "ok" : "err"}`} role="status"><Icon name={msg.ok ? "check" : "alert"} /><span>{msg.text}</span></div>}
@@ -169,7 +179,7 @@ export function Settings({ settings, user, theme, onTheme, onUser, onSignOut, on
             learned from the videos you make on this device.</p></div>
           <div className="stack">
             <EffortPicker legend="Default speed vs quality" value={effortOf(s)} onChange={(effort) => set({ effort })} time={(e) => {
-              const est = estimate(e, 60, { transcriber: s.transcriber, ai: !!(s.provider === "anthropic" ? s.anthropicKey : s.openaiKey) });
+              const est = estimate(e, 60, { transcriber: s.transcriber, ai: aiReady(s) });
               return estimateText(est, "for a 1-min video");
             }} />
             <Learned />

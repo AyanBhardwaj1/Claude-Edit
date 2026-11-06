@@ -1,4 +1,5 @@
 "use client";
+import { aiReady } from "@/lib/ai";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { indexOf } from "@/lib/timeline";
 import { parseTags } from "@/lib/text";
@@ -50,7 +51,7 @@ export function Drawer({ project: p, edit, onApply, settings, onMakeMusic, onWor
   const [imgBusy, setImgBusy] = useState(false);
   const [imgErr, setImgErr] = useState("");
   const [card, setCard] = useState<{ kind: keyof typeof CARD_NAME; text: string; value: string; items: string }>({ kind: "number", text: "", value: "", items: "" });
-  const hasKey = !!settings && (settings.provider === "anthropic" ? !!settings.anthropicKey : !!settings.openaiKey);
+  const hasKey = aiReady(settings);
   const idx = useMemo(() => indexOf(p.words), [p.words]);
   const kept = useMemo(() => {
     const s = new Set<string>();
@@ -177,7 +178,7 @@ export function Drawer({ project: p, edit, onApply, settings, onMakeMusic, onWor
           )}
           {lines.length > 0 && (
             <div className="field"><span className="label" id="takes-h">Lines you said more than once</span>
-              <span className="hint">I picked the last complete take of each. Pick another one to play it in its place.</span>
+              <span className="hint">The pressed take plays now. Hear each one, then pick another to play it in its place.</span>
               <ul className="takes" aria-labelledby="takes-h">
                 {lines.map((L) => (
                   <li key={L.takes[0].range.from}>

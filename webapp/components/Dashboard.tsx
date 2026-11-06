@@ -1,4 +1,5 @@
 "use client";
+import { aiReady } from "@/lib/ai";
 import { useEffect, useRef, useState } from "react";
 import type { User } from "@/lib/auth";
 import { listAnims, listProjects, loadRules, readLocal } from "@/lib/store";
@@ -43,9 +44,9 @@ export function Dashboard({ user, settings, theme, onNew, onOpen, onGo, onSample
   const ready = (ps ?? []).filter((p) => p.status === "edited" && p.versions.length);
   const versions = ready.reduce((n, p) => n + p.versions.length, 0);
   const cut = ready.reduce((s, p) => s + Math.max(0, rawSeconds(p) - keptSeconds(p)), 0);
-  const key = settings.provider === "anthropic" ? settings.anthropicKey : settings.openaiKey;
+  const key = aiReady(settings);
   const steps = [
-    { what: "Connect an AI editor", done: !!key, act: () => onGo("settings"), label: "Add key" },
+    { what: "Connect an AI editor (a key or your Claude / ChatGPT plan)", done: !!key, act: () => onGo("settings"), label: "Connect" },
     { what: "Choose how Cutmind listens", done: settings.transcriber === "browser" || !!settings.openaiKey, act: () => onGo("settings"), label: "Choose" },
     { what: "Pick a look for the app", done: lookPicked, act: () => onGo("settings"), label: "Pick" },
     { what: "Make your first reel", done: ready.length > 0, act: () => onNew(), label: "Start" },
@@ -198,7 +199,8 @@ export function Dashboard({ user, settings, theme, onNew, onOpen, onGo, onSample
               <a className="btn ghost sm" href="#settings" onClick={(e) => { e.preventDefault(); onGo("settings"); }}>Change</a></div>
             <ul className="setup">
               <li><span className="tick"><Icon name="key" /></span><span className="grow">
-                {key ? <>Edits with your <b>{settings.provider === "anthropic" ? "Anthropic" : "OpenAI"}</b> key</> : "No key: simple cuts with subtitles"}</span></li>
+                {settings.provider === "chat" ? <>Edits with your <b>Claude or ChatGPT plan</b> (copy and paste)</>
+                  : key ? <>Edits with your <b>{settings.provider === "anthropic" ? "Anthropic" : "OpenAI"}</b> key</> : "No key: simple cuts with subtitles"}</span></li>
               <li><span className="tick"><Icon name="ear" /></span><span className="grow">
                 {settings.transcriber === "openai" ? "Listens with OpenAI (fast)" : "Listens in your browser (free)"}</span></li>
               <li><span className="tick"><Icon name="palette" /></span><span className="grow">{themeName} look</span></li>

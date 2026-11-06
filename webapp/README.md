@@ -158,11 +158,20 @@ vertical reel with a cover and a post caption, then change it by typing notes. E
     is cut (`lib/fit.ts`; the CLI's `editor fit`).
 43. **Lines you say twice**: the Cut tab lists lines the cut plays twice (the same line said again later, not a dropped
     retake) with both times; one click cuts the later one (`repeats` in `lib/fit.ts`).
+44. **Use your Claude or ChatGPT plan (no API key)**: Settings → AI editor → "Your Claude or ChatGPT plan". At each AI
+    step (first edit, notes, hooks, chapter titles, clips, translations, scripts, animations) a window shows the exact
+    request: copy it into a chat on claude.ai, chatgpt.com or any chat AI, paste the reply back, and Cutmind checks and
+    applies it. Claude Pro/Max and ChatGPT Plus/Pro don't offer third-party apps a sign-in, so Cutmind never asks for
+    the account; it sends nothing anywhere itself (`lib/relay.ts`, `components/Relay.tsx`). Voice-overs, OpenAI
+    transcription and AI pictures still need an OpenAI key.
 
 ## Privacy and keys
 - Videos never leave the browser: they're processed on the user's computer and kept in IndexedDB.
 - API keys go **straight from the browser to Anthropic or OpenAI**. This app's server never receives them.
   They're kept for the tab only, unless the user ticks "Remember my keys".
+- With "Your Claude or ChatGPT plan" there is no key and no AI call at all: the user copies each request into their own
+  chat and pastes the reply back. Cutmind never asks for a Claude or ChatGPT login (those plans have no sign-in for
+  other apps, and using another app's login would break their terms).
 - With a database connected it also keeps accounts (see Pages). `/api/read` reads a public web page's text when a user asks
   Motion Studio to animate a link (public addresses only, 2 MB, 8 s, text only).
 - The server also searches for licensed pictures (Openverse, Wikimedia Commons, Simple Icons:

@@ -416,3 +416,14 @@ def test_said_twice_needs_the_same_sentence_not_the_same_opening():
     assert _said_twice(say("I use it every day. Then more. I use it every week now.")) is None
     assert not same_sentence("so i use notion".split(), "and i use figma".split())
     assert same_sentence("um follow for part two".split(), "follow for part two".split())
+
+
+def test_cut_refuses_a_backwards_segment_even_next_to_a_touching_one(tmp_path):
+    import json
+    import pytest as _pt
+    from editor.cut import cut
+    from editor.util import EditorError
+    edl = {"sources": [{"path": str(tmp_path / "missing.mp4")}], "segments": [{"src": 0, "start": 0, "end": 3}, {"src": 0, "start": 3, "end": 1}]}
+    (tmp_path / "edl.json").write_text(json.dumps(edl))
+    with _pt.raises(EditorError, match="segment 1"):
+        cut(tmp_path / "edl.json", tmp_path)

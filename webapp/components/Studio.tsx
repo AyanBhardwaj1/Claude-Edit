@@ -1,4 +1,5 @@
 "use client";
+import { aiReady } from "@/lib/ai";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { FORMATS } from "@/lib/compositor";
 import { uid } from "@/lib/media";
@@ -59,7 +60,7 @@ export function Studio({ settings, onSettings, openId }: { settings: Settings; o
   const [over, setOver] = useState(false);
   const [grab, setGrab] = useState<File | null>(null);
   const shotsRef = useRef<HTMLDivElement>(null);
-  const aiKey = settings.provider === "anthropic" ? settings.anthropicKey : settings.openaiKey;
+  const aiKey = aiReady(settings);
   const branded = hasBrand(settings.brand);
   const palIds = palIdsFor(branded), fontIds = fontIdsFor(branded);
   const addShots = useCallback((files: Iterable<File> | null | undefined) => {

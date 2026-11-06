@@ -130,7 +130,7 @@ export type Brand = { name: string; handle: string; accent: string; accent2: str
 
 export type Settings = {
   brand?: Brand;
-  provider: "anthropic" | "openai";
+  provider: "anthropic" | "openai" | "chat";   // chat: your Claude or ChatGPT plan, by copy and paste (lib/relay.ts)
   anthropicKey: string; openaiKey: string;
   anthropicModel: string; openaiModel: string;
   transcriber: "openai" | "browser";

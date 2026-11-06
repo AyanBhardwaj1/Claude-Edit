@@ -1,4 +1,6 @@
 "use client";
+import { Relay } from "@/components/Relay";
+import { aiReady } from "@/lib/ai";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Dashboard } from "@/components/Dashboard";
 import { Editor } from "@/components/Editor";
@@ -132,7 +134,7 @@ export default function App() {
       <main className="main"><div className="page"><div className="skel boot-head" /><div className="skel boot-body" /></div></main>
     </div>
   );
-  const key = settings.provider === "anthropic" ? settings.anthropicKey : settings.openaiKey;
+  const key = aiReady(settings);
   const here = screen === "editor" ? "videos" : screen;
   const link = (n: (typeof NAV)[number]) => (
     <a key={n.s} href={n.s === "home" ? "#" : `#${n.s}`} aria-current={here === n.s ? "page" : undefined}
@@ -212,6 +214,7 @@ export default function App() {
               onClick={(e) => { e.preventDefault(); go(s); }}><Icon name={icon} />{label}</a>
           ))}
       </nav>
+      <Relay />
       <Command go={(h) => { location.hash = h; if (!h) void route(""); }} onTheme={pickTheme} onSample={sample}
         onEffort={(effort) => { const s = { ...settings, effort }; saveSettings(s); setSettings(s); }} />
       {loading && <div className="toast" role="status"><span className="spin" aria-hidden="true" />{loading}</div>}

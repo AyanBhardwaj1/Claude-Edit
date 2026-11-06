@@ -16,6 +16,8 @@ export class AiError extends Error {
 }
 
 type Json = Record<string, unknown>;
+import { askByRelay } from "./relay";
+export type KeyProvider = "anthropic" | "openai";
 
 const PREFERRED = {
   anthropic: [/^claude-sonnet-5/, /^claude-opus-5/, /^claude-sonnet-4/, /^claude-opus-4/, /sonnet/, /claude/],
@@ -23,7 +25,7 @@ const PREFERRED = {
     /^gpt-4\.1/, /^gpt-4o(?!.*(audio|realtime|search|transcribe|tts))/, /^gpt-/],
 };
 
-export async function listModels(provider: Settings["provider"], key: string): Promise<{ models: string[]; suggested: string | null }> {
+export async function listModels(provider: KeyProvider, key: string): Promise<{ models: string[]; suggested: string | null }> {
   const r = provider === "anthropic"
     ? await fetch("https://api.anthropic.com/v1/models?limit=100", { headers: anthropicHeaders(key) })
     : await fetch("https://api.openai.com/v1/models", { headers: { Authorization: `Bearer ${key}` } });
@@ -43,7 +45,14 @@ function anthropicHeaders(key: string): Record<string, string> {
 /** One JSON answer from the AI. `choice` (lib/effort.ts) sets the model and answer budget; without it, the user's model and
  *  16000 tokens. A preferred model the key can't use falls back to the user's own model once; an answer budget the model
  *  refuses or runs out of falls back to the usual 16000 once. */
+/** An AI editor is connected: an API key for the chosen provider, or the copy-and-paste plan (always there). */
+export function aiReady(s: Settings | undefined | null): boolean {
+  if (!s) return false;
+  return s.provider === "chat" || !!(s.provider === "anthropic" ? s.anthropicKey : s.openaiKey);
+}
+
 export async function callJson(s: Settings, system: string, user: string, schema: Json, name: string, choice?: AiChoice): Promise<Json> {
+  if (s.provider === "chat") return askByRelay({ name, system, user, schema });   // your plan, by copy and paste
   const anthropic = s.provider === "anthropic";
   const key = anthropic ? s.anthropicKey : s.openaiKey;
   if (!key) throw new AiError("no key", `Add your ${anthropic ? "Anthropic" : "OpenAI"} API key in Settings first.`);

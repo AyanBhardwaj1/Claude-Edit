@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { writeScript } from "@/lib/ai";
+import { aiReady, writeScript } from "@/lib/ai";
 import { loadRules, saveLastScript, saveRules } from "@/lib/store";
 import type { Settings, StyleRule } from "@/lib/types";
 import { Icon } from "./Icons";
@@ -14,7 +14,7 @@ export function Script({ settings, onFilm }: { settings: Settings; onFilm?: () =
   const [res, setRes] = useState<{ hook: string; script: string; onScreenText: string[] } | null>(null);
   const [err, setErr] = useState("");
   const [copied, setCopied] = useState(false);
-  const hasKey = settings.provider === "anthropic" ? !!settings.anthropicKey : !!settings.openaiKey;
+  const hasKey = aiReady(settings);
   async function go() {
     setBusy(true); setErr("");
     try { const r = await writeScript(settings, idea, loadRules()); setRes(r); saveLastScript(`${r.hook}\n\n${r.script}`); } catch (e) { setErr((e as { userMessage?: string }).userMessage ?? String(e)); }

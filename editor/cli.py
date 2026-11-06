@@ -1310,7 +1310,9 @@ def cmd_timeline(args):
     from .anchors import _edl_name
     meta = load_json(work / "cut_meta.json")
     words = load_json(work / "cut_words.json")["words"]
-    print(f"# output duration {meta['duration']:.2f}s, {len(meta['timeline'])} segments (numbered as in edl.json)")
+    numbered = "numbered as in edl.json" if all("edl" in sg for sg in meta["timeline"]) else \
+        "numbered by cut piece: re-run cut to number them as in edl.json"
+    print(f"# output duration {meta['duration']:.2f}s, {len(meta['timeline'])} segments ({numbered})")
     for seg in meta["timeline"]:
         print(f"## segment {_edl_name(seg)}  {fmt_ts(seg['start'])}-{fmt_ts(seg['end'])}  "
               f"(src {seg['src']} {fmt_ts(seg['src_start'])}-{fmt_ts(seg['src_end'])}, speed {seg['speed']})")

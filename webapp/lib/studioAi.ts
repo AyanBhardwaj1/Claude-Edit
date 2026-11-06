@@ -1,7 +1,7 @@
 // The AI side of Motion Studio: plan scenes from any text (user's Anthropic or OpenAI key), and read them aloud
 // (OpenAI text to speech with the user's key). Both called straight from the browser.
 
-import { callJson } from "./ai";
+import { aiReady, callJson } from "./ai";
 import { cleanScenes, FONTS, narration, PALETTES, placeShots, planScenes, readTime, shotLabel, type FontId, type PaletteId, type Scene, type Shot } from "./studio";
 import type { Settings } from "./types";
 
@@ -96,8 +96,7 @@ export { narration };
 
 /** A recap animation of a video: the AI (or the offline planner) turns what was said into scenes. */
 export async function recapOf(s: Settings, said: string, title: string): Promise<{ title: string; palette?: PaletteId; font?: FontId; scenes: Scene[] }> {
-  const key = s.provider === "anthropic" ? s.anthropicKey : s.openaiKey;
-  if (key) {
+  if (aiReady(s)) {
     const plan = await planWithAi(s, `A recap of a talking video called "${title}". Pull out its hook, its key points and numbers, and end on its takeaway.\n\n${said}`, "explainer", "9:16");
     return plan;
   }
