@@ -1930,6 +1930,14 @@ def produce(spec_path: str | Path, only: str | None = None, jobs: int = 4, want_
         raise EditorError("the spec has problems (nothing rendered):\n  " + "\n  ".join(errors))
     spec.work.mkdir(parents=True, exist_ok=True)
     stages = [only] if only else ["pieces", "overlay", "mix", "composite", "extras", "post", "review"]
+    if not only:                                         # say how long before starting (the user always asks)
+        try:
+            est = estimate(spec, effort)
+            log(f"produce: about {eff.fmt_secs(est['seconds'])} on this machine ({len(est['pieces_to_render'])} of "
+                f"{len(spec.pieces)} pieces to render" + (", same picture: new sound only" if est.get("remux") else "")
+                + ")")
+        except (EditorError, OSError, ValueError):
+            pass
     res, timing = {"total": spec.total}, {}
     base, ov, audio = spec.work / "base.mp4", None, spec.work / "mix.wav"
     for st in stages:
