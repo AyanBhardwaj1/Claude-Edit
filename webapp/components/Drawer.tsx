@@ -10,7 +10,7 @@ import { buildTimeline } from "@/lib/timeline";
 import { addToLibrary } from "@/lib/workflow";
 import { LANGUAGES, translateSubtitles } from "@/lib/translate";
 import { formatTime, playedLength, waitSavings, WAIT_SPEED } from "@/lib/screenrec";
-import { takeLines, withTake } from "@/lib/takes";
+import { pickTake, takeLines } from "@/lib/takes";
 import { crutches, cutWords } from "@/lib/crutch";
 import type { Asset, Broll, BrollIn, CaptionAnim, CaptionPreset, Edit, Look, Motion, Project, Range, Settings, Transition } from "@/lib/types";
 
@@ -119,7 +119,7 @@ export function Drawer({ project: p, edit, onApply, settings, onMakeMusic, onWor
                     <div className="seg" role="group" aria-label={`Takes of “${L.takes[L.playing < 0 ? 0 : L.playing].text.slice(0, 40)}”`}>
                       {L.takes.map((t, k) => (
                         <button key={t.range.from} aria-pressed={k === L.playing} title={t.text}
-                          onClick={() => setE({ ...e, keep: withTake(p, e.keep, L, k) })}>
+                          onClick={() => setE(pickTake(p, e, L, k))}>
                           Take {k + 1}{p.sources.length > 1 ? ` (${p.sources[t.src]?.name ?? ""} ` : " ("}{formatTime(t.s)})
                         </button>
                       ))}

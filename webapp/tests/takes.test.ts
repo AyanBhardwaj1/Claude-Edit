@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { analyze } from "../lib/analyze";
-import { takeLines, withTake } from "../lib/takes";
+import { pickTake, takeLines, withTake } from "../lib/takes";
+import { defaultEdit } from "../lib/edit";
+import { buildTimeline, spanOf } from "../lib/timeline";
 import type { Project, Range, Word } from "../lib/types";
 
 const words = (text: string, t0: number, start: number): Word[] =>
@@ -53,4 +55,21 @@ test("when no take plays, the picked one goes back where it was filmed", () => {
   const L = takeLines(p, none)[0];
   assert.equal(L.playing, -1);
   assert.equal(text(p, withTake(p, none, L, 1)), "the best way to edit a reel is this one. you add the captions after the cut.");
+});
+
+test("what's placed on the line moves to the picked take: the hook title still shows", () => {
+  const p = project();
+  const e = { ...defaultEdit(p), keep: p.analysis!.defaultKeep };
+  e.broll = [{ id: "h", anchor: { from: "w11", to: "w14" }, treatment: "text-pop", style: "label", tilt: 0, text: "Hook" } as never];
+  e.zooms = [{ anchor: { from: "w18", to: "w20" }, scale: 1.2 }];
+  e.cover = { word: "w12", text: "" };
+  const L = takeLines(p, e.keep)[0];
+  const next = pickTake(p, e, L, 0);
+  // take 1 is "um so the best way …" (w0-w10): its trimmed words start at w1 ("so")
+  assert.deepEqual(next.broll[0].anchor, { from: "w1", to: "w4" });
+  assert.deepEqual(next.zooms[0].anchor, { from: "w8", to: "w10" });
+  assert.equal(next.cover.word, "w2");
+  const tl = buildTimeline(p.words, next, [20]);
+  assert.ok(spanOf(tl, next.broll[0].anchor), "the hook title has a place in the new cut");
+  assert.notEqual(e.broll[0].anchor.from, next.broll[0].anchor.from);   // the old edit is untouched
 });

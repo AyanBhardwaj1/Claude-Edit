@@ -966,7 +966,11 @@ def cmd_coldopen(args):
     if not src_words or len({w.get("src", 0) for w in src_words}) > 1:
         raise EditorError("that line spans two takes: pick its words with --words")
     src = src_words[0].get("src", 0)
-    a, b = max(0.0, min(w["start"] for w in src_words) - 0.05), max(w["end"] for w in src_words) + 0.15
+    lo, hi = min(w["start"] for w in src_words), max(w["end"] for w in src_words)
+    # pad into silence only: never into the word before or after (fluent speech has ~80 ms between words)
+    before = max((w["end"] for w in tr if w.get("src", 0) == src and w["end"] <= lo + 1e-3), default=0.0)
+    after = min((w["start"] for w in tr if w.get("src", 0) == src and w["start"] >= hi - 1e-3), default=float("inf"))
+    a, b = max(0.0, before, lo - 0.05), min(hi + 0.15, after)
     rest, front = [], []
     for seg in edl.get("segments", []):
         if seg.get("src", 0) != src or seg["end"] <= a or seg["start"] >= b:

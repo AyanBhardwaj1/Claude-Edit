@@ -80,7 +80,7 @@ def suggest_chapters(words: list[dict], duration: float) -> list[dict]:
         if new:
             starts.append(i)
         new = bool(_re.search(r"[.!?][\"')]*$", str(w["text"]).strip()))
-    want = max(3, min(8, round(duration / 60)))
+    want = max(3, min(8, int(duration / 60 + 0.5)))
     picked = [0] if starts else []
     for k in range(1, want):
         target = duration * k / want

@@ -47,7 +47,12 @@ def take_lines(words: list[dict], segments: list[dict], lookback: int = 3) -> li
                 for s in segments:
                     if s.get("src", 0) == src:
                         played += max(0.0, min(s["end"], w["end"]) - max(s["start"], w["start"]))
-            takes.append({"src": src, "start": round(start, 3), "end": round(end, 3),
+            i0, i1 = idx[0], idx[-1]
+            # where padding may reach: the words either side (an "um" included), never into them
+            lo = ws[i0 - 1]["end"] if i0 > 0 and ws[i0 - 1].get("src", 0) == src else 0.0
+            hi = ws[i1 + 1]["start"] if i1 + 1 < len(ws) and ws[i1 + 1].get("src", 0) == src else None
+            takes.append({"src": src, "start": round(start, 3), "end": round(end, 3), "lo": round(lo, 3),
+                          "hi": None if hi is None else round(hi, 3),
                           "text": " ".join(ws[k]["text"] for k in idx), "kept": round(min(1.0, played / spoken), 2)})
         best = max(range(len(takes)), key=lambda k: takes[k]["kept"])
         out.append({"takes": takes, "playing": best if takes[best]["kept"] > 0 else -1})
@@ -57,7 +62,13 @@ def take_lines(words: list[dict], segments: list[dict], lookback: int = 3) -> li
 
 def with_take(segments: list[dict], line: dict, n: int, pad_before: float = 0.06, pad_after: float = 0.10) -> list[dict]:
     """The segments with take `n` of `line` playing in place of the others (each take's span cut out first)."""
-    spans = [(t["src"], t["start"] - pad_before, t["end"] + pad_after) for t in line["takes"]]
+    def padded(t):
+        a = max(t["start"] - pad_before, t.get("lo", 0.0), 0.0)
+        b = t["end"] + pad_after if t.get("hi") is None else min(t["end"] + pad_after, t["hi"])
+        return round(a, 3), round(b, 3)
+    spans = [(t["src"], *padded(t)) for t in line["takes"]]
+    # the line "played here" only where a segment holds a take's own words, not just its padding
+    real = [(t["src"], t["start"], t["end"]) for t in line["takes"]]
     out: list[dict] = []
     at = None
     for seg in segments:
@@ -70,14 +81,15 @@ def with_take(segments: list[dict], line: dict, n: int, pad_before: float = 0.06
         for a, b in hit:
             pieces = [(px, py) for (x, y) in pieces for (px, py) in
                       (((x, y),) if y <= a or x >= b else ((x, a), (b, y))) if py - px >= 0.05]
-        if at is None:          # the line played here: the picked take plays here too
-            first = min(a for a, _ in hit)
+        held = [(a, b) for s_, a, b in real if s_ == src and min(seg["end"], b) - max(seg["start"], a) > 0.05]
+        if at is None and held:     # the line played here: the picked take plays here too
+            first = min(a for a, _ in held) - pad_before
             at = len(out) + sum(1 for _, y in pieces if y <= first + 1e-6)
         keep = {k: v for k, v in seg.items() if k != "text"}
         out += [{**keep, "start": round(x, 3), "end": round(y, 3)} for x, y in pieces]
     t = line["takes"][n]
-    new = {"src": t["src"], "start": round(max(0.0, t["start"] - pad_before), 3), "end": round(t["end"] + pad_after, 3),
-           "text": t["text"]}
+    a, b = padded(t)
+    new = {"src": t["src"], "start": a, "end": b, "text": t["text"]}
     if at is None:      # no take played: where it was filmed
         at = next((i for i, s in enumerate(out) if (s.get("src", 0), s["start"]) > (t["src"], t["start"])), len(out))
     out.insert(at, new)

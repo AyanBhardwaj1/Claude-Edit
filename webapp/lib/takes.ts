@@ -3,7 +3,7 @@
 import { FILLERS } from "./analyze";
 import { bare } from "./text";
 import { indexOf } from "./timeline";
-import type { Project, Range, RetakeGroup } from "./types";
+import type { Edit, Project, Range, RetakeGroup } from "./types";
 
 export type Take = { range: Range; text: string; src: number; s: number; e: number; kept: number };
 export type TakeLine = { group: RetakeGroup; takes: Take[]; playing: number };   // playing: -1 when none plays
@@ -76,4 +76,36 @@ export function withTake(p: Project, keep: Range[], line: TakeLine, n: number): 
   else at = seq.slice(0, at).filter((i) => !inLine.has(i)).length;
   const take = Array.from({ length: b - a + 1 }, (_, k) => a + k);
   return ranges(p, [...rest.slice(0, at), ...take, ...rest.slice(at)]);
+}
+
+/** Take `n` plays in place of the others, and everything placed on the line goes with it: the hook title, pictures,
+ *  zooms, music changes, translated lines, chapters and the cover word, moved word for word onto the new take (by
+ *  position, clamped to its length). Without this, a title on the old take would silently vanish. */
+export function pickTake(p: Project, e: Edit, line: TakeLine, n: number): Edit {
+  const idx = indexOf(p.words);
+  const next = structuredClone(e);
+  next.keep = withTake(p, e.keep, line, n);
+  const [na, nb] = trimmed(p, idx.get(line.takes[n].range.from)!, idx.get(line.takes[n].range.to)!);
+  const olds = line.takes.filter((_, k) => k !== n).map((t) => trimmed(p, idx.get(t.range.from)!, idx.get(t.range.to)!));
+  const move = (id: string): string => {
+    const i = idx.get(id);
+    if (i == null) return id;
+    for (const [a, b] of olds) {
+      if (i < a || i > b) continue;
+      return p.words[Math.min(nb, na + (i - a))].id;
+    }
+    return id;
+  };
+  const fix = (r: Range) => {
+    r.from = move(r.from); r.to = move(r.to);
+    const a = idx.get(r.from)!, b = idx.get(r.to)!;
+    if (a > b) [r.from, r.to] = [r.to, r.from];          // one end moved past the other: keep it a forward range
+  };
+  next.broll.forEach((b) => fix(b.anchor));
+  next.zooms.forEach((z) => fix(z.anchor));
+  next.music?.automation?.forEach((m) => fix(m.anchor));
+  next.translation?.lines.forEach((l) => fix(l));
+  next.chapters?.forEach((c) => { c.from = move(c.from); });
+  if (next.cover.word) next.cover.word = move(next.cover.word);
+  return next;
 }
