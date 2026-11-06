@@ -116,6 +116,9 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
   const [attn, setAttn] = useState<Attention | null>(null);
   const [track, setTrack] = useState<{ segs: [number, number][]; layers: { s: number; e: number; text: boolean; label: string }[]; zooms: [number, number][] } | null>(null);
   const [all, setAll] = useState<{ f: Format; url: string; ext: string }[] | null>(null);
+  // the same reel with other hook titles, for a platform's trial reels (Instagram tests a reel on non-followers)
+  const [variants, setVariants] = useState<{ hook: string; url: string; ext: string }[] | null>(null);
+  const [alts, setAlts] = useState<string[] | null>(null);
   // true for a whole export, Export all's version reloads between formats included: nothing may start playback then
   const [exporting, setExporting] = useState(false);
   const exportingRef = useRef(false);
@@ -375,6 +378,26 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
     if (out.length) offerLearned();
   }
 
+  async function exportVariants(texts: string[]) {
+    if (!version) return;
+    endRun(player.current, false);
+    busyExport(true);
+    const out: { hook: string; url: string; ext: string }[] = [];
+    setAll(null); setVariants(null); setPlaying(true);
+    try {
+      for (const [i, text] of texts.entries()) {
+        const pl0 = player.current; if (!pl0) break;
+        await mount(withHook(version.edit, text, pl0.tl));
+        const pl = player.current; if (!pl) break;
+        setExp({ pct: 0, label: `Hook ${String.fromCharCode(66 + i)} (${i + 1} of ${texts.length})` });
+        const { blob, ext } = await pl.record((pct) => setExp((x) => ({ ...x!, pct })));
+        out.push({ hook: text, url: URL.createObjectURL(blob), ext });
+      }
+    } catch (e) { setErr(String(e)); }
+    await mount(version.edit);
+    setExp(null); setVariants(out); setAlts(null); setPlaying(false); busyExport(false);
+  }
+
   async function exportVideo() {
     const pl = player.current;
     if (!pl) return;
@@ -609,6 +632,15 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
         </div>
 
         <div className="ed-col">
+          {variants && (
+            <section className="panel" aria-live="polite">
+              <div className="panel-head"><h2>Hook versions are ready</h2><button className="btn ghost icon sm" aria-label="Close" onClick={() => setVariants(null)}>&times;</button></div>
+              <p className="small muted">Post your main version as usual and these as trial reels: the one that holds people longest is your hook.</p>
+              <div className="row">{variants.map((x, i) => <a key={x.url} className="btn" href={x.url}
+                download={`${p.title.replace(/[\\/:*?"<>|]+/g, "").slice(0, 50)} - hook ${String.fromCharCode(66 + i)}.${x.ext}`}>
+                <Icon name="download" />Hook {String.fromCharCode(66 + i)}: {x.hook}</a>)}</div>
+            </section>
+          )}
           {all && (
             <section className="panel" aria-live="polite">
               <div className="panel-head"><h2>Every shape is ready</h2><button className="btn ghost icon sm" aria-label="Close" onClick={() => setAll(null)}>&times;</button></div>
@@ -635,7 +667,18 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
                     {exp.srt && <a className="btn" href={exp.srt} download={`${base}${version?.edit.translation ? ` ${version.edit.translation.lang}` : ""}.srt`}>Subtitles .srt</a>}
                     <button className="btn ghost" onClick={() => copy(post)}><Icon name="copy" />Copy caption</button>
                   </div>
-                  <div className="row"><button className="btn ghost sm" onClick={() => { setExp(null); void exportAll(); }}>Also make every shape (4 files, about {Math.ceil(4 * dur / 60)} min)</button></div>
+                  <div className="row"><button className="btn ghost sm" onClick={() => { setExp(null); void exportAll(); }}>Also make every shape (4 files, about {Math.ceil(4 * dur / 60)} min)</button>
+                    <button className="btn ghost sm" aria-expanded={alts !== null} onClick={() => setAlts(alts ? null : [hooks?.[0] ?? "", hooks?.[1] ?? ""])}>Test other hooks (trial reels)</button></div>
+                  {alts && (
+                    <form className="stack tight" onSubmit={(ev) => { ev.preventDefault(); const t = alts.map((x) => x.trim()).filter(Boolean); if (t.length) { setExp(null); void exportVariants(t); } }}>
+                      <p className="small muted">The same reel with another hook title, one file each{hookOf(version?.edit ?? ({ broll: [] } as unknown as Edit)) ? <> (yours now: &ldquo;{hookOf(version!.edit)}&rdquo;)</> : null}.</p>
+                      {alts.map((x, i) => (
+                        <label key={i}><span className="small muted block">Hook {String.fromCharCode(66 + i)}</span>
+                          <input className="input" value={x} maxLength={60} placeholder={i ? "Another angle" : "e.g. I film a week of videos in one hour"}
+                            onChange={(ev) => setAlts(alts.map((y, k) => (k === i ? ev.target.value : y)))} /></label>))}
+                      <div className="row"><button className="btn sm primary" type="submit" disabled={!alts.some((x) => x.trim())}>
+                        Export {alts.filter((x) => x.trim()).length || ""} hook version{alts.filter((x) => x.trim()).length === 1 ? "" : "s"} (about {Math.max(1, Math.ceil(alts.filter((x) => x.trim()).length * dur / 60))} min)</button></div>
+                    </form>)}
                   {version && version.edit.broll.some((b) => p.library.find((x) => x.key === b.asset)?.ai) &&
                     <p className="alert info small"><Icon name="alert" /><span>This video has AI-made pictures. Switch on the platform&apos;s AI label when you post it.</span></p>}
                   {exp.ext === "webm" && <p className="small muted">Your browser recorded WebM. For Instagram, export from Chrome, Edge or Safari
