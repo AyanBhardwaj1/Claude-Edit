@@ -58,10 +58,28 @@ export function Relay() {
     cur.done(v);
     next();
   }
-  async function copy() {
+  async function copy(): Promise<boolean> {
+    if (!cur) return false;
+    try { await navigator.clipboard.writeText(cur.text); setCopied(true); return true; }
+    catch {
+      const t = document.getElementById("relay-req") as HTMLTextAreaElement | null;
+      t?.closest("details")?.setAttribute("open", ""); t?.focus(); t?.select();
+      return false;
+    }
+  }
+  // copy, then open the chat in a new tab: the request is on the clipboard, ready to paste
+  async function copyAndOpen(url: string) {
+    const tab = window.open(url, "_blank");                 // opened inside the click, so pop-up blockers allow it
+    if (tab) tab.opener = null;                             // the chat tab can't reach back into Cutmind
+    await copy();
+    if (!tab) setErr("Your browser blocked the new tab: open the chat yourself, the request is copied.");
+  }
+  function download() {
     if (!cur) return;
-    try { await navigator.clipboard.writeText(cur.text); setCopied(true); }
-    catch { document.getElementById("relay-req")?.focus(); (document.getElementById("relay-req") as HTMLTextAreaElement | null)?.select(); }
+    const url = URL.createObjectURL(new Blob([cur.text], { type: "text/plain" }));
+    const a = document.createElement("a");
+    a.href = url; a.download = `cutmind-request-${cur.ask.name.replace(/^submit_/, "")}.txt`; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
   const words = cur ? Math.round(cur.text.split(/\s+/).length / 100) * 100 : 0;
@@ -73,13 +91,15 @@ export function Relay() {
         <ol className="relay-steps">
           <li><span><b>Copy the request</b> <span className="muted small">(about {words.toLocaleString()} words)</span></span>
             <div className="row">
-              <button type="button" className="btn primary sm" onClick={() => void copy()}><Icon name="copy" />{copied ? "Copied" : "Copy request"}</button>
-              <details><summary className="small">Show it</summary>
+              <button type="button" className="btn primary sm" onClick={() => void copyAndOpen("https://claude.ai/new")}><Icon name="copy" />Copy &amp; open Claude</button>
+              <button type="button" className="btn sm" onClick={() => void copyAndOpen("https://chatgpt.com/")}><Icon name="copy" />Copy &amp; open ChatGPT</button>
+              <button type="button" className="btn ghost sm" onClick={() => void copy()}>{copied ? "Copied" : "Just copy"}</button>
+              {words > 3000 && <button type="button" className="btn ghost sm" onClick={download}><Icon name="download" />As a .txt file</button>}
+              <details className="relay-show"><summary className="small">Show it</summary>
                 <textarea id="relay-req" className="textarea mono" readOnly rows={6} value={cur.text} aria-label="The request to copy" /></details>
             </div></li>
-          <li><span><b>Paste it into a new chat</b> on your plan and send it:{" "}
-            <a href="https://claude.ai/new" target="_blank" rel="noreferrer">claude.ai</a>,{" "}
-            <a href="https://chatgpt.com/" target="_blank" rel="noreferrer">chatgpt.com</a> or any chat AI.</span></li>
+          <li><span><b>Paste it into a new chat</b> on your plan and send it (claude.ai, chatgpt.com or any chat AI).
+            {words > 3000 && " A long request pastes as an attachment, or attach the .txt file: either works."}</span></li>
           <li><label htmlFor="relay-ans"><b>Paste its whole reply here</b></label>
             <textarea id="relay-ans" className="textarea mono" rows={5} placeholder='{ "keep": [ … ] … }' value={answer}
               onChange={(e) => { setAnswer(e.target.value); setErr(""); }} /></li>

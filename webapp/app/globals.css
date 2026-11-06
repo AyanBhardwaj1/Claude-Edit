@@ -798,7 +798,7 @@ dialog.relay::backdrop { background: #0008; }
 dialog.relay h2 { font-size: 17px; margin: 0; }
 .relay-steps { margin: 14px 0 10px; padding-left: 20px; display: grid; gap: 14px; }
 .relay-steps li { display: grid; gap: 8px; }
-.relay-steps details { flex: 1; min-width: 0; }
+.relay-steps details { flex-basis: 100%; min-width: 0; }
 .relay-steps textarea { width: 100%; font-size: 12px; }
 .relay-actions { justify-content: flex-end; margin-top: 6px; }
 .plan-note a { color: var(--accent-text); }
