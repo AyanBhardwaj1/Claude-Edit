@@ -274,6 +274,37 @@ def validate(spec: "Spec") -> tuple[list[str], list[str]]:
                     spec.t(x[k])
                 except EditorError as e:
                     errors.append(f"extras {x.get('name')}: {e}")
+    for i, m in enumerate(spec.data.get("audio", {}).get("music", [])):   # a bed too hot to hear people over
+        try:
+            gain, a = float(m.get("gain", 0)), spec.t(m.get("at", 0))
+            length = float(m["dur"]) if "dur" in m else (float(m["out"]) - float(m.get("in", 0)) if "out" in m
+                                                          else spec.total - a)
+            pts = sorted((spec.t(t), float(db)) for t, db in m.get("automation") or [])   # output s, relative dB
+        except (EditorError, ValueError, TypeError, KeyError):
+            continue
+
+        def extra(t):                                     # the automation at output time t, linear between points
+            if not pts:
+                return 0.0
+            if t <= pts[0][0]:
+                return pts[0][1]
+            for (t0, d0), (t1, d1) in zip(pts, pts[1:]):
+                if t0 <= t <= t1:
+                    return d0 + (d1 - d0) * (t - t0) / max(1e-6, t1 - t0)
+            return pts[-1][1]
+        for name, v in spec.voices.items():
+            try:
+                va = spec.t(v.get("at", 0))
+                vb = va + float(v.get("out", va + 1)) - float(v.get("in", 0))
+            except (EditorError, ValueError, TypeError):
+                continue
+            level = gain + extra((va + vb) / 2)
+            limit = 0 if m.get("duck", True) else -12      # ducking already dips a bed under speech (review measures it)
+            if a < vb and va < a + length and level > limit:
+                warnings.append(f"music {i} plays at {level:+.0f} dB under voice {name} ({va:.1f}-{vb:.1f} s)"
+                                + ("" if m.get("duck", True) else " with no ducking") + ": people were hard to hear "
+                                "over a hot bed; under on-camera dialogue about -16 worked (or dip it there)")
+                break
     for pc in spec.pieces:                          # dev addresses / personal data on a captured screen
         r, shot = pc.get("redact"), _shot_entry(spec, pc)
         if r == "dev" and not (shot or {}).get("dev_boxes"):

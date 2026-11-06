@@ -375,6 +375,22 @@ def test_a_stretch_the_recogniser_guessed_is_not_captioned_but_reported():
     assert produce._drop_unsure([{"text": "x", "start": 0, "end": 1}], "v", 0, 9)[0]["text"] == "x"   # no confidences
 
 
+def test_plan_warns_when_the_music_is_too_hot_under_a_voice(tmp_path):
+    spec = base_spec()
+    spec["audio"]["music"] = [{"src": {"compose": {"mood": "warm"}}, "at": 0, "gain": -5, "duck": False}]
+    s = produce.Spec(write_spec(tmp_path, spec))
+    assert any("music 0 plays at -5 dB under voice v" in w for w in produce.validate(s)[1])
+    spec["audio"]["music"][0]["duck"] = True                                     # ducked: the review measures it
+    assert not [w for w in produce.validate(produce.Spec(write_spec(tmp_path, spec)))[1] if "music 0 plays" in w]
+    spec["audio"]["music"][0]["duck"] = False
+    spec["audio"]["music"][0]["automation"] = [[0, -12], [4.5, -12]]           # dipped 12 dB the whole way: -17
+    s = produce.Spec(write_spec(tmp_path, spec))
+    assert not [w for w in produce.validate(s)[1] if "music 0 plays" in w]
+    spec["audio"]["music"][0] = {"src": {"compose": {"mood": "warm"}}, "at": 0, "gain": -16}
+    s = produce.Spec(write_spec(tmp_path, spec))
+    assert not [w for w in produce.validate(s)[1] if "music 0 plays" in w]
+
+
 def test_a_script_line_nobody_said_in_that_voice_is_reported_not_hidden():
     heard = [("the", 1.0, 1.2), ("shadiest", 1.25, 1.8), ("route", 1.85, 2.2), ("he", 3.0, 3.1), ("asked", 3.15, 3.5),
              ("out", 3.55, 3.7), ("loud", 3.75, 4.1)]
