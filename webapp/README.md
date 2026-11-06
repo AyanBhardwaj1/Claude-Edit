@@ -20,6 +20,8 @@ vertical reel with a cover and a post caption, then change it by typing notes. E
 
 ## What it does
 1. **Takes in**: one or more raw takes (retakes and fumbles welcome), plus optional songs, pictures and clips.
+   **Record my screen** captures an app demo (a tab, a window or the whole screen, optionally with the microphone) right
+   in the browser, with a trim and "speed through waits" (frozen stretches play 6x faster), and adds it as a screen recording.
 2. **Listens**: a word-timed transcript through OpenAI (OpenAI key), or a speech model running in the browser (no key).
 3. **Reads the takes**: retakes (keeps the last complete take), pauses, fillers, meta-talk, stutters; finds the face.
 4. **First edit** by the AI editor (the user's Anthropic or OpenAI model), following the editing doctrine: the cut ("one red thread"), a hook
@@ -46,10 +48,21 @@ vertical reel with a cover and a post caption, then change it by typing notes. E
     Exports faster than real time with WebCodecs. Any video can also become an **animated recap**.
 13. **Clips from long videos**: the AI ranks the moments that stand on their own; each becomes its own edited reel.
 14. **Subtitles in 16 languages** and `.srt` files; **AI pictures** from a description (OpenAI), labelled.
-15. **Hook ideas** (five new hook titles in one click) and a **reel check** (a 0-100 score with fixes).
+15. **Hook ideas** (five new hook titles in one click) and a **reel check** (a 0-100 score with fixes), including
+    "your voice is clearly heard": the song stays at least 12 dB under anyone talking (`lib/mix.ts`).
 16. **Brand kit**: name, handle, colours, font, logo, an optional watermark, a brand style and brand animations.
-17. **Pro editing**: a timeline, keyboard shortcuts (space, arrows, frame steps, Cmd/Ctrl+Z for versions), every shape in
+17. **Make music**: no song? An original, royalty-free music bed composed in the browser (no key, no network): four moods
+    (warm, uplifting, tense, lo-fi), tempo, key, as long as the edit, with sections on a bar grid and the final chord placed just
+    before the video ends; an FM electric piano, detuned pads, sub bass, soft drums, sidechain pumping, reverb and a 1-3 kHz dip
+    for the voice, mastered to about -16 LUFS (`lib/compose.ts`, `lib/loudness.ts`, a port of `editor/compose`).
+18. **Pro editing**: a timeline, keyboard shortcuts (space, arrows, frame steps, Cmd/Ctrl+Z for versions), every shape in
     one export, and a Cmd/Ctrl+K command palette.
+19. **Framed screens**: app screenshots and screen recordings are recognised at upload and shown on a rounded, shadowed
+    backdrop with a slow push and a punch-in on what's being said; on reels they take a band above the speaker, never over
+    the face (`lib/framed.ts`). **Boxed subtitles**: a whole phrase at a time in a soft dark box.
+20. **Speed vs quality**: Fast, Balanced or Best quality for each video. Fast skips face finding and uses fewer pictures;
+    Best adds a second pass where the AI reviews its own edit like a senior editor. Time estimates are learned from the
+    videos made on each device (`lib/effort.ts`, `lib/timings.ts`).
 
 ## Privacy and keys
 - Videos never leave the browser: they're processed on the user's computer and kept in IndexedDB.
@@ -89,6 +102,7 @@ timeouts, a ~4.5 MB request limit), so all media work runs client-side:
 | `lib/face.ts` | MediaPipe face detector (wasm from a CDN) for the reframe and the protected face zone |
 | `lib/compositor.ts` | draws each frame: reframe, zooms, the picture treatments, labels, captions |
 | `lib/framed.ts` | the framed treatment for app screens (92% on a backdrop, rounded, shadow, Ken Burns, punch-in) and the screenshot check |
+| `lib/screenrec.ts` | Record my screen: getDisplayMedia + MediaRecorder, wait detection, the trim / waits time map the player follows |
 | `lib/player.ts` | live playback with two video elements per take swapped at cuts, Web Audio mix, MediaRecorder export |
 | `app/api/search`, `app/api/image` | licensed picture search and a fixed-host image fetch |
 | `lib/auth.ts`, `lib/sync.ts` | email + password accounts (server or browser) and preference sync |
@@ -99,6 +113,7 @@ timeouts, a ~4.5 MB request limit), so all media work runs client-side:
 | `lib/studio.ts`, `lib/studioPlay.ts`, `lib/studioAi.ts`, `lib/fastExport.ts` | Motion Studio: scenes, renderer, player, AI planning and voice, WebCodecs export |
 | `lib/clips.ts`, `lib/translate.ts`, `lib/hooks.ts`, `lib/score.ts`, `lib/brand.ts` | clips, translated subtitles and .srt, hook ideas, the reel check, the brand kit |
 | `lib/livecut.ts` | the landing page's live demo of the first-pass cut |
+| `lib/compose.ts`, `lib/loudness.ts`, `components/MusicMaker.tsx` | Make music: section plan, chords and notes, an OfflineAudioContext renderer, LUFS + peak limiting, WAV |
 
 Everything is anchored to transcript word ids, so a re-cut never breaks a picture, a zoom or a music lift.
 
@@ -111,7 +126,7 @@ Everything is anchored to transcript word ids, so a re-cut never breaks a pictur
 
 ## Tests
 ```bash
-npm test                                         # unit tests: timeline, analysis, caption text, AI-answer validation, live cut, passwords
+npm test                                         # unit tests: timeline, analysis, caption text, AI-answer validation, live cut, passwords, composer, loudness
 npm run build && npx next start -p 3200 &
 python3 tests/e2e.py <take.mp4> <transcript.json> <out_dir>   # sign up, the whole workflow, every shape, the sample (APIs mocked)
 DATABASE_URL=postgres://... npx next start -p 3200 & python3 tests/accounts.py   # server accounts across two browsers

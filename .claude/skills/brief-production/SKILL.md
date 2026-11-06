@@ -50,7 +50,7 @@ one number. Captions: what was actually said, one card per line, ≤ 2 lines × 
 
 ## 4. Assemble with one spec: `editor produce`
 Write `projects/<name>/produce.json` (the whole video: pieces, audio, overlay, extras) and run it. A worked,
-complete example is the Walk-Free rebuild: `editor/produce.py` docstring + [example.md](example.md).
+complete example is the Walk-Free rebuild ([example.md](example.md)); every field is in [spec.md](spec.md).
 ```bash
 python3 -m editor produce projects/<name>/produce.json --plan      # timeline table, total vs target, overlay check
 python3 -m editor produce projects/<name>/produce.json --preview   # pieces -> overlay -> mix -> composite -> extras
@@ -78,11 +78,15 @@ python3 -m editor produce projects/<name>/produce.json --only mix  # after an au
 - **Overlay**: the overlay spec inline (or a path); every time in it may be a reference.
 - **Extras**: a crop, e.g. `{"name": "square", "from": "s3q", "to": "s4a", "size": [1080, 1080]}`, or a social cut of
   a 16:9 video that keeps the whole frame: `{"name": "vertical", "kind": "band", "size": [1080, 1920], "title": "..."}`
-  (the frame as a band over its own blur, a title above).
+  (the frame as a band over its own blur, a title above). Add `"ranges": [["s3q", "s3ans.end"], ["d7b", "d7c"]]` for
+  a highlight reel of several moments back to back.
 
 ## 5. Look, then deliver drafts
 `editor produce` ends with a review (`work/produce/review/review.md`): length vs target, loudness, caption coverage
-of every voice (a voice under 60% is flagged: the Walk-Free draft missed the app's spoken Spanish answer), late
+of every voice (a voice under 60% is flagged: the Walk-Free draft missed the app's spoken Spanish answer), how far
+the music sits under each voice in the speech band (median under 9 dB is flagged; the approved Walk-Free mix had
+skits at about 25 dB and voice-overs at 10-17 dB), the longest stretch with nothing new on screen (over 7 s is
+flagged), graphics covering a face (faces found in the clean picture, overlay pixels on them), late
 graphics, a contact sheet and a frame at every graphic. With `"brief": "BRIEF.md"` in the spec it also flags any
 number on screen that isn't in the brief; list numbers you read off the app's screen in `"numbers_from_screen"`. Read all of it, then look further yourself:
 Contact sheet every ~5 s and frames at every graphic; Read them. Fix overlaps, unreadable text, covered faces, wrong
@@ -93,7 +97,14 @@ cuts the brief asks for (e.g. a 1080×1080 of the key segment: `crop=1080:1080`)
 Before sending the first draft at standard or polish effort, spawn one critic sub-agent with
 [critic.md](critic.md) (files, not your opinion), fix what it finds that's real, then send.
 
-Notes loop: change the spec (the smallest edit: one piece, one gain, one caption), re-render with
+Post kit (written next to the video by the `post` stage): `<name>.srt` from every caption card (platforms take it as
+real subtitles), `<name>_chapters.txt` for YouTube from pieces with a `"chapter"` (or `post.chapters` [[time,
+title], ...]; checked: starts at 0:00, at least 3, each 10 s or more), and with `"post": {"cover": {"at": "s9+6",
+"title": "..."}}` a cover from the clean picture (the sharpest moment within a second).
+
+Notes loop: change the spec (the smallest edit: one piece, one gain, one caption), check just that stretch with
+`editor produce produce.json --range d7b d7c.end` (720p, seconds: only changed pieces and that stretch's overlay
+render), then re-render with
 `editor produce produce.json --preview --note "<the user's note>"` (only changed pieces re-render; each note is
 saved as out/versions/<name>.vN.mp4 with the spec and a line in project.md; `--versions` lists them). Record any
 preference in the note with `editor style note`, and `editor style learn produce.json` when they approve.
@@ -103,5 +114,5 @@ preference in the note with `editor style note`, and `editor style learn produce
 - Numbers exactly as in the brief or read off the recorded screen (write them down when you capture).
 - Captions on every spoken line; nothing over the length cap; no spinner on screen > 1 s.
 - You can't hear: report LUFS/peaks and ask the user to listen, especially dialogue over music.
-- Remember: `editor style note` for what the user said, a few lines in lessons.md, `editor effort record` for the
+- Remember: `editor style note` for what the user said, `editor lessons add` (a few lines), `editor effort record` for the
   stages you timed.

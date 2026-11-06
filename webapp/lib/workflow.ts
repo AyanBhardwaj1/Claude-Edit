@@ -40,6 +40,10 @@ export async function createProject(takes: File[], extras: File[], onProgress: P
   return p;
 }
 
+/** What a file already knows about itself, added to its library entry after probing: a screen recording made in Cutmind
+ *  (components/ScreenRecorder.tsx) is a screen, with its length, trim and waits (a recorded WebM has no length in it). */
+export const fileMeta = new WeakMap<File, Partial<Asset>>();
+
 export async function addToLibrary(p: Project, files: File[], onProgress: Progress = () => undefined): Promise<string[]> {
   const added: string[] = [];
   for (const f of files) {
@@ -52,7 +56,7 @@ export async function addToLibrary(p: Project, files: File[], onProgress: Progre
     try {
       if (kind === "image" || kind === "video") {
         Object.assign(a, kind === "image" ? await probeImage(url) : await probeVideo(url));
-        if (await looksLikeScreenAt(url, kind)) a.screen = true;       // the AI then reads "screenshot" / "screen recording"
+        if (fileMeta.get(f)?.screen || await looksLikeScreenAt(url, kind)) a.screen = true;   // the AI then reads "screenshot" / "screen recording"
       } else {
         onProgress(`Listening to ${f.name}`);
         const x = await decodeMono(f, 16000);
@@ -60,6 +64,7 @@ export async function addToLibrary(p: Project, files: File[], onProgress: Progre
         Object.assign(a, { duration: x.length / 16000, feel: feel.feel, energy: feel.energy, entry: feel.entry, rms: feel.rms });
       }
     } finally { URL.revokeObjectURL(url); }
+    Object.assign(a, fileMeta.get(f));
     p.library.push(a);
     added.push(f.name);
   }

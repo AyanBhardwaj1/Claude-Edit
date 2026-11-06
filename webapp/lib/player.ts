@@ -5,6 +5,7 @@
 
 import { buildScene, drawFrame, H, setFormat, W, type Scene } from "./compositor";
 import { LEVEL_GAP } from "./mix";
+import { clipTimeAt } from "./screenrec";
 import { buildTimeline, spanOf, type Timeline } from "./timeline";
 import type { Edit, Project } from "./types";
 
@@ -196,7 +197,16 @@ export class Player {
     for (const L of this.scene.layers) {
       const on = t >= L.start && t < L.end;
       if (L.el instanceof HTMLVideoElement) {
-        if (on && L.el.paused) { L.el.currentTime = Math.max(0, t - L.start); void L.el.play(); }
+        const want = L.plan ? clipTimeAt(L.plan, t - L.start) : null;      // a trimmed clip, waits played faster
+        if (on && L.el.paused) {
+          L.el.currentTime = want ? want.t : Math.max(0, t - L.start);
+          if (want) L.el.playbackRate = want.rate;
+          void L.el.play().catch(() => undefined);
+        } else if (on && want) {
+          if (L.el.playbackRate !== want.rate) L.el.playbackRate = want.rate;
+          // past the out-point, over a cut, or drifted: put it back where the map says (sped-up runs may drift a little more)
+          if (!L.el.seeking && Math.abs(L.el.currentTime - want.t) > 0.25 * Math.max(1, want.rate)) L.el.currentTime = want.t;
+        }
         if (!on && !L.el.paused) L.el.pause();
       }
       if (on && !this.fired.has(L.b.id)) {
@@ -255,7 +265,7 @@ export class Player {
     const st = s.start + (t - s.outStart);
     await this.seekEl(el, st);
     for (const L of this.scene.layers) if (L.el instanceof HTMLVideoElement && t >= L.start && t < L.end) {
-      L.el.currentTime = t - L.start;
+      L.el.currentTime = L.plan ? clipTimeAt(L.plan, t - L.start).t : t - L.start;
       await new Promise((ok) => { L.el!.onseeked = ok; setTimeout(ok, 800); });
     }
     drawFrame(this.g, this.project, this.edit, this.scene, t, el, s.src, st);

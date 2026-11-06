@@ -3,8 +3,8 @@
   "linux-x86_64-4cpu": {
    "capture:standard": {
     "last": "2026-11-06",
-    "rate": 771.429,
-    "runs": 1
+    "rate": 642.857,
+    "runs": 2
    },
    "composite:rush": {
     "last": "2026-11-06",
@@ -18,8 +18,8 @@
    },
    "mix:standard": {
     "last": "2026-11-06",
-    "rate": 8.506,
-    "runs": 3
+    "rate": 7.626,
+    "runs": 4
    },
    "overlay:standard": {
     "last": "2026-11-06",

@@ -40,6 +40,20 @@ when the user always asks for the same thing.
 7. After delivery, `editor effort record` any hand-run stage you timed and add a line to [lessons.md](lessons.md)
    if something took much longer than planned.
 
+## A production from a brief: what it really costs (measured 2026-11-06, 4 CPUs, no GPU, 3-min video)
+| step | time | notes |
+|---|---|---|
+| `editor inventory` (10 clips, offline Vosk) | ~40 s | contact sheets + transcripts |
+| `editor produce init` | seconds | a draft spec to refine |
+| writing the spec (you) | 10-15 min | the story, captions from the script, overlay |
+| app captures (`capture shots`) | 25-50 s per shot | heavy 3D pages; a 1 s render needs ~10 s settle |
+| `editor produce` full render | ~7.5 min | pieces ~3 min (cached after), overlay ~1 min, mix ~20 s, composite ~2.5 min |
+| a note | 2-4 min | only changed pieces re-render; audio-only notes ~1 min |
+| review | ~1 min | then Read the sheets |
+So a 3-minute brief takes about 30 min to a first draft at rush on this kind of machine (most of it writing the
+spec and capturing), and 3-4 min per note after. Say so when asked; `editor effort show --stages capture pieces
+overlay mix composite --length <s>` gives this machine's learned numbers.
+
 ## When the user asks for more quality
 Spend it where it shows: the hook, pacing, the first frame of every shot, readable graphics, music level under
 dialogue, a critic pass. Don't spend it on invisible things (a slower encode of a 720p preview).

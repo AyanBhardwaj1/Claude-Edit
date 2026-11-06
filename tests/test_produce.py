@@ -86,22 +86,40 @@ def test_tiny_production_end_to_end(tmp_path):
     spec["audio"]["sfx"] = [{"src": "pop", "at": "b", "gain": -6}]
     spec["audio"]["music"] = [{"src": "clip.mp4", "at": 0, "gain": -10}]
     spec["extras"] = [{"name": "sq", "from": "a", "to": "b.end", "size": [180, 180]},
-                      {"name": "vert", "kind": "band", "size": [180, 320], "title": "It's 100°F: walk home"}]
+                      {"name": "vert", "kind": "band", "size": [180, 320], "title": "It's 100°F: walk home"},
+                      {"name": "hl", "kind": "band", "size": [180, 320], "ranges": [["a", "a+1"], ["c", "c.end"]]}]
+    spec["overlay"] = {"elements": [{"type": "caption", "text": "Hello there", "t_in": "a+0.2", "t_out": "a+1.4"}]}
+    spec["pieces"][0]["chapter"] = "Intro"
+    spec["post"] = {"chapters": [], "cover": {"at": "a+1", "title": "Tiny"}}
     path = write_spec(tmp_path, spec)
     res = produce.produce(path)
+    kit = res["post"]
+    assert "00:00:00,200 --> 00:00:01,400\nHello there" in Path(kit["srt"]).read_text()
+    assert Path(kit["chapters"]).read_text() == "0:00 Intro\n" and any("3 chapters" in i for i in kit["issues"])
+    assert Path(kit["cover"]).exists()
     out = Path(res["file"])
     info = probe(out)
     assert info["duration"] == pytest.approx(4.5, abs=0.1)
     assert info["video"]["width"] == 320 and info.get("has_audio")
     rv = res["review"]
+    assert rv["music_under_voice"] and rv["music_under_voice"][0]["gap_db"] is not None     # measured from the stems
+    assert rv["longest_still"]["seconds"] == pytest.approx(2.0, abs=0.05)   # pieces of 2.0, 1.5 (+punch), 1.0 s
+    assert rv["graphics_on_faces"] == []                                    # no faces in test patterns
     assert rv["duration"] == pytest.approx(4.5, abs=0.1) and Path(rv["contact_sheet"]).exists()
     assert any("voice v" in i for i in rv["issues"])        # the voice has no captions: flagged
+    hl = probe(Path(res["extras"][2]))
+    assert hl["duration"] == pytest.approx(2.0, abs=0.2)
     vert = probe(Path(res["extras"][1]))
     assert (vert["video"]["width"], vert["video"]["height"]) == (180, 320)
     sq = probe(Path(res["extras"][0]))
     assert sq["video"]["width"] == 180 and sq["duration"] == pytest.approx(3.5, abs=0.15)
     data = json.loads((tmp_path / "style" / "timings.json").read_text()) if (tmp_path / "style" /
                                                                             "timings.json").exists() else {}
+    rng = produce.preview_range(path, "b", "c.end")
+    assert probe(rng)["duration"] == pytest.approx(2.5, abs=0.15)
+    spec["pieces"][0]["chapter"] = "Renamed"                       # labels never re-render a piece
+    path.write_text(json.dumps(spec))
+    assert produce.produce(path, only="pieces")["timing"]["pieces"] < 2
     # a second run renders nothing new: every piece is cached
     spec["pieces"][1]["dur"] = 1.5
     res2 = produce.produce(path, only="pieces")
@@ -226,3 +244,23 @@ def test_script_lines_become_captions_timed_on_misheard_words():
     assert float(cards[1]["t_out"].split(":")[1]) == pytest.approx(7.95, abs=0.01)
     fixed = produce.scripted_words(words, 0, 20, "Meta's SAM 3.1 finds the trees, the pavement and the sky.")
     assert fixed[0]["text"] == "Meta's" and fixed[-1]["start"] == pytest.approx(7.29)
+
+
+def test_validation_catches_problems_before_rendering(tmp_path):
+    spec = base_spec(pieces=[
+        {"name": "a", "type": "framed", "src": "missing.png", "dur": 2, "punhc": [0.5, 1.5, 0.2, 0.2]},
+        {"name": "b", "type": "video", "src": "voice.wav", "in": 3, "out": 1},
+        {"name": "c", "type": "freeze", "from": "nope", "dur": 1},
+        {"name": "d", "type": "framed", "src": "voice.wav", "dur": 1, "punch": [1, 2]}])
+    spec["audio"]["sfx"] = [{"src": "boing", "at": "a"}, {"src": "pop", "at": "zz+1"}]
+    (tmp_path / "voice.wav").write_bytes(b"")
+    path = write_spec(tmp_path, spec)
+    s = produce.Spec(path)
+    errors, warnings = produce.validate(s)
+    text = "\n".join(errors)
+    assert "file not found: missing.png" in text and "out must be after in" in text
+    assert "freezes 'nope'" in text and "punch needs 4 numbers" in text
+    assert "file not found: boing" in text and "no piece named 'zz'" in text
+    assert any("punhc" in w for w in warnings)                       # a typo is a warning
+    with pytest.raises(EditorError, match="nothing rendered"):
+        produce.produce(path)

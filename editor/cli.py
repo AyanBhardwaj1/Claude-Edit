@@ -359,6 +359,10 @@ def main(argv=None):
     from .compose import add_arguments as _compose_arguments   # import-light: argparse only
     _compose_arguments(p)
 
+    p = sub.add_parser("lessons", add_help=False, prefix_chars="+",
+                       help="what each production taught: add one line after a video, show them before planning")
+    p.add_argument("lessons_args", nargs=argparse.REMAINDER)
+
     p = sub.add_parser("inventory", add_help=False, prefix_chars="+",
                        help="what's in a folder of footage: lengths, sizes, sound, contact sheets, what is said")
     p.add_argument("inventory_args", nargs=argparse.REMAINDER)
@@ -968,6 +972,11 @@ def cmd_timeline(args):
 def cmd_compose(args):
     from .compose import run
     return run(args)
+
+
+def cmd_lessons(args):
+    from .lessons import main as lessons_main
+    return lessons_main(args.lessons_args)
 
 
 def cmd_inventory(args):

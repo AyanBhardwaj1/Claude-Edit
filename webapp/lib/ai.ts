@@ -5,6 +5,7 @@ import { motionOf } from "./edit";
 import type { AiEdit } from "./edit";
 import { DEFAULT_MAX_TOKENS, type AiChoice } from "./effort";
 import { APPLY_NOTE, EDIT_SCHEMA, FIRST_EDIT, REVIEW_EDIT, SCRIPT_SCHEMA, SYSTEM, WRITE_SCRIPT } from "./prompts";
+import { playedLength } from "./screenrec";
 import type { Asset, Edit, Project, Settings, StyleRule } from "./types";
 
 export class AiError extends Error {
@@ -109,7 +110,7 @@ export function transcriptText(p: Project): string {
   const lib = p.library.filter((x) => !x.web);
   parts.push("LIBRARY:\n" + (lib.length ? lib.map((x) => `- key "${x.key}": ${libKind(x)} "${x.name}"` +
     (x.width && x.height && x.kind !== "music" ? ` ${x.width}x${x.height}` : "") +
-    (x.kind === "music" ? ` sounds ${x.feel ?? "?"} (energy ${x.energy ?? "?"})` : x.duration ? ` ${x.duration.toFixed(1)}s` : "")).join("\n")
+    (x.kind === "music" ? ` sounds ${x.feel ?? "?"} (energy ${x.energy ?? "?"})${x.origin === "composed" ? ", composed for this video, ends on its last chord" : ""}` : x.duration ? ` ${(playedLength(x) ?? x.duration).toFixed(1)}s` : "")).join("\n")
     : "(empty: use webPictures, labels and zooms)"));
   return parts.join("\n\n");
 }

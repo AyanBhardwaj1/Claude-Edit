@@ -19,6 +19,12 @@ export type Asset = {
   web?: boolean;
   ai?: boolean;                   // made by an AI image model (labelled; platforms want an AI label)
   screen?: boolean;               // looks like a screenshot / screen recording (flat UI colours; lib/framed.ts looksLikeScreen)
+  origin?: "composed";            // music: an original bed composed in the browser (lib/compose.ts), royalty-free
+  composed?: { mood: string; bpm: number; key: string; mode: string; length: number; endChordAt: number; lufs: number };
+  // a clip's own in and out points and the frozen stretches that play 6x faster (lib/screenrec.ts clipPlan): metadata
+  // only, the file itself is never re-encoded. The player maps a shot's time onto the clip with them.
+  trim?: { start: number; end: number };
+  waits?: [number, number][];
 };
 
 export type Treatment = "card-above-head" | "side-card" | "phone-card" | "full-frame" | "split-top" | "framed" | "text-pop" | "motion";
