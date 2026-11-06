@@ -290,3 +290,27 @@ def test_pacing_fix_adds_word_anchored_zooms_in_bare_face_stretches():
     assert len(z) >= 2 and all(set(x) == {"words", "scale", "ease"} for x in z)
     assert [x["scale"] for x in z[:2]] == [1.15, 1.25]
     assert stillness_zooms([], ws) == []
+
+
+def test_variants_render_each_hook_and_restore_the_edl(tmp_path, monkeypatch):
+    import argparse
+    import json
+    from editor import cli
+    project = tmp_path / "demo"
+    (project / "work").mkdir(parents=True)
+    (project / "out").mkdir()
+    edl = {"segments": [], "broll": [{"treatment": "text-pop", "style": "label", "text": "Original hook", "start": 0.0, "dur": 2.0}]}
+    (project / "work" / "edl.json").write_text(json.dumps(edl))
+    seen = []
+
+    def fake_main(argv):            # stands in for `editor auto ... --from captions --to render`
+        hook = json.loads((project / "work" / "edl.json").read_text())["broll"][0]["text"]
+        seen.append(hook)
+        (project / "out" / "demo_reels.mp4").write_text(hook)
+        return 0
+    monkeypatch.setattr(cli, "main", fake_main)
+    cli.cmd_variants(argparse.Namespace(project=str(project), hooks=["Hook two", "Hook three"], preset="reels", auto_args="--effort rush"))
+    assert seen == ["Hook two", "Hook three", "Original hook"]                   # the reel itself last, as it was
+    assert (project / "out" / "demo_reels - hook B.mp4").read_text() == "Hook two"
+    assert (project / "out" / "demo_reels - hook C.mp4").read_text() == "Hook three"
+    assert json.loads((project / "work" / "edl.json").read_text()) == edl

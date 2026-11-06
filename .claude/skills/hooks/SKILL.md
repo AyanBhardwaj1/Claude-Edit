@@ -32,3 +32,10 @@ from `library/hooks.md`: fill-in-the-blank templates with `[slots]`.
 - Match the creator's voice. Swap words in a template until it sounds like them.
 - Series content ("Day 80 of ..."): keep the series tag in the caption/text and still lead with the payoff.
 - When a reel performs, add its hook under "Your winners" in `library/hooks.md` with date and views.
+
+## Testing hooks (trial reels)
+Instagram's trial reels (and a second TikTok post) test a reel on new viewers. To test hooks, render the same reel with
+each: `python3 -m editor variants projects/<n> --hooks "Hook B" "Hook C" [--auto-args "<your usual auto flags>"]`
+writes `out/<name>_<preset> - hook B.mp4`, `- hook C.mp4` (the hook card's text or the EDL title swapped, one render
+each), then puts the reel's own hook back. Keep the hook that holds people longest. Cutmind: Test other hooks.
+
