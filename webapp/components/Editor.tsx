@@ -52,6 +52,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
   const [err, setErr] = useState("");
   const [toast, setToast] = useState("");
   const [keys, setKeys] = useState(false);
+  const lastBlob = useRef<Blob | null>(null);
   const [clips, setClips] = useState<Clip[] | null>(null);
   const [clipBusy, setClipBusy] = useState("");
   const [hooks, setHooks] = useState<string[] | null>(null);
@@ -242,6 +243,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
     setExp({ pct: 0 }); setPlaying(true);
     try {
       const { blob, ext } = await pl.record((pct) => setExp((x) => ({ ...x!, pct })));
+      lastBlob.current = blob;
       const cover = await pl.cover();
       setExp({ pct: 100, video: URL.createObjectURL(blob), ext, cover: URL.createObjectURL(cover),
         caption: URL.createObjectURL(new Blob([post], { type: "text/plain" })),
@@ -259,6 +261,20 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
     setMsgs((m) => [...m, { who: "ed", text: `Version ${p.current}: I put ${a.name} under your voice. It's original and royalty-free, written for this video, and its last chord lands as the video ends.` }]);
   }
 
+  /** The exported video as a file the system share sheet takes (phones: straight to Instagram, TikTok, Messages). */
+  const shareFile = (name: string): File | null => {
+    const b = lastBlob.current;
+    if (!b || typeof navigator === "undefined" || !navigator.canShare) return null;
+    const f = new File([b], name, { type: b.type || (name.endsWith(".mp4") ? "video/mp4" : "video/webm") });
+    try { return navigator.canShare({ files: [f] }) ? f : null; } catch { return null; }
+  };
+  const share = async (name: string) => {
+    const f = shareFile(name);
+    if (!f) return;
+    try { await navigator.clipboard.writeText(post); setToast("Caption copied: paste it into your post"); } catch { /* sharing still works */ }
+    try { await navigator.share({ files: [f], title: p.title }); }
+    catch (e) { if ((e as Error).name !== "AbortError") setToast("Couldn't open sharing: download the video instead"); }
+  };
   const copy = async (text: string) => { try { await navigator.clipboard.writeText(text); setToast("Caption copied"); } catch { setToast("Couldn't copy: select the text instead"); } };
   const post = version ? postText(p, version.edit) : "";
   const e = version?.edit;
@@ -384,6 +400,8 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
                     <button className="btn ghost icon sm" aria-label="Close" onClick={() => setExp(null)}>&times;</button></div>
                   <div className="row">
                     <a className="btn primary" href={exp.video} download={`${base}.${exp.ext}`}><Icon name="download" />Download video (.{exp.ext})</a>
+                    {shareFile(`${base}.${exp.ext ?? "mp4"}`) && <button className="btn" onClick={() => void share(`${base}.${exp.ext ?? "mp4"}`)}>
+                      <Icon name="share" />Share…</button>}
                     <a className="btn" href={exp.cover} download={`${base} cover.jpg`}>Download cover</a>
                     <a className="btn" href={exp.caption} download={`${base} caption.txt`}>Caption .txt</a>
                     {exp.srt && <a className="btn" href={exp.srt} download={`${base}${version?.edit.translation ? ` ${version.edit.translation.lang}` : ""}.srt`}>Subtitles .srt</a>}

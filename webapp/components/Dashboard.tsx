@@ -25,7 +25,7 @@ export function Dashboard({ user, settings, theme, onNew, onOpen, onGo, onSample
   const [welcome, setWelcome] = useState(false);
   useEffect(() => { try { setWelcome(!localStorage.getItem(`cutmind.welcomed.${user.id}`)); } catch { /* storage blocked */ } }, [user.id]);
   const dismiss = () => { setWelcome(false); try { localStorage.setItem(`cutmind.welcomed.${user.id}`, "1"); } catch { /* storage blocked */ } };
-  const NEWS = `cutmind.news.2026-11.${user.id}`;
+  const NEWS = `cutmind.news.2026-11b.${user.id}`;
   const [news, setNews] = useState(false);
   useEffect(() => { try { setNews(!localStorage.getItem(NEWS)); } catch { /* storage blocked */ } }, [NEWS]);
   const hideNews = () => { setNews(false); try { localStorage.setItem(NEWS, "1"); } catch { /* storage blocked */ } };
@@ -133,14 +133,11 @@ export function Dashboard({ user, settings, theme, onNew, onOpen, onGo, onSample
               <ul className="setup news-list">
                 <li><span className="what grow"><b>Film it here</b>: record takes in Cutmind with your script on a teleprompter.</span>
                   <button className="btn sm" onClick={() => onNew()}>Try it</button></li>
-                <li><span className="what grow"><b>Make music</b>: an original song for your video, made in your browser, free to post.</span></li>
-                <li><span className="what grow"><b>Record my screen</b>: show your app, and the loading waits play six times faster.</span>
-                  <button className="btn sm" onClick={() => onNew()}>Try it</button></li>
-                <li><span className="what grow"><b>Paste your script</b>: every name spelled right in your subtitles.</span>
-                  <button className="btn sm" onClick={() => onNew()}>Try it</button></li>
-                <li><span className="what grow"><b>Product demos</b>: screenshots become framed scenes that zoom in on what you mean.</span>
-                  <button className="btn sm" onClick={() => onGo("animate")}>Try it</button></li>
-                <li><span className="what grow"><b>Fast, Balanced or Best</b>: you choose how long the editor takes.</span>
+                <li><span className="what grow"><b>Notes with a time</b>: &ldquo;at 0:12 zoom in&rdquo; lands on the right words. The At button adds where you are.</span></li>
+                <li><span className="what grow"><b>What really changed</b>: every version lists its changes, measured, and <b>Compare</b> (C) plays the one before.</span></li>
+                <li><span className="what grow"><b>Learns your taste</b>: a change you make before exporting two videos is offered as a style rule.</span>
+                  <button className="btn sm" onClick={() => onGo("style")}>My style</button></li>
+                <li><span className="what grow"><b>Make music</b>, <b>Record my screen</b> and <b>Fast, Balanced or Best</b>: you choose how long the editor takes.</span>
                   <button className="btn sm" onClick={() => onGo("settings")}>Choose</button></li>
               </ul>
             </section>

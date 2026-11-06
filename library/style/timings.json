@@ -8,8 +8,8 @@
    },
    "composite:rush": {
     "last": "2026-11-06",
-    "rate": 42.958,
-    "runs": 2
+    "rate": 17.225,
+    "runs": 5
    },
    "composite:standard": {
     "last": "2026-11-06",
@@ -18,8 +18,8 @@
    },
    "mix:rush": {
     "last": "2026-11-06",
-    "rate": 12.2,
-    "runs": 1
+    "rate": 7.539,
+    "runs": 4
    },
    "mix:standard": {
     "last": "2026-11-06",
@@ -38,8 +38,8 @@
    },
    "pieces:rush": {
     "last": "2026-11-06",
-    "rate": 53.409,
-    "runs": 1
+    "rate": 36.019,
+    "runs": 3
    },
    "pieces:standard": {
     "last": "2026-11-06",

@@ -347,11 +347,14 @@ def test_an_audio_only_note_keeps_the_encoded_picture(tmp_path):
                                       capture_output=True, text=True).stdout
     out = Path(produce.produce(path, effort="rush")["file"])
     v1, a1 = md5(out, "0:v"), md5(out, "0:a")
+    base = tmp_path / "work" / "produce" / "base.mp4"
+    joined = base.stat().st_mtime_ns
     spec["audio"]["music"][0]["gain"] = -20                                # the note: "music quieter"
     path.write_text(json.dumps(spec))
     assert produce.estimate(produce.Spec(path), "rush")["remux"] is True
     produce.produce(path, effort="rush")
     assert md5(out, "0:v") == v1 and md5(out, "0:a") != a1                 # same video stream, new sound
+    assert base.stat().st_mtime_ns == joined                              # and the pieces weren't joined again
     spec["pieces"][1]["color"] = "green"                                   # a picture change encodes again
     path.write_text(json.dumps(spec))
     produce.produce(path, effort="rush")
