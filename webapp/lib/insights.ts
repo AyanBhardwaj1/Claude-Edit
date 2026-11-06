@@ -1,6 +1,7 @@
 /** Across your videos: how your reels are doing over time, from the same reel check the editor shows (the current
  *  version of each video), and the one thing that most often holds them back, with where to fix it. */
 import { reelCheck } from "./score";
+import { scrollTest } from "./scrolltest";
 import { buildTimeline } from "./timeline";
 import type { Project } from "./types";
 
@@ -19,14 +20,14 @@ const FIX: Record<string, string> = {
 };
 
 export type Insights = { videos: number; scores: { title: string; score: number; at: string }[]; average: number;
-  change: number | null; averageLength: number; top: { id: string; title: string; count: number; fix: string } | null };
+  change: number | null; averageLength: number; scroll: { passed: number; of: number }; top: { id: string; title: string; count: number; fix: string } | null };
 
 export function insights(projects: Project[]): Insights | null {
   const done = projects.filter((p) => !p.sample && p.versions.length && p.words.length)
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   if (done.length < 2) return null;                         // a trend needs at least two videos
   const scores: Insights["scores"] = [], fails: Record<string, { title: string; count: number }> = {};
-  let length = 0;
+  let length = 0, scrollPassed = 0;
   for (const p of done) {
     const v = p.versions.find((x) => x.n === p.current) ?? p.versions[p.versions.length - 1];
     try {
@@ -35,6 +36,7 @@ export function insights(projects: Project[]): Insights | null {
       const r = reelCheck(p, v.edit, tl);
       scores.push({ title: p.title, score: r.score, at: p.createdAt });
       length += tl.duration;
+      if (scrollTest(tl, v.edit).passed === 4) scrollPassed++;      // the editor's scroll test, all four
       for (const c of r.checks) if (!c.ok && !c.warn) (fails[c.id] ??= { title: c.title, count: 0 }).count++;
     } catch { /* a video that can't be measured is left out */ }
   }
@@ -46,7 +48,7 @@ export function insights(projects: Project[]): Insights | null {
   return {
     videos: scores.length, scores, average: Math.round(avg(scores.map((s) => s.score))),
     change: scores.length >= 4 ? Math.round(avg(late) - avg(early)) : null,
-    averageLength: Math.round(length / scores.length),
+    averageLength: Math.round(length / scores.length), scroll: { passed: scrollPassed, of: scores.length },
     top: topId && fails[topId].count >= 2 ? { id: topId, title: fails[topId].title, count: fails[topId].count, fix: FIX[topId] ?? "" } : null,
   };
 }

@@ -831,7 +831,7 @@ label.btn:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; 
 .ui-pick .seg button { min-height: 28px; padding: 0 10px; font-size: 13px; }
 .track .lay span { overflow: hidden; text-overflow: ellipsis; }
 /* Dashboard: Your reels (lib/insights.ts) */
-.insights .ins-row { display: grid; grid-template-columns: minmax(90px, 1fr) auto auto; gap: 18px; align-items: center; }
+.insights .ins-row { display: grid; grid-template-columns: minmax(90px, 1fr) minmax(0, 1fr); gap: 16px 18px; align-items: center; }   /* 2 x 2: the card sits in a narrow column */
 .insights .spark { width: 100%; min-width: 90px; height: 48px; overflow: visible; display: block; }
 .insights .spark polyline { fill: none; stroke: var(--accent); stroke-width: 2.5; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
 .insights .big-n { font-size: 26px; line-height: 1; }
