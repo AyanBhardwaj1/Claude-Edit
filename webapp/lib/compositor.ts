@@ -11,6 +11,7 @@ import { clipPlan, type Piece } from "./screenrec";
 import { drawBackground, drawScene, type Anim, type Scene as CardScene } from "./studio";
 import { boxedChars, boxedCues, boxedLines, captionWords, chunk, readTime, type Cue } from "./text";
 import { spanOf, srcAt, type Timeline } from "./timeline";
+import { translatedCues } from "./translate";
 import type { Asset, Broll, Edit, Format, Project } from "./types";
 
 export { FORMATS } from "./formats";
@@ -43,9 +44,8 @@ export function buildScene(p: Project, e: Edit, tl: Timeline, media: Map<string,
   let cues = e.captions.preset === "boxed" ? boxedCues(cw, boxedChars(W, boxedSize(e))) : chunk(cw, e.captions.maxWords);
   if (e.captions.enabled && e.translation?.lines.length) {
     // translated subtitles: one cue per phrase, the whole line as one "word" (drawn wrapped, see drawCaptions)
-    cues = e.translation.lines.map((l) => { const a = tl.byId.get(l.from), b = tl.byId.get(l.to);
-      return a && b ? { start: a.os, end: b.oe + 0.12, words: [{ id: l.from, text: l.text, os: a.os, oe: b.oe, seg: a.seg }] } : null; })
-      .filter(Boolean) as Cue[];
+    cues = translatedCues(p.words, e.translation, tl).map((c) => ({ start: c.start, end: c.end + 0.12,
+      words: [{ id: c.from, text: c.text, os: c.start, oe: c.end, seg: tl.byId.get(c.from)!.seg }] }));
   }
   const zooms = e.zooms.map((z) => { const s = spanOf(tl, z.anchor); return s ? { s: s[0], e: s[1] + 0.05, scale: z.scale } : null; })
     .filter(Boolean) as Scene["zooms"];

@@ -30,6 +30,7 @@ import { changeItems, type Change } from "@/lib/changes";
 import { attention, spotsNote, zoomsFor, type Attention } from "@/lib/attention";
 import { openWith, strongestLine, type Line } from "@/lib/coldopen";
 import { swears } from "@/lib/bleep";
+import { buildTimeline } from "@/lib/timeline";
 import { namedNotShown, type Name } from "@/lib/names";
 import { findPicture } from "@/lib/images";
 import { maskWord } from "@/lib/text";
@@ -126,10 +127,11 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
   // export files are whole videos in memory: free the ones no longer shown
   const shownUrls = useRef<string[]>([]);
   useEffect(() => {
-    const now = [exp?.video, exp?.cover, exp?.caption, exp?.srt, ...(all ?? []).map((x) => x.url)].filter((u): u is string => !!u);
+    const now = [exp?.video, exp?.cover, exp?.caption, exp?.srt, ...(all ?? []).map((x) => x.url), ...(variants ?? []).map((x) => x.url)]
+      .filter((u): u is string => !!u);
     for (const u of shownUrls.current) if (!now.includes(u)) URL.revokeObjectURL(u);
     shownUrls.current = now;
-  }, [exp, all]);
+  }, [exp, all, variants]);
   useEffect(() => () => { for (const u of shownUrls.current) URL.revokeObjectURL(u); }, []);
   const [maker, setMaker] = useState(false);
   const [wpm, setWpm] = useState<number | null>(null);
@@ -386,8 +388,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
     setAll(null); setVariants(null); setPlaying(true);
     try {
       for (const [i, text] of texts.entries()) {
-        const pl0 = player.current; if (!pl0) break;
-        await mount(withHook(version.edit, text, pl0.tl));
+        await mount(withHook(version.edit, text, buildTimeline(p.words, version.edit, p.sources.map((x) => x.duration))));
         const pl = player.current; if (!pl) break;
         setExp({ pct: 0, label: `Hook ${String.fromCharCode(66 + i)} (${i + 1} of ${texts.length})` });
         const { blob, ext } = await pl.record((pct) => setExp((x) => ({ ...x!, pct })));
@@ -687,7 +688,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
                       </div>);
                   })()}
                   <div className="row"><button className="btn ghost sm" onClick={() => { setExp(null); void exportAll(); }}>Also make every shape (4 files, about {Math.ceil(4 * dur / 60)} min)</button>
-                    <button className="btn ghost sm" aria-expanded={alts !== null} onClick={() => setAlts(alts ? null : [hooks?.[0] ?? "", hooks?.[1] ?? ""])}>Test other hooks (trial reels)</button></div>
+                    <button className="btn ghost sm" aria-expanded={alts !== null} disabled={cmp} onClick={() => setAlts(alts ? null : [hooks?.[0] ?? "", hooks?.[1] ?? ""])}>Test other hooks (trial reels)</button></div>
                   {alts && (
                     <form className="stack tight" onSubmit={(ev) => { ev.preventDefault(); const t = alts.map((x) => x.trim()).filter(Boolean); if (t.length) { setExp(null); void exportVariants(t); } }}>
                       <p className="small muted">The same reel with another hook title, one file each{hookOf(version?.edit ?? ({ broll: [] } as unknown as Edit)) ? <> (yours now: &ldquo;{hookOf(version!.edit)}&rdquo;)</> : null}.</p>
@@ -764,7 +765,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
                 <li key={n.from}>
                   <button type="button" className="chip" onClick={() => { const v = Math.max(0, n.at - 0.6); setT(v); void player.current?.seek(v); }}
                     title={`Play from where you say ${n.text}`}>{clock(n.at)} {n.text}</button>
-                  <button type="button" className="btn sm" disabled={!!logoBusy || recording} onClick={async () => {
+                  <button type="button" className="btn sm" disabled={!!logoBusy || recording || cmp} onClick={async () => {
                     setLogoBusy(n.from);
                     try {
                       const hit = p.library.find((a) => a.key === `web:${n.text}`) ? null : await findPicture(n.text, "logo").catch(() => null);
@@ -787,7 +788,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
             return (
               <section className="panel" aria-labelledby="bleep-h">
                 <div className="panel-head"><h2 id="bleep-h">Strong language</h2>
-                  <button className="btn sm" disabled={recording} onClick={async () => {
+                  <button className="btn sm" disabled={recording || cmp} onClick={async () => {
                     const before = version.edit;
                     const fixed = { ...before, bleeps: all ? [] : [...new Set([...(before.bleeps ?? []), ...swore.map((x) => x.id)])] };
                     await saveManual(p, fixed, all ? "bleeps removed" : `bleeped ${swore.length} word${swore.length > 1 ? "s" : ""}`); setP({ ...p });
@@ -796,7 +797,8 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
                       changes: changeItems(p, before, fixed) }]);
                   }}>{all ? "Unbleep" : "Bleep them"}</button></div>
                 <p className="small muted">{swore.length} strong word{swore.length > 1 ? "s" : ""} ({list}){" "}
-                  {all ? "bleeped." : "said. Platforms limit ads on strong language, and many brands won’t sponsor it."}</p>
+                  {all ? "bleeped." : "said. Platforms limit ads on strong language, and many brands won’t sponsor it."}
+                  {version.edit.translation ? " Translated subtitles show their own words: check them in Edit it myself → Subtitles." : ""}</p>
                 <div className="chips mt-8">{swore.slice(0, 8).map((x) => (
                   <button key={x.id + x.at} type="button" className="chip" onClick={() => { const v = Math.max(0, x.at - 0.6); setT(v); void player.current?.seek(v); }}>
                     {clock(x.at)} {on.has(x.id) ? maskWord(x.w) : x.w}</button>))}</div>
@@ -822,10 +824,10 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
                   <label className="grow"><span className="small muted block">No hook title yet: it&apos;s the first thing people read.</span>
                     <input className="input" id="hook-input" value={hookDraft} maxLength={60} placeholder="e.g. The habit that doubled my posting"
                       onChange={(ev) => setHookDraft(ev.target.value)} /></label>
-                  <button className="btn sm" type="submit" disabled={!hookDraft.trim() || recording}>Add</button>
+                  <button className="btn sm" type="submit" disabled={!hookDraft.trim() || recording || cmp}>Add</button>
                 </form>)}
               {hooks && <div className="chips mt-8" role="group" aria-label="Hook ideas">{hooks.map((h) => (
-                <button key={h} className="chip" disabled={recording} onClick={async () => { await saveManual(p, withHook(version.edit, h, player.current?.tl), "a new hook title"); setP({ ...p });
+                <button key={h} className="chip" disabled={recording || cmp} onClick={async () => { await saveManual(p, withHook(version.edit, h, player.current?.tl), "a new hook title"); setP({ ...p });
                   setMsgs((m) => [...m, { who: "ed", text: `Version ${p.current}: the hook now says "${h}".` }]); setHooks(null); }}>{h}</button>))}</div>}
             </section>
           )}

@@ -8,7 +8,7 @@ import { aiPicture } from "@/lib/images";
 import { saveProject } from "@/lib/store";
 import { buildTimeline } from "@/lib/timeline";
 import { addToLibrary } from "@/lib/workflow";
-import { keptTranslation, LANGUAGES, translateSubtitles } from "@/lib/translate";
+import { LANGUAGES, translateSubtitles } from "@/lib/translate";
 import { formatTime, playedLength, waitSavings, WAIT_SPEED } from "@/lib/screenrec";
 import type { Asset, Broll, BrollIn, CaptionAnim, CaptionPreset, Edit, Look, Motion, Project, Range, Settings, Transition } from "@/lib/types";
 
@@ -73,9 +73,7 @@ export function Drawer({ project: p, edit, onApply, settings, onMakeMusic, onWor
       const last = keep[keep.length - 1];
       if (last && idx.get(last.to) === i - 1 && p.words[i - 1].src === w.src) last.to = w.id; else keep.push({ from: w.id, to: w.id });
     });
-    // a translated subtitle anchored on a word just cut moves onto the nearest kept word inside its phrase
-    const translation = e.translation && keptTranslation(p.words, e.translation, next);
-    setE({ ...e, keep, ...(translation ? { translation } : {}) });
+    setE({ ...e, keep });      // translated lines follow their kept words when drawn (translatedCues)
   }
 
   const music = p.library.filter((a) => a.kind === "music");

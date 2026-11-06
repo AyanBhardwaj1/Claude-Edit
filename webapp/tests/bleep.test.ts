@@ -51,3 +51,13 @@ test("a note asking to bleep the swearing turns into bleeps (and back)", async (
   assert.deepEqual(fromAi(p, on, { bleep: false }).edit.bleeps, []);
   assert.equal(fromAi(p, base, {}).edit.bleeps, undefined, "never on its own");
 });
+
+test("a bleep covers the empty words a pasted script word holds, and a version summary names bleeps", async () => {
+  const { describe } = await import("../lib/edit");
+  const ws: Word[] = [{ id: "w0", src: 0, s: 0, e: 0.3, w: "this" }, { id: "w1", src: 0, s: 1.2, e: 1.55, w: "motherfucker" },
+    { id: "w2", src: 0, s: 1.6, e: 1.95, w: "" }, { id: "w3", src: 0, s: 2.0, e: 2.3, w: "again" }];
+  const tl = buildTimeline(ws, { keep: [{ from: "w0", to: "w3" }], gapCap: 1 }, [5]);
+  const [sp] = bleepSpans(tl, ["w1"]);
+  assert.ok(sp[1] >= tl.byId.get("w2")!.oe, `${sp} should reach ${tl.byId.get("w2")!.oe}`);
+  assert.equal(describe({ keep: [], gapCap: 0.3 } as never, { keep: [], gapCap: 0.3, bleeps: ["w1"] } as never), "Changed bleeps.");
+});

@@ -2,7 +2,7 @@
  *  the voice muted (lib/player.ts, so the preview and the export match) and its subtitle shows "f***"
  *  (captionWords). Platforms limit ads on strong language, and many brands won't sponsor it; mild words ("damn",
  *  "hell", "crap") are left alone. */
-import type { Timeline, OutWord } from "./timeline";
+import type { OutWord, Timeline } from "./timeline";
 
 const STRONG = /^(fuck\w*|motherfuck\w*|\w*fucker|shit|shits|shitty|shitting|bullshit|horseshit|bitch\w*|asshole\w*|cunt\w*|dickhead\w*|bastard\w*|wtf|stfu|goddamn\w*)$/;
 
@@ -14,6 +14,13 @@ export const swears = (tl: Timeline): OutWord[] => tl.words.filter((w) => w.w.tr
 /** Output-time spans to bleep, a little wider than each word so its edges don't leak. */
 export function bleepSpans(tl: Timeline, ids: string[] | undefined): [number, number][] {
   if (!ids?.length) return [];
-  return ids.map((id) => tl.byId.get(id)).filter((w): w is OutWord => !!w)
-    .map((w) => [Math.max(0, w.os - 0.03), w.oe + 0.03] as [number, number]).sort((a, b) => a[0] - b[0]);
+  const at = new Map(tl.words.map((w, i) => [w.id, i]));
+  return ids.filter((id) => at.has(id)).map((id) => {
+    let k = at.get(id)!;
+    const w = tl.words[k];
+    // a pasted script word can hold the time of the empty words after it ("mother fucker" heard, "motherfucker"
+    // written): the bleep covers them too, as the masked subtitle does
+    while (k + 1 < tl.words.length && !tl.words[k + 1].w.trim() && tl.words[k + 1].seg === w.seg) k++;
+    return [Math.max(0, w.os - 0.03), tl.words[k].oe + 0.03] as [number, number];
+  }).sort((a, b) => a[0] - b[0]);
 }

@@ -44,27 +44,27 @@ const stamp = (t: number) => {
 
 /** An .srt file of the subtitles as they play in this version (translated if a translation is on). */
 export function srt(p: Project, e: Edit, tl: Timeline): string {
-  void p;
   let cues: { s: number; e: number; text: string }[];
   if (e.translation) {
-    cues = e.translation.lines.map((l) => { const a = tl.byId.get(l.from), b = tl.byId.get(l.to); return a && b ? { s: a.os, e: b.oe + 0.1, text: l.text } : null; })
-      .filter(Boolean) as typeof cues;
+    cues = translatedCues(p.words, e.translation, tl).map((c) => ({ s: c.start, e: c.end + 0.1, text: c.text }));
   } else {
     cues = chunk(captionWords(tl.words, e.corrections, e.bleeps), Math.max(e.captions.maxWords, 6)).map((c) => ({ s: c.start, e: c.end, text: c.words.map((w) => w.text).join(" ") }));
   }
   return cues.map((c, i) => `${i + 1}\n${stamp(c.s)} --> ${stamp(c.e)}\n${c.text}\n`).join("\n");
 }
 
-/** Translated lines after words are cut: a line anchored on a cut word moves onto the nearest kept word inside its
- *  phrase; a line with none of its words left goes. */
-export function keptTranslation(words: Word[], tr: Translation, kept: Set<string>): Translation {
+/** Translated subtitle cues on the cut: each line spans the kept words of its phrase (its first or last word can
+ *  be cut, and come back, without the line going); a line none of whose words are kept is not shown. */
+export function translatedCues(words: Word[], tr: Translation, tl: Timeline): { start: number; end: number; from: string; text: string }[] {
   const idx = new Map(words.map((w, i) => [w.id, i]));
-  return { ...tr, lines: tr.lines.flatMap((l) => {
+  return tr.lines.flatMap((l) => {
     const a = idx.get(l.from), b = idx.get(l.to);
-    if (a === undefined || b === undefined) return [l];
+    if (a === undefined || b === undefined) return [];
     const [lo, hi] = a <= b ? [a, b] : [b, a];
-    let f = lo; while (f <= hi && !kept.has(words[f].id)) f++;
-    let t = hi; while (t >= lo && !kept.has(words[t].id)) t--;
-    return f > t ? [] : [{ ...l, from: words[f].id, to: words[t].id }];
-  }) };
+    let f = lo; while (f <= hi && !tl.byId.has(words[f].id)) f++;
+    let t = hi; while (t >= lo && !tl.byId.has(words[t].id)) t--;
+    if (f > t) return [];
+    const x = tl.byId.get(words[f].id)!, y = tl.byId.get(words[t].id)!;
+    return [{ start: Math.min(x.os, y.os), end: Math.max(x.oe, y.oe), from: x.id, text: l.text }];
+  });
 }
