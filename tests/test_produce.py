@@ -115,6 +115,11 @@ def test_tiny_production_end_to_end(tmp_path):
     assert sq["video"]["width"] == 180 and sq["duration"] == pytest.approx(3.5, abs=0.15)
     data = json.loads((tmp_path / "style" / "timings.json").read_text()) if (tmp_path / "style" /
                                                                             "timings.json").exists() else {}
+    rng = produce.preview_range(path, "b", "c.end")
+    assert probe(rng)["duration"] == pytest.approx(2.5, abs=0.15)
+    spec["pieces"][0]["chapter"] = "Renamed"                       # labels never re-render a piece
+    path.write_text(json.dumps(spec))
+    assert produce.produce(path, only="pieces")["timing"]["pieces"] < 2
     # a second run renders nothing new: every piece is cached
     spec["pieces"][1]["dur"] = 1.5
     res2 = produce.produce(path, only="pieces")

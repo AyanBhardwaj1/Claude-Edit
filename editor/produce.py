@@ -330,12 +330,15 @@ def _render_piece(spec: Spec, pc: dict, out: Path) -> None:
         raise EditorError(f"piece {pc['name']}: unknown type {kind!r} (video, framed, still, sequence, freeze, color)")
 
 
+NOT_PICTURE = {"chapter", "note", "notes", "todo", "label"}     # piece fields that don't change its picture
+
+
 def _piece_key(spec: Spec, pc: dict) -> str:
     srcs = [pc.get("src")] + list(pc.get("srcs", []))
     deps = [_mtime(spec.p(s)) for s in srcs if isinstance(s, str)]
     if pc.get("type") == "freeze":
         deps.append(_piece_key(spec, next(x for x in spec.pieces if x["name"] == pc["from"])))
-    clean = {k: v for k, v in pc.items() if not k.startswith("_")}
+    clean = {k: v for k, v in pc.items() if not k.startswith("_") and k not in NOT_PICTURE}
     return _hash(clean, deps, spec.w, spec.h, spec.fps, spec.data.get("frame"))
 
 
@@ -462,7 +465,8 @@ def script_cards(words: list[dict], voice: str, a: float, b: float, lines: list[
 
 # ---------------------------------------------------------------- overlay
 
-def overlay(spec: Spec, jobs: int = 3) -> Path | None:
+def overlay(spec: Spec, jobs: int = 3, span: tuple[float, float] | None = None) -> Path | None:
+    """The overlay track (cached by content). With `span` only that stretch is rendered (output t=0 = span start)."""
     ov = spec.data.get("overlay")
     auto = auto_captions(spec)
     if not ov and not auto and not ramp_shimmers(spec):
@@ -477,14 +481,14 @@ def overlay(spec: Spec, jobs: int = 3) -> Path | None:
     th.setdefault("width", spec.w)
     th.setdefault("height", spec.h)
     th.setdefault("fps", spec.fps)
-    key = _hash(ov)
-    out = spec.work / f"overlay.{key}.mov"
+    key = _hash(ov, span)
+    out = spec.work / (f"overlay.{key}.mov" if not span else f"range_overlay.{key}.mov")
     resolved = spec.work / "overlay.resolved.json"
     resolved.write_text(json.dumps(ov, indent=1, ensure_ascii=False))
     if not out.exists():
         from .overlay import render
-        tmp = spec.work / f"overlay.{key}.part.mov"
-        render(resolved, tmp, jobs=jobs)
+        tmp = out.with_name(out.stem + ".part.mov")
+        render(resolved, tmp, start=span[0] if span else None, end=span[1] if span else None, jobs=jobs)
         tmp.replace(out)
     else:
         log("produce: overlay cached")
@@ -1165,6 +1169,32 @@ def _texts(e: dict) -> list[str]:
 
 # ---------------------------------------------------------------- driver
 
+def preview_range(spec_path: str | Path, a_ref, b_ref, jobs: int = 4) -> Path:
+    """A quick look at one stretch after a note: changed pieces, the overlay for just that stretch, the current mix
+    (re-mixed only if missing), a short composite at 720p. Seconds instead of the full render."""
+    spec = Spec(spec_path)
+    a, b = spec.t(a_ref), spec.t(b_ref)
+    if not 0 <= a < b <= spec.total + 0.01:
+        raise EditorError(f"range {a:.2f}-{b:.2f} s is outside the video (0-{spec.total:.2f} s)")
+    base = pieces(spec, jobs)
+    ov = overlay(spec, max(1, jobs - 1), (a, b))
+    audio = spec.work / "mix.wav"
+    if not audio.exists():
+        audio = mix(spec)
+    out = spec.file.with_name(f"{spec.file.stem}_range_{a:.0f}-{b:.0f}.mp4")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    ins = ["-ss", f"{a}", "-to", f"{b}", "-i", str(base)]
+    if ov:
+        ins += ["-i", str(ov)]
+    ins += ["-ss", f"{a}", "-to", f"{b}", "-i", str(audio)]
+    vf = "[0:v][1:v]overlay=0:0:format=auto,scale=-2:720,format=yuv420p[v]" if ov else "[0:v]scale=-2:720[v]"
+    run(["ffmpeg", "-y", *ins, "-filter_complex", vf, "-map", "[v]", "-map", f"{2 if ov else 1}:a",
+         "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-c:a", "aac", "-b:a", "160k", "-shortest",
+         "-movflags", "+faststart", str(out)])
+    log(f"produce: range {a:.2f}-{b:.2f} s -> {out}")
+    return out
+
+
 def produce(spec_path: str | Path, only: str | None = None, jobs: int = 4, want_preview: bool = False,
             effort: str = "standard") -> dict:
     from . import effort as eff
@@ -1229,6 +1259,8 @@ def main(argv=None) -> int:
     ap.add_argument("-j", "--jobs", type=int, default=4)
     ap.add_argument("--preview", action="store_true", help="also write a 720p preview")
     ap.add_argument("--effort", default="standard", help="for the learned timings (rush, standard, polish)")
+    ap.add_argument("--range", nargs=2, metavar=("FROM", "TO"),
+                    help="quick 720p look at one stretch after a note (times or references like d7c d7c.end)")
     ap.add_argument("--note", help="save this render as the next version (out/versions/), with the user's note")
     ap.add_argument("--versions", action="store_true", help="list the saved versions")
     if argv and argv[0] == "init":
@@ -1262,6 +1294,9 @@ def main(argv=None) -> int:
         vlog = spec.file.parent / "versions" / "versions.json"
         for v in json.loads(vlog.read_text()) if vlog.exists() else []:
             print(f"v{v['n']}  {v['at']}  {v['duration']} s  {v['note']}")
+        return 0
+    if a.range:
+        print(preview_range(a.spec, *[float(x) if re.fullmatch(r"-?[\d.]+", x) else x for x in a.range], jobs=a.jobs))
         return 0
     res = produce(a.spec, a.only, a.jobs, a.preview, a.effort)
     if a.note and res.get("file"):
