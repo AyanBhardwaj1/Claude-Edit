@@ -27,7 +27,7 @@ honest, and get a watchable draft to the user early. Read first:
   honest substitute unless it changes the story.
 
 ## 2. The timeline table
-Start from a draft: `python3 -m editor produce init projects/<name>/raw -o projects/<name>/produce.json`
+Start from a draft: `python3 -m editor produce init projects/<name>/raw -o projects/<name>/produce.json [--shots <captures>/shots.json]`
 (clips trimmed to their speech, voice-overs over placeholders, captions from word times, a composed bed, an end
 card, and a `todo` list). Then reorder and refine it into the story; `--plan` prints the table below.
 Brief times are targets. From the real word times build a table: piece, source, in/out, speed, output start/end.

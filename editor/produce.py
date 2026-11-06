@@ -1173,7 +1173,7 @@ def _measure_lufs(path: Path, a: float, b: float) -> float | None:
 
 
 def init_spec(folder: str | Path, out: str | Path, inventory_dir: str | Path | None = None, transcribe: bool = True,
-              width: int = 1920, height: int = 1080, fps: int = 30) -> dict:
+              width: int = 1920, height: int = 1080, fps: int = 30, shots: str | Path | None = None) -> dict:
     """A starting spec from a footage folder: each clip trimmed to its speech (a breath either side), voice-over files
     over a placeholder picture, pictures as framed shots, captions from the word times, an original music bed, and
     a freeze-frame end card. Every placeholder is listed under "todo"; it's a draft to edit, not the edit."""
@@ -1210,6 +1210,17 @@ def init_spec(folder: str | Path, out: str | Path, inventory_dir: str | Path | N
             pieces.append({"name": name, "type": "framed", "src": src, "dur": 4.0})
         if words and voices and voices[-1]["src"] == src:
             caps[voices[-1]["name"]] = rel(words_path)
+    if shots:                                         # app captures (editor capture shots): framed, aimed at their focus
+        shots = Path(shots).resolve()
+        for sh in json.loads(shots.read_text()).get("shots", []):
+            if not sh.get("file"):
+                continue
+            name = "shot_" + re.sub(r"[^A-Za-z0-9_]+", "_", sh["name"]).strip("_")
+            pc = {"name": name, "type": "framed", "src": rel(shots.parent / sh["file"]), "dur": 4.0}
+            if sh.get("focus"):
+                pc["focus_from"] = f"{rel(shots)}#{sh['name']}"
+            pieces.append(pc)
+            todo.append(f"piece {name}: place it where the voice talks about it (and trim its dur)")
     if not pieces:
         raise EditorError(f"nothing usable in {folder}")
     for v in voices:                                  # level every voice to the same loudness (pocket mics are quiet)
@@ -1555,9 +1566,10 @@ def main(argv=None) -> int:
         ip.add_argument("--inventory", help="an existing inventory folder (inventory.json + <clip>.words.json)")
         ip.add_argument("--no-transcribe", action="store_true")
         ip.add_argument("--size", default="1920x1080")
+        ip.add_argument("--shots", help="a capture shots.json: each screen becomes a framed piece aimed at its focus")
         ia = ip.parse_args(argv[1:])
         w, h = (int(x) for x in ia.size.lower().split("x"))
-        init_spec(ia.folder, ia.out, ia.inventory, not ia.no_transcribe, w, h)
+        init_spec(ia.folder, ia.out, ia.inventory, not ia.no_transcribe, w, h, ia.shots)
         print(Spec(ia.out).table())
         return 0
     a = ap.parse_args(argv)
