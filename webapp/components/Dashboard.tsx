@@ -26,7 +26,7 @@ export function Dashboard({ user, settings, theme, onNew, onOpen, onGo, onSample
   const [welcome, setWelcome] = useState(false);
   useEffect(() => { try { setWelcome(!localStorage.getItem(`cutmind.welcomed.${user.id}`)); } catch { /* storage blocked */ } }, [user.id]);
   const dismiss = () => { setWelcome(false); try { localStorage.setItem(`cutmind.welcomed.${user.id}`, "1"); } catch { /* storage blocked */ } };
-  const NEWS = `cutmind.news.2026-11d.${user.id}`;      // a new key: the panel shows again for what's new
+  const NEWS = `cutmind.news.2026-11e.${user.id}`;      // a new key: the panel shows again for what's new
   const [news, setNews] = useState(false);
   useEffect(() => { try { setNews(!localStorage.getItem(NEWS)); } catch { /* storage blocked */ } }, [NEWS]);
   const hideNews = () => { setNews(false); try { localStorage.setItem(NEWS, "1"); } catch { /* storage blocked */ } };
@@ -168,7 +168,8 @@ export function Dashboard({ user, settings, theme, onNew, onOpen, onGo, onSample
                 <li><span className="what grow"><b>Bleep</b> strong language, <b>show the logos</b> of apps you name, play the talk at{" "}
                   <b>1.1-1.3×</b> with the pitch kept, and <b>test other hooks</b> as trial reels.</span></li>
                 <li><span className="what grow"><b>Pick a take</b>: said a line twice? Play the other take in its place, with its title and
-                  pictures. And <b>words you say out of habit</b> (&ldquo;basically&rdquo;, &ldquo;you know&rdquo;) cut in one click.</span></li>
+                  pictures. <b>Words you say out of habit</b> (&ldquo;basically&rdquo;, &ldquo;you know&rdquo;) cut in one click, <b>Find</b> any word,
+                  and <b>Fit to a length</b>: under 30, 45, 60 or 90 seconds, keeping your hook and ending.</span></li>
                 <li><span className="what grow"><b>YouTube chapters</b> for long wide videos: in the description and, if you like, on screen.</span></li>
                 <li><span className="what grow"><b>Make a copy</b> of a video to try something different without touching it.</span>
                   <button className="btn sm" onClick={() => onGo("videos")}>My videos</button></li>

@@ -152,8 +152,9 @@ vertical reel with a cover and a post caption, then change it by typing notes. E
     cuts them all or brings back the cut ones, keeping the cut's order (`findWords`, `restoreWords`).
 42. **Fit to a length**: Edit it myself → Cut offers Under 30/45/60/90 s (whichever are shorter than the video). It
     tightens the pauses first, then proposes cutting the lines that grip least: a line said again first, then the cold
-    open's rules (a number, a strong word, "you", a question, a name all count for a line). The hook and the ending
-    always stay, and three lines at least; the lines are listed before anything is cut (`lib/fit.ts`).
+    open's rules (a number, a strong word, "you", a question, a name all count for a line). The hook, the ending and
+    list items ("the first one", "step 2") always stay, and three lines at least; the lines are listed before anything
+    is cut (`lib/fit.ts`; the CLI's `editor fit`).
 
 ## Privacy and keys
 - Videos never leave the browser: they're processed on the user's computer and kept in IndexedDB.
