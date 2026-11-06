@@ -249,3 +249,15 @@ def test_takes_plays_another_take_in_its_place(tmp_path, capsys):
     segs = json.loads((work / "edl.json").read_text())["segments"]
     assert [(s["start"], s["end"]) for s in segs] == [(9.94, 12.8), (0.0, 4.0)]
     assert main(["takes", str(work), "--use", "3:1"]) != 0                            # no line 3: an error, nothing written
+
+
+def test_lessons_add_under_a_heading_given_whole(tmp_path):
+    from editor.lessons import add
+    path = tmp_path / "lessons.md"
+    path.write_text("# Lessons\n\n## 2026-11-01 Demo\n- one\n")
+    add("two", video="2026-11-01 Demo", path=path)
+    add("three", video="## 2026-11-01 Demo", path=path)
+    body = path.read_text()
+    assert body.count("## 2026-11-01 Demo") == 1 and "- one\n- two\n- three" in body
+    add("four", video="Launch", path=path)
+    assert "Launch\n- four" in path.read_text() and "## 2026-11-01 Demo" in path.read_text()
