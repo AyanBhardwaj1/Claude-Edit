@@ -8,6 +8,7 @@ export const SHORTCUTS: [string[], string][] = [
   [["Shift", "← / →"], "Back or forward 5 seconds"],
   [[",", "."], "One frame back or forward"],
   [["Home", "End"], "Jump to the start or the end"],
+  [["[", "]"], "Just before the previous or next cut"],
   [["N"], "Write a note to your editor"],
   [["/"], "Find a word in what you said"],
   [["M"], "Say a note (M again to stop)"],
