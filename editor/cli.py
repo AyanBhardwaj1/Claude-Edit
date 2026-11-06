@@ -516,7 +516,14 @@ def cmd_doctor(_):
         print("optional python scipy: editor compose (pip install scipy)")
     from . import effort as _eff
     learned = _eff.load().get("machines", {}).get(_eff.machine(), {})
-    print(f"ok  effort timings: {len(learned)} stage rate(s) learned on {_eff.machine()} (editor effort show)")
+    import math as _m
+    odd = [k for k, v in learned.items() if not isinstance(v, dict) or not isinstance(v.get("rate"), (int, float))
+           or not _m.isfinite(v["rate"]) or not 0 < v["rate"] < 36000]
+    if odd:
+        print(f"!!  effort timings: {', '.join(odd)} look broken (not a real rate): estimates for those stages are "
+              f"off; delete them from {_eff._path()} and they'll be learned again")
+    else:
+        print(f"ok  effort timings: {len(learned)} stage rate(s) learned on {_eff.machine()} (editor effort show)")
     from .captions import STYLES, resolve_font
     print(f"ok  caption font (bold): {resolve_font(STYLES['bold']['fonts'])}")
     from .fonts import installed
