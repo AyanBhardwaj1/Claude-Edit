@@ -187,6 +187,62 @@ STOPWORDS = {"i", "i'm", "i've", "i'll", "i'd", "the", "a", "and", "so", "but", 
              "august", "september", "october", "november", "december"}
 
 
+_NUMBER = re.compile(r"\d|[$£€%]|\b(two|three|four|five|six|seven|eight|nine|ten|twenty|thirty|fifty|hundred|thousand|"
+                     r"million|billion|half|double|twice|triple)\b", re.I)
+_STRONG = {"never", "always", "only", "biggest", "best", "worst", "mistake", "mistakes", "secret", "stop", "nobody",
+           "everyone", "free", "wrong", "truth", "problem", "hack", "quit", "fired", "broke", "lost", "doubled",
+           "tripled", "nothing"}
+_LEANS = re.compile(r"^(step|tip|part|number|first(ly)?|second(ly)?|third(ly)?|next|then|and|but|so|also|finally|plus|or|"
+                    r"because|which|that|this|it|he|she|they|same|another)\b", re.I)
+
+
+def stronger_opening(words: list[dict]) -> str | None:
+    """A later line that grips more than the one the cut opens with (a number, a strong word, "you", a question,
+    short), as a cold-open suggestion; lines that lean on what came before ("Step two", "Then") never count. The
+    same rule as Cutmind's lib/coldopen.ts."""
+    lines, cur, prev = [], [], None
+    for w in words:
+        t = str(w.get("text", "")).strip()
+        if not t:
+            continue
+        if cur and prev is not None and float(w["start"]) - prev > 0.7:
+            lines.append(cur)
+            cur = []
+        cur.append(w)
+        prev = float(w["end"])
+        if re.search(r"[.!?][\"')]*$", t):
+            lines.append(cur)
+            cur = []
+    if cur:
+        lines.append(cur)
+
+    def score(line: list[dict]) -> tuple[int, list[str]]:
+        text = " ".join(str(w["text"]).strip() for w in line)
+        why, sc = [], 0
+        if _NUMBER.search(text):
+            sc, why = sc + 2, why + ["a number"]
+        strong = next((x for x in re.sub(r"[^a-z' ]", " ", text.lower()).split() if x in _STRONG), None)
+        if strong:
+            sc, why = sc + 2, why + [f'a strong word ("{strong}")']
+        if re.search(r"\byou(r|'re|'ll)?\b", text, re.I):
+            sc, why = sc + 1, why + ['it talks to "you"']
+        if re.search(r"\?[\"')]*$", text):
+            sc, why = sc + 1, why + ["a question"]
+        return sc + (1 if len(line) <= 12 else 0), why
+    if len(lines) < 2:
+        return None
+    opener, _ = score(lines[0])
+    best = None
+    for line in lines[1:]:
+        text = " ".join(str(w["text"]).strip() for w in line)
+        if not 4 <= len(line) <= 16 or _LEANS.match(re.sub(r"^[^A-Za-z]+", "", text)):
+            continue
+        sc, why = score(line)
+        if sc >= 3 and sc > opener and (best is None or sc > best[0]):
+            best = (sc, text, float(line[0]["start"]), why)
+    return f'"{best[1]}" at {best[2]:.1f}s ({", ".join(best[3])}) grips more than the opening: a cold open?' if best else None
+
+
 def punch_cuts(edl: dict, meta: dict) -> list[float]:
     """Output times of the cuts where the auto punch-in alternates the framing (a visible change, like a zoom)."""
     if float(edl.get("auto_punch_in", 1.0)) <= 1.0:
@@ -257,4 +313,4 @@ def pacing(edl: dict, words: list[dict], duration: float, cuts: list[float] | No
             "visuals_under_1_2s": too_short, "named_not_shown": names[:20],
             "broll_moments": None if len(broll) >= want else f"{len(broll)} (hand edits carry about {round(duration / 6)})",
             "first_word_after_0_6s": late, "no_hook_title": None if has_title else "nothing to read in the first second",
-            "opens_with_warm_up": warm, "hook_too_quick_to_read": quick, "loop_seam": loop}
+            "opens_with_warm_up": warm, "stronger_line_for_a_cold_open": stronger_opening(words), "hook_too_quick_to_read": quick, "loop_seam": loop}
