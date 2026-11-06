@@ -109,3 +109,18 @@ test("a call to action at the end is a choice, not a sign-off", async () => {
   const e = edit();
   assert.ok(loopCheck(buildTimeline(say("save this and follow for more tips every single week"), e, [10])).ok);
 });
+
+test("a hook title written for a reel without one is on screen from the first word", async () => {
+  const { withHook } = await import("../lib/hooks");
+  const ws = say("rent is the biggest bill you pay and here is how");
+  const e = edit();
+  const tl = buildTimeline(ws, e, [10]);
+  assert.equal(scrollTest(tl, e).lines.find((l) => l.id === "hook")!.ok, false);
+  const h = withHook(e, "  Stop overpaying rent ", tl);
+  assert.equal(h.broll.length, 1);
+  assert.deepEqual(h.broll[0].anchor, { from: "w0", to: "w3" });
+  assert.equal(h.broll[0].text, "Stop overpaying rent");
+  assert.ok(scrollTest(tl, h).lines.find((l) => l.id === "hook")!.ok);
+  assert.equal(withHook(h, "Another", tl).broll.length, 1, "an existing hook is replaced, not doubled");
+  assert.equal(withHook(e, "No timeline").broll.length, 0);
+});

@@ -19,7 +19,7 @@ export function reelCheck(p: Project, e: Edit, tl: Timeline): { score: number; c
   const hs = hook ? spanOf(tl, hook.anchor) : null;
   add({ id: "hook", weight: 20, ok: !!hs && hs[0] <= 0.5, title: "A hook on screen from the first word",
     detail: hs ? (hs[0] <= 0.5 ? `"${hook!.text}" appears at ${hs[0].toFixed(1)} s.` : `The hook title only appears at ${hs[0].toFixed(1)} s.`) : "There's no hook title.",
-    fix: hs ? undefined : "Use Try 5 hooks, or write a note: “add a hook title”." });
+    fix: hs ? undefined : hook ? "Anchor the hook title on the first words (write a note: “hook title from the first word”)." : "Write one in the Hook title panel beside the video, or press Try 5 hooks there." });
   const spoken = tl.words.filter((w) => w.w.trim());     // a pasted script can leave empty words: skip them
   const first = spoken.slice(0, 3).map((w) => w.w.toLowerCase().replace(/[^a-z']/g, ""));
   const weak = WEAK.includes(first[0] ?? "");          // the same list as the scroll test, so the two agree

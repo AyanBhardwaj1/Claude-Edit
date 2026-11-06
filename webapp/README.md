@@ -58,6 +58,8 @@ vertical reel with a cover and a post caption, then change it by typing notes. E
 14. **Subtitles in 16 languages** and `.srt` files; **AI pictures** from a description (OpenAI), labelled.
 15. **Hook ideas** (five new hook titles in one click) and a **reel check** (a 0-100 score with fixes), including
     "your voice is clearly heard": the song stays at least 12 dB under anyone talking (`lib/mix.ts`).
+    A reel without a hook title gets a field in the Hook title panel to write one: it goes on screen from the first
+    spoken words.
 16. **Brand kit**: name, handle, colours, font, logo, an optional watermark, a brand style and brand animations.
 17. **Make music**: no song? An original, royalty-free music bed composed in the browser (no key, no network): four moods
     (warm, uplifting, tense, lo-fi), tempo, key, as long as the edit, with sections on a bar grid and the final chord placed just
