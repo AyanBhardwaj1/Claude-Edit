@@ -15,14 +15,18 @@ export const ZONES: Record<Platform, Zone[]> = {
 };
 export const PLATFORM_NAMES: Record<Platform, string> = { reels: "Reels", tiktok: "TikTok", shorts: "Shorts" };
 
-/** The subtitles' vertical band on a 9:16 frame (0-1): one line (a few words at a time), as the compositor draws it. */
-export function captionBand(e: Pick<Edit, "captions">): [number, number] {
-  const half = (e.captions.size * 0.82 * 1.15) / 2 / 1920;  // a line is ~1.15 x the drawn size, centred on position
-  return [e.captions.position - half, e.captions.position + half];
+/** The subtitles' vertical band on a 9:16 frame (0-1), as the compositor draws them at their tallest: word captions
+ *  (one line in its box, 1.35 x the size), boxed subtitles (up to 2 lines at 0.56 x the size, padded) or translated
+ *  lines (up to 2 at 0.82 x the size). */
+export function captionBand(e: Pick<Edit, "captions"> & { translation?: Edit["translation"] }): [number, number] {
+  const size = e.captions.size;
+  const half = e.captions.preset === "boxed" ? (3.2 * 0.56 * size) / 2
+    : e.translation?.lines.length ? (2.45 * 0.82 * size) / 2 : 0.7 * size;
+  return [e.captions.position - half / 1920, e.captions.position + half / 1920];
 }
 
 /** Platforms whose bottom block covers a good part (30%+) of the subtitles' band. */
-export function subtitlesCovered(e: Pick<Edit, "captions">): Platform[] {
+export function subtitlesCovered(e: Pick<Edit, "captions"> & { translation?: Edit["translation"] }): Platform[] {
   if (!e.captions.enabled) return [];
   const [a, b] = captionBand(e);
   return (Object.keys(ZONES) as Platform[]).filter((pl) => {
@@ -33,7 +37,7 @@ export function subtitlesCovered(e: Pick<Edit, "captions">): Platform[] {
 
 /** The lowest subtitle position (closest to where they were) that every platform's bottom block leaves clear, below the
  *  top bars; null when they are already clear or too big to fit anywhere. */
-export function clearPosition(e: Pick<Edit, "captions">): number | null {
+export function clearPosition(e: Pick<Edit, "captions"> & { translation?: Edit["translation"] }): number | null {
   if (!subtitlesCovered(e).length) return null;
   const [a, b] = captionBand(e);
   const half = (b - a) / 2;

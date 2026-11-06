@@ -192,6 +192,7 @@ export function boxedCues(words: CapWord[], maxChars = 42, maxLines = 2): Cue[] 
     const next = cues[k + 1];
     if (next && next.start - c.end < 1.2) c.end = next.start - 0.02; else c.end += 0.3;
     c.end = Math.max(c.end, c.start + 0.6);
+    if (next) c.end = Math.min(c.end, Math.max(c.start + 0.05, next.start - 0.02));   // never into the next line
   });
   return cues;
 }

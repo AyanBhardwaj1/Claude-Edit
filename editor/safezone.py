@@ -124,10 +124,14 @@ def check(video: str | Path, work: str | Path | None = None, platform: str = "al
             found += hits(masks, pl)
     else:
         log(f"safezone: no {ass}: captions not measured, the sheet still shows the zones")
-    times = sorted({round((r["from"] + r["to"]) / 2, 2) for r in found})[:8] or [dur * (k + 0.5) / 8 for k in range(8)]
-    made = {pl: str(sheet(video, video.with_name(f"{video.stem}_safezone_{pl}.png"), pl,
-                          list(times) if any(r["platform"] == pl for r in found) else
-                          [dur * (k + 0.5) / 8 for k in range(8)])) for pl in plats} if sheets else {}
+    spread = [dur * (k + 0.5) / 8 for k in range(8)]
+
+    def moments(pl: str) -> list[float]:
+        """This platform's own hits, worst (largest share of the text covered) first; else frames across the video."""
+        mine = sorted((r for r in found if r["platform"] == pl), key=lambda r: -r["share"])
+        return sorted({round((r["from"] + r["to"]) / 2, 2) for r in mine[:8]}) or spread
+    made = {pl: str(sheet(video, video.with_name(f"{video.stem}_safezone_{pl}.png"), pl, moments(pl)))
+            for pl in plats} if sheets else {}
     return {"video": str(video), "measured_captions": ass.exists(), "hits": found, "sheets": made}
 
 

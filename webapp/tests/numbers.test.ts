@@ -33,3 +33,10 @@ test("short caption cues on fast speech never run into the next one", async () =
   for (let k = 0; k + 1 < cues.length; k++) assert.ok(cues[k].end <= cues[k + 1].start, `cue ${k} ends ${cues[k].end} after ${cues[k + 1].start}`);
   assert.ok(cues[3].end >= cues[3].start + 0.3);
 });
+
+test("boxed subtitle cues don't run into the next phrase either", async () => {
+  const { boxedCues } = await import("../lib/text");
+  const cw = [{ id: "a", text: "Yes.", os: 0, oe: 0.2, seg: 0 }, { id: "b", text: "Then", os: 0.3, oe: 0.5, seg: 0 }, { id: "c", text: "this.", os: 0.5, oe: 1.0, seg: 0 }];
+  const cues = boxedCues(cw, 40);
+  assert.ok(cues.length >= 2 && cues[0].end <= cues[1].start);
+});

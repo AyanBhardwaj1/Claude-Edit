@@ -28,7 +28,7 @@ import { RecordScreen } from "./ScreenRecorder";
 import { clock } from "./Tiles";
 import { changeItems, type Change } from "@/lib/changes";
 import { attention, spotsNote, zoomsFor, type Attention } from "@/lib/attention";
-import { LOOP_HEAD, LOOP_TAIL, loopCheck, SCROLL_SECONDS, scrollTest, type ScrollLine } from "@/lib/scrolltest";
+import { cutWarmUp, LOOP_HEAD, LOOP_TAIL, loopCheck, SCROLL_SECONDS, scrollTest, type ScrollLine } from "@/lib/scrolltest";
 import { clearPosition, PLATFORM_NAMES, subtitlesCovered, ZONES, type Platform } from "@/lib/safezones";
 import { Shortcuts } from "./Shortcuts";
 import { VoiceNote } from "./VoiceNote";
@@ -86,10 +86,14 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
     endRun(pl, false);
     if (was === kind) return;                                   // the button again stops it
     pl.pause(); setShownTest(null);
-    run.current = kind === "scroll" ? { kind } : { kind, phase: "tail" }; setRunning(kind);
+    const me = kind === "scroll" ? { kind } as const : { kind, phase: "tail" as "tail" | "head" };
+    run.current = me; setRunning(kind);
     pl.muted = kind === "scroll";
     const from = kind === "scroll" ? 0 : Math.max(0, pl.tl.duration - LOOP_TAIL);
-    await pl.seek(from); setT(from); setPlaying(true); await pl.play(from);
+    await pl.seek(from);
+    if (run.current !== me) return;              // stopped while it was getting ready
+    setT(from); setPlaying(true); await pl.play(from);
+    if (run.current !== me) pl.pause();
   }
   const lastBlob = useRef<Blob | null>(null);
   const [clips, setClips] = useState<Clip[] | null>(null);
@@ -170,7 +174,9 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
     };
     pl.onEnd = () => {
       const r = run.current;
-      if (r?.kind === "loop" && r.phase === "tail") { r.phase = "head"; void pl.play(0); return; }   // as the app replays it
+      if (r?.kind === "loop" && r.phase === "tail") {                 // as the app replays it
+        r.phase = "head"; void pl.play(0).then(() => { if (run.current !== r) pl.pause(); }); return;
+      }
       endRun(pl, true); setPlaying(false);
     };
     player.current = pl;
@@ -265,6 +271,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
   async function send(given?: string) {
     const text = (given ?? note).trim();
     if (!text) return;
+    if (exp && exp.pct < 100) { setToast("Wait for the export to finish: a new version now would stop it"); return; }
     const hasKey = settings.provider === "anthropic" ? !!settings.anthropicKey : !!settings.openaiKey;
     setMsgs((m) => [...m, { who: "you", text }]);
     if (given === undefined) setNote("");
@@ -329,6 +336,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
 
   async function exportAll() {
     if (!version) return;
+    endRun(player.current, false);              // a scroll or loop test still running would stop the recording
     const keep = p.format ?? "9:16";
     const out: { f: Format; url: string; ext: string }[] = [];
     setAll(null); setPlaying(true);
@@ -351,6 +359,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
   async function exportVideo() {
     const pl = player.current;
     if (!pl) return;
+    endRun(pl, false);                          // a scroll or loop test still running would stop the recording
     setExp({ pct: 0 }); setPlaying(true);
     try {
       const { blob, ext } = await pl.record((pct) => setExp((x) => ({ ...x!, pct })));
@@ -388,6 +397,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
   };
   const copy = async (text: string) => { try { await navigator.clipboard.writeText(text); setToast("Caption copied"); } catch { setToast("Couldn't copy: select the text instead"); } };
   const post = version ? postText(p, version.edit) : "";
+  const warm = shownTest === "scroll" && version ? cutWarmUp(p.words, version.edit) : null;
   const e = version?.edit;
   const motionCards = e?.broll.filter((b) => b.treatment === "motion").length ?? 0;
   const pics = e?.broll.filter((b) => b.treatment !== "text-pop" && b.treatment !== "motion").length ?? 0, cards = e ? e.broll.length - pics - motionCards : 0;
@@ -438,7 +448,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
         <div className="preview">
           <div className={`phone ${shape.w >= shape.h ? "flat" : ""} ${cmp ? "comparing" : ""}`}>{cmp && <span className="cmp-badge" role="status">Version {prevN}, before this change</span>}<div className="cv-wrap"><canvas ref={canvas} style={{ aspectRatio: `${shape.w} / ${shape.h}` }}
             aria-label={`Preview of ${p.title}, version ${shown?.n ?? p.current}, ${shape.name.toLowerCase()} ${fmt}`} role="img" />
-            {appUi && shape.h > shape.w && <div className="ui-zones" aria-hidden="true">{ZONES[appUi].map((z) => (
+            {appUi && fmt === "9:16" && <div className="ui-zones" aria-hidden="true">{ZONES[appUi].map((z) => (
               <i key={z.what} style={{ left: `${z.x0 * 100}%`, top: `${z.y0 * 100}%`, width: `${(z.x1 - z.x0) * 100}%`, height: `${(z.y1 - z.y0) * 100}%` }}><span>{z.what}</span></i>))}</div>}
             </div></div>
           <div className="transport">
@@ -452,7 +462,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
             <button className="btn ghost icon sm keys-btn" onClick={() => setKeys(true)} aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)"
               aria-haspopup="dialog"><kbd aria-hidden="true">?</kbd></button>
           </div>
-          {shape.h > shape.w && (
+          {fmt === "9:16" && (
             <div className="ui-pick small">
               <span className="muted" id="ui-pick-l">Show the app&apos;s buttons</span>
               <div className="seg sm" role="group" aria-labelledby="ui-pick-l">
@@ -462,7 +472,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
               {version && appUi && subtitlesCovered(version.edit).includes(appUi) && (
                 <p className="say-bad">{PLATFORM_NAMES[appUi]} covers part of your subtitles.{" "}
                   {clearPosition(version.edit) !== null
-                    ? <button type="button" className="btn sm" onClick={async () => {
+                    ? <button type="button" className="btn sm" disabled={recording} onClick={async () => {
                         const pos = clearPosition(version.edit)!; const before = version.edit;
                         const fixed = { ...before, captions: { ...before.captions, position: pos } };
                         await saveManual(p, fixed, "subtitles raised clear of the app buttons"); setP({ ...p });
@@ -486,7 +496,14 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
                   <ul className="checks" aria-label="Scroll test results">
                     {scroll.lines.filter((l) => !l.ok).concat(scroll.lines.filter((l) => l.ok)).map((l) => (
                       <li key={l.id} className={l.ok ? "ok" : "bad"}><Icon name={l.ok ? "check" : "alert"} />
-                        <span className="grow">{l.text}{!l.ok && l.fix && <span className="small block fix">{l.fix}</span>}</span></li>))}
+                        <span className="grow">{l.text}{!l.ok && l.fix && <span className="small block fix">{l.fix}</span>}
+                          {l.id === "open" && !l.ok && version && warm && (
+                            <button type="button" className="btn sm" disabled={recording} onClick={async () => {
+                              const before = version.edit;
+                              await saveManual(p, warm.edit, `cut the warm-up “${warm.cut}”`); setP({ ...p });
+                              setMsgs((m) => [...m, { who: "ed", v: p.current, text: `Version ${p.current}: it now opens on the point, without “${warm.cut}”.`,
+                                changes: changeItems(p, before, warm.edit) }]);
+                            }}><Icon name="wand" />Cut “{warm.cut}”</button>)}</span></li>))}
                   </ul>
                 </div>)}
               {shownTest === "loop" && (
@@ -615,7 +632,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
                       <span className="num">{clock(sp.from)}–{clock(sp.to)}</span> · {sp.text}</button>
                       <span className="small muted block">{sp.fix}</span>
                       {sp.cause === "still" && version && player.current && (
-                        <button type="button" className="btn sm mt-8" disabled={!!busy || recording} onClick={async () => {
+                        <button type="button" className="btn sm mt-8" disabled={!!busy || recording || cmp} onClick={async () => {
                           const fixed = zoomsFor(player.current!.tl, version.edit, sp);
                           if (!fixed) { setToast("No words there to zoom on"); return; }
                           const before = version.edit;
@@ -624,7 +641,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
                             changes: changeItems(p, before, fixed) }]);
                         }}><Icon name="wand" />Add zooms there</button>)}</li>))}</ul>
                   {(settings.provider === "anthropic" ? settings.anthropicKey : settings.openaiKey) &&
-                    <button type="button" className="btn sm" onClick={() => void send(spotsNote(attn.spots))}><Icon name="wand" />Ask your editor to fix these</button>}
+                    <button type="button" className="btn sm" disabled={recording || cmp} onClick={() => void send(spotsNote(attn.spots))}><Icon name="wand" />Ask your editor to fix these</button>}
                   <p className="small faint">The red marks under the timeline. A guide from what is on screen and said, not a forecast.</p>
                 </div>)}
             </section>
@@ -711,7 +728,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
                 aria-label={`Add the time ${clock(t)} to your note`}
                 onClick={() => { setNote((n) => `At ${clock(t)}, ${n.replace(/^at \d+:\d\d,\s*/i, "")}`);
                   document.getElementById("note")?.focus(); }}><span className="num">At {clock(t)}</span></button>}
-              <button className="btn primary" onClick={() => void send()} disabled={!note.trim()}><Icon name="send" />{busy ? "Queue" : "Send"}</button>
+              <button className="btn primary" onClick={() => void send()} disabled={!note.trim() || recording}><Icon name="send" />{busy ? "Queue" : "Send"}</button>
             </div>
             <p className="hint note-hint" id="note-hint">For example: &ldquo;music too loud at the start&rdquo;, &ldquo;at 0:12 zoom in&rdquo; (the At button adds where the player is), &ldquo;show the Spotify logo when I say
               Spotify&rdquo;, &ldquo;cut the part about my cat&rdquo;. Enter sends, Shift+Enter starts a new line.</p>
