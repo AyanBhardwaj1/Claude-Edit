@@ -5,7 +5,7 @@
 import type { Analysis, Range, Word } from "./types";
 import { bare } from "./text";
 
-const FILLERS = new Set(["um", "uh", "erm", "er", "hmm", "mm", "uhh", "umm", "ah"]);
+export const FILLERS = new Set(["um", "uh", "erm", "er", "hmm", "mm", "uhh", "umm", "ah"]);
 const LEAD_SKIP = new Set(["so", "and", "but", "okay", "ok", "alright", "right", "well", "like", "now"]);
 const DANGLING = new Set(["and", "the", "to", "a", "of", "but", "so", "because", "with", "or", "that", "i"]);
 const META = [/\blet me (do|try|say) (that|this|it) again\b/, /\bone more time\b/, /\bfrom the top\b/, /\bcut (this|that) (out|bit)\b/,

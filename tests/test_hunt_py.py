@@ -216,3 +216,36 @@ def test_coldopen_moves_the_kept_line_first(tmp_path):
     assert [(s["start"], s["end"]) for s in segs[:2]] == [(3.95, 5.4), (6.0, 8.05)]
     assert segs[0]["text"].startswith("I lost 4000") and segs[2] == {"src": 0, "start": 0.0, "end": 3.95}
     assert sum(s["end"] - s["start"] for s in segs) == pytest.approx(5.4 + 4.0)
+
+
+def test_takes_plays_another_take_in_its_place(tmp_path, capsys):
+    import json
+    from editor.cli import main
+    from editor.takes import take_lines
+    work = tmp_path / "w"
+    work.mkdir()
+
+    def said(text, t0):
+        return [{"src": 0, "start": round(t0 + i * 0.4, 3), "end": round(t0 + i * 0.4 + 0.3, 3), "text": t}
+                for i, t in enumerate(text.split())]
+    tr = (said("So the best way to edit a reel is this.", 0.0) + said("The best way to edit a reel is this one.", 5.0)
+          + said("You add the captions after the cut.", 10.0))
+    (work / "transcript.json").write_text(json.dumps({"words": tr}))
+    plan_segs = [{"src": 0, "start": 4.94, "end": 9.0}, {"src": 0, "start": 9.94, "end": 12.8}]
+    (work / "edl.json").write_text(json.dumps({"segments": plan_segs}))
+    lines = take_lines(tr, plan_segs)
+    assert len(lines) == 1 and lines[0]["playing"] == 1 and len(lines[0]["takes"]) == 2
+    assert main(["takes", str(work)]) == 0
+    assert "* take 2" in capsys.readouterr().out
+    assert main(["takes", str(work), "--use", "1:1", "--apply"]) == 0
+    segs = json.loads((work / "edl.json").read_text())["segments"]
+    assert [(s["start"], s["end"]) for s in segs] == [(0.0, 4.0), (9.94, 12.8)]       # take 1 plays where take 2 did
+    assert main(["takes", str(work), "--use", "1:2", "--apply"]) == 0
+    segs = json.loads((work / "edl.json").read_text())["segments"]
+    assert [(s["start"], s["end"]) for s in segs] == [(4.94, 9.0), (9.94, 12.8)]
+    # a re-ordered cut keeps its order: the last line opens, the line's take follows it
+    (work / "edl.json").write_text(json.dumps({"segments": [plan_segs[1], plan_segs[0]]}))
+    assert main(["takes", str(work), "--use", "1:1", "--apply"]) == 0
+    segs = json.loads((work / "edl.json").read_text())["segments"]
+    assert [(s["start"], s["end"]) for s in segs] == [(9.94, 12.8), (0.0, 4.0)]
+    assert main(["takes", str(work), "--use", "3:1"]) != 0                            # no line 3: an error, nothing written

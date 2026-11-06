@@ -10,6 +10,7 @@ import { buildTimeline } from "@/lib/timeline";
 import { addToLibrary } from "@/lib/workflow";
 import { LANGUAGES, translateSubtitles } from "@/lib/translate";
 import { formatTime, playedLength, waitSavings, WAIT_SPEED } from "@/lib/screenrec";
+import { takeLines, withTake } from "@/lib/takes";
 import type { Asset, Broll, BrollIn, CaptionAnim, CaptionPreset, Edit, Look, Motion, Project, Range, Settings, Transition } from "@/lib/types";
 
 const ANIM_NAME: Record<CaptionAnim, string> = { pop: "Pop", karaoke: "Karaoke", bounce: "Bounce", words: "Word by word", typewriter: "Typewriter",
@@ -54,6 +55,7 @@ export function Drawer({ project: p, edit, onApply, settings, onMakeMusic, onWor
     for (const r of e.keep) { const a = idx.get(r.from)!, b = idx.get(r.to)!; for (let i = a; i <= b; i++) s.add(p.words[i].id); }
     return s;
   }, [e.keep, idx, p.words]);
+  const lines = useMemo(() => takeLines(p, e.keep), [p, e.keep]);
   const changed = JSON.stringify(e) !== JSON.stringify(edit);
   const cap = (k: Partial<Edit["captions"]>) => setE({ ...e, captions: { ...e.captions, ...k } });
   const mo = motionOf(e);
@@ -106,6 +108,26 @@ export function Drawer({ project: p, edit, onApply, settings, onMakeMusic, onWor
           <div className="field"><span className="label">Talking speed</span>
             {opt(e.speed ?? 1, [[1, "As filmed"], [1.1, "1.1×"], [1.2, "1.2×"], [1.3, "1.3×"]], (v) => setE({ ...e, speed: v === 1 ? undefined : v }), "Talking speed")}
             <span className="hint">Faster talking holds attention; your voice keeps its pitch. Pictures and music play as they are.</span></div>
+          {lines.length > 0 && (
+            <div className="field"><span className="label" id="takes-h">Lines you said more than once</span>
+              <span className="hint">I picked the last complete take of each. Pick another one to play it in its place.</span>
+              <ul className="takes" aria-labelledby="takes-h">
+                {lines.map((L) => (
+                  <li key={L.takes[0].range.from}>
+                    <div className="seg" role="group" aria-label={`Takes of “${L.takes[L.playing < 0 ? 0 : L.playing].text.slice(0, 40)}”`}>
+                      {L.takes.map((t, k) => (
+                        <button key={t.range.from} aria-pressed={k === L.playing} title={t.text}
+                          onClick={() => setE({ ...e, keep: withTake(p, e.keep, L, k) })}>
+                          Take {k + 1}{p.sources.length > 1 ? ` (${p.sources[t.src]?.name ?? ""} ` : " ("}{formatTime(t.s)})
+                        </button>
+                      ))}
+                    </div>
+                    <p className="small muted take-text">{L.playing < 0 ? "None of these plays now. " : ""}“{L.takes[L.playing < 0 ? L.takes.length - 1 : L.playing].text}”</p>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           <div className="words" aria-label="Transcript">
             {p.words.map((w, i) => !w.w.trim() ? null : (
               <span key={w.id}>

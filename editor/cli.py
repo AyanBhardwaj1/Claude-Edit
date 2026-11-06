@@ -7,7 +7,7 @@ import shutil
 import sys
 from pathlib import Path
 
-from .util import EditorError, load_json, log, save_json
+from .util import EditorError, fmt_ts, load_json, log, save_json
 
 VIDEO_EXT = {".mp4", ".mov", ".m4v", ".mkv", ".webm", ".avi", ".mts"}
 STAGES = ["transcribe", "plan", "cut", "audio", "track", "captions", "render", "check"]
@@ -252,6 +252,11 @@ def main(argv=None):
     p.add_argument("work_dir")
     p.add_argument("--words", help="the line's words instead, e.g. w40-w48 (editor words <work>)")
     p.add_argument("--apply", action="store_true", help="write the new segment order to edl.json; re-run from cut")
+
+    p = sub.add_parser("takes", help="lines said more than once: which take plays, and play another one instead")
+    p.add_argument("work_dir")
+    p.add_argument("--use", metavar="LINE:TAKE", help="play this take of this line (numbers as listed, e.g. 2:1)")
+    p.add_argument("--apply", action="store_true", help="write the segments to edl.json; re-run from cut")
 
     p = sub.add_parser("triage", help="classify raw/ clips: a-roll (founder-to-camera) vs reusable / one-off b-roll")
     p.add_argument("project")
@@ -983,6 +988,44 @@ def cmd_coldopen(args):
         edl["segments"] = [*front, *rest]
         save_json(edl_path, edl)
         log(f"coldopen: {edl_path} now opens on that line: re-run from cut; check the hook title still opens it")
+    return 0
+
+
+def cmd_takes(args):
+    """Pick a take: list each line said more than once (the plan keeps one take), or play another take in its place."""
+    from .takes import take_lines, with_take
+    work = Path(args.work_dir)
+    edl_path = work / "edl.json"
+    edl = load_json(edl_path)
+    words = load_json(work / "transcript.json")["words"]
+    lines = take_lines(words, edl.get("segments", []))
+    if not lines:
+        print("no line was said more than once")
+        return 0
+    if not args.use:
+        for n, L in enumerate(lines, 1):
+            print(f"line {n}:")
+            for k, t in enumerate(L["takes"], 1):
+                mark = "*" if k - 1 == L["playing"] else " "
+                print(f"  {mark} take {k}  src {t['src']} {fmt_ts(t['start'])}  {t['text'][:70]!r}")
+        print("* plays now. Play another: editor takes <work> --use LINE:TAKE --apply")
+        return 0
+    try:
+        n, k = (int(x) for x in args.use.split(":"))
+        line, take = lines[n - 1], lines[n - 1]["takes"][k - 1]
+        if n < 1 or k < 1:
+            raise IndexError
+    except (ValueError, IndexError):
+        raise EditorError(f"--use {args.use}: give LINE:TAKE as listed by `editor takes {work}`")
+    if k - 1 == line["playing"]:
+        print(f"take {k} of line {n} already plays")
+        return 0
+    segs = with_take(edl.get("segments", []), line, k - 1)
+    print(f"line {n} now plays take {k}: {take['text']!r}")
+    if args.apply:
+        edl["segments"] = segs
+        save_json(edl_path, edl)
+        log(f"takes: {edl_path} updated: re-run from cut; check anything placed by seconds")
     return 0
 
 
