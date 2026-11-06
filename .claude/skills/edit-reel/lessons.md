@@ -4,10 +4,8 @@ Read this before planning any non-trivial edit. After every video, append 1-5 le
 broke, what the user loved or rejected), newest first, one line each, under a dated heading. Preferences go to
 style memory (`editor style note`), timings to `editor effort record`; this file is for craft and process.
 
-## 2026-11-06 2026-11-06 Notes
-- [process] Insert CSS after a whole rule found by its text, never at a line number: a sed line insert landed inside a two-line rule and silently dropped a button style.
-
 ## 2026-11-06 Notes
+- [process] Insert CSS after a whole rule found by its text, never at a line number: a sed line insert landed inside a two-line rule and silently dropped a button style.
 - [process] An editorial heuristic (strongest line, hook pick) has to be tried on a real transcript before it ships: the first cold-open pick was "Step two, ...", which makes no sense said first.
 - [process] Anything awaiting playback to end (an export) must also end on pause, dispose or a version change, or it hangs: give it a stop path and test 'start a test, then export'.
 - [process] Every new playback/export path needs the plain case re-run too (play, then Export): a guard added for a scroll test made Export-while-playing fail, and only an independent review caught it.
