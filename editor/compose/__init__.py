@@ -205,6 +205,11 @@ def run(args: argparse.Namespace) -> int:
     from ..util import EditorError
     if not args.out and not getattr(args, "plan", False):
         raise EditorError("give -o <file.wav>")
+    import math
+    for name, lo, hi in (("length", 0.1, 3600), ("bpm", 30, 300)):
+        v = getattr(args, name, None)
+        if v is not None and (not math.isfinite(v) or not lo <= v <= hi):
+            raise EditorError(f"--{name} must be between {lo:g} and {hi:g} (got {v:g})")
     if c == "bed":
         if args.length is None:
             raise EditorError("bed needs --length (seconds)")

@@ -745,7 +745,7 @@ def cmd_version(args):
     from . import versions
     if args.changes is not None:
         print(versions.changes(args.project, args.changes or None))
-    elif args.restore:
+    elif args.restore is not None:
         versions.restore(args.project, args.restore)
     elif args.list:
         for v in versions.versions(args.project):

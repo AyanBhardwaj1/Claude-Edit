@@ -145,8 +145,16 @@ def _clock(x) -> float:
     t = str(x).strip().lower()
     m = re.fullmatch(r"(\d+):(\d{1,2}(?:\.\d+)?)", t) or re.fullmatch(r"(?:(\d+)\s*m(?:in)?\s*)?(?:(\d+(?:\.\d+)?)\s*s(?:ec)?)?", t)
     if m and any(m.groups()):
+        if ":" in t and float(m[2]) >= 60:
+            raise EditorError(f"not a time: {x!r} (seconds go up to 59 in m:ss)")
         return int(m[1] or 0) * 60 + float(m[2] or 0)
-    return float(t)
+    try:
+        v = float(t)
+    except ValueError:
+        raise EditorError(f"not a time: {x!r} (try 0:12, 1m23s or 83)") from None
+    if v < 0:
+        raise EditorError(f"not a time: {x!r} (times start at 0)")
+    return v
 
 
 def moment(work: str | Path, at, around: float = 1.5) -> str:

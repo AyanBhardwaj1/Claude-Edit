@@ -105,8 +105,9 @@ def save(data: dict) -> None:
 
 def record(stage: str, effort: str, seconds: float, media_seconds: float, data: dict | None = None) -> float:
     """Fold one measurement in; returns the new seconds-per-media-minute rate."""
-    if seconds < 0 or media_seconds <= 0:
-        raise EditorError("record needs a positive media length and non-negative seconds")
+    import math
+    if not (math.isfinite(seconds) and math.isfinite(media_seconds)) or seconds < 0 or media_seconds <= 0:
+        raise EditorError("record needs a positive media length and non-negative seconds (real numbers)")
     own = data is None
     data = data or load()
     effort = normalise(effort) or "standard"
@@ -151,6 +152,8 @@ def estimate(effort: str, media_seconds: float, stages: list[str] | None = None,
 def choose(budget_minutes: float, media_seconds: float, stages: list[str] | None = None,
            data: dict | None = None) -> tuple[str, list[dict], bool]:
     """The best effort whose estimate fits FIT x budget. Returns (effort, all estimates, fits)."""
+    if not budget_minutes or budget_minutes <= 0:
+        raise EditorError("a time budget is a positive number of minutes")
     data = data or load()
     ests = [estimate(e, media_seconds, stages, data) for e in EFFORTS]
     limit = budget_minutes * 60.0 * FIT
