@@ -200,7 +200,8 @@ export default function App() {
               onClick={(e) => { e.preventDefault(); go(s); }}><Icon name={icon} />{label}</a>
           ))}
       </nav>
-      <Command go={(h) => { location.hash = h; if (!h) void route(""); }} onTheme={pickTheme} onSample={sample} />
+      <Command go={(h) => { location.hash = h; if (!h) void route(""); }} onTheme={pickTheme} onSample={sample}
+        onEffort={(effort) => { const s = { ...settings, effort }; saveSettings(s); setSettings(s); }} />
       {loading && <div className="toast" role="status"><span className="spin" aria-hidden="true" />{loading}</div>}
     </div>
   );
