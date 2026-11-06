@@ -63,7 +63,8 @@ vertical reel with a cover and a post caption, then change it by typing notes. E
     backdrop with a slow push and a punch-in on what's being said; on reels they take a band above the speaker, never over
     the face (`lib/framed.ts`). **Boxed subtitles**: a whole phrase at a time in a soft dark box.
 20. **Speed vs quality**: Fast, Balanced or Best quality for each video. Fast skips face finding and uses fewer pictures;
-    Best adds a second pass where the AI reviews its own edit like a senior editor. Time estimates are learned from the
+    Best adds a second pass where the AI reviews its own edit like a senior editor, starting from what the reel check
+    measured (missing hook, long stretches without a change, music too close to the voice). Time estimates are learned from the
     videos made on each device (`lib/effort.ts`, `lib/timings.ts`).
 
 ## Privacy and keys

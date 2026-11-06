@@ -227,3 +227,16 @@ test("reel check: the song must stay well under the voice while people talk", as
   p.sources[0].rms = 0.01;
   assert.ok(reelCheck(p, e, tl).checks.some((c) => c.id === "voice" && !c.ok));
 });
+
+test("best quality's review pass is told what the reel check measured", async () => {
+  const { measuredProblems } = await import("../lib/ai");
+  const ws: Word[] = "so today I want to show you my editing setup it saves me hours every week".split(" ")
+    .map((w, i) => ({ id: `w${i}`, src: 0, s: 1 + i * 0.4, e: 1.3 + i * 0.4, w }));
+  const p = project(ws);
+  const e = defaultEdit(p);
+  e.captions.enabled = false;
+  const text = measuredProblems(p, e);
+  assert.match(text, /A hook on screen from the first word/);
+  assert.match(text, /Subtitles on/);
+  assert.match(text, /Starts mid-thought.*“so”/);
+});

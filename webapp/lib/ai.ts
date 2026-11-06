@@ -5,7 +5,9 @@ import { motionOf } from "./edit";
 import type { AiEdit } from "./edit";
 import { DEFAULT_MAX_TOKENS, type AiChoice } from "./effort";
 import { APPLY_NOTE, EDIT_SCHEMA, FIRST_EDIT, REVIEW_EDIT, SCRIPT_SCHEMA, SYSTEM, WRITE_SCRIPT } from "./prompts";
+import { reelCheck } from "./score";
 import { playedLength } from "./screenrec";
+import { buildTimeline } from "./timeline";
 import type { Asset, Edit, Project, Settings, StyleRule } from "./types";
 
 export class AiError extends Error {
@@ -132,8 +134,17 @@ export async function applyNote(s: Settings, p: Project, current: Edit, note: st
 }
 
 /** Best quality: a second look at the first edit by a strict senior editor; returns the whole (improved) edit. */
+/** What the reel check measured on an edit, as lines a reviewer can act on (failing and borderline checks only). */
+export function measuredProblems(p: Project, e: Edit): string {
+  const tl = buildTimeline(p.words, e, p.sources.map((x) => x.duration));
+  const bad = reelCheck(p, e, tl).checks.filter((c) => !c.ok);
+  return bad.length ? bad.map((c) => `- ${c.title}${c.warn ? " (borderline)" : ""}: ${c.detail}${c.fix ? ` Fix: ${c.fix}` : ""}`).join("\n")
+    : "(the automatic check found nothing: look for what it can't measure)";
+}
+
 export async function reviewEdit(s: Settings, p: Project, current: Edit, rules: StyleRule[], choice?: AiChoice): Promise<AiEdit> {
-  const user = `${REVIEW_EDIT}\n\nVideo title: ${p.title}\n\nCURRENT EDIT:\n${JSON.stringify(toAiShape(current))}\n\n${transcriptText(p)}`;
+  const user = `${REVIEW_EDIT}\n\nMEASURED BY THE REEL CHECK (fix these first, in the edit, not by explaining):\n${measuredProblems(p, current)}` +
+    `\n\nVideo title: ${p.title}\n\nCURRENT EDIT:\n${JSON.stringify(toAiShape(current))}\n\n${transcriptText(p)}`;
   return (await callJson(s, SYSTEM.replace("{{rules}}", rulesText(rules)), user, EDIT_SCHEMA as unknown as Json, "submit_edit", choice)) as AiEdit;
 }
 
