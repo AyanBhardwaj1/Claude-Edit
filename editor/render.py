@@ -296,6 +296,8 @@ def _encoder_cmd(out, w, h, fps_str, cut_dir, audio, captions, grade, lut, sharp
         path = str(b["path"])
         start, dur = float(b["start"]), float(b["dur"])
         is_image = Path(path).suffix.lower() in IMAGE_EXT
+        if is_image and b.get("mode", "contain") == "card":
+            path = _on_white(path, cut_dir / "cards" / f"flat{n}.png")
         if is_image:
             cmd += ["-loop", "1", "-t", f"{dur:.3f}", "-i", path]
         else:
@@ -457,6 +459,24 @@ def _rounded_mask(cv2, w, h, r):
     for cx_, cy_ in ((r, r), (w - r - 1, r), (r, h - r - 1), (w - r - 1, h - r - 1)):
         cv2.circle(mask, (cx_, cy_), r, 255, -1, lineType=cv2.LINE_AA)
     return mask
+
+
+def _on_white(path: str, out: Path) -> str:
+    """A see-through picture (a logo) on a white, padded card: the card's mask drops transparency, which turned a
+    black logo into a black box. Opaque pictures are used as they are."""
+    from PIL import Image
+    im = Image.open(path)
+    if im.mode not in ("RGBA", "LA", "P") or (im.mode == "P" and "transparency" not in im.info):
+        return path
+    im = im.convert("RGBA")
+    if im.getchannel("A").getextrema()[0] >= 250:
+        return path
+    pad = int(0.16 * max(im.size))
+    bg = Image.new("RGBA", (im.width + 2 * pad, im.height + 2 * pad), (255, 255, 255, 255))
+    bg.alpha_composite(im, (pad, pad))
+    out.parent.mkdir(parents=True, exist_ok=True)
+    bg.convert("RGB").save(out)
+    return str(out)
 
 
 def _card_assets(path, w, h, b, out_dir, n):

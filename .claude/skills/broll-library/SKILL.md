@@ -36,6 +36,8 @@ Reference library clips in the EDL by id: `{"path": "<id>", "start": 6.1, "dur":
 python3 -m editor images search "spotify" --logo                 # Simple Icons, CC0 brand logos
 python3 -m editor images search "golden gate bridge photo"       # Openverse + Wikimedia Commons
 python3 -m editor images fetch 2 --project projects/<n>          # -> broll/web/<name>.png, credit in credits.json
+python3 -m editor names projects/<n>/work                         # apps/brands said but never shown, with word anchors
+python3 -m editor names projects/<n>/work --logos [--apply]       # fetch each logo; --apply adds card entries to the EDL
 ```
 Only CC0, public domain, CC BY and CC BY-SA come back (no NC/ND/fair use). **Look at every picture before
 placing it**: a matching title can carry another building, dish or a diagram. CC BY credits are added to the post
