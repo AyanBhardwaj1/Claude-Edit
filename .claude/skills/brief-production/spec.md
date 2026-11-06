@@ -35,7 +35,7 @@ Every piece: `name` (unique), `type`, optional `chapter` (YouTube chapter title)
 | type | fields |
 |---|---|
 | `video` | `src`, `in`, `out`, `speed`, `fit` cover/contain, `crop_y` (0-1), `grade` (none, neutral, hot, cool, warm, punchy, bw, or a raw ffmpeg chain; `bloom` false to drop hot's glow), `z0`/`z1` Ken Burns, `fx`/`fy` focus, `push` [at, dur, zoom, fx, fy] (accelerating push-in, a transition), `fade_in`/`fade_out` (s or [s, "white"]), `ramp_waits` {`speed` 6, `keep` 0.3, `min` 1.0, `label` "thinking…"} |
-| `framed` | `src` (image or video), `dur`, `in`, `z0`/`z1`, `fx`/`fy`, `punch` [t, zoom, fx, fy], `flash` (s of white shutter flash), `scale`/`radius`/`backdrop` overrides |
+| `framed` | `src` (image or video), `dur`, `in`, `z0`/`z1`, `fx`/`fy`, `punch` [t, zoom, fx, fy], `flash` (s of white shutter flash), `scale`/`radius`/`backdrop` overrides, `focus_from` ("shots/shots.json#route": aim the push and a punch-in at the element `capture shots` recorded with the shot's `"focus": "text=Quickest"`, centred as far as the edges allow) |
 | `still` | like framed but full frame |
 | `sequence` | `srcs` (stills blended in order: a time-lapse), `dur`, `framed` (true), `z1` |
 | `freeze` | `from` (a piece), `dur`, `blur`, `darken` (0-1), `blur_at`, `fade_out` |

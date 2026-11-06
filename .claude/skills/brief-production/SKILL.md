@@ -36,7 +36,8 @@ Every overlay, caption, SFX and music cue derives its time from this table (`out
 one number. Captions: what was actually said, one card per line, ≤ 2 lines × 42 chars.
 
 ## 3. Parallel work (one message, hard deadlines in every brief, "partial beats late")
-- **App demos**: capture per the brief's steps. Live site blocked or needs keys → run the app from its repo
+- **App demos**: capture per the brief's steps. Give each shot a `"focus": "text=<the button or number being talked about>"` and the
+  framed piece can `"focus_from": "<out>/shots.json#<shot>"`: the punch-in lands on it, centred. Live site blocked or needs keys → run the app from its repo
   (`add_repo` with the user's yes). Turn the brief's steps into a shot list and run it once
   (broll-library skill has the format); it works for software-rendered WebGL with no GPU:
   `python3 -m editor capture shots demo_shots.json -o projects/<n>/broll/app [--record]`, e.g.

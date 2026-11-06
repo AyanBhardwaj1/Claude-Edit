@@ -74,6 +74,9 @@ class Spec:
         names = [pc.get("name") for pc in self.pieces]
         if None in names or len(set(names)) != len(names):
             raise EditorError("every piece needs a unique name")
+        for pc in self.pieces:
+            if pc.get("focus_from"):
+                self._focus_from(pc)
         self.starts, t = {}, 0.0
         for pc in self.pieces:
             pc["_dur"] = self.piece_dur(pc)
@@ -81,6 +84,31 @@ class Spec:
             t += pc["_dur"]
         self.total = t
         self.voices = {v["name"]: v for v in self.data.get("audio", {}).get("voices", []) if v.get("name")}
+
+    def _focus_from(self, pc: dict) -> None:
+        """"focus_from": "shots/shots.json#route": aim the Ken Burns and a punch-in at the element `capture shots`
+        recorded for that shot (its "focus"), unless the piece sets fx/fy/punch itself."""
+        ref = str(pc["focus_from"])
+        path, _, name = ref.partition("#")
+        try:
+            data = json.loads(self.p(path).read_text())
+        except (OSError, ValueError) as e:
+            raise EditorError(f"piece {pc['name']}: focus_from {ref}: {e}") from e
+        shot = next((x for x in data.get("shots", []) if x.get("name") == (name or pc["name"])), None)
+        f = (shot or {}).get("focus")
+        if not f:
+            raise EditorError(f"piece {pc['name']}: no recorded focus for shot {name or pc['name']!r} in {path} "
+                              "(add \"focus\": \"text=...\" to that shot and capture again)")
+        # zoompan keeps the anchor at the same relative place in view; to put the target in the middle of the view at
+        # zoom z the anchor is (target - 0.5/z) / (1 - 1/z), clamped to the picture's edges
+        anchor = lambda t, z: round(min(1.0, max(0.0, (t - 0.5 / z) / (1 - 1 / z))), 4) if z > 1.001 else t  # noqa: E731
+        z1 = float(pc.get("z1", 1.06))
+        pc.setdefault("fx", anchor(f["x"], z1))
+        pc.setdefault("fy", anchor(f["y"], z1))
+        if "punch" not in pc:
+            dur = float(pc.get("dur", 4))
+            zoom = round(max(1.3, min(2.0, 0.45 / max(f.get("w", 0.3), f.get("h", 0.3), 0.05))), 2)
+            pc["punch"] = [round(min(1.2, dur * 0.35), 2), zoom, anchor(f["x"], zoom * z1), anchor(f["y"], zoom * z1)]
 
     def p(self, rel) -> Path:
         q = Path(rel)
@@ -148,8 +176,8 @@ class Spec:
 PIECE_KEYS = {
     "video": {"src", "in", "out", "speed", "fit", "pad", "crop_y", "grade", "bloom", "z0", "z1", "fx", "fy", "push",
               "fade_in", "fade_out", "ramp_waits"},
-    "framed": {"src", "dur", "in", "z0", "z1", "fx", "fy", "punch", "flash", "scale", "radius", "backdrop"},
-    "still": {"src", "dur", "in", "z0", "z1", "fx", "fy", "punch", "flash", "scale", "radius", "backdrop"},
+    "framed": {"src", "dur", "in", "z0", "z1", "fx", "fy", "punch", "flash", "scale", "radius", "backdrop", "focus_from"},
+    "still": {"src", "dur", "in", "z0", "z1", "fx", "fy", "punch", "flash", "scale", "radius", "backdrop", "focus_from"},
     "sequence": {"srcs", "dur", "framed", "z1"},
     "freeze": {"from", "dur", "blur", "darken", "blur_at", "fade_out"},
     "color": {"color", "dur"},

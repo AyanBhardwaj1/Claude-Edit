@@ -318,3 +318,21 @@ def test_band_titles_wrap_and_shrink_to_fit():
     assert lines == ["A cooler way", "across campus"]
     size, lines = produce._fit_title("Walk-Free: the shadiest way home from every class on campus", 1080, 81)
     assert len(lines) == 2 and size * 0.56 * max(map(len, lines)) <= 1080 * 0.88
+
+
+def test_punch_in_aimed_at_a_captured_element(tmp_path):
+    (tmp_path / "shots.json").write_text(json.dumps({"shots": [
+        {"name": "route", "file": "route.png", "focus": {"x": 0.12, "y": 0.4, "w": 0.2, "h": 0.1}},
+        {"name": "home", "file": "home.png"}]}))
+    (tmp_path / "route.png").write_bytes(b"")
+    spec = base_spec(pieces=[{"name": "r", "type": "framed", "src": "route.png", "dur": 4, "focus_from": "shots.json#route"}])
+    s = produce.Spec(write_spec(tmp_path, spec))
+    pc = s.pieces[0]
+    assert pc["punch"][:2] == [1.2, 2.0]
+    z = 2.0 * 1.06                                 # the punch times the Ken Burns
+    ax, ay = pc["punch"][2:]
+    assert ax == 0.0                               # too close to the left edge to centre: the view starts at the edge
+    assert (ay * (1 - 1 / z) + 0.5 / z) == pytest.approx(0.4, abs=1e-3)   # centred vertically
+    spec["pieces"][0]["focus_from"] = "shots.json#home"
+    with pytest.raises(EditorError, match="no recorded focus"):
+        produce.Spec(write_spec(tmp_path, spec))
