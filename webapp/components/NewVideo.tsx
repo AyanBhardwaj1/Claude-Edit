@@ -9,6 +9,7 @@ import { createProject, fileMeta, kindOf, listen, makeFirstEdit, REVIEWING } fro
 import { EffortPicker } from "./EffortPicker";
 import { Icon, type IconName } from "./Icons";
 import { RecordScreen } from "./ScreenRecorder";
+import { ScriptBox } from "./ScriptFix";
 
 const FACE = "Finding your face";
 const STAGES = ["Copying your video", "Listening to your video", "Finding your retakes", FACE,
@@ -32,6 +33,7 @@ export function NewVideo({ settings, initial = [], onDone, onSettings, onSaveSet
   const [at, setAt] = useState(-1);
   const [picked, setPicked] = useState<Effort | null>(null);   // this video's choice; until then the saved default
   const [footage, setFootage] = useState(0);
+  const [script, setScript] = useState("");
   const effort = picked ?? effortOf(settings);
   const input = useRef<HTMLInputElement>(null);
   const hasKey = settings.provider === "anthropic" ? !!settings.anthropicKey : !!settings.openaiKey;
@@ -73,10 +75,10 @@ export function NewVideo({ settings, initial = [], onDone, onSettings, onSaveSet
     const s = { ...settings, effort };                 // this video's effort; the saved default stays as it is
     try {
       const p = await createProject(takes, extras, progress);
-      await listen(p, s, progress);
+      const fixed = await listen(p, s, progress, script);
       const summary = await makeFirstEdit(p, s, loadRules(), progress);
       progress("Ready", 100);
-      onDone(p, summary);
+      onDone(p, !fixed ? summary : `${summary} ${fixed.ok ? `Subtitles use your script: ${fixed.message}` : `I kept the words as I heard them: ${fixed.message}`}`);
     } catch (e) {
       setErr((e as { userMessage?: string }).userMessage ?? (e as Error).message ?? String(e));
     }
@@ -146,6 +148,8 @@ export function NewVideo({ settings, initial = [], onDone, onSettings, onSaveSet
             ))}
           </div>
         )}
+
+        <ScriptBox value={script} onChange={setScript} />
 
         <div className="stack tight">
           <EffortPicker legend="How much time should I take?" value={effort} onChange={setPicked} time={(e) => {

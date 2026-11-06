@@ -67,7 +67,7 @@ export default function Login() {
     <div className="site">
       <div className="auth">
         <div className="form-side">
-          <a className="wordmark" href="/" translate="no"><Mark />Cutmind</a>
+          <header><a className="wordmark" href="/" translate="no"><Mark />Cutmind</a></header>
           <main className="form-wrap">
             <h1>{up ? "Make your account" : "Welcome back"}</h1>
             <p className="sub">{up ? "Two minutes from now you can drop in your first take." : "Sign in to your videos, your keys and your style."}</p>
@@ -113,7 +113,7 @@ export default function Login() {
                   : "Forgot your password? Accounts live only in this browser, so there is no reset email: create a new account to keep going.")}
             </p>
           </main>
-          <a className="back textlink" href="/">Back to the home page</a>
+          <footer><a className="back textlink" href="/">Back to the home page</a></footer>
         </div>
         <div className="art on-dark" aria-hidden="true">
           <div className="script">

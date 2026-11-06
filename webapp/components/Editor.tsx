@@ -335,7 +335,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
                     <circle cx="60" cy="60" r="52" className="fg" strokeDasharray={`${(check.score / 100) * 326.7} 326.7`} /></svg>
                   <b className="num">{check.score}</b>
                 </div>
-                <ul className="checks">
+                <ul className="checks" tabIndex={0} aria-label="Reel check results">
                   {check.checks.filter((c) => !c.ok).concat(check.checks.filter((c) => c.ok)).map((c) => (
                     <li key={c.id} className={c.ok ? "ok" : c.warn ? "warn" : "bad"}>
                       <Icon name={c.ok ? "check" : "alert"} />
@@ -433,7 +433,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
 
           {drawer && version && (
             <section className="panel" aria-label="Edit it myself">
-              <Drawer project={p} edit={version.edit} settings={settings} onMakeMusic={() => setMaker(true)} onApply={async (edit, what) => { await saveManual(p, edit, what); setP({ ...p }); setMsgs((m) => [...m, { who: "ed", text: `Version ${p.current}: ${what}` }]); }} />
+              <Drawer project={p} edit={version.edit} settings={settings} onMakeMusic={() => setMaker(true)} onWords={() => setP({ ...p })} onApply={async (edit, what) => { await saveManual(p, edit, what); setP({ ...p }); setMsgs((m) => [...m, { who: "ed", text: `Version ${p.current}: ${what}` }]); }} />
             </section>
           )}
 

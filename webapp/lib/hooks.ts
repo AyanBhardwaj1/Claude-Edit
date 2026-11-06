@@ -7,7 +7,7 @@ import type { Edit, Settings } from "./types";
 const SCHEMA = { type: "object", properties: { hooks: { type: "array", items: { type: "string" } } }, required: ["hooks"] };
 
 export async function hookIdeas(s: Settings, tl: Timeline, current: string): Promise<string[]> {
-  const said = tl.words.map((w) => w.w).join(" ").slice(0, 6000);
+  const said = tl.words.map((w) => w.w).filter(Boolean).join(" ").slice(0, 6000);
   const user = `Here is what the video says, as cut:\n<said>\n${said}\n</said>\nThe hook title on screen now: "${current || "(none)"}".
 Write 5 different hook titles for the first seconds: 3-7 words each, sentence case, built from the speaker's own words and claims (never a
 claim they didn't make), each a different angle: a number, a contrarian take, a curiosity gap, a result, a call-out. No emoji, no em dashes.`;

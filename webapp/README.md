@@ -36,7 +36,9 @@ vertical reel with a cover and a post caption, then change it by typing notes. E
 7. **Edit it myself**: click words to cut or restore them, subtitle look, music and level, pictures, cover, caption.
 8. **Export**: MP4 (WebM in browsers that can't record MP4) in four shapes (9:16 reel, 4:5 feed, 1:1 square, 16:9 wide),
    the cover, and the caption text.
-9. **Write a script** before filming: hook, what to say, words on screen.
+9. **Write a script** before filming: hook, what to say, words on screen. **Paste your script** afterwards and the
+   subtitles use its exact words (names, brands, punctuation) on the timing it heard; ad-libs are kept, the cut never
+   moves, and "Use what it heard" undoes it (`lib/retext.ts`).
 10. **Motion**: subtitle animations (pop, karaoke, bounce, word by word, typewriter, fade), highlighted numbers and
     keywords, transitions at every cut (punch-in, whip, flash, dip, glitch), colour looks (warm, cool, cinematic, black and
     white, vivid, film), picture entrances and slow push-ins, a progress bar; seven one-click styles (Punchy, Karaoke, Clean,
@@ -61,7 +63,8 @@ vertical reel with a cover and a post caption, then change it by typing notes. E
     backdrop with a slow push and a punch-in on what's being said; on reels they take a band above the speaker, never over
     the face (`lib/framed.ts`). **Boxed subtitles**: a whole phrase at a time in a soft dark box.
 20. **Speed vs quality**: Fast, Balanced or Best quality for each video. Fast skips face finding and uses fewer pictures;
-    Best adds a second pass where the AI reviews its own edit like a senior editor. Time estimates are learned from the
+    Best adds a second pass where the AI reviews its own edit like a senior editor, starting from what the reel check
+    measured (missing hook, long stretches without a change, music too close to the voice). Time estimates are learned from the
     videos made on each device (`lib/effort.ts`, `lib/timings.ts`).
 
 ## Privacy and keys
@@ -129,6 +132,7 @@ Everything is anchored to transcript word ids, so a re-cut never breaks a pictur
 npm test                                         # unit tests: timeline, analysis, caption text, AI-answer validation, live cut, passwords, composer, loudness
 npm run build && npx next start -p 3200 &
 python3 tests/e2e.py <take.mp4> <transcript.json> <out_dir>   # sign up, the whole workflow, every shape, the sample (APIs mocked)
+npm run a11y -- 3370 <out_dir>    # accessibility audit (axe-core, WCAG 2.1 AA) of every screen, light and dark; app running on :3370
 DATABASE_URL=postgres://... npx next start -p 3200 & python3 tests/accounts.py   # server accounts across two browsers
 python3 tests/studio.py http://localhost:3200 <out> "Product launch" [Hype]   # Motion Studio end to end, incl. every shape
 python3 tests/brand.py | cards.py | command.py | recap.py http://localhost:3200 <out>   # brand kit, animated cards, Cmd+K, recaps

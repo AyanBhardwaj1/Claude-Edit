@@ -15,7 +15,7 @@ const Arrow = () => (
 const d = (i: number) => ({ ["--i" as string]: i }) as React.CSSProperties;
 
 const FEATURES = [
-  { h: "Subtitles on every word", p: "Two or three words at a time, timed to your voice, in five styles and any Google Font. Numbers you say become digits, and you can fix any word it misheard.", pic: "w240", frag: "caps" },
+  { h: "Subtitles on every word", p: "Two or three words at a time, timed to your voice, in five styles and any Google Font. Numbers you say become digits. Paste your script and every name and brand is spelled right, on the timing of your voice.", pic: "w240", frag: "caps" },
   { h: "Pictures that miss your face", p: "Name an app, a brand or a place and its logo or photo appears on those words: from your own files first, then open-licence pictures it finds and credits. They sit above your head, beside you or in a phone, never across your eyes and mouth.", pic: "w320", frag: "frame" },
   { h: "Music under your voice", p: "It listens to your songs, picks one by mood, starts it a beat before the first hit, dips it under every word and lifts it in the pauses. No song? Make music composes an original one in your browser, in four moods, with a final chord that rings out as your video ends.", pic: "w180", frag: "music" },
   { h: "Your app, framed", p: "Record your screen right in Cutmind (it speeds through the loading waits), or drop in screenshots, and Cutmind recognises them: each one sits on a soft backdrop with rounded corners, pushes in slowly and punches in on the button you're talking about. On a reel it takes the top of the frame, above you, never over your face.", pic: "w240", frag: "screens" },
@@ -67,14 +67,14 @@ export default function Landing() {
             <div className="ui" data-ui role="img" aria-label="The Cutmind editor: a note asking for quieter music, and Version 2 with the music turned down">
               <div className="ui-editor">
                 <div className="pnl">
-                  <h4>Notes for your editor</h4>
+                  <div className="h4">Notes for your editor</div>
                   <div className="bub them"><small>Your editor</small>I kept your last take of each line, cut 41 seconds of pauses and added your song.</div>
                   <div className="bub you"><small>You</small>music too loud at the start</div>
                   <div className="bub them"><small>Your editor</small>Version 2: I turned the music down under your first two lines.</div>
                   <div className="vers"><span>Version 1</span><span className="on">Version 2</span></div>
                 </div>
                 <div className="pnl">
-                  <h4>What I did</h4>
+                  <div className="h4">What I did</div>
                   <ul className="did"><li>Kept your best takes · 0:58 long</li><li>Added subtitles</li><li>Added music: morning-walk.mp3</li>
                     <li>6 pictures and 2 text cards</li><li>5 zooms</li><li>Wrote your post caption</li></ul>
                 </div>

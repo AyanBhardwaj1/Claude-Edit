@@ -8,23 +8,38 @@
    },
    "composite:rush": {
     "last": "2026-11-06",
-    "rate": 45.273,
-    "runs": 1
+    "rate": 42.958,
+    "runs": 2
    },
    "composite:standard": {
     "last": "2026-11-06",
     "rate": 59.12,
     "runs": 2
    },
+   "mix:rush": {
+    "last": "2026-11-06",
+    "rate": 12.2,
+    "runs": 1
+   },
    "mix:standard": {
     "last": "2026-11-06",
-    "rate": 7.626,
-    "runs": 4
+    "rate": 6.379,
+    "runs": 6
+   },
+   "overlay:rush": {
+    "last": "2026-11-06",
+    "rate": 22.345,
+    "runs": 1
    },
    "overlay:standard": {
     "last": "2026-11-06",
     "rate": 36.446,
     "runs": 3
+   },
+   "pieces:rush": {
+    "last": "2026-11-06",
+    "rate": 53.409,
+    "runs": 1
    },
    "pieces:standard": {
     "last": "2026-11-06",

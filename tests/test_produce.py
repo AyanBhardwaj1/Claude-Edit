@@ -97,6 +97,8 @@ def test_tiny_production_end_to_end(tmp_path):
     assert "00:00:00,200 --> 00:00:01,400\nHello there" in Path(kit["srt"]).read_text()
     assert Path(kit["chapters"]).read_text() == "0:00 Intro\n" and any("3 chapters" in i for i in kit["issues"])
     assert Path(kit["cover"]).exists()
+    desc = Path(kit["description"]).read_text()
+    assert desc.startswith("Tiny\n") and "0:00 Intro" in desc
     out = Path(res["file"])
     info = probe(out)
     assert info["duration"] == pytest.approx(4.5, abs=0.1)
@@ -208,6 +210,9 @@ def test_init_drafts_a_spec_from_an_inventory(tmp_path):
     assert s.total == pytest.approx(1.9 + 3.4 + 6.0)
     assert produce.auto_captions(s)[0]["text"] == "Hello there."
     assert any("placeholder" in t for t in spec["todo"])
+    auto = spec["audio"]["music"][0]["automation"]                   # dips under the on-camera dialogue
+    assert [0.6 - 0.4, 0] in [[round(x, 2), y] for x, y in auto] or auto[0] == [0.0, 0]
+    assert [0.0, -10] in auto and [1.9, -10] in auto
 
 
 def test_versions_keep_each_note(tmp_path):
@@ -264,3 +269,52 @@ def test_validation_catches_problems_before_rendering(tmp_path):
     assert any("punhc" in w for w in warnings)                       # a typo is a warning
     with pytest.raises(EditorError, match="nothing rendered"):
         produce.produce(path)
+
+
+def test_captions_from_a_brief_land_on_the_voice_that_says_them(tmp_path):
+    w = lambda t, a, b: {"text": t, "start": a, "end": b}  # noqa: E731
+    heard1 = "bro why are you walk in the sun".split()
+    heard2 = "heat is the deadliest weather in america".split()
+    (tmp_path / "v1.json").write_text(json.dumps([w(t, 1 + i * 0.3, 1.25 + i * 0.3) for i, t in enumerate(heard1)]))
+    (tmp_path / "v2.json").write_text(json.dumps([w(t, 0.5 + i * 0.3, 0.75 + i * 0.3) for i, t in enumerate(heard2)]))
+    spec = base_spec()
+    spec["audio"]["voices"] = [{"name": "v1", "src": "voice.wav", "in": 0, "out": 5, "at": "a"},
+                               {"name": "v2", "src": "voice.wav", "in": 0, "out": 5, "at": "b"}]
+    spec["captions"] = {"voices": {"v1": "v1.json", "v2": "v2.json"}}
+    path = write_spec(tmp_path, spec)
+    brief = tmp_path / "brief.md"
+    brief.write_text("## Captions\n```\n0:00 Bro. Why are you walking in the sun?\n0:08 Heat is the deadliest weather in "
+                     "America.\n     (El calor es el clima más mortal.)\n0:12 A line nobody recorded about trees.\n```\n")
+    rep = produce.captions_from_brief(path, brief)
+    assert rep["assigned"] == {"v1": 1, "v2": 1} and rep["unmatched"] == ["0:12 A line nobody recorded about trees."]
+    s = produce.Spec(path)
+    cards = s.resolve(produce.auto_captions(s))
+    assert [c["text"] for c in cards] == ["Bro. Why are you walking in the sun?", "Heat is the deadliest weather in America."]
+    assert cards[1]["sub"] == "(El calor es el clima más mortal.)"
+    assert cards[0]["t_in"] == pytest.approx(1.0) and cards[1]["t_in"] == pytest.approx(2.0 + 0.5)
+
+
+@pytest.mark.slow
+def test_a_vertical_production(tmp_path):
+    subprocess.run(["ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i", "testsrc2=s=640x360:r=30:d=3", "-f", "lavfi",
+                    "-i", "sine=frequency=330:duration=3", "-shortest", "-pix_fmt", "yuv420p", str(tmp_path / "talk.mp4")],
+                   check=True)
+    subprocess.run(["ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i", "testsrc=s=1280x800:d=1", "-frames:v", "1",
+                    str(tmp_path / "app.png")], check=True)
+    spec = {"output": {"width": 180, "height": 320, "fps": 30, "file": "out/v.mp4", "duration": 4.0},
+            "pieces": [{"name": "talk", "type": "video", "src": "talk.mp4", "in": 0, "out": 2.5, "grade": "cool"},
+                       {"name": "app", "type": "framed", "src": "app.png", "dur": 1.5, "punch": [0.3, 1.5, 0.3, 0.3]}],
+            "audio": {"voices": [{"name": "v", "src": "talk.mp4", "in": 0, "out": 2.5, "at": "talk"}]},
+            "post": {"srt": True}}
+    res = produce.produce(write_spec(tmp_path, spec))
+    info = probe(Path(res["file"]))
+    assert (info["video"]["width"], info["video"]["height"]) == (180, 320)
+    assert info["duration"] == pytest.approx(4.0, abs=0.1)
+
+
+def test_band_titles_wrap_and_shrink_to_fit():
+    assert produce._fit_title("Hi", 1080, 81) == (81, ["Hi"])
+    size, lines = produce._fit_title("A cooler way across campus", 1080, 81)
+    assert lines == ["A cooler way", "across campus"]
+    size, lines = produce._fit_title("Walk-Free: the shadiest way home from every class on campus", 1080, 81)
+    assert len(lines) == 2 and size * 0.56 * max(map(len, lines)) <= 1080 * 0.88

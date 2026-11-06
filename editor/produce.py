@@ -469,9 +469,9 @@ def caption_cards(words: list[dict], voice: str, src_in: float, src_out: float, 
             text = " ".join(str(w.get("text", w.get("word", ""))).strip() for w in cur).strip()
             for k, v in (replace or {}).items():
                 text = re.sub(rf"(?i)\b{re.escape(k)}\b", v, text)
-            if text:
+            end = min(float(cur[-1]["end"]) + 0.15, src_out)
+            if text and end - float(cur[0]["start"]) >= 0.25:
                 text = text[0].upper() + text[1:]
-                end = min(float(cur[-1]["end"]) + 0.15, src_out)
                 cards.append({"type": "caption", "text": text, "t_in": f"@{voice}:{float(cur[0]['start']):.2f}",
                               "t_out": f"@{voice}:{end:.2f}"})
             cur.clear()
@@ -488,7 +488,7 @@ def caption_cards(words: list[dict], voice: str, src_in: float, src_out: float, 
     flush()
     for a_, b_ in zip(cards, cards[1:]):           # never overlap the next card
         a_["t_out"] = min(a_["t_out"], b_["t_in"], key=lambda r: float(r.split(":")[1]))
-    return cards
+    return [c for c in cards if float(c["t_out"].split(":")[1]) - float(c["t_in"].split(":")[1]) >= 0.2]
 
 
 def auto_captions(spec: Spec) -> list[dict]:
@@ -523,6 +523,9 @@ def scripted_words(words: list[dict], a: float, b: float, script: str) -> list[d
 
 def script_cards(words: list[dict], voice: str, a: float, b: float, lines: list[str]) -> list[dict]:
     """One caption card per script line, timed by aligning the whole script onto the recognised words."""
+    texts = [ln["text"] if isinstance(ln, dict) else str(ln) for ln in lines]
+    subs = [ln.get("sub") if isinstance(ln, dict) else None for ln in lines]
+    lines = texts
     tokens, owner = [], []
     for i, line in enumerate(lines):
         for t in str(line).split():
@@ -536,11 +539,81 @@ def script_cards(words: list[dict], voice: str, a: float, b: float, lines: list[
         ws = [w for w, o in zip(timed, owner) if o == i]
         if not ws:
             continue
-        cards.append({"type": "caption", "text": str(line).strip(), "t_in": f"@{voice}:{float(ws[0]['start']):.2f}",
-                      "t_out": f"@{voice}:{min(float(ws[-1]['end']) + 0.15, b):.2f}"})
+        t_in = float(ws[0]["start"])
+        longest = 0.8 + 0.5 * len(ws)              # a reading pace cap: a misaligned short line can't hang for seconds
+        t_out = min(float(ws[-1]["end"]) + 0.15, b, t_in + longest)
+        if t_out - t_in < 0.25:
+            continue
+        card = {"type": "caption", "text": str(line).strip(), "t_in": f"@{voice}:{t_in:.2f}",
+                "t_out": f"@{voice}:{t_out:.2f}"}
+        if subs[i]:
+            card["sub"] = subs[i]
+        cards.append(card)
     for x, y in zip(cards, cards[1:]):
         x["t_out"] = min(x["t_out"], y["t_in"], key=lambda r: float(r.split(":")[1]))
-    return cards
+    return [c for c in cards if float(c["t_out"].split(":")[1]) - float(c["t_in"].split(":")[1]) >= 0.2]
+
+
+def brief_lines(text: str) -> list[dict]:
+    """Caption lines from a brief: "0:31 ¿Cuál es...?" lines, with an indented "(translation)" line as its sub."""
+    out = []
+    for raw in text.splitlines():
+        m = re.match(r"^\s*(\d{1,2}:\d{2})\s+(\S.*)$", raw)
+        if m:
+            out.append({"at": m.group(1), "text": m.group(2).strip()})
+        elif out and re.match(r"^\s+\(.+\)\s*$", raw):
+            out[-1]["sub"] = raw.strip()
+    return out
+
+
+STOP = set("a an the and or but to of in on at for with by from as is it its it's that this be are was were i you "
+           "we he she they my our your his her their me us them so not no do does did just".split())
+
+
+def _tokens(text: str, content: bool = False) -> list[str]:
+    toks = [t for t in re.sub(r"[^\w' ]", " ", text.lower()).split() if t]
+    return [t for t in toks if t not in STOP and len(t) > 2] if content else toks
+
+
+def captions_from_brief(spec_path: str | Path, brief: str | Path) -> dict:
+    """Give each voice its lines from the brief's caption list: each line goes to the voice whose recognised words
+    share the most with it (in order), then `lines` makes one card per line timed on what was heard."""
+    spec = Spec(spec_path)
+    lines = brief_lines(Path(brief).read_text())
+    caps = spec.data.setdefault("captions", {})
+    vmap = caps.setdefault("voices", {})
+    heard = {}
+    for name, src in vmap.items():
+        cfg = src if isinstance(src, dict) else {"words": src}
+        data = json.loads(spec.p(cfg["words"]).read_text())
+        ws = data["words"] if isinstance(data, dict) else data
+        v = spec.voices.get(name, {})
+        a, b = float(v.get("in", 0)), float(v.get("out", 1e9))
+        heard[name] = (cfg["words"], set(_tokens(" ".join(str(w.get("text", w.get("word", "")))
+                                                          for w in ws if a <= float(w["start"]) < b), content=True)))
+    if not heard:
+        raise EditorError("captions.voices is empty: map each voice to its words file first (produce init does)")
+    assigned = {n: [] for n in heard}
+    lost = []
+    for ln in lines:
+        toks = _tokens(ln["text"], content=True)
+        if not toks:
+            lost.append(ln)
+            continue
+        score, best = max(((sum(t in heard[n][1] for t in toks) / len(toks), n) for n in heard), default=(0, None))
+        if best and score >= 0.5:
+            assigned[best].append({k: ln[k] for k in ("text", "sub") if k in ln})
+        else:
+            lost.append(ln)
+    for n, ls in assigned.items():
+        if ls:
+            vmap[n] = {"words": heard[n][0], "lines": ls}
+    Path(spec_path).write_text(json.dumps(spec.data, indent=1, ensure_ascii=False) + "\n")
+    report = {"assigned": {n: len(ls) for n, ls in assigned.items() if ls},
+              "unmatched": [f"{ln['at']} {ln['text']}" for ln in lost]}
+    log(f"produce: captions from the brief: {sum(report['assigned'].values())} line(s) placed, "
+        f"{len(lost)} unmatched (write those as overlay captions by hand)")
+    return report
 
 
 # ---------------------------------------------------------------- overlay
@@ -783,6 +856,21 @@ def _font(name: str | None) -> str | None:
     return str(hit) if hit else None             # None: ffmpeg's default font
 
 
+def _fit_title(title: str, w: int, size: int, k: float = 0.56, room: float = 0.88) -> tuple[int, list[str]]:
+    """(font size, lines): one line if it fits, else two balanced lines, shrinking until the longest fits."""
+    fits = lambda s_, n: s_ * k * n <= w * room  # noqa: E731 - an average character is ~0.56 em wide
+    if fits(size, len(title)):
+        return size, [title]
+    words = title.split()
+    best = min(range(1, len(words)), key=lambda i: abs(len(" ".join(words[:i])) - len(" ".join(words[i:]))),
+               default=None)
+    lines = [" ".join(words[:best]), " ".join(words[best:])] if best else [title]
+    longest = max(len(ln) for ln in lines)
+    while size > 12 and not fits(size, longest):
+        size -= 2
+    return size, lines
+
+
 def _band(final: Path, out: Path, a: float, b: float, w: int, h: int, x: dict) -> Path:
     """The finished frame scaled to the width, centred over a blurred, darkened copy filling the tall frame, with an
     optional title above it (for 9:16 and 1:1 posts of a 16:9 video)."""
@@ -795,11 +883,14 @@ def _band(final: Path, out: Path, a: float, b: float, w: int, h: int, x: dict) -
     title = x.get("title")
     font = _font(x.get("font"))
     if title:
-        safe = str(title).replace("\\", "\\\\").replace("'", "\u2019").replace(":", "\\:")
-        size = int(x.get("title_size", w * 0.075))
+        lines = _fit_title(str(title), w, int(x.get("title_size", w * 0.075)))
+        size = lines[0]
         ff = f":fontfile='{font}'" if font else ""
-        vf += (f",drawtext=text='{safe}'{ff}:fontsize={size}:fontcolor={x.get('title_color', 'white')}"
-               f":x=(w-text_w)/2:y={max(40, y - size * 2)}:shadowcolor=black@0.5:shadowx=0:shadowy=3")
+        top = max(40, y - size * (len(lines[1]) + 1) - size // 2)
+        for k, ln in enumerate(lines[1]):
+            safe = ln.replace("\\", "\\\\").replace("'", "\u2019").replace(":", "\\:").replace("%", "\\%")
+            vf += (f",drawtext=text='{safe}'{ff}:fontsize={size}:fontcolor={x.get('title_color', 'white')}"
+                   f":x=(w-text_w)/2:y={top + int(k * size * 1.15)}:shadowcolor=black@0.5:shadowx=0:shadowy=3")
     vf += ",format=yuv420p[v]"
     run(["ffmpeg", "-y", "-ss", f"{a}", "-to", f"{b}", "-i", str(final), "-filter_complex", vf, "-map", "[v]",
          "-map", "0:a?", "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-c:a", "aac", "-b:a", "192k",
@@ -1043,6 +1134,16 @@ def review(spec: Spec, final: Path | None = None) -> dict:
 
 # ---------------------------------------------------------------- a first spec from the footage
 
+def _measure_lufs(path: Path, a: float, b: float) -> float | None:
+    """Integrated loudness of a stretch of a file (after the same voice clean-up the mix applies)."""
+    import subprocess
+    r = subprocess.run(["ffmpeg", "-hide_banner", "-ss", f"{a}", "-to", f"{b}", "-i", str(path), "-vn", "-af",
+                        f"{VOICE_CLEAN},ebur128", "-f", "null", "-"], capture_output=True, text=True)
+    m = re.findall(r"I:\s+(-?[\d.]+) LUFS", r.stderr)
+    v = float(m[-1]) if m else None
+    return v if v is not None and v > -70 else None
+
+
 def init_spec(folder: str | Path, out: str | Path, inventory_dir: str | Path | None = None, transcribe: bool = True,
               width: int = 1920, height: int = 1080, fps: int = 30) -> dict:
     """A starting spec from a footage folder: each clip trimmed to its speech (a breath either side), voice-over files
@@ -1083,10 +1184,29 @@ def init_spec(folder: str | Path, out: str | Path, inventory_dir: str | Path | N
             caps[voices[-1]["name"]] = rel(words_path)
     if not pieces:
         raise EditorError(f"nothing usable in {folder}")
+    for v in voices:                                  # level every voice to the same loudness (pocket mics are quiet)
+        lufs = _measure_lufs(out.parent / v["src"], v["in"], v["out"])
+        if lufs is not None:
+            v["gain"] = round(max(-12.0, min(15.0, -16.0 - lufs)), 1)
     if last_video:
         pieces.append({"name": "end", "type": "freeze", "from": last_video, "dur": 6.0, "blur": 12, "darken": 0.3,
                        "fade_out": 0.5})
     total = sum(float(p.get("dur", 0)) if "dur" in p else (p["out"] - p["in"]) for p in pieces)
+    # the lesson from the Walk-Free skits ("we can't hear ourselves"): the bed dips 10 dB under on-camera dialogue
+    spans, t = [], 0.0
+    talking = {v["at"] for v in voices}
+    for p in pieces:
+        d = float(p["dur"]) if "dur" in p else p["out"] - p["in"]
+        if p.get("type") == "video" and p["name"] in talking:
+            if spans and abs(spans[-1][1] - t) < 0.05:
+                spans[-1][1] = t + d
+            else:
+                spans.append([t, t + d])
+        t += d
+    dips = []
+    for a_, b_ in spans:
+        dips += [[round(max(0.0, a_ - 0.4), 2), 0], [round(a_, 2), -10], [round(b_, 2), -10],
+                 [round(min(total, b_ + 0.4), 2), 0]]
     spec = {
         "todo": todo + ["order the pieces into the story (inventory.md has what each clip says)",
                         "correct the captions' words (offline transcripts mishear names): captions.replace",
@@ -1097,7 +1217,8 @@ def init_spec(folder: str | Path, out: str | Path, inventory_dir: str | Path | N
         "pieces": pieces,
         "audio": {"voices": voices,
                   "music": [{"src": {"compose": {"mood": "warm", "end_chord_at": round(max(1.0, total - 6.0), 2)}},
-                             "at": 0, "dur": round(total, 2), "gain": -3, "fade_in": 0.5}]},
+                             "at": 0, "dur": round(total, 2), "gain": -3, "fade_in": 0.5,
+                             **({"automation": dips} if dips else {})}]},
         "captions": {"voices": caps, "replace": {}},
         "overlay": {"elements": [{"type": "end_card", "lines": ["TITLE", "website", "names"], "t_in": "end+0.4",
                                   "t_out": "end.end-0.3"}] if last_video else []},
@@ -1143,6 +1264,41 @@ def _sharpest(video: Path, t: float, window: float = 1.0) -> float:
     return round(a + int(np.argmax(sharp)) / 10, 2)
 
 
+def _description(spec: Spec, post: dict, chapters_path: str | None) -> str:
+    """A YouTube/upload description: title, summary, chapters, links from the end card, credits."""
+    ov = spec.data.get("overlay") or {}
+    ov = json.loads(spec.p(ov).read_text()) if isinstance(ov, str) else ov
+    lines = [ln for e in ov.get("elements", []) if e.get("type") == "end_card" for ln in e.get("lines", [])]
+    links = []
+    for ln in lines:
+        for m in re.finditer(r"\b((?:https?://)?[\w-]+(?:\.[\w-]+)+(?:/[\w./-]*)?)", str(ln)):
+            u = m.group(1)
+            if "." in u and not re.fullmatch(r"[\d.]+", u):
+                links.append(u if u.startswith("http") else f"https://{u}")
+    title = post.get("title") or (post.get("cover") or {}).get("title") or spec.file.stem.replace("-", " ")
+    parts = [title, ""]
+    if post.get("summary"):
+        parts += [post["summary"], ""]
+    if chapters_path and Path(chapters_path).exists():
+        parts += ["Chapters", Path(chapters_path).read_text().strip(), ""]
+    if links:
+        parts += ["Links", *dict.fromkeys(links), ""]
+    credits = []
+    for m in spec.data.get("audio", {}).get("music", []):
+        if isinstance(m.get("src"), dict) and ("compose" in m["src"] or "lofi" in m["src"]):
+            credits.append("Music: original, composed for this video (royalty-free).")
+            break
+    if post.get("credits"):
+        credits += list(post["credits"])
+    if post.get("ai_label"):
+        credits.append(post["ai_label"])
+    if credits:
+        parts += ["Credits", *credits, ""]
+    if post.get("hashtags"):
+        parts.append(" ".join("#" + h.lstrip("#") for h in post["hashtags"]))
+    return "\n".join(parts).strip() + "\n"
+
+
 def post_kit(spec: Spec, final: Path) -> dict:
     """<name>.srt (from every caption card), <name>_chapters.txt (YouTube chapters from pieces with a "chapter"
     or post.chapters), and <name>_cover.jpg (a clean frame from the base picture, with a title) when asked."""
@@ -1172,6 +1328,11 @@ def post_kit(spec: Spec, final: Path) -> dict:
         txt = final.with_name(final.stem + "_chapters.txt")
         txt.write_text("".join(f"{int(t // 60)}:{int(t % 60):02d} {title}\n" for t, title in chapters))
         out["chapters"] = str(txt)
+    desc = _description(spec, post, out.get("chapters"))
+    if desc:
+        dpath = final.with_name(final.stem + "_description.txt")
+        dpath.write_text(desc)
+        out["description"] = str(dpath)
     cov = post.get("cover")
     if cov:
         from .cover import cover
@@ -1350,6 +1511,14 @@ def main(argv=None) -> int:
                     help="quick 720p look at one stretch after a note (times or references like d7c d7c.end)")
     ap.add_argument("--note", help="save this render as the next version (out/versions/), with the user's note")
     ap.add_argument("--versions", action="store_true", help="list the saved versions")
+    if argv and argv[0] == "captions-from-brief":
+        cp = argparse.ArgumentParser(prog="editor produce captions-from-brief",
+                                     description="put the brief's caption lines on the voices that say them")
+        cp.add_argument("spec")
+        cp.add_argument("brief")
+        ca = cp.parse_args(argv[1:])
+        print(json.dumps(captions_from_brief(ca.spec, ca.brief), indent=1, ensure_ascii=False))
+        return 0
     if argv and argv[0] == "init":
         ip = argparse.ArgumentParser(prog="editor produce init",
                                      description="a starting spec from a footage folder (runs inventory first)")

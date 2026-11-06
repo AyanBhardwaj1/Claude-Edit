@@ -24,7 +24,7 @@ export function phrases(words: Word[]): Phrase[] {
     if (!p || w.src !== p.src || gap >= 0.45 || (/[.!?]$/.test(prev.w.trim()) && gap >= 0.12) || restart) {
       out.push({ from: w.id, to: w.id, text: w.w, src: w.src, s: w.s, e: w.e, idx: [i] });
     } else {
-      p.to = w.id; p.text += " " + w.w; p.e = w.e; p.idx.push(i);
+      p.to = w.id; if (w.w) p.text += " " + w.w; p.e = w.e; p.idx.push(i);
     }
   });
   return out;

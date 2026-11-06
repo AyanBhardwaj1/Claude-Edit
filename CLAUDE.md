@@ -27,7 +27,10 @@ Claude makes the editorial calls and checks the result visually.
 - **Self-improve after every video**: style notes (what the user said), 1-5 lessons (`editor lessons add`; read
   `.claude/skills/edit-reel/lessons.md` before planning), `editor effort record` for hand-run stages.
 - A written production brief (script + effects plan + scene clips + app demos, e.g. a hackathon demo):
-  **brief-production** skill (`editor inventory` → `editor produce spec.json`: pieces, overlay, mix, captions, extras).
+  **brief-production** skill (`editor inventory` → `editor produce init` → `produce captions-from-brief` → `editor
+  produce spec.json`: pieces, overlay, mix, captions, extras, post kit, review; `--range` for quick looks at a note).
+  App demos, even heavy 3D/WebGL pages without a GPU: `editor capture shots shotlist.json` (in-page clicks, real
+  on-screen numbers read, dev addresses flagged). Never fake model output: label scripted demos.
 - **style-memory** learns the user's editing taste over time (`library/style/`, `editor style`): read
   `library/style/STYLE.md` before every first draft, record each preference the user voices with `style note`,
   and `style learn` the EDL / plan when they approve. `editor auto` applies the confident defaults itself.

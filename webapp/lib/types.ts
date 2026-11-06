@@ -105,6 +105,9 @@ export type FaceSample = { src: number; t: number; cx: number; cy: number; w: nu
 export type Project = {
   id: string; title: string; createdAt: string; updatedAt: string;
   sources: Source[]; words: Word[]; analysis?: Analysis;
+  // "Paste your script" (lib/retext.ts): the words as the recogniser heard them (same ids and times; only the text differs),
+  // kept for "Use what it heard", and the script that was used
+  wordsHeard?: Word[]; script?: string;
   library: Asset[]; versions: Version[]; current: number;
   faces?: FaceSample[];
   owner?: string;                 // the local account that made it (lib/auth.ts)
