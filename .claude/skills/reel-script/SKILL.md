@@ -39,3 +39,6 @@ to the spoken hook (never repeats it), numbers as digits.
 - Record a 2 s silent pause at the start (room tone) and don't stop the camera
   between lines; one long clip edits faster than many.
 - Then: `python3 -m editor new <name>`, drop clips in `raw/`, and run `/edit-reel projects/<name>`.
+
+Longer than a reel (a 1-5 min demo, launch or hackathon video with skits, voice-overs and app demos)? Plan it as a
+production brief with the user: `.claude/skills/brief-production/brief_template.md`.
