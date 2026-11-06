@@ -18,18 +18,18 @@
    },
    "mix:standard": {
     "last": "2026-11-06",
-    "rate": 10.268,
-    "runs": 2
+    "rate": 8.506,
+    "runs": 3
    },
    "overlay:standard": {
     "last": "2026-11-06",
-    "rate": 42.402,
-    "runs": 2
+    "rate": 36.446,
+    "runs": 3
    },
    "pieces:standard": {
     "last": "2026-11-06",
-    "rate": 86.673,
-    "runs": 2
+    "rate": 53.913,
+    "runs": 3
    },
    "transcribe:rush": {
     "last": "2026-11-06",
