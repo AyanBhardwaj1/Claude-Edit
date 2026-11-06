@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { digits } from "../lib/text";
+import { applyCorrections, digits } from "../lib/text";
 
 const say = (s: string) => digits(s.split(" ").map((t, i) => ({ id: `w${i}`, text: t, os: i, oe: i + 0.5, seg: 0 }))).map((w) => w.text).join(" ");
 
@@ -17,4 +17,9 @@ test("spoken numbers become digits only the way numbers are said", () => {
   assert.equal(say("two, three ideas"), "2, 3 ideas");                    // a comma ends a number
   assert.equal(say("one point five million"), "one point five million"); // left as said
   assert.equal(say("one of them"), "one of them");
+});
+
+test("a correction to an accented name doesn't double its last letter", () => {
+  const out = applyCorrections([{ id: "w0", text: "josé,", os: 0, oe: 0.4, seg: 0 }], [{ from: "josé", to: "José" }]);
+  assert.equal(out[0].text, "José,");
 });

@@ -13,7 +13,7 @@ const ONE_AFTER = new Set(["number", "step", "day", "week", "month", "year", "le
 const CURRENCY: Record<string, string> = { dollars: "$", dollar: "$", pounds: "£", euros: "€" };
 
 export const bare = (t: string) => t.toLowerCase().replace(/[^\p{L}\p{N}'%$€£]/gu, "");
-const split = (t: string) => { const m = t.match(/^(\W*)(.*?)(\W*)$/su)!; return [m[1], m[2], m[3]] as const; };
+const split = (t: string) => { const m = t.match(/^([^\p{L}\p{N}]*)(.*?)([^\p{L}\p{N}]*)$/su)!; return [m[1], m[2], m[3]] as const; };   // é is a letter
 
 export type CapWord = { id: string; text: string; os: number; oe: number; seg: number };
 
