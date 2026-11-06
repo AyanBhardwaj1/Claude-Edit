@@ -32,6 +32,17 @@ import { openWith, strongestLine, type Line } from "@/lib/coldopen";
 import { swears } from "@/lib/bleep";
 import { buildTimeline } from "@/lib/timeline";
 import { fixWhatICan } from "@/lib/autofix";
+import { integratedLufs, samplePeakDb } from "@/lib/loudness";
+
+/** The export's integrated loudness and peak, decoded in the browser; null when the browser can't decode it. */
+async function measureLoudness(blob: Blob): Promise<{ lufs: number; peak: number } | null> {
+  try {
+    const ctx = new OfflineAudioContext(2, 48000, 48000);
+    const buf = await ctx.decodeAudioData(await blob.arrayBuffer());
+    const ch = Array.from({ length: Math.min(2, buf.numberOfChannels) }, (_, i) => buf.getChannelData(i));
+    return { lufs: integratedLufs(ch, buf.sampleRate), peak: samplePeakDb(ch) };
+  } catch { return null; }
+}
 import { namedNotShown, type Name } from "@/lib/names";
 import { findPicture } from "@/lib/images";
 import { maskWord } from "@/lib/text";
@@ -68,7 +79,8 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
   }, [note]);
   const [busy, setBusy] = useState("");
   const [drawer, setDrawer] = useState(false);
-  const [exp, setExp] = useState<{ pct: number; video?: string; ext?: string; cover?: string; caption?: string; label?: string; srt?: string } | null>(null);
+  const [exp, setExp] = useState<{ pct: number; video?: string; ext?: string; cover?: string; caption?: string; label?: string; srt?: string;
+    lufs?: number; peak?: number } | null>(null);
   const [err, setErr] = useState("");
   const [toast, setToast] = useState("");
   const [keys, setKeys] = useState(false);
@@ -414,6 +426,8 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
         caption: URL.createObjectURL(new Blob([post], { type: "text/plain" })),
         srt: version ? URL.createObjectURL(new Blob([srt(p, version.edit, pl.tl)], { type: "application/x-subrip" })) : undefined });
       offerLearned();
+      // how loud the file came out (the apps play everything near -14 LUFS): measured on the export itself
+      void measureLoudness(blob).then((m) => { if (m) setExp((x) => (x && x.video ? { ...x, ...m } : x)); });
     } catch (e) { setErr(String(e)); setExp(null); }
     setPlaying(false); busyExport(false);
   }
@@ -678,6 +692,10 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
                       ...(scroll ? [[scroll.passed === 4, `Scroll test ${scroll.passed} of 4`] as [boolean, string],
                         [scroll.loop.ok, scroll.loop.ok ? "Loops cleanly" : "The loop has a seam"] as [boolean, string]] : []),
                       ...(fmt === "9:16" ? [[!covered.length, covered.length ? `Subtitles under ${covered.map((x) => PLATFORM_NAMES[x]).join(", ")}'s caption` : "Subtitles clear of the app buttons"] as [boolean, string]] : []),
+                      ...(exp.lufs !== undefined ? [[exp.lufs >= -16 && exp.lufs <= -12 && (exp.peak ?? -9) <= -0.5,
+                        exp.lufs < -16 ? `Quiet: ${exp.lufs.toFixed(1)} LUFS (the apps turn it up, noise and all)`
+                          : exp.lufs > -12 ? `Loud: ${exp.lufs.toFixed(1)} LUFS (the apps turn it down)`
+                          : (exp.peak ?? -9) > -0.5 ? `Peaks at ${exp.peak!.toFixed(1)} dB: it may crackle` : `Loudness ${exp.lufs.toFixed(1)} LUFS`] as [boolean, string]] : []),
                       ...(names.length ? [[false, `${names.length} name${names.length > 1 ? "s" : ""} said, not shown`] as [boolean, string]] : []),
                       ...(swore.length ? [[swore.every((x) => bleeped.has(x.id)), swore.every((x) => bleeped.has(x.id)) ? "Strong language bleeped" : `${swore.length} strong word${swore.length > 1 ? "s" : ""}, not bleeped`] as [boolean, string]] : []),
                     ];
