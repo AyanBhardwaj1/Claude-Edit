@@ -21,8 +21,8 @@ from pathlib import Path
 from .transcribe import write_transcript
 from .util import EditorError, load_json, log
 
-# an optional speaker label is "speaker_0:" / "SPEAKER_00:" only: "Tip: always back up" keeps its "Tip"
-LINE = re.compile(r"^\s*\[(\d+)\]\s+\d+:\d+(?:\.\d+)?-\d+:\d+(?:\.\d+)?\s*(?:(?:speaker|SPEAKER)_?\w*:)?\s*(.*)$")
+# an optional speaker label is "S1:" / "speaker_0:" / "SPEAKER_00:" only: "Tip: always back up" keeps its "Tip"
+LINE = re.compile(r"^\s*\[(\d+)\]\s+\d+:\d+(?:\.\d+)?-\d+:\d+(?:\.\d+)?\s*(?:(?:S\d+|[Ss]peaker_?\w*|SPEAKER_?\w*):)?\s*(.*)$")
 
 
 def _norm(t: str) -> str:
