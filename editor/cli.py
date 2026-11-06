@@ -258,6 +258,11 @@ def main(argv=None):
     p.add_argument("--use", metavar="LINE:TAKE", help="play this take of this line (numbers as listed, e.g. 2:1)")
     p.add_argument("--apply", action="store_true", help="write the segments to edl.json; re-run from cut")
 
+    p = sub.add_parser("habits", help="words said out of habit (basically, literally, 'you know,'): count them, cut them")
+    p.add_argument("work_dir")
+    p.add_argument("--only", help="cut only these, comma-separated (e.g. basically,you know)")
+    p.add_argument("--apply", action="store_true", help="cut them from edl.json's segments; re-run from cut")
+
     p = sub.add_parser("triage", help="classify raw/ clips: a-roll (founder-to-camera) vs reusable / one-off b-roll")
     p.add_argument("project")
 
@@ -1030,6 +1035,34 @@ def cmd_takes(args):
         edl["segments"] = segs
         save_json(edl_path, edl)
         log(f"takes: {edl_path} updated: re-run from cut; check anything placed by seconds")
+    return 0
+
+
+def cmd_habits(args):
+    """Words said out of habit, in what the cut plays: listed, or cut (--apply) from the segments in their order."""
+    from .habits import cut, find
+    work = Path(args.work_dir)
+    edl_path = work / "edl.json"
+    edl = load_json(edl_path)
+    words = load_json(work / "transcript.json")["words"]
+    found = find(words, edl.get("segments", []))
+    if args.only:
+        want = {x.strip().lower() for x in args.only.split(",") if x.strip()}
+        found = [f for f in found if f["name"].lower() in want]
+    if not found:
+        print("no words said out of habit in the cut")
+        return 0
+    for f in found:
+        n = len(f["hits"])
+        print(f"  {f['name']!r}: {'once' if n == 1 else f'{n} times'}")
+    if not args.apply:
+        print("cut them: editor habits <work> --apply (or --only basically,literally)")
+        return 0
+    before = sum(s["end"] - s["start"] for s in edl.get("segments", []))
+    edl["segments"] = cut(edl.get("segments", []), words, [h for f in found for h in f["hits"]])
+    after = sum(s["end"] - s["start"] for s in edl["segments"])
+    save_json(edl_path, edl)
+    log(f"habits: cut {sum(len(f['hits']) for f in found)} ({before - after:.1f} s) from {edl_path}: re-run from cut")
     return 0
 
 
