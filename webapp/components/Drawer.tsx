@@ -61,7 +61,13 @@ export function Drawer({ project: p, edit, onApply, settings, onMakeMusic, onWor
   const habits = useMemo(() => crutches(p, e.keep), [p, e.keep]);
   const [find, setFind] = useState("");
   const [fitTo, setFitTo] = useState<number | null>(null);
-  const length = useMemo(() => buildTimeline(p.words, e, p.sources.map((x) => x.duration)).duration, [p.words, p.sources, e]);
+  const cutTl = useMemo(() => buildTimeline(p.words, e, p.sources.map((x) => x.duration)), [p.words, p.sources, e]);
+  const length = cutTl.duration;
+  // words a minute as it plays (talking speed included), from the cut's spoken words over its length
+  const wpm = useMemo(() => {
+    const n = cutTl.words.filter((w) => w.w.trim()).length;
+    return cutTl.duration > 5 && n > 10 ? Math.round(n / (cutTl.duration / 60)) : 0;
+  }, [cutTl]);
   const fit = useMemo(() => (fitTo && fitTo < length ? planFit(p, e, fitTo) : null), [p, e, fitTo, length]);
   const found = useMemo(() => findWords(p, find), [p, find]);
   const hit = useMemo(() => new Set(found.flat()), [found]);
@@ -117,7 +123,7 @@ export function Drawer({ project: p, edit, onApply, settings, onMakeMusic, onWor
           </div>
           <div className="field"><span className="label">Talking speed</span>
             {opt(e.speed ?? 1, [[1, "As filmed"], [1.1, "1.1×"], [1.2, "1.2×"], [1.3, "1.3×"]], (v) => setE({ ...e, speed: v === 1 ? undefined : v }), "Talking speed")}
-            <span className="hint">Faster talking holds attention; your voice keeps its pitch. Pictures and music play as they are.</span></div>
+            <span className="hint">{wpm ? `You talk at about ${wpm} words a minute${wpm < 150 ? ": unhurried for a reel, where 160 to 190 feels brisk" : wpm > 200 ? ": already quick" : ""}. ` : ""}Faster talking holds attention; your voice keeps its pitch. Pictures and music play as they are.</span></div>
           {FIT_TARGETS.some((t) => t < length) && (
             <div className="field"><span className="label" id="fit-h">Fit to a length <span className="muted small num">(now {formatTime(length)})</span></span>
               <div className="seg" role="group" aria-labelledby="fit-h">

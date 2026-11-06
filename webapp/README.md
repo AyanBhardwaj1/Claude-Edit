@@ -149,7 +149,8 @@ vertical reel with a cover and a post caption, then change it by typing notes. E
     `editor habits`).
 41. **Find in what you said**: a search box above the words in Edit it myself → Cut. It highlights every place a word or
     phrase is said (the last word can be a start: "sub" finds "subscribe"); Enter jumps to the first, and one click
-    cuts them all or brings back the cut ones, keeping the cut's order (`findWords`, `restoreWords`).
+    cuts them all or brings back the cut ones, keeping the cut's order (`findWords`, `restoreWords`). `/` jumps to it
+    from anywhere in the editor. Talking speed says how fast you talk now (words a minute).
 42. **Fit to a length**: Edit it myself → Cut offers Under 30/45/60/90 s (whichever are shorter than the video). It
     tightens the pauses first, then proposes cutting the lines that grip least: a line said again first, then the cold
     open's rules (a number, a strong word, "you", a question, a name all count for a line). The hook, the ending and
