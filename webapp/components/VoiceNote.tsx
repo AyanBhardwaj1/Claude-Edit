@@ -14,14 +14,23 @@ export function VoiceNote({ settings, onText, disabled }: { settings: Settings; 
   const [say, setSay] = useState("");
   const rec = useRef<MediaRecorder | null>(null);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
-  useEffect(() => () => { if (timer.current) clearInterval(timer.current); rec.current?.stream.getTracks().forEach((t) => t.stop()); }, []);
+  const gone = useRef(false);
+  useEffect(() => () => {                     // leaving the editor mid-note: stop the mic, send nothing anywhere
+    gone.current = true;
+    if (timer.current) clearInterval(timer.current);
+    if (rec.current?.state === "recording") rec.current.stop();
+    rec.current?.stream.getTracks().forEach((t) => t.stop());
+  }, []);
   const engine = settings.transcriber === "openai" && settings.openaiKey ? "openai" : "browser";
 
+  const starting = useRef(false);
   const start = async () => {
+    if (starting.current || rec.current?.state === "recording") return;      // a double click or M twice
+    starting.current = true;
     setSay("");
     let stream: MediaStream;
     try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }); }
-    catch { setSay("Cutmind can't use the microphone: allow it in your browser's site settings."); return; }
+    catch { starting.current = false; setSay("Cutmind can't use the microphone: allow it in your browser's site settings."); return; }
     const type = ["audio/webm;codecs=opus", "audio/mp4", "audio/webm"].find((t) => MediaRecorder.isTypeSupported?.(t));
     const r = new MediaRecorder(stream, type ? { mimeType: type } : undefined);
     const parts: Blob[] = [];
@@ -29,6 +38,7 @@ export function VoiceNote({ settings, onText, disabled }: { settings: Settings; 
     r.onstop = async () => {
       stream.getTracks().forEach((t) => t.stop());
       if (timer.current) clearInterval(timer.current);
+      if (gone.current) return;
       setState("busy"); setSay(engine === "browser" ? "Writing it down in your browser…" : "Writing it down…");
       try {
         const words = await transcribe(new Blob(parts, { type: r.mimeType || type || "audio/webm" }), 0, 0, engine, settings.openaiKey, () => {});
@@ -38,7 +48,7 @@ export function VoiceNote({ settings, onText, disabled }: { settings: Settings; 
       } catch (e) { setSay((e as Error).message); }
       setState("idle");
     };
-    rec.current = r; r.start(); setState("rec"); setSecs(0);
+    rec.current = r; r.start(); setState("rec"); setSecs(0); starting.current = false;
     timer.current = setInterval(() => setSecs((s) => { if (s + 1 >= LIMIT) r.stop(); return s + 1; }), 1000);
   };
   const stop = () => { if (rec.current?.state === "recording") rec.current.stop(); };

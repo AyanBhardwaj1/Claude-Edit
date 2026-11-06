@@ -41,3 +41,13 @@ test("a change you can see somewhere in the video points at a word there", () =>
   assert.deepEqual(items.find((c) => c.text.startsWith("Music turned down"))?.at, "w2");
   assert.equal(items.find((c) => c.text.startsWith("Subtitles"))?.at, undefined);   // everywhere: nowhere to jump
 });
+
+test("a length just under a minute reads 1:00, never 0:60", () => {
+  const p = project();
+  const long = Array.from({ length: 150 }, (_, i) => ({ id: `w${i}`, src: 0, s: i * 0.4, e: i * 0.4 + 0.3, w: "x" }));
+  const q = { ...p, words: long, sources: [{ ...p.sources[0], duration: 80 }] } as Project;
+  const a: Edit = { ...defaultEdit(q), keep: [{ from: "w0", to: "w148" }] };
+  const b: Edit = { ...a, keep: [{ from: "w0", to: "w60" }] };
+  const line = changeList(q, a, b)[0];
+  assert.doesNotMatch(line, /:60/, line);
+});

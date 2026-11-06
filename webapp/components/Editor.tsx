@@ -46,8 +46,10 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
   const [dur, setDur] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [msgs, setMsgs] = useState<Msg[]>(() => (firstSummary ? [{ who: "ed", text: firstSummary }] :
-    project.versions.map((v, i) => ({ who: "ed" as const, text: `Version ${v.n}: ${v.summary}`, v: v.n,
-      changes: i > 0 ? changeItems(project, project.versions[i - 1].edit, v.edit) : undefined }))));
+    project.versions.map((v, i) => {
+      const base = v.from !== undefined ? project.versions.find((x) => x.n === v.from) : i > 0 ? project.versions[i - 1] : undefined;
+      return { who: "ed" as const, text: `Version ${v.n}: ${v.summary}`, v: v.n, changes: base ? changeItems(project, base.edit, v.edit) : undefined };
+    })));
   const [note, setNote] = useState("");
   useEffect(() => {                                   // the note box grows with what's in it (up to its max height)
     const el = document.getElementById("note") as HTMLTextAreaElement | null;
@@ -73,9 +75,19 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
   const [attn, setAttn] = useState<Attention | null>(null);
   const [track, setTrack] = useState<{ segs: [number, number][]; layers: { s: number; e: number; text: boolean; label: string }[]; zooms: [number, number][] } | null>(null);
   const [all, setAll] = useState<{ f: Format; url: string; ext: string }[] | null>(null);
+  // export files are whole videos in memory: free the ones no longer shown
+  const shownUrls = useRef<string[]>([]);
+  useEffect(() => {
+    const now = [exp?.video, exp?.cover, exp?.caption, exp?.srt, ...(all ?? []).map((x) => x.url)].filter((u): u is string => !!u);
+    for (const u of shownUrls.current) if (!now.includes(u)) URL.revokeObjectURL(u);
+    shownUrls.current = now;
+  }, [exp, all]);
+  useEffect(() => () => { for (const u of shownUrls.current) URL.revokeObjectURL(u); }, []);
   const [maker, setMaker] = useState(false);
   const [wpm, setWpm] = useState<number | null>(null);
   const version = p.versions.find((v) => v.n === p.current) ?? p.versions[p.versions.length - 1];
+  // a finished export belongs to the version it was made from: another version on screen means export again
+  useEffect(() => { setExp((x) => (x && x.pct >= 100 ? null : x)); setAll(null); lastBlob.current = null; }, [version?.n]);
   const latest = useRef(p);
   latest.current = p;
 
@@ -143,7 +155,13 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
   }, [p, settings.brand]);
 
   // Compare: the version before this one, played from the same moment (C or the Compare button)
-  const prevN = (() => { const ns = p.versions.map((v) => v.n); const i = ns.indexOf(version?.n ?? -1); return i > 0 ? ns[i - 1] : null; })();
+  // the version this one was made from (a note on version 1 after viewing it makes version 4 "from" 1), else the one before
+  const baseOf = (v?: { n: number; from?: number }) => {
+    if (!v) return null;
+    if (v.from !== undefined && p.versions.some((x) => x.n === v.from)) return v.from;
+    const ns = p.versions.map((x) => x.n), i = ns.indexOf(v.n); return i > 0 ? ns[i - 1] : null;
+  };
+  const prevN = baseOf(version);
   const [cmp, setCmp] = useState(false);
   const shown = cmp && prevN !== null ? p.versions.find((v) => v.n === prevN) ?? version : version;
   const here = () => { const pl = player.current; if (!pl) return undefined;
@@ -168,6 +186,8 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
     const onKey = (ev: KeyboardEvent) => {
       const el = ev.target as HTMLElement;
       if (el.closest("input, textarea, select, [contenteditable]") || (!!exp && exp.pct < 100)) return;
+      if (keys || el.closest("dialog") || document.querySelector("dialog[open]")) return;   // a dialog is in front
+      if ((ev.key === " " || ev.key === "Enter") && el.closest("button, a, [role=button], summary")) return;   // pressing a button
       const pl = player.current; if (!pl) return;
       const mod = ev.metaKey || ev.ctrlKey;
       if (ev.key === "?" && !mod) { ev.preventDefault(); setKeys(true); return; }
@@ -227,6 +247,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
 
   async function applyOne(text: string): Promise<boolean> {
     setBusy("Working on your note…");
+    const p = latest.current;               // not the render this queue started in: renames, chips, version picks since
     try {
       const before = (p.versions.find((v) => v.n === p.current) ?? p.versions[p.versions.length - 1]).edit;
       const r = await applyUserNote(p, settings, loadRules(), text, (m) => setBusy(m));
@@ -376,7 +397,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
         real person. Play it, open &ldquo;Edit it myself&rdquo;, change its shape and export it. Notes need an AI key in Settings.</span></div>}
       <div className={`ed-grid ${shape.w > shape.h ? "wide" : ""}`}>
         <div className="preview">
-          <div className={`phone ${shape.w >= shape.h ? "flat" : ""} ${cmp ? "comparing" : ""}`}>{cmp && <span className="cmp-badge" role="status">Version {prevN}, before your last change</span>}<canvas ref={canvas} style={{ aspectRatio: `${shape.w} / ${shape.h}` }}
+          <div className={`phone ${shape.w >= shape.h ? "flat" : ""} ${cmp ? "comparing" : ""}`}>{cmp && <span className="cmp-badge" role="status">Version {prevN}, before this change</span>}<canvas ref={canvas} style={{ aspectRatio: `${shape.w} / ${shape.h}` }}
             aria-label={`Preview of ${p.title}, version ${shown?.n ?? p.current}, ${shape.name.toLowerCase()} ${fmt}`} role="img" /></div>
           <div className="transport">
             <button className="play" onClick={toggle} disabled={recording} aria-label={playing ? "Pause" : "Play"}><Icon name={playing ? "pause" : "play"} /></button>

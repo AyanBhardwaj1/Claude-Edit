@@ -257,7 +257,7 @@ export async function applyUserNote(p: Project, s: Settings, rules: StyleRule[],
   const { edit } = fromAi(p, cur.edit, ai, web);
   const n = Math.max(...p.versions.map((v) => v.n)) + 1;
   const summary = ai.summary || describe(cur.edit, edit);
-  p.versions.push({ n, edit, note, summary, at: new Date().toISOString() });
+  p.versions.push({ n, edit, note, summary, at: new Date().toISOString(), from: cur.n });
   p.current = n;
   await saveProject(p);
   return { summary, styleRule: ai.styleRule ?? null };
@@ -266,7 +266,7 @@ export async function applyUserNote(p: Project, s: Settings, rules: StyleRule[],
 export async function saveManual(p: Project, edit: Edit, what: string) {
   const cur = p.versions.find((v) => v.n === p.current)!;
   const n = Math.max(...p.versions.map((v) => v.n)) + 1;
-  p.versions.push({ n, edit, note: what, summary: describe(cur.edit, edit), at: new Date().toISOString() });
+  p.versions.push({ n, edit, note: what, summary: describe(cur.edit, edit), at: new Date().toISOString(), from: cur.n });
   p.current = n;
   await saveProject(p);
 }

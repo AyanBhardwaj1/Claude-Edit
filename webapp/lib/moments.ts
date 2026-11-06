@@ -11,6 +11,12 @@ export function noteTimes(note: string): number[] {
   const out: number[] = [];
   const re = /\b(\d{1,2}):([0-5]\d(?:\.\d+)?)\b|\b(\d{1,2})\s*m(?:in)?\s*(\d{1,2}(?:\.\d+)?)\s*s(?:ecs?|econds?)?\b|\b(\d{1,3}(?:\.\d+)?)\s*(?:s|secs?|seconds?)\b/gi;
   for (const m of note.matchAll(re)) {
+    if (m[5] !== undefined) {                 // "10 seconds" is a length, not a moment, in "10 seconds shorter", "by 10 seconds"
+      const before = note.slice(0, m.index).trim().split(/\s+/).pop()?.toLowerCase() ?? "";
+      const after = note.slice((m.index ?? 0) + m[0].length).trim().split(/\s+/)[0]?.toLowerCase() ?? "";
+      if (/^(by|than|under|over|about|for|around|last|first|another|extra|only|just)$/.test(before) ||
+          /^(shorter|longer|faster|slower|long|less|more|earlier|later|of|each|apart|max|tops)\b/.test(after)) continue;
+    }
     const t = m[1] !== undefined ? Number(m[1]) * 60 + Number(m[2]) : m[3] !== undefined ? Number(m[3]) * 60 + Number(m[4]) : Number(m[5]);
     if (Number.isFinite(t) && !out.some((x) => Math.abs(x - t) < 0.05)) out.push(t);
   }
@@ -47,7 +53,7 @@ export function momentsText(tl: Timeline, e: Pick<Edit, "broll" | "zooms">, note
 /** A spoken note that points at "here" ("cut this part", "the music's too loud here") means where the player is:
  *  prefix that time, unless the note already says a time. */
 export function anchorSpoken(text: string, playerAt: number): string {
-  if (noteTimes(text).length || !/\b(here|this (part|bit|moment|spot|line|word|shot)|right now|at this point|just now)\b/i.test(text)) return text;
+  if (noteTimes(text).length || !/\b(here(?!['’]s\b|\s+(is|are)\b)|this (part|bit|moment|spot|line|word|shot)|right now|at this point|just now)\b/i.test(text)) return text;
   const at = `${Math.floor(playerAt / 60)}:${String(Math.floor(playerAt % 60)).padStart(2, "0")}`;
   return `At ${at}, ${text.charAt(0).toLowerCase()}${text.slice(1)}`;
 }

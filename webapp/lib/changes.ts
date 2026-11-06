@@ -8,7 +8,7 @@ import type { Broll, Edit, Project } from "./types";
 const q = (s: string) => `“${s.length > 40 ? s.slice(0, 38).trimEnd() + "…" : s}”`;
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 const secs = (s: number) => `${Math.abs(s) < 10 ? Math.abs(s).toFixed(1) : Math.round(Math.abs(s))} s`;
-const len = (s: number) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}`;
+const len = (s: number) => { const r = Math.round(s); return `${Math.floor(r / 60)}:${String(r % 60).padStart(2, "0")}`; };
 
 /** Runs of words in the transcript's order that are in `inA` but not in `inB`: their text and first word. */
 function runs(p: Project, keepA: Set<string>, keepB: Set<string>): { text: string; id: string }[] {

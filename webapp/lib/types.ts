@@ -86,7 +86,7 @@ export type Edit = {
 /** Subtitles in another language: one translated line per spoken phrase, timed by the words it covers. */
 export type Translation = { lang: string; lines: { from: string; to: string; text: string }[] };
 
-export type Version = { n: number; edit: Edit; note: string; summary: string; at: string };
+export type Version = { n: number; edit: Edit; note: string; summary: string; at: string; from?: number };   // from: the version it was made from
 
 export type RetakeGroup = { phrases: Range[]; texts: string[]; chosen: number };
 

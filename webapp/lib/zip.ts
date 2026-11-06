@@ -20,6 +20,7 @@ export async function crc32(b: Blob): Promise<number> {
 const LIMIT = 0xfffffffe;                                      // no ZIP64: a backup stays under 4 GB
 
 export async function zip(files: { name: string; data: Blob }[], onProgress?: (done: number) => void): Promise<Blob> {
+  if (files.length > 0xffff) throw new Error("This backup would hold over 65,535 files: back up fewer videos at a time.");
   const parts: BlobPart[] = [], central: Uint8Array<ArrayBuffer>[] = [];
   let offset = 0, i = 0;
   for (const f of files) {

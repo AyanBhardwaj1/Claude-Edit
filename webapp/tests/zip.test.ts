@@ -28,3 +28,8 @@ test("a backup zip round-trips, and other tools can read it", async () => {
   await assert.rejects(unzip(new Blob(["not a zip at all, definitely not"])), /Not a Cutmind backup/);
   void readFileSync;
 });
+
+test("a backup with more files than a plain ZIP can count is refused, not silently broken", async () => {
+  const many = Array.from({ length: 65_536 }, (_, i) => ({ name: `m/${i}`, data: new Blob([""]) }));
+  await assert.rejects(zip(many), /65,535 files/);
+});
