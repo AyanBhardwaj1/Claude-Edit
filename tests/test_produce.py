@@ -342,3 +342,16 @@ def test_punch_in_aimed_at_a_captured_element(tmp_path):
     spec["pieces"][0]["focus_from"] = "shots.json#home"
     with pytest.raises(EditorError, match="no recorded focus"):
         produce.Spec(write_spec(tmp_path, spec))
+
+
+def test_a_video_piece_from_a_recorded_shot(tmp_path):
+    subprocess.run(["ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i", "testsrc2=s=320x180:r=30:d=6", "-pix_fmt", "yuv420p",
+                    str(tmp_path / "shots.mp4")], check=True)
+    (tmp_path / "shots.json").write_text(json.dumps({"recording": "shots.mp4", "shots": [
+        {"name": "route", "rec_in": 1.0, "rec_out": 3.5}, {"name": "still", "rec_in": None}]}))
+    spec = base_spec(pieces=[{"name": "r", "type": "video", "from_shot": "shots.json#route", "ramp_waits": {"speed": 4}}])
+    s = produce.Spec(write_spec(tmp_path, spec))
+    assert (s.pieces[0]["in"], s.pieces[0]["out"]) == (1.0, 3.5) and s.pieces[0]["src"] == "shots.mp4"
+    spec["pieces"][0]["from_shot"] = "shots.json#still"
+    with pytest.raises(EditorError, match="no recorded stretch"):
+        produce.Spec(write_spec(tmp_path, spec))

@@ -75,6 +75,8 @@ class Spec:
         if None in names or len(set(names)) != len(names):
             raise EditorError("every piece needs a unique name")
         for pc in self.pieces:
+            if pc.get("from_shot"):
+                self._from_shot(pc)
             if pc.get("focus_from"):
                 self._focus_from(pc)
         self.starts, t = {}, 0.0
@@ -84,6 +86,21 @@ class Spec:
             t += pc["_dur"]
         self.total = t
         self.voices = {v["name"]: v for v in self.data.get("audio", {}).get("voices", []) if v.get("name")}
+
+    def _from_shot(self, pc: dict) -> None:
+        """"from_shot": "caps/shots.json#route" on a video piece: that shot's stretch of the `capture shots --record`
+        video (src, in, out filled in unless the piece sets them)."""
+        ref = str(pc["from_shot"])
+        path, _, name = ref.partition("#")
+        data = json.loads(self.p(path).read_text())
+        shot = next((x for x in data.get("shots", []) if x.get("name") == (name or pc["name"])), None)
+        if not data.get("recording") or not shot or shot.get("rec_in") is None or shot.get("rec_out") is None:
+            raise EditorError(f"piece {pc['name']}: {ref} has no recorded stretch (capture with --record)")
+        rec = Path(path).parent / data["recording"]
+        pc.setdefault("src", str(rec))
+        pc.setdefault("in", round(float(shot["rec_in"]), 2))
+        pc.setdefault("out", round(float(shot["rec_out"]), 2))
+        pc.setdefault("type", "video")
 
     def _focus_from(self, pc: dict) -> None:
         """"focus_from": "shots/shots.json#route": aim the Ken Burns and a punch-in at the element `capture shots`
@@ -175,7 +192,7 @@ class Spec:
 
 PIECE_KEYS = {
     "video": {"src", "in", "out", "speed", "fit", "pad", "crop_y", "grade", "bloom", "z0", "z1", "fx", "fy", "push",
-              "fade_in", "fade_out", "ramp_waits"},
+              "fade_in", "fade_out", "ramp_waits", "from_shot"},
     "framed": {"src", "dur", "in", "z0", "z1", "fx", "fy", "punch", "flash", "scale", "radius", "backdrop", "focus_from"},
     "still": {"src", "dur", "in", "z0", "z1", "fx", "fy", "punch", "flash", "scale", "radius", "backdrop", "focus_from"},
     "sequence": {"srcs", "dur", "framed", "z1"},
