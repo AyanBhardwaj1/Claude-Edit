@@ -4,6 +4,7 @@
 import { motionOf } from "./edit";
 import type { AiEdit } from "./edit";
 import { DEFAULT_MAX_TOKENS, type AiChoice } from "./effort";
+import { momentsText } from "./moments";
 import { APPLY_NOTE, EDIT_SCHEMA, FIRST_EDIT, REVIEW_EDIT, SCRIPT_SCHEMA, SYSTEM, WRITE_SCRIPT } from "./prompts";
 import { reelCheck } from "./score";
 import { playedLength, WAIT_SPEED, waitSavings } from "./screenrec";
@@ -139,7 +140,9 @@ export async function firstEdit(s: Settings, p: Project, rules: StyleRule[], cho
 
 export async function applyNote(s: Settings, p: Project, current: Edit, note: string, rules: StyleRule[], choice?: AiChoice): Promise<AiEdit> {
   const cur = toAiShape(current);
-  const user = `${APPLY_NOTE(note)}\n\nCURRENT EDIT:\n${JSON.stringify(cur)}\n\n${transcriptText(p)}`;
+  const where = momentsText(buildTimeline(p.words, current, p.sources.map((x) => x.duration)), current, note);
+  const user = `${APPLY_NOTE(note)}${where ? `\n\nWHERE THE NOTE POINTS (times are in the edited video as the user watched it):\n${where}` : ""}` +
+    `\n\nCURRENT EDIT:\n${JSON.stringify(cur)}\n\n${transcriptText(p)}`;
   return (await callJson(s, SYSTEM.replace("{{rules}}", rulesText(rules)), user, EDIT_SCHEMA as unknown as Json, "submit_edit", choice)) as AiEdit;
 }
 

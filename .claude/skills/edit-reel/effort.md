@@ -51,7 +51,9 @@ when the user always asks for the same thing.
 | a note | 2-4 min | only changed pieces re-render; audio-only notes ~1 min |
 | review | ~1 min | then Read the sheets |
 So a 3-minute brief takes about 30 min to a first draft at rush on this kind of machine (most of it writing the
-spec and capturing), and 3-4 min per note after. Say so when asked; `editor effort show --stages capture pieces
+spec and capturing), and 3-4 min per note after. Once a spec exists, `editor produce spec.json --estimate [--effort
+rush]` gives the render time from what is actually left (cached pieces and an unchanged overlay cost nothing): say
+that number before rendering when the user is short of time. Say so when asked; `editor effort show --stages capture pieces
 overlay mix composite --length <s>` gives this machine's learned numbers.
 
 ## When the user asks for more quality

@@ -353,6 +353,8 @@ def main(argv=None):
 
     p = sub.add_parser("timeline", help="print the cut's words on the OUTPUT timeline (for placing zooms/b-roll)")
     p.add_argument("work_dir")
+    p.add_argument("--at", nargs="+", metavar="TIME", help="what the reel has at these moments (0:12 or 12.5): "
+                   "segment and source second, words with ids, b-roll, zooms, music dips, chapter (for timed notes)")
 
     p = sub.add_parser("compose", help="original music + SFX synthesized from scratch (royalty-free): "
                                        "bed, lofi, riser, sfx, ambience, list")
@@ -958,6 +960,10 @@ def cmd_timeline(args):
     from .captions import _groups
     from .util import fmt_ts
     work = Path(args.work_dir)
+    if getattr(args, "at", None):
+        from .anchors import moment
+        print("\n".join(moment(work, x) for x in args.at))
+        return
     meta = load_json(work / "cut_meta.json")
     words = load_json(work / "cut_words.json")["words"]
     print(f"# output duration {meta['duration']:.2f}s, {len(meta['timeline'])} segments")

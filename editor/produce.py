@@ -716,8 +716,8 @@ def captions_from_brief(spec_path: str | Path, brief: str | Path) -> dict:
 
 # ---------------------------------------------------------------- overlay
 
-def overlay(spec: Spec, jobs: int = 3, span: tuple[float, float] | None = None) -> Path | None:
-    """The overlay track (cached by content). With `span` only that stretch is rendered (output t=0 = span start)."""
+def _overlay_plan(spec: Spec, span: tuple[float, float] | None = None) -> tuple[dict, Path] | None:
+    """The resolved overlay spec and the file it renders to (named by its content, so an unchanged one is cached)."""
     ov = spec.data.get("overlay")
     auto = auto_captions(spec)
     if not ov and not auto and not ramp_shimmers(spec):
@@ -733,7 +733,36 @@ def overlay(spec: Spec, jobs: int = 3, span: tuple[float, float] | None = None) 
     th.setdefault("height", spec.h)
     th.setdefault("fps", spec.fps)
     key = _hash(ov, span)
-    out = spec.work / (f"overlay.{key}.mov" if not span else f"range_overlay.{key}.mov")
+    return ov, spec.work / (f"overlay.{key}.mov" if not span else f"range_overlay.{key}.mov")
+
+
+def estimate(spec: Spec, effort: str = "standard") -> dict:
+    """How long a full render will take on this machine, before starting: only uncached pieces and an overlay that
+    changed cost time, at this machine's learned rate per stage (editor effort), plus the mix and the final encode."""
+    from . import effort as eff
+    e = eff.normalise(effort) or "standard"
+    data = eff.load()
+    todo = [pc for pc in spec.pieces if not _piece_path(spec, pc).exists()]
+    todo_media = sum(spec.starts[pc["name"]][1] - spec.starts[pc["name"]][0] for pc in todo)
+    plan = _overlay_plan(spec)
+    ov_media = spec.total if plan and not plan[1].exists() else 0.0
+    stages, learned = {}, 0
+    for st, media in (("pieces", todo_media), ("overlay", ov_media), ("mix", spec.total), ("composite", spec.total)):
+        r, was = eff.rate(st, e, data)
+        stages[st] = round(r * media / 60.0, 1)
+        learned += was
+    if e != "rush":
+        stages["review"] = 60.0                       # contact sheets and checks, about a minute (effort.md)
+    return {"effort": e, "stages": stages, "seconds": round(sum(stages.values()), 1), "learned": learned,
+            "pieces_to_render": [pc["name"] for pc in todo], "overlay_cached": bool(plan) and not ov_media}
+
+
+def overlay(spec: Spec, jobs: int = 3, span: tuple[float, float] | None = None) -> Path | None:
+    """The overlay track (cached by content). With `span` only that stretch is rendered (output t=0 = span start)."""
+    plan = _overlay_plan(spec, span)
+    if plan is None:
+        return None
+    ov, out = plan
     resolved = spec.work / "overlay.resolved.json"
     resolved.write_text(json.dumps(ov, indent=1, ensure_ascii=False))
     if not out.exists():
@@ -1106,6 +1135,20 @@ def _graphics_on_faces(spec: Spec, els: list[dict], dur: float, limit: float = 0
     return hits
 
 
+def missing_brief_lines(brief_text: str, els: list[dict]) -> list[str]:
+    """The brief's caption lines ("0:31 <line>") that no caption on screen says (60% of its content words)."""
+    said = set()
+    for e in els:
+        if e.get("type") in ("caption", "big_caption"):
+            said |= set(_tokens(" ".join(_texts(e))))
+    out = []
+    for ln in brief_lines(brief_text):
+        toks = _tokens(ln["text"], content=True) or _tokens(ln["text"])
+        if toks and sum(t in said for t in toks) / len(toks) < 0.6:
+            out.append(f"{ln['at']} {ln['text']}")
+    return out
+
+
 def review(spec: Spec, final: Path | None = None) -> dict:
     """What a human checks before sending a draft: length vs target, loudness, captions on every spoken line,
     graphics ending inside the video, and a frame at every graphic (sheets to Read)."""
@@ -1174,6 +1217,14 @@ def review(spec: Spec, final: Path | None = None) -> dict:
         rep["numbers"] = {"shown": sorted(shown), "not_in_brief": rogue}
         for n in rogue:
             issues.append(f"number {n} on screen (\"{shown[n][:60]}\") isn't in the brief or numbers_from_screen")
+        # every line in the brief's caption list ("0:31 <line>") must be on screen as a caption somewhere
+        missing = missing_brief_lines(spec.p(spec.data["brief"]).read_text(), els)
+        rep["brief_lines_missing"] = missing
+        for m in missing[:5]:
+            issues.append(f"the brief's line isn't in any caption (not captioned, or said differently on the "
+                          f"recording: caption what was said): {m[:80]}")
+        if len(missing) > 5:
+            issues.append(f"... and {len(missing) - 5} more of the brief's caption lines")
     late = [e for e in els if float(e.get("t_out", e.get("t_in", 0)) or 0) > dur + 0.05]
     if late:
         issues.append(f"{len(late)} overlay element(s) end after the video")
@@ -1489,6 +1540,97 @@ def save_version(spec: Spec, note: str, files: list[str]) -> dict:
     return entry
 
 
+def _short(v) -> str:
+    t = json.dumps(v, ensure_ascii=False) if not isinstance(v, str) else repr(v)
+    return t if len(t) <= 48 else t[:45] + "..."
+
+
+def _field_diff(a: dict, b: dict, skip=()) -> list[str]:
+    out = []
+    for k in [*a, *[k for k in b if k not in a]]:
+        if k in skip or a.get(k) == b.get(k):
+            continue
+        out.append(f"{k} added {_short(b[k])}" if k not in a else f"{k} removed" if k not in b
+                   else f"{k} {_short(a[k])} -> {_short(b[k])}")
+    return out
+
+
+def spec_changes(old: dict, new: dict) -> tuple[list[str], list[str]]:
+    """What changed between two specs, in plain lines, and the stages that re-render for it (a note's summary for the
+    user, and a check that the edit touched only what the note asked)."""
+    lines, stages = [], set()
+    for k in ("output", "frame"):
+        if old.get(k) != new.get(k):
+            lines.append(f"{k}: " + "; ".join(_field_diff(old.get(k) or {}, new.get(k) or {})))
+            stages |= {"pieces", "overlay", "mix", "composite"}
+    op = {pc.get("name"): pc for pc in old.get("pieces", [])}
+    np_ = {pc.get("name"): pc for pc in new.get("pieces", [])}
+    for n in np_:
+        if n not in op:
+            lines.append(f"piece {n}: added ({np_[n].get('type', 'video')})")
+            stages |= {"pieces", "composite"}
+        elif op[n] != np_[n]:
+            d = _field_diff(op[n], np_[n])
+            lines.append(f"piece {n}: " + "; ".join(d))
+            if _field_diff(op[n], np_[n], skip=NOT_PICTURE):
+                stages |= {"pieces", "composite"}
+    for n in op:
+        if n not in np_:
+            lines.append(f"piece {n}: removed")
+            stages |= {"pieces", "composite"}
+    if [n for n in [pc.get("name") for pc in old.get("pieces", [])] if n in np_] != \
+            [n for n in [pc.get("name") for pc in new.get("pieces", [])] if n in op]:
+        lines.append("pieces: reordered")
+        stages |= {"pieces", "composite"}
+    oa, na = old.get("audio", {}), new.get("audio", {})
+    for kind in sorted({*oa, *na}):
+        a, b = oa.get(kind), na.get(kind)
+        if a == b:
+            continue
+        stages |= {"mix", "composite"}
+        if not isinstance(a, list) or not isinstance(b, list):
+            lines.append(f"audio {kind}: " + ("; ".join(_field_diff(a or {}, b or {})) if isinstance(a or b, dict)
+                                              else f"{_short(a)} -> {_short(b)}"))
+            continue
+        for i in range(max(len(a), len(b))):
+            x, y = (a[i] if i < len(a) else None), (b[i] if i < len(b) else None)
+            name = (y or x).get("name") or (y or x).get("src") if isinstance(y or x, dict) else i
+            name = name if isinstance(name, str) else f"#{i}"
+            if x is None:
+                lines.append(f"audio {kind} {name}: added")
+            elif y is None:
+                lines.append(f"audio {kind} {name}: removed")
+            elif x != y:
+                lines.append(f"audio {kind} {name}: " + "; ".join(_field_diff(x, y)))
+    if old.get("captions") != new.get("captions"):
+        lines.append("captions: " + "; ".join(_field_diff(old.get("captions") or {}, new.get("captions") or {})))
+        stages |= {"overlay", "composite"}
+    ov0, ov1 = old.get("overlay"), new.get("overlay")
+    if ov0 != ov1:
+        stages |= {"overlay", "composite"}
+        if isinstance(ov0, dict) and isinstance(ov1, dict):
+            e0, e1 = ov0.get("elements", []), ov1.get("elements", [])
+            for i in range(max(len(e0), len(e1))):
+                x, y = (e0[i] if i < len(e0) else None), (e1[i] if i < len(e1) else None)
+                label = f"overlay #{i} {(y or x).get('type')}"
+                if x is None:
+                    lines.append(f"{label}: added {_short(' / '.join(_texts(y)))}")
+                elif y is None:
+                    lines.append(f"{label}: removed {_short(' / '.join(_texts(x)))}")
+                elif x != y:
+                    lines.append(f"{label}: " + "; ".join(_field_diff(x, y)))
+            if {k: v for k, v in ov0.items() if k != "elements"} != {k: v for k, v in ov1.items() if k != "elements"}:
+                lines.append("overlay theme: " + "; ".join(_field_diff(ov0.get("theme") or {}, ov1.get("theme") or {})))
+        else:
+            lines.append(f"overlay: {_short(ov0)} -> {_short(ov1)}")
+    for k, st in (("extras", "extras"), ("post", "post")):
+        if old.get(k) != new.get(k):
+            lines.append(f"{k}: changed")
+            stages.add(st)
+    order = ["pieces", "overlay", "mix", "composite", "extras", "post"]
+    return lines, [s for s in order if s in stages]
+
+
 NUM = re.compile(r"(?<![\w.])[+−-]?\d[\d,]*(?:\.\d+)?%?")
 
 
@@ -1697,6 +1839,11 @@ def main(argv=None) -> int:
                     help="quick 720p look at one stretch after a note (times or references like d7c d7c.end)")
     ap.add_argument("--note", help="save this render as the next version (out/versions/), with the user's note")
     ap.add_argument("--versions", action="store_true", help="list the saved versions")
+    ap.add_argument("--estimate", action="store_true",
+                    help="how long the render will take on this machine (cached pieces and overlay cost nothing); "
+                         "say it before starting when the user is short of time")
+    ap.add_argument("--changes", nargs="?", const="", metavar="N",
+                    help="what changed in the spec since the last saved version (or vN), and what re-renders")
     ap.add_argument("--at", nargs="+", metavar="TIME",
                     help="what's on screen and in the mix at these moments (1:23, 83.5 or a reference): turns a note "
                          "with a timestamp into the spec entry to change")
@@ -1743,9 +1890,35 @@ def main(argv=None) -> int:
             late = [e for e in els if float(e.get("t_out", e.get("t_in", 0)) or 0) > spec.total + 0.01]
             print(f"overlay: {len(els)} elements" + (f", {len(late)} end after the video" if late else ""))
         return 0
+    if a.estimate:
+        from .effort import fmt_secs
+        est = estimate(spec, a.effort)
+        n = len(est["pieces_to_render"])
+        print(f"about {fmt_secs(est['seconds'])} at {est['effort']} on this machine ("
+              + ("timings learned here" if est["learned"] == 4 else
+                 f"{est['learned']} of 4 stages learned here, the rest are first guesses") + ")")
+        for st, sec in est["stages"].items():
+            print(f"  {st:<10} {fmt_secs(sec):>8}" + (f"  {n} of {len(spec.pieces)} pieces to render" if st == "pieces"
+                                                     else "  cached" if st == "overlay" and est["overlay_cached"] else ""))
+        return 0
     if a.at:
         for x in a.at:
             _print_at(what_is_at(spec, x))
+        return 0
+    if a.changes is not None:
+        vdir = spec.file.parent / "versions"
+        hist = json.loads((vdir / "versions.json").read_text()) if (vdir / "versions.json").exists() else []
+        if not hist:
+            print("no saved versions yet (render with --note to save one)")
+            return 0
+        n = int(a.changes) if a.changes else hist[-1]["n"]
+        prev = vdir / f"{spec.path.stem}.v{n}.json"
+        if not prev.exists():
+            raise EditorError(f"no saved spec for v{n} ({prev.name})")
+        lines, stages = spec_changes(json.loads(prev.read_text()), json.loads(spec.path.read_text()))
+        print(f"since v{n}" + (f" ({next((v['note'] for v in hist if v['n'] == n), '')})" if hist else "") + ":")
+        print("\n".join(f"  {x}" for x in lines) or "  nothing")
+        print("re-renders: " + (", ".join(stages) or "nothing"))
         return 0
     if a.versions:
         vlog = spec.file.parent / "versions" / "versions.json"

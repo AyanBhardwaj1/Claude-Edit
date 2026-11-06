@@ -26,8 +26,11 @@ const MusicMaker = dynamic(() => import("./MusicMaker").then((m) => m.MusicMaker
 import { Icon } from "./Icons";
 import { RecordScreen } from "./ScreenRecorder";
 import { clock } from "./Tiles";
+import { changeList } from "@/lib/changes";
+import { Shortcuts } from "./Shortcuts";
+import { declineLearned, learnFromExport } from "@/lib/learn";
 
-type Msg = { who: "you" | "ed"; text: string; rule?: string };
+type Msg = { who: "you" | "ed"; text: string; rule?: string; changes?: string[]; learned?: boolean };
 
 export function Editor({ project, settings, firstSummary, onBack, onOpenProject, onOpenAnim }: { project: Project; settings: Settings; firstSummary?: string;
   onBack: () => void; onOpenProject?: (p: Project, summary: string) => void; onOpenAnim?: (id: string) => void }) {
@@ -40,13 +43,15 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
   const [dur, setDur] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [msgs, setMsgs] = useState<Msg[]>(() => (firstSummary ? [{ who: "ed", text: firstSummary }] :
-    project.versions.map((v) => ({ who: "ed" as const, text: `Version ${v.n}: ${v.summary}` }))));
+    project.versions.map((v, i) => ({ who: "ed" as const, text: `Version ${v.n}: ${v.summary}`,
+      changes: i > 0 ? changeList(project, project.versions[i - 1].edit, v.edit) : undefined }))));
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState("");
   const [drawer, setDrawer] = useState(false);
   const [exp, setExp] = useState<{ pct: number; video?: string; ext?: string; cover?: string; caption?: string; label?: string; srt?: string } | null>(null);
   const [err, setErr] = useState("");
   const [toast, setToast] = useState("");
+  const [keys, setKeys] = useState(false);
   const [clips, setClips] = useState<Clip[] | null>(null);
   const [clipBusy, setClipBusy] = useState("");
   const [hooks, setHooks] = useState<string[] | null>(null);
@@ -137,6 +142,9 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
       if (el.closest("input, textarea, select, [contenteditable]") || (!!exp && exp.pct < 100)) return;
       const pl = player.current; if (!pl) return;
       const mod = ev.metaKey || ev.ctrlKey;
+      if (ev.key === "?" && !mod) { ev.preventDefault(); setKeys(true); return; }
+      if ((ev.key === "n" || ev.key === "N") && !mod && !ev.altKey) { ev.preventDefault(); document.getElementById("note")?.focus(); return; }
+      if ((ev.key === "Home" || ev.key === "End") && !mod) { ev.preventDefault(); const v = ev.key === "Home" ? 0 : dur; setT(v); void pl.seek(v); return; }
       if (ev.key === " " && !mod) { ev.preventDefault(); void toggle(); return; }
       const step = ev.key === "ArrowLeft" ? -1 : ev.key === "ArrowRight" ? 1 : ev.key === "," ? -1 / 30 : ev.key === "." ? 1 / 30 : 0;
       if (step && !mod) { ev.preventDefault(); const v = Math.max(0, Math.min(dur, pl.t + step * (ev.shiftKey ? 5 : 1))); setT(v); void pl.seek(v); return; }
@@ -166,14 +174,23 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
     if (!hasKey) { setMsgs((m) => [...m, { who: "ed", text: "I can't change the video from a note without an AI editor. Add your key in Settings, or use \"Edit it myself\"." }]); return; }
     setBusy("Working on your note…"); setErr("");
     try {
+      const before = (p.versions.find((v) => v.n === p.current) ?? p.versions[p.versions.length - 1]).edit;
       const r = await applyUserNote(p, settings, loadRules(), text, (m) => setBusy(m));
+      const after = p.versions.find((v) => v.n === p.current)!.edit;
       setP({ ...p });
       const always = /\b(always|from now on|every (video|time)|remember|next time|never again)\b/i.test(text);
       if (r.styleRule && always) addRule(r.styleRule);
       setMsgs((m) => [...m, { who: "ed", text: `Version ${p.current}: ${r.summary}` + (r.styleRule && always ? " I'll remember that for next time." : ""),
-        rule: r.styleRule && !always ? r.styleRule : undefined }]);
+        rule: r.styleRule && !always ? r.styleRule : undefined, changes: changeList(p, before, after) }]);
     } catch (e) { setErr((e as { userMessage?: string }).userMessage ?? String(e)); }
     setBusy("");
+  }
+
+  /** After an export: a change the user has now made in two videos, offered as a style rule (lib/learn.ts). */
+  function offerLearned() {
+    const rule = learnFromExport(p, loadRules());
+    if (rule) setMsgs((m) => [...m, { who: "ed", learned: true, rule,
+      text: "You made this same change before exporting two different videos." }]);
   }
 
   function addRule(text: string) {
@@ -199,6 +216,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
     p.format = keep;
     await mount(version.edit);
     setExp(null); setAll(out); setPlaying(false);
+    if (out.length) offerLearned();
   }
 
   async function exportVideo() {
@@ -211,6 +229,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
       setExp({ pct: 100, video: URL.createObjectURL(blob), ext, cover: URL.createObjectURL(cover),
         caption: URL.createObjectURL(new Blob([post], { type: "text/plain" })),
         srt: version ? URL.createObjectURL(new Blob([srt(p, version.edit, pl.tl)], { type: "application/x-subrip" })) : undefined });
+      offerLearned();
     } catch (e) { setErr(String(e)); setExp(null); }
     setPlaying(false);
   }
@@ -280,6 +299,8 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
             <input type="range" className="scrub" min={0} max={dur || 1} step={0.01} value={t} aria-label="Position"
               onChange={(ev) => { const v = +ev.target.value; setT(v); void player.current?.seek(v); }} />
             <span className="time">{clock(t)} / {clock(dur)}</span>
+            <button className="btn ghost icon sm keys-btn" onClick={() => setKeys(true)} aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)"
+              aria-haspopup="dialog"><kbd aria-hidden="true">?</kbd></button>
           </div>
           {track && dur > 0 && (
             <div className="track" aria-hidden="true" onPointerDown={(ev) => {
@@ -434,12 +455,15 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
                 <div key={i} className={`msg ${m.who}`}>
                   <span className="who-said">{m.who === "you" ? "You" : "Your editor"}</span>
                   <span>{m.text}</span>
+                  {m.changes && (m.changes.length
+                    ? <ul className="changes small" aria-label={`What changed in this version, measured`}>{m.changes.map((c, k) => <li key={k}>{c}</li>)}</ul>
+                    : <p className="changes small warn">Nothing in the video changed. Try saying it another way, or use Edit it myself.</p>)}
                   {m.rule && (
                     <div className="ask">
                       <div className="small">Remember this for next time? &ldquo;{m.rule}&rdquo;</div>
                       <div className="row mt-8">
                         <button className="btn sm primary" onClick={() => { addRule(m.rule!); setMsgs((x) => x.map((y, k) => (k === i ? { ...y, rule: undefined, text: y.text + "\nSaved to My style." } : y))); }}>Yes, remember it</button>
-                        <button className="btn sm ghost" onClick={() => setMsgs((x) => x.map((y, k) => (k === i ? { ...y, rule: undefined } : y)))}>No, just this video</button>
+                        <button className="btn sm ghost" onClick={() => { if (m.learned && m.rule) declineLearned(m.rule); setMsgs((x) => x.map((y, k) => (k === i ? { ...y, rule: undefined } : y))); }}>No, just this video</button>
                       </div>
                     </div>
                   )}
@@ -453,9 +477,13 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
               <textarea id="note" rows={1} value={note} placeholder="Tell your editor what to change…" aria-describedby="note-hint"
                 autoComplete="off" onChange={(ev) => setNote(ev.target.value)}
                 onKeyDown={(ev) => { if (ev.key === "Enter" && !ev.shiftKey && !ev.nativeEvent.isComposing) { ev.preventDefault(); void send(); } }} />
+              {dur > 0 && <button type="button" className="btn ghost sm at-btn" title="Add where the player is to your note"
+                aria-label={`Add the time ${clock(t)} to your note`}
+                onClick={() => { setNote((n) => `At ${clock(t)}, ${n.replace(/^at \d+:\d\d,\s*/i, "")}`);
+                  document.getElementById("note")?.focus(); }}><span className="num">At {clock(t)}</span></button>}
               <button className="btn primary" onClick={send} disabled={!!busy || !note.trim()}><Icon name="send" />Send</button>
             </div>
-            <p className="hint note-hint" id="note-hint">For example: &ldquo;music too loud at the start&rdquo;, &ldquo;show the Spotify logo when I say
+            <p className="hint note-hint" id="note-hint">For example: &ldquo;music too loud at the start&rdquo;, &ldquo;at 0:12 zoom in&rdquo; (the At button adds where the player is), &ldquo;show the Spotify logo when I say
               Spotify&rdquo;, &ldquo;cut the part about my cat&rdquo;. Enter sends, Shift+Enter starts a new line.</p>
             <div className="attach-row">
               <label className="attach">
@@ -491,6 +519,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
         </div>
       </div>
       {toast && <div className="toast" role="status">{toast}</div>}
+      <Shortcuts open={keys} onClose={() => setKeys(false)} />
     </div>
   );
 }

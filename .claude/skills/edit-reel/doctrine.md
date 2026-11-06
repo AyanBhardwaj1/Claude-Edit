@@ -108,6 +108,9 @@ journey"). EXACTLY 5 hashtags, specific to the video and its audience, niche plu
 At most two draft passes (`--draft`) unless something is broken. Every change is a chance to break something else.
 
 ## Notes (each one makes a new version)
+- A note with a time ("at 0:12 the picture covers my face") starts with `editor timeline <project>/work --at 0:12`:
+  the segment and its source second, the words then with ids, and the b-roll, zooms, music dips and chapter at that
+  moment, so the change goes on the right entry (anchor it on those words, never on the clock).
 - Change only what the note asks, the smallest change that satisfies it; if unclear, take the most reasonable
   reading and say what you did. Common notes: music too loud at the start -> automation -6 on those words; too loud
   overall -> level quiet; different / sadder / more upbeat song -> pick by measured feel; put the price on "20 bucks"
