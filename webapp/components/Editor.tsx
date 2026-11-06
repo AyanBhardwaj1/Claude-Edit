@@ -190,7 +190,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
   function offerLearned() {
     const rule = learnFromExport(p, loadRules());
     if (rule) setMsgs((m) => [...m, { who: "ed", learned: true, rule,
-      text: `I noticed you made the same change before exporting your last two videos: “${rule}”.` }]);
+      text: "You made this same change before exporting two different videos." }]);
   }
 
   function addRule(text: string) {
