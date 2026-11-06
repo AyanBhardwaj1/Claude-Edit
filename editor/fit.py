@@ -16,7 +16,8 @@ _LIST = re.compile(r"\b(first|second|third|fourth|fifth|number (one|two|three|fo
 
 
 def _duration(segments: list[dict], speed: float = 1.0) -> float:
-    return sum(s["end"] - s["start"] for s in segments) / (speed or 1.0)
+    """Output seconds: a segment's own "speed" wins over the EDL's (as cut.py plays it)."""
+    return sum((s["end"] - s["start"]) / float(s.get("speed", speed) or 1.0) for s in segments)
 
 
 def plan_fit(edl: dict, cut_words: list[dict], transcript: list[dict], target: float) -> dict:
@@ -63,7 +64,14 @@ def plan_fit(edl: dict, cut_words: list[dict], transcript: list[dict], target: f
                and w["id"][1:].isdigit() and int(w["id"][1:]) < len(transcript)]
         if not idx:
             continue
-        segs = cut(segs, sorted_words, [[i] for i in idx])
+        # whole runs of consecutive words: one cut spans the line, pauses inside it included (no silent slivers)
+        runs: list[list[int]] = []
+        for i in sorted(idx):
+            if runs and runs[-1][-1] == i - 1 and sorted_words[i - 1].get("src", 0) == sorted_words[i].get("src", 0):
+                runs[-1].append(i)
+            else:
+                runs.append([i])
+        segs = cut(segs, sorted_words, runs)
         now = _duration(segs, speed)
         drop.append({"text": text, "start": round(float(line[0]["start"]), 2), "seconds": round(-neg_secs, 2),
                      "ids": f"{line[0]['id']}-{line[-1]['id']}"})

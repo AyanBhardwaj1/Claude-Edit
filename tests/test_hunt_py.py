@@ -342,3 +342,21 @@ def test_pacing_reports_habit_words_from_two():
     assert _habits(say("It is basically done, you know, and it works.")) == \
         '"basically" x1, "you know" x1: offer to cut them (editor habits <work> --only ... --apply)'
     assert _habits(say("It is basically done and it works.")) is None
+
+
+def test_fit_cuts_a_line_whole_and_honours_segment_speed():
+    from editor.fit import _duration, plan_fit
+    lines = ["I lost 4000 dollars on one bad habit.", "The weather was fine and calm.", "Here is the secret you need to know.",
+             "Batch your posts and you will never miss a day.", "Follow for part two."]
+    tr, t = [], 0.0
+    for k, line in enumerate(lines):
+        for w in line.split():
+            tr.append({"src": 0, "start": round(t, 3), "end": round(t + 0.4, 3), "text": w})
+            t += 0.95 if k == 1 else 0.5                # 0.55 s pauses inside the weather line
+        t += 0.35
+    cut_words = [{"id": f"w{i}", **w} for i, w in enumerate(tr)]
+    edl = {"segments": [{"src": 0, "start": 0.0, "end": round(t, 3)}]}
+    plan = plan_fit(edl, cut_words, tr, _duration(edl["segments"]) - 3)
+    assert [d["text"] for d in plan["drop"]] == ["The weather was fine and calm."]
+    assert len(plan["segments"]) == 2                    # one cut for the line: no silent slivers left inside it
+    assert _duration([{"start": 0, "end": 2, "speed": 2.0}, {"start": 2, "end": 4}], 1.0) == 3.0

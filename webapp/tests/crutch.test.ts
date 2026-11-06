@@ -46,3 +46,21 @@ test("find a word or phrase, then cut or bring back every place it's said", asyn
   assert.equal(said(p, restoreWords(p, cut, ids)), "Subscribe now. Then the end. Please subscribe now, okay?");   // w0-w1 had no neighbour left: back in filmed order
   assert.equal(said(p, restoreWords(p, cut, ["w6", "w7"])), "Then the end. Please subscribe now, okay?");
 });
+
+test("a pasted script's blank words go with the word they follow, cut and brought back", async () => {
+  const { findWords, restoreWords } = await import("../lib/crutch");
+  const p = project("I tried Meta's Muse _ yesterday.");
+  p.words[4].w = "";                                                      // the script word "Muse" holds this one's sound
+  const ids = findWords(p, "Meta's Muse").flat();
+  const cut = cutWords(p, all(p), ids);
+  assert.deepEqual(cut, [{ from: "w0", to: "w1" }, { from: "w5", to: "w5" }]);
+  assert.deepEqual(restoreWords(p, cut, ids), all(p));
+});
+
+test("bringing back a line puts it beside its neighbours, never in front of a cold open", async () => {
+  const { restoreWords } = await import("../lib/crutch");
+  const p = project(Array.from({ length: 30 }, (_, i) => `x${i}`).join(" "));
+  const keep: Range[] = [{ from: "w25", to: "w29" }, { from: "w0", to: "w9" }, { from: "w20", to: "w24" }];
+  const back = restoreWords(p, keep, ["w15", "w16", "w17", "w18", "w19"]);
+  assert.deepEqual(back, [{ from: "w25", to: "w29" }, { from: "w0", to: "w9" }, { from: "w15", to: "w24" }]);
+});
