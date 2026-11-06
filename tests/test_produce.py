@@ -355,3 +355,26 @@ def test_a_video_piece_from_a_recorded_shot(tmp_path):
     spec["pieces"][0]["from_shot"] = "shots.json#still"
     with pytest.raises(EditorError, match="no recorded stretch"):
         produce.Spec(write_spec(tmp_path, spec))
+
+
+def test_transitions_keep_every_piece_on_time(tmp_path):
+    spec = base_spec(pieces=[{"name": "a", "type": "color", "dur": 1.0, "color": "red"},
+                             {"name": "b", "type": "color", "dur": 1.0, "color": "blue",
+                              "transition": {"type": "dissolve", "dur": 0.4}},
+                             {"name": "c", "type": "color", "dur": 1.0, "color": "green", "transition": "whip"},
+                             {"name": "d", "type": "color", "dur": 0.5, "color": "white"},          # a plain cut...
+                             {"name": "e", "type": "color", "dur": 0.5, "color": "black",
+                              "transition": "dip_white"}])                                            # ...then one more
+    s = produce.Spec(write_spec(tmp_path, spec))
+    base = produce.pieces(s)
+    assert probe(base)["duration"] == pytest.approx(4.0, abs=0.05)
+
+    def rgb(t):
+        raw = subprocess.run(["ffmpeg", "-v", "error", "-ss", str(t), "-i", str(base), "-frames:v", "1", "-vf",
+                              "scale=1:1", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"], capture_output=True).stdout
+        return tuple(raw[:3])
+    assert rgb(0.5)[0] > 200                       # red
+    r, g, b = rgb(1.2)
+    assert r > 60 and b > 60                       # mid-dissolve: red and blue mixed
+    assert rgb(1.7)[2] > 200                       # blue, on time after the transition
+    assert rgb(2.8)[1] > 100                       # green at the end

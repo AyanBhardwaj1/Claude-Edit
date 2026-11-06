@@ -3,7 +3,7 @@
 // trim the ends, speed through the waits, and add the clip to the video as a screen recording (lib/screenrec.ts).
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { canRecordScreen, clipPieces, findWaits, formatTime, MAX_SECONDS, piecesLength, recordingMeta, ScreenRecorder,
+import { canRecordScreen, clipPieces, detectWaits, formatTime, MAX_SECONDS, piecesLength, recordingMeta, ScreenRecorder,
   sayTime, stepAt, WAIT_SPEED, type Recording, type RecState } from "@/lib/screenrec";
 import { fileMeta } from "@/lib/workflow";
 import { Icon } from "./Icons";
@@ -59,7 +59,7 @@ function RecorderPanel({ onAdd, onClose }: { onAdd: (f: File) => Promise<void>; 
   useEffect(() => () => { if (url) URL.revokeObjectURL(url); }, [url]);
   useEffect(() => { startBtn.current?.focus(); }, []);
 
-  const waits = useMemo(() => (rec ? findWaits(rec.samples) : []), [rec]);
+  const waits = useMemo(() => (rec ? detectWaits(rec.samples) : []), [rec]);
   const inTrim = useMemo(() => waits.filter(([s, e]) => e > trim.start && s < trim.end), [waits, trim]);
   const plan = useMemo(() => (rec ? clipPieces({ duration: rec.duration, trim, waits: speed ? waits : [] }) : []), [rec, trim, waits, speed]);
   const plays = piecesLength(plan);
@@ -135,7 +135,7 @@ function RecorderPanel({ onAdd, onClose }: { onAdd: (f: File) => Promise<void>; 
     setPhase("adding"); setErr("");
     try {
       const f = new File([rec.blob], rec.name, { type: rec.mime });
-      fileMeta.set(f, recordingMeta(rec.duration, trim, speed ? waits : null));
+      fileMeta.set(f, recordingMeta(rec.duration, trim, waits, speed));
       await onAdd(f);
     } catch (e) {
       setErr((e as { userMessage?: string }).userMessage ?? (e as Error).message ?? String(e));

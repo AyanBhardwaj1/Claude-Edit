@@ -8,7 +8,8 @@ import { saveProject } from "@/lib/store";
 import { buildTimeline } from "@/lib/timeline";
 import { addToLibrary } from "@/lib/workflow";
 import { LANGUAGES, translateSubtitles } from "@/lib/translate";
-import type { Broll, BrollIn, CaptionAnim, CaptionPreset, Edit, Look, Motion, Project, Range, Settings, Transition } from "@/lib/types";
+import { formatTime, playedLength, waitSavings, WAIT_SPEED } from "@/lib/screenrec";
+import type { Asset, Broll, BrollIn, CaptionAnim, CaptionPreset, Edit, Look, Motion, Project, Range, Settings, Transition } from "@/lib/types";
 
 const ANIM_NAME: Record<CaptionAnim, string> = { pop: "Pop", karaoke: "Karaoke", bounce: "Bounce", words: "Word by word", typewriter: "Typewriter",
   fade: "Fade", none: "Still" };
@@ -26,8 +27,11 @@ const CARD_NAME = { number: "A number that counts up", list: "A list that ticks 
 const PRESETS: [CaptionPreset, string][] = [["studio", "Studio"], ["bold", "Bold"], ["white", "White"], ["block", "Block"], ["boxed", "Boxed"],
   ["minimal", "Minimal"]];
 
-export function Drawer({ project: p, edit, onApply, settings, onMakeMusic, onWords }: { project: Project; edit: Edit; onApply: (e: Edit, what: string) => void;
-  settings?: Settings; onMakeMusic?: () => void; onWords?: () => void }) {
+type Scan = { key: string; name: string; pct: number } | null;
+
+export function Drawer({ project: p, edit, onApply, settings, onMakeMusic, onWords, scan = null, onFindWaits, onStopScan, onClip }: { project: Project; edit: Edit;
+  onApply: (e: Edit, what: string) => void; settings?: Settings; onMakeMusic?: () => void; onWords?: () => void;
+  scan?: Scan; onFindWaits?: (key: string) => void; onStopScan?: () => void; onClip?: () => void }) {
   const [tab, setTab] = useState<(typeof TABS)[number]>("Cut");
   const [e, setE] = useState<Edit>(() => structuredClone(edit));
   const [base, setBase] = useState(edit);
@@ -72,6 +76,7 @@ export function Drawer({ project: p, edit, onApply, settings, onMakeMusic, onWor
 
   const music = p.library.filter((a) => a.kind === "music");
   const pictures = p.library.filter((a) => a.kind !== "music");
+  const screenClips = p.library.filter((a) => a.kind === "video" && !a.web && (a.screen || !!a.waits?.length));
   const textOf = (r: Range) => { const a = idx.get(r.from)!, b = idx.get(r.to)!; return p.words.slice(a, b + 1).map((w) => w.w).filter(Boolean).join(" "); };
   const opt = <T,>(cur: T, list: [T, string][], set: (v: T) => void, label: string) => (
     <div className="seg" role="group" aria-label={label}>
@@ -220,6 +225,8 @@ export function Drawer({ project: p, edit, onApply, settings, onMakeMusic, onWor
                 broll: e.broll.map((x) => (x.id === b.id ? { ...x, full: ev.target.checked || undefined } : x)) })} /><span>Fill the frame</span></label>}
               <button className="btn ghost sm" onClick={() => setE({ ...e, broll: e.broll.filter((x) => x.id !== b.id) })}>Remove</button>
             </div>))}
+          {screenClips.map((a) => <WaitsRow key={a.key} a={a} scan={scan?.key === a.key ? scan : null} onFind={onFindWaits} onStop={onStopScan}
+            onChange={(on) => { a.speedWaits = on; onClip?.(); }} />)}
           <div className="field">
             <span className="label">Add an animated card</span>
             <div className="row">
@@ -315,6 +322,43 @@ export function Drawer({ project: p, edit, onApply, settings, onMakeMusic, onWor
         <button className="btn ghost" disabled={!changed} onClick={() => setE(structuredClone(edit))}>Undo</button>
         <button className="btn primary" disabled={!changed} onClick={() => onApply(e, `my changes to ${tab.toLowerCase()}`)}>Make a new version</button>
       </div>
+    </div>
+  );
+}
+
+/** "Speed through waits" for one screen recording: the switch, what it saves, and a strip showing where the waits are.
+ *  It belongs to the clip (like its trim), so it changes the preview straight away, in every version. */
+function WaitsRow({ a, scan, onFind, onStop, onChange }: { a: Asset; scan: Scan; onFind?: (key: string) => void; onStop?: () => void;
+  onChange: (on: boolean) => void }) {
+  const id = `waits-${a.key.replace(/[^a-z0-9]/gi, "")}`;
+  const name = a.name.length > 40 ? `${a.name.slice(0, 38)}…` : a.name;
+  const dur = a.duration && Number.isFinite(a.duration) ? a.duration : 0;
+  const w = waitSavings(a), on = a.speedWaits !== false;
+  const pct = (x: number) => `${(100 * Math.min(Math.max(x, 0), dur)) / Math.max(0.001, dur)}%`;
+  const trim = a.trim ?? { start: 0, end: dur };
+  return (
+    <div className="field waits" role="group" aria-labelledby={`${id}-h`}>
+      <span className="waits-h" id={`${id}-h`}><Icon name="screen" /><span className="label">Screen recording</span><span className="waits-name">{name}</span></span>
+      {a.waits === undefined ? (scan
+        ? <p className="small muted waits-busy"><span className="spin" aria-hidden="true" />Looking for waits (stretches where nothing on screen moves)…
+          <span className="num"> {scan.pct}%</span>
+          {onStop && <button type="button" className="btn ghost sm" onClick={onStop}>Stop</button>}</p>
+        : <div className="row">
+          {onFind && <button type="button" className="btn sm" onClick={() => onFind(a.key)}>Find waits</button>}
+          <span className="hint">Finds the stretches where nothing on screen moves, so they can play {WAIT_SPEED} times faster.</span></div>)
+      : !w.count ? <p className="hint">No waits found: something on screen moves the whole time.</p>
+      : <>
+        <label className="check">
+          <input type="checkbox" checked={on} aria-describedby={`${id}-d`} onChange={(ev) => onChange(ev.target.checked)} />
+          <span>Speed through waits (×{WAIT_SPEED})<span className="hint block" id={`${id}-d`}>Found {w.count} wait{w.count === 1 ? "" : "s"}
+            {" "}({Math.round(w.seconds)} s where nothing moves), saves {w.saves.toFixed(1)} s. It plays for <span className="num">
+            {formatTime(playedLength(a) ?? dur, true)}</span>{on ? "" : " at normal speed"}.</span></span>
+        </label>
+        <div className="rec-strip waits-strip" aria-hidden="true">
+          <i className="rec-keep" style={{ left: pct(trim.start), width: `calc(${pct(trim.end)} - ${pct(trim.start)})` }} />
+          {a.waits!.map(([s, e]) => <i key={s} className={`rec-wait ${on ? "on" : ""}`} style={{ left: pct(s), width: `calc(${pct(e)} - ${pct(s)})` }} />)}
+        </div>
+      </>}
     </div>
   );
 }

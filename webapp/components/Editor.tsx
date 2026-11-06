@@ -16,9 +16,13 @@ import { applyBrand, brandOf, hasBrand } from "@/lib/brand";
 import { applyTemplate, brandTemplate, templateOf, TEMPLATES } from "@/lib/templates";
 import { loadRules, saveProject, saveRules } from "@/lib/store";
 import type { Asset, Edit, Format, Project, Settings } from "@/lib/types";
-import { addToLibrary, applyUserNote, mediaUrls, saveManual } from "@/lib/workflow";
+import { addToLibrary, applyUserNote, mediaUrls, needsWaitScan, saveManual, scanWaits } from "@/lib/workflow";
+import { waitSavings, WAIT_SPEED } from "@/lib/screenrec";
 import { Drawer } from "./Drawer";
-import { MusicMaker } from "./MusicMaker";
+import dynamic from "next/dynamic";
+// the composer (synth, mixer, loudness) only loads when someone opens Make music
+const MusicMaker = dynamic(() => import("./MusicMaker").then((m) => m.MusicMaker), {
+  ssr: false, loading: () => <p className="muted" role="status">Opening the composer…</p> });
 import { Icon } from "./Icons";
 import { RecordScreen } from "./ScreenRecorder";
 import { clock } from "./Tiles";
@@ -56,6 +60,42 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
   const [maker, setMaker] = useState(false);
   const [wpm, setWpm] = useState<number | null>(null);
   const version = p.versions.find((v) => v.n === p.current) ?? p.versions[p.versions.length - 1];
+  const latest = useRef(p);
+  latest.current = p;
+
+  // "Speed through waits" for uploaded screen recordings: once a screen recording is in the library, its waits are looked
+  // for in the background (lib/screenrec.ts findWaits), one clip at a time, without holding anything else up
+  const [scan, setScan] = useState<{ key: string; name: string; pct: number } | null>(null);
+  const [scanTick, setScanTick] = useState(0);
+  const [scanSay, setScanSay] = useState("");
+  const scanCtl = useRef<AbortController | null>(null);
+  const scanSkip = useRef(new Set<string>());
+  useEffect(() => {
+    if (scanCtl.current) return;
+    const a = p.library.find((x) => needsWaitScan(x) && !scanSkip.current.has(x.key));
+    if (!a) return;
+    const ctl = new AbortController();
+    scanCtl.current = ctl;
+    setScan({ key: a.key, name: a.name, pct: 0 });
+    setScanSay(`Looking for waits in ${a.name}.`);
+    let shown = 0;
+    void scanWaits(a, (f) => { const pct = Math.round(f * 100); if (pct !== shown) { shown = pct; setScan({ key: a.key, name: a.name, pct }); } }, ctl.signal)
+      .then(async (found) => {
+        if (found === null || ctl.signal.aborted) return;
+        const cur = latest.current;
+        await saveProject(cur);
+        const w = waitSavings(a);
+        setScanSay(w.count ? `Found ${w.count} wait${w.count === 1 ? "" : "s"} in ${a.name}.` : `No waits in ${a.name}.`);
+        if (w.count) setMsgs((m) => [...m, { who: "ed", text: `I found ${w.count === 1 ? "a wait" : `${w.count} waits`} in ${a.name} where nothing on screen ` +
+          `moves (${Math.round(w.seconds)} s). ${w.count === 1 ? "It plays" : "They play"} ${WAIT_SPEED}× faster, which saves ${Math.round(w.saves)} s. ` +
+          `Switch it off in Edit it myself, Pictures.` }]);
+        setP({ ...cur });                       // the preview follows the new plan
+      })
+      .finally(() => { if (scanCtl.current === ctl) scanCtl.current = null; setScan(null); setScanTick((n) => n + 1); });
+  }, [p, scanTick]);
+  useEffect(() => () => { scanCtl.current?.abort(); }, []);
+  const stopScan = () => { if (scan) scanSkip.current.add(scan.key); scanCtl.current?.abort(); setScanSay("Stopped looking for waits."); };
+  const findWaitsFor = (key: string) => { scanSkip.current.delete(key); setScanTick((n) => n + 1); };
 
   const mount = useCallback(async (edit: Edit) => {
     const gen = ++mounts.current;
@@ -429,11 +469,17 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
               <RecordScreen onAdd={async (f) => { const n = await addToLibrary(p, [f]); await saveProject(p); setP({ ...p });
                 setMsgs((m) => [...m, { who: "ed", text: `Added ${n.join(", ")} as a screen recording. Tell me where to show it, for example "show my screen recording when I talk about the app", or place it yourself in Edit it myself, Pictures.` }]); }} />
             </div>
+            {scan && <p className="small faint wait-scan"><span className="spin" aria-hidden="true" />Looking for waits in {scan.name.slice(0, 40)}
+              <span className="num"> {scan.pct}%</span>
+              <button type="button" className="btn ghost sm" onClick={stopScan} aria-label={`Stop looking for waits in ${scan.name}`}>Stop</button></p>}
+            <p className="sr-only" aria-live="polite">{scanSay}</p>
           </section>
 
           {drawer && version && (
             <section className="panel" aria-label="Edit it myself">
-              <Drawer project={p} edit={version.edit} settings={settings} onMakeMusic={() => setMaker(true)} onWords={() => setP({ ...p })} onApply={async (edit, what) => { await saveManual(p, edit, what); setP({ ...p }); setMsgs((m) => [...m, { who: "ed", text: `Version ${p.current}: ${what}` }]); }} />
+              <Drawer project={p} edit={version.edit} settings={settings} onMakeMusic={() => setMaker(true)} onWords={() => setP({ ...p })}
+                scan={scan} onFindWaits={findWaitsFor} onStopScan={stopScan}
+                onClip={() => { setP({ ...p }); void saveProject(p); }} onApply={async (edit, what) => { await saveManual(p, edit, what); setP({ ...p }); setMsgs((m) => [...m, { who: "ed", text: `Version ${p.current}: ${what}` }]); }} />
             </section>
           )}
 
