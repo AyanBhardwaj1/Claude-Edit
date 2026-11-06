@@ -598,7 +598,11 @@ def _loudnorm(src: Path, out: Path, lufs: float, tp: float) -> None:
 
 # ---------------------------------------------------------------- composite, extras
 
-def composite(spec: Spec, base: Path, ov: Path | None, audio: Path, out: Path | None = None) -> Path:
+ENCODE = {"rush": "veryfast", "standard": "veryfast", "polish": "slow"}    # final composite x264 preset by effort
+
+
+def composite(spec: Spec, base: Path, ov: Path | None, audio: Path, out: Path | None = None,
+              effort: str = "standard") -> Path:
     o = spec.data.get("output", {})
     out = out or spec.file
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -606,7 +610,8 @@ def composite(spec: Spec, base: Path, ov: Path | None, audio: Path, out: Path | 
     vf = (["-filter_complex", "[0:v][1:v]overlay=0:0:format=auto,format=yuv420p[v]", "-map", "[v]"] if ov
           else ["-map", "0:v"])
     run(["ffmpeg", "-y", "-i", str(base), *(["-i", str(ov)] if ov else []), "-i", str(audio), *vf,
-         "-map", f"{2 if ov else 1}:a", "-t", f"{spec.total}", "-c:v", "libx264", "-preset", o.get("preset", "veryfast"),
+         "-map", f"{2 if ov else 1}:a", "-t", f"{spec.total}", "-c:v", "libx264",
+         "-preset", o.get("preset", ENCODE.get(effort, "veryfast")),
          "-b:v", br, "-maxrate", o.get("maxrate", "20M"), "-bufsize", o.get("bufsize", "32M"), "-r", str(spec.fps),
          "-c:a", "aac", "-b:a", o.get("audio_bitrate", "320k"), "-movflags", "+faststart", str(out)])
     return out
@@ -871,7 +876,8 @@ def produce(spec_path: str | Path, only: str | None = None, jobs: int = 4, want_
             for need in (base, audio):
                 if not need.exists():
                     raise EditorError(f"{need.name} is missing: run without --only first")
-            res["file"] = str(composite(spec, base, ov, audio))
+            from . import effort as _eff
+            res["file"] = str(composite(spec, base, ov, audio, effort=_eff.normalise(effort) or "standard"))
             from . import style
             if not style._snap_path(spec.path).exists():       # the first render is the first draft
                 style.snapshot(spec.path)
@@ -881,6 +887,9 @@ def produce(spec_path: str | Path, only: str | None = None, jobs: int = 4, want_
             if spec.file.exists():
                 res["extras"] = [str(p) for p in extras(spec, spec.file)]
         elif st == "review":
+            if (eff.normalise(effort) or "standard") == "rush" and not only:
+                log("produce: review skipped at rush effort (run --only review when there's a minute)")
+                continue
             res["review"] = review(spec)
         else:
             raise EditorError(f"unknown stage {st!r} (pieces, overlay, mix, composite, extras, review)")
