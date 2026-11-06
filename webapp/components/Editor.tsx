@@ -82,7 +82,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
     if (show) setShownTest(r.kind);
   };
   async function startRun(kind: "scroll" | "loop") {
-    const pl = player.current; if (!pl) return;
+    const pl = player.current; if (!pl || exportingRef.current) return;
     const was = run.current?.kind;
     endRun(pl, false);
     if (was === kind) return;                                   // the button again stops it
@@ -108,6 +108,10 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
   const [attn, setAttn] = useState<Attention | null>(null);
   const [track, setTrack] = useState<{ segs: [number, number][]; layers: { s: number; e: number; text: boolean; label: string }[]; zooms: [number, number][] } | null>(null);
   const [all, setAll] = useState<{ f: Format; url: string; ext: string }[] | null>(null);
+  // true for a whole export, Export all's version reloads between formats included: nothing may start playback then
+  const [exporting, setExporting] = useState(false);
+  const exportingRef = useRef(false);
+  const busyExport = (on: boolean) => { exportingRef.current = on; setExporting(on); };
   // export files are whole videos in memory: free the ones no longer shown
   const shownUrls = useRef<string[]>([]);
   useEffect(() => {
@@ -230,7 +234,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
   useEffect(() => {
     const onKey = (ev: KeyboardEvent) => {
       const el = ev.target as HTMLElement;
-      if (el.closest("input, textarea, select, [contenteditable]") || (!!exp && exp.pct < 100)) return;
+      if (el.closest("input, textarea, select, [contenteditable]") || (!!exp && exp.pct < 100) || exportingRef.current) return;
       if (keys || el.closest("dialog") || document.querySelector("dialog[open]")) return;   // a dialog is in front
       if ((ev.key === " " || ev.key === "Enter") && el.closest("button, a, [role=button], summary")) return;   // pressing a button
       const pl = player.current; if (!pl) return;
@@ -275,7 +279,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
   async function send(given?: string) {
     const text = (given ?? note).trim();
     if (!text) return;
-    if (exp && exp.pct < 100) { setToast("Wait for the export to finish: a new version now would stop it"); return; }
+    if ((exp && exp.pct < 100) || exportingRef.current) { setToast("Wait for the export to finish: a new version now would stop it"); return; }
     const hasKey = settings.provider === "anthropic" ? !!settings.anthropicKey : !!settings.openaiKey;
     setMsgs((m) => [...m, { who: "you", text }]);
     if (given === undefined) setNote("");
@@ -341,6 +345,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
   async function exportAll() {
     if (!version) return;
     endRun(player.current, false);              // a scroll or loop test still running would stop the recording
+    busyExport(true);
     const keep = p.format ?? "9:16";
     const out: { f: Format; url: string; ext: string }[] = [];
     setAll(null); setPlaying(true);
@@ -356,7 +361,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
     } catch (e) { setErr(String(e)); }
     p.format = keep;
     await mount(version.edit);
-    setExp(null); setAll(out); setPlaying(false);
+    setExp(null); setAll(out); setPlaying(false); busyExport(false);
     if (out.length) offerLearned();
   }
 
@@ -364,6 +369,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
     const pl = player.current;
     if (!pl) return;
     endRun(pl, false);                          // a scroll or loop test still running would stop the recording
+    busyExport(true);
     setExp({ pct: 0 }); setPlaying(true);
     try {
       const { blob, ext } = await pl.record((pct) => setExp((x) => ({ ...x!, pct })));
@@ -374,7 +380,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
         srt: version ? URL.createObjectURL(new Blob([srt(p, version.edit, pl.tl)], { type: "application/x-subrip" })) : undefined });
       offerLearned();
     } catch (e) { setErr(String(e)); setExp(null); }
-    setPlaying(false);
+    setPlaying(false); busyExport(false);
   }
 
   /** A composed bed becomes the video's music the way a picked song does: a new version with music.asset set. */
@@ -427,7 +433,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
   const shape = FORMATS[fmt];
   const base = p.title.replace(/[\\/:*?"<>|]+/g, "").slice(0, 80) + ` - Version ${p.current}` + (fmt === "9:16" ? "" : ` (${shape.name.toLowerCase()} ${fmt.replace(":", "x")})`);
   const reshape = async (f: Format) => { if (f === fmt || recording) return; p.format = f; await saveProject(p); setExp(null); setP({ ...p }); };
-  const recording = !!exp && exp.pct < 100;
+  const recording = exporting || (!!exp && exp.pct < 100);
   const did: [boolean, string][] = e ? [
     [true, `Kept your best takes · ${clock(dur)} long`],
     [e.captions.enabled, e.captions.enabled ? "Added subtitles" : "Subtitles off"],

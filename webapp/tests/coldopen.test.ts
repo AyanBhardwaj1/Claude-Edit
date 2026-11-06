@@ -47,3 +47,15 @@ test("a line that leans on what came before is never picked", () => {
   const e = edit({ keep: [{ from: "w0", to: `w${w.length - 1}` }] });
   assert.equal(strongestLine(buildTimeline(w, e, [30])), null);
 });
+
+test("after opening with the best line nothing weaker is offered; a zoom crossing the line keeps its outside part", () => {
+  const e = edit({ zooms: [{ anchor: { from: "w17", to: "w21" }, scale: 1.2 }] });     // "bad habit. Here is the"
+  const tl = buildTimeline(ws, e, [30]);
+  const l = strongestLine(tl)!;
+  const o = openWith(ws, e, l);
+  assert.equal(strongestLine(buildTimeline(ws, o, [30])), null);
+  assert.deepEqual(o.zooms[0].anchor, { from: "w19", to: "w21" });                     // "Here is the", still in place
+  const after = buildTimeline(ws, o, [30]);
+  const a = after.byId.get("w19")!, b = after.byId.get("w21")!;
+  assert.ok(b.oe - a.os < 2, "the zoom stays short");
+});

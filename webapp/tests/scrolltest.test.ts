@@ -91,3 +91,15 @@ test("a hook title cut short by the next card is too quick to read", () => {
   const short = edit({ broll: [hook] as never });
   assert.ok(scrollTest(buildTimeline(ws, short, [10]), short).lines.find((l) => l.id === "hook")!.ok);
 });
+
+test("cutting the warm-up moves translated subtitles onto the new first word; a card at the same start doesn't cut the hook", async () => {
+  const { cutWarmUp } = await import("../lib/scrolltest");
+  const ws = say("so today rent is the biggest bill you pay and");
+  const e = edit({ translation: { lang: "es", lines: [{ from: "w0", to: "w4", text: "hoy el alquiler es" }, { from: "w5", to: "w9", text: "la factura" }] } } as never);
+  const r = cutWarmUp(ws, e)!;
+  assert.equal(r.edit.translation!.lines[0].from, "w2");
+  const card = (id: string, from: string) => ({ id, treatment: "text-pop", style: "pop", tilt: 3, text: "x", anchor: { from, to: from } });
+  const h = edit({ broll: [hook, card("c1", "w0"), card("c2", "w3")] as never });
+  const line = scrollTest(buildTimeline(say("rent is the biggest bill you pay and here is how"), h, [10]), h).lines.find((l) => l.id === "hook")!;
+  assert.ok(line.ok, line.text);
+});

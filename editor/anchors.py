@@ -46,14 +46,29 @@ def find(words: list[dict], anchor: dict) -> tuple[dict, dict] | None:
             ids = [x.strip() for x in body.split("-")]
         want = int(nth) if nth.strip().isdigit() and int(nth) > 0 else 1
         a, b = ids[0], ids[-1]
+
+        def num(w: dict) -> int:
+            m = re.fullmatch(r"w(\d+)", str(w.get("id", "")))
+            return int(m.group(1)) if m else -1
+
+        def play(i: int) -> tuple[int, int]:
+            """The stretch around word i that plays in source order (a repeat jumps back: a new play)."""
+            lo, hi = i, i
+            while lo > 0 and 0 <= num(words[lo - 1]) < num(words[lo]):
+                lo -= 1
+            while hi + 1 < len(words) and num(words[hi + 1]) > num(words[hi]) >= 0:
+                hi += 1
+            return lo, hi
         at = [i for i, w in enumerate(words) if w.get("id") == a]
         if len(at) < want:
             return None
-        ia = at[want - 1]
-        ib = next((i for i in range(ia, len(words)) if words[i].get("id") == b), None)
-        if ib is None:                                         # given backwards: the end word plays first
-            ib = next((i for i in range(ia, -1, -1) if words[i].get("id") == b), None)
-        if ib is None:
+        # the end word in the same play; with no #n, the first play that holds both ends
+        for ia in (at[want - 1:want] if nth.strip() else at):
+            lo, hi = play(ia)
+            ib = next((i for i in range(lo, hi + 1) if words[i].get("id") == b), None)
+            if ib is not None:
+                break
+        else:
             return None
         first, last = words[ia], words[ib]
         return (first, last) if last["end"] >= first["start"] else (last, first)

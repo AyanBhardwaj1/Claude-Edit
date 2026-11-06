@@ -32,10 +32,10 @@ function sentences(tl: Timeline): { ids: string[]; text: string; at: number }[] 
 const LEANS = /^(step|tip|part|number|first(ly)?|second(ly)?|third(ly)?|next|then|and|but|so|also|finally|plus|or|because|which|that|this|it|he|she|they|same|another)\b/i;
 
 export function strongestLine(tl: Timeline): Line | null {
-  let best: Line | null = null;
-  sentences(tl).slice(1).forEach((s) => {                 // the first sentence already opens the reel
+  let best: Line | null = null, opener = 0;
+  sentences(tl).forEach((s, k) => {
     const n = s.ids.length;
-    if (n < 4 || n > 16 || LEANS.test(s.text.replace(/^[^a-z]+/i, ""))) return;
+    if (k > 0 && (n < 4 || n > 16 || LEANS.test(s.text.replace(/^[^a-z]+/i, "")))) return;
     const why: string[] = [];
     let score = 0;
     if (NUMBER.test(s.text)) { score += 2; why.push("a number"); }
@@ -44,9 +44,11 @@ export function strongestLine(tl: Timeline): Line | null {
     if (/\byou(r|'re|'ll)?\b/i.test(s.text)) { score += 1; why.push("it talks to “you”"); }
     if (/\?["')]*$/.test(s.text)) { score += 1; why.push("a question"); }
     if (n <= 12) score += 1;
+    if (k === 0) { opener = score; return; }               // what already opens the reel
     if (score >= 3 && (!best || score > best.score)) best = { ...s, score, why };
   });
-  return best;
+  const pick = best as Line | null;
+  return pick && pick.score > opener ? pick : null;       // only a line that beats the current opening
 }
 
 /** The edit opening on that line: its words move to the front (the rest plays in order after it), and the hook title
@@ -80,7 +82,28 @@ export function openWith(words: Word[], e: Edit, line: Line): Edit {
   }
   const next = structuredClone(e);
   next.keep = [...front, ...rest];
+  // an anchor with one end in the line and one outside would now stretch from the front to its old place: keep the
+  // part outside the line (the nearest kept words on its side), or the part inside when nothing is left outside
+  const kept = new Set(rest.flatMap((r) => { const x = idx.get(r.from)!, y = idx.get(r.to)!; const o: number[] = [];
+    for (let i = Math.min(x, y); i <= Math.max(x, y); i++) o.push(i); return o; }));
+  const lineLo = Math.min(...at), lineHi = Math.max(...at);
+  const fix = (r: Range) => {
+    const fin = moved.has(r.from), tin = moved.has(r.to);
+    if (fin === tin) return;
+    const a = idx.get(r.from)!, b = idx.get(r.to)!;
+    if (fin) {            // starts in the line, ends after it
+      let i = lineHi + 1; while (i <= b && !kept.has(i)) i++;
+      if (i <= b) r.from = words[i].id; else r.to = line.ids[line.ids.length - 1];
+    } else {              // starts before the line, ends in it
+      let i = lineLo - 1; while (i >= a && !kept.has(i)) i--;
+      if (i >= a) r.to = words[i].id; else r.from = line.ids[0];
+    }
+  };
   const hook = next.broll.find((b) => b.treatment === "text-pop" && b.style === "label" && b.tilt === 0);
+  next.broll.filter((b) => b !== hook).forEach((b) => fix(b.anchor));
+  next.zooms.forEach((z) => fix(z.anchor));
+  next.music?.automation?.forEach((m) => fix(m.anchor));
+  next.translation?.lines.forEach((l) => fix(l));
   if (hook && hookOf(e)) hook.anchor = { from: line.ids[0], to: line.ids[Math.min(3, line.ids.length - 1)] };
   return next;
 }

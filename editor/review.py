@@ -242,7 +242,7 @@ def pacing(edl: dict, words: list[dict], duration: float, cuts: list[float] | No
     need = lambda text: 0.4 + 0.25 * len(str(text).split())  # noqa: E731
     shown = [(b.get("text", ""), float(b["dur"])) for b in broll if hook(b)]
     if edl.get("title"):
-        shown.append((edl["title"], float(edl.get("title_dur", 3.0))))
+        shown.append((edl["title"], 3.0))                       # captions' title_dur (the CLI's --title-dur default)
     quick = next((f"\"{t}\" is up {d:.1f}s; {len(str(t).split())} words need about {need(t):.1f}s"
                   for t, d in shown if d < need(t)), None)
     spoken = [w for w in words if str(w.get("text", "")).strip()]
