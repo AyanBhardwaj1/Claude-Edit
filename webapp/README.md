@@ -108,10 +108,13 @@ vertical reel with a cover and a post caption, then change it by typing notes. E
 29. **Scroll test**: plays the first 3 seconds with the sound off, the way most people meet a reel, then says what a
     scroller got from them: a hook on screen, words to read, the picture moving, an opening that is the point, each
     with its fix (`lib/scrolltest.ts`). The speakers are muted; an export keeps its sound. **Loop test** plays the last
-    2.5 seconds straight into the first 2, as the apps replay a reel, and flags dead air or a goodbye at the end (a call to action like "follow for more" is a choice, not flagged).
+    2.5 seconds straight into the first 2, as the apps replay a reel, and flags dead air or a goodbye at the end (a call
+    to action like "follow for more" is a choice, not flagged).
     Findings fix in one click where they can: **Cut “so um”** removes a warm-up opener (moving anything anchored
     there, like the hook title, onto the new first word), **Add a zoom there** moves a still opening, **Turn subtitles
     on**. Keys: T runs the scroll test, L the loop test.
+30. **Raise them**: when the app's caption block covers the subtitles, one click moves them to the lowest spot all three
+    platforms leave clear, as its own version (`clearPosition` in `lib/safezones.ts`).
 31. **Cold open**: the scroll test also names your strongest line (a number, a strong word like "never" or
     "mistake", talking to "you", a question; never one that leans on what came before, like "Step two") and
     **Open with it** moves it to the front with the hook title, the rest in order after it (`lib/coldopen.ts`).
@@ -121,8 +124,8 @@ vertical reel with a cover and a post caption, then change it by typing notes. E
 33. **Names you say**: apps, brands and products you name but never show (a capitalised name mid-sentence, with no
     picture on screen as it's said) are listed beside the video; **Show its logo** finds the open-licence logo
     (Simple Icons, credited) and puts it above your head on those words, as its own version (`lib/names.ts`).
-30. **Raise them**: when the app's caption block covers the subtitles, one click moves them to the lowest spot all three
-    platforms leave clear, as its own version (`clearPosition` in `lib/safezones.ts`).
+34. **Test other hooks**: after an export, type one or two other hook titles (Try 5 hooks fills them in) and export
+    the same reel with each, one file per hook, to post as trial reels and keep the hook that holds people longest.
 
 ## Privacy and keys
 - Videos never leave the browser: they're processed on the user's computer and kept in IndexedDB.
