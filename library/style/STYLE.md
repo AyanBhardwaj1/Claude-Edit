@@ -20,12 +20,11 @@ Update it with `editor style note` (what the user says) and `editor style learn`
 - `launch.voice` = **none**  (applied, confidence 86%) — voiceover: none or voiced
 
 ## kind:production
-- `production.captions.max_chars` = **42.0**  (applied, confidence 75%) — caption line length, characters
 - `production.end.dur` = **7.5**  (tentative, confidence 12%) — end card length, seconds
 - `production.extras` = **square**  (tentative, confidence 12%) — extra cuts delivered (none, square, vertical...)
-- `production.frame.backdrop` = **#f4f1e6**  (applied, confidence 86%) — backdrop colour behind framed app screens
-- `production.frame.scale` = **0.92**  (applied, confidence 86%) — framed screen size (share of the frame)
-- `production.lufs` = **-14.0**  (applied, confidence 86%) — final loudness, LUFS
+- `production.frame.backdrop` = **#f4f1e6**  (tentative, confidence 12%) — backdrop colour behind framed app screens
+- `production.frame.scale` = **0.92**  (tentative, confidence 12%) — framed screen size (share of the frame)
+- `production.lufs` = **-14.0**  (tentative, confidence 12%) — final loudness, LUFS
 - `production.music.gain` = **-3.0**  (tentative, confidence 12%) — music bed level before ducking, dB
 - `production.music.mood` = **warm**  (tentative, confidence 12%) — composed bed mood (warm, uplifting, tense, lofi)
 - `production.ramp_waits` = **False**  (tentative, confidence 12%) — speed through waits in screen recordings
@@ -70,4 +69,3 @@ Update it with `editor style note` (what the user says) and `editor style learn`
 - [global] Music and ambience must sit well under on-camera dialogue and skits; we have to hear ourselves clearly  `c4828fe9` (2026-11-06)
 - [global] When we're short on time, do it fast and send a draft; when asked, spend more time for better quality  `f5139933` (2026-11-06)
 - [brand:walk-free] Walk-Free demo look (approved): app screens on an ivory frame with rounded corners and soft shadow, push-ins and punch-ins, small Meta model pills, captions in a dark box, checklist and chips graphics, logo sting, hot-to-cool grade, end card over a blurred freeze-frame  `c7bc67a0` (2026-11-06)
-- [kind:production] Productions (demo videos): app screens framed on an ivory backdrop at 92%, phrase captions in a dark box up to 42 characters, mastered to -14 LUFS, plus a square cut of the key segment  `df2f2377` (2026-11-06)

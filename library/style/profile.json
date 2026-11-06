@@ -543,19 +543,13 @@
       "production.lufs": {
         "type": "num",
         "mean": -14.0,
-        "weight": 3.45,
+        "weight": 0.5,
         "evidence": [
           {
             "date": "2026-11-06",
             "value": -14.0,
             "signal": "keep",
             "source": "walkfree"
-          },
-          {
-            "date": "2026-11-06",
-            "value": -14.0,
-            "signal": "note",
-            "source": "note"
           }
         ]
       },
@@ -590,40 +584,28 @@
       "production.frame.backdrop": {
         "type": "cat",
         "votes": {
-          "#f4f1e6": 3.45
+          "#f4f1e6": 0.5
         },
-        "weight": 3.45,
+        "weight": 0.5,
         "evidence": [
           {
             "date": "2026-11-06",
             "value": "#f4f1e6",
             "signal": "keep",
             "source": "walkfree"
-          },
-          {
-            "date": "2026-11-06",
-            "value": "#f4f1e6",
-            "signal": "note",
-            "source": "note"
           }
         ]
       },
       "production.frame.scale": {
         "type": "num",
         "mean": 0.92,
-        "weight": 3.45,
+        "weight": 0.5,
         "evidence": [
           {
             "date": "2026-11-06",
             "value": 0.92,
             "signal": "keep",
             "source": "walkfree"
-          },
-          {
-            "date": "2026-11-06",
-            "value": 0.92,
-            "signal": "note",
-            "source": "note"
           }
         ]
       },
@@ -667,19 +649,6 @@
             "value": "square",
             "signal": "keep",
             "source": "walkfree"
-          }
-        ]
-      },
-      "production.captions.max_chars": {
-        "type": "num",
-        "mean": 42.0,
-        "weight": 3.0,
-        "evidence": [
-          {
-            "date": "2026-11-06",
-            "value": 42.0,
-            "signal": "note",
-            "source": "note"
           }
         ]
       }
@@ -767,13 +736,6 @@
       "id": "c7bc67a0",
       "text": "Walk-Free demo look (approved): app screens on an ivory frame with rounded corners and soft shadow, push-ins and punch-ins, small Meta model pills, captions in a dark box, checklist and chips graphics, logo sting, hot-to-cool grade, end card over a blurred freeze-frame",
       "scope": "brand:walk-free",
-      "date": "2026-11-06",
-      "source": ""
-    },
-    {
-      "id": "df2f2377",
-      "text": "Productions (demo videos): app screens framed on an ivory backdrop at 92%, phrase captions in a dark box up to 42 characters, mastered to -14 LUFS, plus a square cut of the key segment",
-      "scope": "kind:production",
       "date": "2026-11-06",
       "source": ""
     }
