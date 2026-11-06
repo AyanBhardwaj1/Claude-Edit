@@ -1138,6 +1138,14 @@ def cmd_auto(args):
             from .qa import check, sheet, write_report
             write_report(check(out_file, preset=args.preset), out_dir / "qa.json")
             sheet(out_file, out_dir / "contact_sheet.png")
+            if PRESETS[args.preset]["size"][1] > PRESETS[args.preset]["size"][0] and (work / "captions.ass").exists():
+                from .safezone import check as safe_check     # captions under Reels / TikTok / Shorts UI?
+                try:
+                    for h in safe_check(out_file, work, sheets=False)["hits"]:
+                        log(f"safezone: {h['platform']} {h['from']:.1f}-{h['to']:.1f} s: captions under the {h['zone']} "
+                            f"(editor safezone {out_file} for the sheet)")
+                except EditorError as e:
+                    log(f"safezone: not checked ({e})")
             if prof["review"]:
                 from .review import review
                 review(out_file, work, out_dir / "review")

@@ -108,7 +108,7 @@ def sheet(video: Path, out: Path, platform: str, times: list[float], tile_w: int
     return out
 
 
-def check(video: str | Path, work: str | Path | None = None, platform: str = "all") -> dict:
+def check(video: str | Path, work: str | Path | None = None, platform: str = "all", sheets: bool = True) -> dict:
     video = Path(video)
     info = probe(video)
     w, h, dur = info["video"]["width"], info["video"]["height"], float(info["duration"])
@@ -125,10 +125,10 @@ def check(video: str | Path, work: str | Path | None = None, platform: str = "al
     else:
         log(f"safezone: no {ass}: captions not measured, the sheet still shows the zones")
     times = sorted({round((r["from"] + r["to"]) / 2, 2) for r in found})[:8] or [dur * (k + 0.5) / 8 for k in range(8)]
-    sheets = {pl: str(sheet(video, video.with_name(f"{video.stem}_safezone_{pl}.png"), pl,
-                            [t for t in times] if any(r["platform"] == pl for r in found) else
-                            [dur * (k + 0.5) / 8 for k in range(8)])) for pl in plats}
-    return {"video": str(video), "measured_captions": ass.exists(), "hits": found, "sheets": sheets}
+    made = {pl: str(sheet(video, video.with_name(f"{video.stem}_safezone_{pl}.png"), pl,
+                          list(times) if any(r["platform"] == pl for r in found) else
+                          [dur * (k + 0.5) / 8 for k in range(8)])) for pl in plats} if sheets else {}
+    return {"video": str(video), "measured_captions": ass.exists(), "hits": found, "sheets": made}
 
 
 def main(argv=None) -> int:
