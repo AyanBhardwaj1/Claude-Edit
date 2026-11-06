@@ -1307,11 +1307,12 @@ def cmd_timeline(args):
         from .anchors import moment
         print("\n".join(moment(work, x) for x in args.at))
         return
+    from .anchors import _edl_name
     meta = load_json(work / "cut_meta.json")
     words = load_json(work / "cut_words.json")["words"]
-    print(f"# output duration {meta['duration']:.2f}s, {len(meta['timeline'])} segments")
+    print(f"# output duration {meta['duration']:.2f}s, {len(meta['timeline'])} segments (numbered as in edl.json)")
     for seg in meta["timeline"]:
-        print(f"## segment {seg['index']}  {fmt_ts(seg['start'])}-{fmt_ts(seg['end'])}  "
+        print(f"## segment {_edl_name(seg)}  {fmt_ts(seg['start'])}-{fmt_ts(seg['end'])}  "
               f"(src {seg['src']} {fmt_ts(seg['src_start'])}-{fmt_ts(seg['src_end'])}, speed {seg['speed']})")
         seg_words = [w for w in words if w["segment"] == seg["index"]]
         for g in _groups(seg_words, 8, 60):

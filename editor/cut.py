@@ -47,14 +47,19 @@ def cut(edl_path: str | Path, out_dir: str | Path, transcript: str | Path | None
     # pieces of one take that touch (end == next start) play as one: cut apart they'd get a fade at the seam (a dip in
     # the voice), a punch-in change and a transition, a hard cut where nothing was cut. The plan's "meet in the
     # middle" and the takes / habits / fit / coldopen rewrites all write such pairs.
+    # Each merged piece remembers the EDL segments it came from ("edl"), so `editor timeline` and `--at` still name
+    # the EDL entry to change.
     merged: list[dict] = []
-    for seg in segments:
+    edl_of: list[list[int]] = []
+    for k, seg in enumerate(segments):
         last = merged[-1] if merged else None
         if (last and last["src"] == seg["src"] and abs(last["end"] - seg["start"]) < 1e-3
                 and float(last.get("speed", global_speed)) == float(seg.get("speed", global_speed))):
             merged[-1] = {**last, "end": seg["end"]}
+            edl_of[-1].append(k)
         else:
             merged.append(dict(seg))
+            edl_of.append([k])
     segments = merged
 
     seg_dir = out_dir / "segments"
@@ -72,7 +77,7 @@ def cut(edl_path: str | Path, out_dir: str | Path, transcript: str | Path | None
                           str(fps), width, height, src["mirror"]], sort_keys=True)
         seg_file = seg_dir / f"seg_{hashlib.sha1(key.encode()).hexdigest()[:16]}.mkv"
         jobs.append((src, seg, speed, frames, out_dur, seg_file))
-        timeline.append({"index": k, "src": seg["src"], "src_start": seg["start"], "src_end": seg["end"],
+        timeline.append({"index": k, "edl": edl_of[k], "src": seg["src"], "src_start": seg["start"], "src_end": seg["end"],
                          "speed": speed, "start": round(t, 4), "end": round(t + out_dur, 4)})
         t += out_dur
 

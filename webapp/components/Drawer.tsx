@@ -59,18 +59,25 @@ export function Drawer({ project: p, edit, onApply, settings, onMakeMusic, onWor
   }, [e.keep, idx, p.words]);
   const lines = useMemo(() => takeLines(p, e.keep), [p, e.keep]);
   const habits = useMemo(() => crutches(p, e.keep), [p, e.keep]);
-  // hear a take before picking it: that stretch of the original footage, played on its own
+  // hear a take before picking it: that stretch of the original footage, played on its own. One player at a time:
+  // a newer click, or the drawer closing while the footage loads, wins over an older one still loading.
   const ear = useRef<{ v: HTMLVideoElement; url: string; src: number } | null>(null);
+  const earReq = useRef(0), alive = useRef(true);
   const [hearing, setHearing] = useState<string | null>(null);
   const stopHearing = () => { ear.current?.v.pause(); setHearing(null); };
-  useEffect(() => () => { if (ear.current) { ear.current.v.pause(); URL.revokeObjectURL(ear.current.url); ear.current = null; } }, []);
+  useEffect(() => {
+    alive.current = true;
+    return () => { alive.current = false; earReq.current++; if (ear.current) { ear.current.v.pause(); URL.revokeObjectURL(ear.current.url); ear.current = null; } };
+  }, []);
   async function hear(t: Take) {
+    const req = ++earReq.current;
     if (hearing === t.range.from) { stopHearing(); return; }
     ear.current?.v.pause();
     if (!ear.current || ear.current.src !== t.src) {
-      const blob = await getMedia(p.sources[t.src]?.mediaKey ?? "");
-      if (!blob) return;
-      if (ear.current) URL.revokeObjectURL(ear.current.url);
+      const blob = await getMedia(p.sources[t.src]?.mediaKey ?? "").catch(() => undefined);
+      if (req !== earReq.current || !alive.current) return;          // a newer click, or the drawer closed
+      if (!blob) { setHearing(null); return; }
+      if (ear.current) { ear.current.v.pause(); URL.revokeObjectURL(ear.current.url); }
       const v = document.createElement("video");
       v.playsInline = true; v.preload = "auto";
       const url = URL.createObjectURL(blob); v.src = url;
@@ -78,10 +85,10 @@ export function Drawer({ project: p, edit, onApply, settings, onMakeMusic, onWor
     }
     const v = ear.current.v, end = t.e + 0.1;
     v.currentTime = Math.max(0, t.s - 0.05);
-    v.ontimeupdate = () => { if (v.currentTime >= end) stopHearing(); };
-    v.onended = stopHearing;
+    v.ontimeupdate = () => { if (req === earReq.current && v.currentTime >= end) stopHearing(); };
+    v.onended = () => { if (req === earReq.current) stopHearing(); };
     setHearing(t.range.from);
-    await v.play().catch(() => setHearing(null));
+    await v.play().catch(() => { if (req === earReq.current) setHearing(null); });
   }
   const [find, setFind] = useState("");
   const [fitTo, setFitTo] = useState<number | null>(null);
