@@ -289,3 +289,21 @@ def test_captions_from_a_brief_land_on_the_voice_that_says_them(tmp_path):
     assert [c["text"] for c in cards] == ["Bro. Why are you walking in the sun?", "Heat is the deadliest weather in America."]
     assert cards[1]["sub"] == "(El calor es el clima más mortal.)"
     assert cards[0]["t_in"] == pytest.approx(1.0) and cards[1]["t_in"] == pytest.approx(2.0 + 0.5)
+
+
+@pytest.mark.slow
+def test_a_vertical_production(tmp_path):
+    subprocess.run(["ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i", "testsrc2=s=640x360:r=30:d=3", "-f", "lavfi",
+                    "-i", "sine=frequency=330:duration=3", "-shortest", "-pix_fmt", "yuv420p", str(tmp_path / "talk.mp4")],
+                   check=True)
+    subprocess.run(["ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i", "testsrc=s=1280x800:d=1", "-frames:v", "1",
+                    str(tmp_path / "app.png")], check=True)
+    spec = {"output": {"width": 180, "height": 320, "fps": 30, "file": "out/v.mp4", "duration": 4.0},
+            "pieces": [{"name": "talk", "type": "video", "src": "talk.mp4", "in": 0, "out": 2.5, "grade": "cool"},
+                       {"name": "app", "type": "framed", "src": "app.png", "dur": 1.5, "punch": [0.3, 1.5, 0.3, 0.3]}],
+            "audio": {"voices": [{"name": "v", "src": "talk.mp4", "in": 0, "out": 2.5, "at": "talk"}]},
+            "post": {"srt": True}}
+    res = produce.produce(write_spec(tmp_path, spec))
+    info = probe(Path(res["file"]))
+    assert (info["video"]["width"], info["video"]["height"]) == (180, 320)
+    assert info["duration"] == pytest.approx(4.0, abs=0.1)
