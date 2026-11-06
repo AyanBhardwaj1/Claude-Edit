@@ -26,11 +26,11 @@ const MusicMaker = dynamic(() => import("./MusicMaker").then((m) => m.MusicMaker
 import { Icon } from "./Icons";
 import { RecordScreen } from "./ScreenRecorder";
 import { clock } from "./Tiles";
-import { changeList } from "@/lib/changes";
+import { changeItems, type Change } from "@/lib/changes";
 import { Shortcuts } from "./Shortcuts";
 import { declineLearned, learnFromExport } from "@/lib/learn";
 
-type Msg = { who: "you" | "ed"; text: string; rule?: string; changes?: string[]; learned?: boolean };
+type Msg = { who: "you" | "ed"; text: string; rule?: string; changes?: Change[]; learned?: boolean };
 
 export function Editor({ project, settings, firstSummary, onBack, onOpenProject, onOpenAnim }: { project: Project; settings: Settings; firstSummary?: string;
   onBack: () => void; onOpenProject?: (p: Project, summary: string) => void; onOpenAnim?: (id: string) => void }) {
@@ -44,7 +44,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
   const [playing, setPlaying] = useState(false);
   const [msgs, setMsgs] = useState<Msg[]>(() => (firstSummary ? [{ who: "ed", text: firstSummary }] :
     project.versions.map((v, i) => ({ who: "ed" as const, text: `Version ${v.n}: ${v.summary}`,
-      changes: i > 0 ? changeList(project, project.versions[i - 1].edit, v.edit) : undefined }))));
+      changes: i > 0 ? changeItems(project, project.versions[i - 1].edit, v.edit) : undefined }))));
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState("");
   const [drawer, setDrawer] = useState(false);
@@ -219,9 +219,17 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
       const always = /\b(always|from now on|every (video|time)|remember|next time|never again)\b/i.test(text);
       if (r.styleRule && always) addRule(r.styleRule);
       setMsgs((m) => [...m, { who: "ed", text: `Version ${p.current}: ${r.summary}` + (r.styleRule && always ? " I'll remember that for next time." : ""),
-        rule: r.styleRule && !always ? r.styleRule : undefined, changes: changeList(p, before, after) }]);
+        rule: r.styleRule && !always ? r.styleRule : undefined, changes: changeItems(p, before, after) }]);
       return true;
     } catch (e) { setErr((e as { userMessage?: string }).userMessage ?? String(e)); return false; }
+  }
+
+  /** Put the player on a word of the version on screen (a change's place), or say it isn't in this version. */
+  function jumpTo(word: string) {
+    const pl = player.current, w = pl?.tl.byId.get(word);
+    if (!pl || !w) { setToast("That moment isn't in the version on screen"); return; }
+    const at = Math.max(0, w.os - 0.3);
+    setT(at); void pl.seek(at);
   }
 
   /** After an export: a change the user has now made in two videos, offered as a style rule (lib/learn.ts). */
@@ -514,7 +522,9 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
                   <span className="who-said">{m.who === "you" ? "You" : "Your editor"}</span>
                   <span>{m.text}</span>
                   {m.changes && (m.changes.length
-                    ? <ul className="changes small" aria-label={`What changed in this version, measured`}>{m.changes.map((c, k) => <li key={k}>{c}</li>)}</ul>
+                    ? <ul className="changes small" aria-label={`What changed in this version, measured`}>{m.changes.map((c, k) => <li key={k}>{c.at
+                      ? <button type="button" className="linkish" onClick={() => jumpTo(c.at!)} title="Show me where">{c.text}</button>
+                      : c.text}</li>)}</ul>
                     : <p className="changes small warn">Nothing in the video changed. Try saying it another way, or use Edit it myself.</p>)}
                   {m.rule && (
                     <div className="ask">
