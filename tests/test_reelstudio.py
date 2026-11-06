@@ -220,6 +220,8 @@ def test_pacing_checks():
     assert punch_cuts({"auto_punch_in": 1.0}, meta) == [] and punch_cuts({"auto_punch_in": 1.12}, meta) == [4.0, 8.5]
     cut = pacing({"broll": [], "zooms": []}, ws, 12.0, punch_cuts({"auto_punch_in": 1.12}, meta))
     assert cut["face_only_over_4_5s"] == []                                # a punch-in every 4-4.5 s keeps it moving
+    assert rep["opens_with_warm_up"] is None
+    assert "warm-up" in pacing(edl, words("So today I quit Notion"), 30.0)["opens_with_warm_up"]
     bye = words("here is the trick thanks for watching")
     assert "sign-off" in pacing(edl, bye, bye[-1]["end"] + 0.2)["loop_seam"]
 
