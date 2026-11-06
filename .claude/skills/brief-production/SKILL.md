@@ -78,7 +78,8 @@ python3 -m editor produce projects/<name>/produce.json --only mix  # after an au
 - **Overlay**: the overlay spec inline (or a path); every time in it may be a reference.
 - **Extras**: a crop, e.g. `{"name": "square", "from": "s3q", "to": "s4a", "size": [1080, 1080]}`, or a social cut of
   a 16:9 video that keeps the whole frame: `{"name": "vertical", "kind": "band", "size": [1080, 1920], "title": "..."}`
-  (the frame as a band over its own blur, a title above).
+  (the frame as a band over its own blur, a title above). Add `"ranges": [["s3q", "s3ans.end"], ["d7b", "d7c"]]` for
+  a highlight reel of several moments back to back.
 
 ## 5. Look, then deliver drafts
 `editor produce` ends with a review (`work/produce/review/review.md`): length vs target, loudness, caption coverage
