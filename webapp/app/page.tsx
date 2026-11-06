@@ -23,7 +23,7 @@ const FEATURES = [
   { h: "Notes, the way you'd give them", p: "Type or say what to change, like \u201cat 0:12, music down\u201d. Your editor finds those words, makes a new version and lists exactly what changed, measured, so you can trust it. Compare plays the version before from the same word, Undo takes you back, and a change you keep making becomes your style.", pic: "w240", frag: "notes" },
   { h: "One long video, five reels", p: "Drop in a podcast, a talk or a long take. Your AI editor reads all of it, ranks the moments that stand on their own and turns each into its own finished reel.", pic: "w320", frag: "clips" },
   { h: "Subtitles in 16 languages", p: "Translate the subtitles into Spanish, Hindi, Japanese and 13 more, line by line on the words they cover, then fix any line. A subtitle file comes with every export.", pic: "w180", frag: "lang" },
-  { h: "A score before you post", p: "The reel check grades the hook, the pace, how often the picture changes, the length, the subtitles and the caption, out of 100, and says exactly what to fix.", pic: "w180", frag: "score" },
+  { h: "A score before you post", p: "The reel check grades the hook, the pace, how often the picture changes, the length, the subtitles and the caption, out of 100, and says exactly what to fix. The scroll test plays your first 3 seconds with the sound off, the way people meet a reel, and fixes a slow start in one click: cut the “so, um”, add movement, or open on your strongest line.", pic: "w180", frag: "score" },
   { h: "A caption ready to post", p: "A hook line people search for, a sentence of context, credits for every picture and exactly five hashtags. The cover is the frame where your face says the most.", pic: "w240", frag: "post" },
 ] as const;
 
