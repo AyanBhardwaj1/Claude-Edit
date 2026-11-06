@@ -374,10 +374,10 @@ def pieces(spec: Spec, jobs: int = 4) -> Path:
 # ---------------------------------------------------------------- captions from word times
 
 def caption_cards(words: list[dict], voice: str, src_in: float, src_out: float, max_chars: int = 42,
-                  lines: int = 2, gap: float = 0.6, replace: dict | None = None) -> list[dict]:
+                  lines: int = 2, gap: float = 0.6, replace: dict | None = None, max_dur: float = 3.5) -> list[dict]:
     """Phrase-at-a-time caption cards from timed words (start/end/text in the voice's source seconds), anchored on
     the voice with `@voice:<src>` references. A card ends at a long pause, at . ? !, or when it would need more
-    than `lines` x `max_chars`."""
+    than `lines` x `max_chars`, or would stay up longer than `max_dur` (unpunctuated offline transcripts)."""
     ws = [w for w in words if src_in <= float(w["start"]) < src_out]
     cards, cur = [], []
 
@@ -396,6 +396,7 @@ def caption_cards(words: list[dict], voice: str, src_in: float, src_out: float, 
     for w in ws:
         t = str(w.get("text", w.get("word", ""))).strip()
         if cur and (float(w["start"]) - float(cur[-1]["end"]) > gap or
+                    float(w["end"]) - float(cur[0]["start"]) > max_dur or
                     len(" ".join(str(x.get("text", x.get("word", ""))) for x in cur)) + 1 + len(t) > max_chars * lines):
             flush()
         cur.append(w)
@@ -426,7 +427,7 @@ def auto_captions(spec: Spec) -> list[dict]:
         if cfg.get("script"):                 # the script as text: its words, the recogniser's timing
             words = scripted_words(words, a, b, cfg["script"])
         out += caption_cards(words, name, a, b, int(c.get("max_chars", 42)), int(c.get("lines", 2)),
-                             float(c.get("gap", 0.6)), c.get("replace"))
+                             float(c.get("gap", 0.6)), c.get("replace"), float(c.get("max_dur", 3.5)))
     return out
 
 
