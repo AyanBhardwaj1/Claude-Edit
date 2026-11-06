@@ -755,6 +755,8 @@ def cmd_version(args):
     elif args.restore is not None:
         versions.restore(args.project, args.restore)
     elif args.list:
+        if not Path(args.project).is_dir():
+            raise EditorError(f"no project at {args.project}")
         for v in versions.versions(args.project):
             print(f"v{v['n']}  {v['note'].splitlines()[0] if v['note'] else ''}")
     else:

@@ -347,6 +347,8 @@ def learn(path: str | Path, brand: str | None = None, source: str | None = None)
 def note(text: str, kind: str | None = None, brand: str | None = None, sets: list[str] | None = None,
          source: str = "") -> dict:
     """Record what the user said. `sets` are key=value pairs it implies (weight 3 each)."""
+    if not str(text).strip():
+        raise EditorError("a style note needs the user's words (what they said about their taste)")
     bad = [kv.partition("=")[0] for kv in sets or [] if kv.partition("=")[0] not in KEYS or "=" not in kv]
     if bad:
         raise EditorError(f"not KEY=VALUE with a known key: {', '.join(bad)} (see: editor style keys)")
