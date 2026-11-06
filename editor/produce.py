@@ -1991,10 +1991,11 @@ def produce(spec_path: str | Path, only: str | None = None, jobs: int = 4, want_
 
 def _clock(x) -> float | str:
     """"1:23" / "1:23.5" -> seconds; numbers stay numbers; anything else is a reference."""
-    m = re.fullmatch(r"(\d+):(\d{1,2}(?:\.\d+)?)", str(x).strip())
-    if m:
-        return int(m[1]) * 60 + float(m[2])
-    return float(x) if re.fullmatch(r"-?[\d.]+", str(x)) else str(x)
+    t = str(x).strip()
+    m = re.fullmatch(r"(\d+):(\d{1,2}(?:\.\d+)?)", t) or re.fullmatch(r"(?:(\d+)\s*m(?:in)?\s*)?(?:(\d+(?:\.\d+)?)\s*s(?:ec)?)?", t.lower())
+    if m and any(m.groups()):
+        return int(m[1] or 0) * 60 + float(m[2] or 0)
+    return float(t) if re.fullmatch(r"-?[\d.]+", t) else t
 
 
 def what_is_at(spec: Spec, ref) -> dict:

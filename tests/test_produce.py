@@ -278,6 +278,7 @@ def test_at_turns_a_timestamped_note_into_the_entries_to_change(tmp_path):
     assert [g["text"] for g in w["graphics"]] == ["hello"]
     assert {m["list"] for m in w["audio"]} == {"music", "sfx"}
     assert produce.what_is_at(s, "c")["piece"]["name"] == "c" and produce._clock("1:02.5") == 62.5
+    assert produce._clock("1m2.5s") == 62.5 and produce._clock("s3+1") == "s3+1"      # references stay references
 
 
 def test_changes_since_a_version_in_plain_words_with_the_stages_to_rerender():
