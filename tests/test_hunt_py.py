@@ -197,3 +197,22 @@ def test_broll_readd_refiles_instead_of_duplicating(tmp_path, monkeypatch):
     clips = library._broll_db()["clips"]
     assert len(clips) == 1 and clips[0]["category"] == "b" and clips[0]["file"].startswith("broll/b/")
     assert not inside.exists() and (tmp_path / "lib" / clips[0]["file"]).exists()
+
+
+def test_coldopen_moves_the_kept_line_first(tmp_path):
+    import json
+    from editor.cli import main
+    work = tmp_path / "w"
+    work.mkdir()
+    text = "Hi everyone. I want to share my week. I lost 4000 dollars on one bad habit. Here is the fix."
+    tr = [{"src": 0, "start": i * 0.5, "end": i * 0.5 + 0.4, "text": t} for i, t in enumerate(text.split())]
+    (work / "transcript.json").write_text(json.dumps({"words": tr}))
+    cut = [{"id": f"w{i}", "text": w["text"], "start": w["start"], "end": w["end"]} for i, w in enumerate(tr)]
+    (work / "cut_words.json").write_text(json.dumps({"words": cut}))
+    (work / "edl.json").write_text(json.dumps({"segments": [{"src": 0, "start": 0.0, "end": 5.4}, {"src": 0, "start": 6.0, "end": 10.0}]}))
+    assert main(["coldopen", str(work), "--apply"]) == 0
+    segs = json.loads((work / "edl.json").read_text())["segments"]
+    # "I lost 4000 dollars on one bad habit." is w8-w15 (4.0-7.9 s): its kept parts first, the 5.4-6.0 pause still out
+    assert [(s["start"], s["end"]) for s in segs[:2]] == [(3.95, 5.4), (6.0, 8.05)]
+    assert segs[0]["text"].startswith("I lost 4000") and segs[2] == {"src": 0, "start": 0.0, "end": 3.95}
+    assert sum(s["end"] - s["start"] for s in segs) == pytest.approx(5.4 + 4.0)
