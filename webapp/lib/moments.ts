@@ -9,7 +9,7 @@ const clock = (t: number) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60))
 /** Times mentioned in a note, in seconds of the edited video: "0:12", "1:05.5", "12s", "12 sec", "12 seconds". */
 export function noteTimes(note: string): number[] {
   const out: number[] = [];
-  const re = /\b(\d{1,2}):([0-5]\d(?:\.\d+)?)\b|\b(\d{1,2})\s*m(?:in)?\s*(\d{1,2}(?:\.\d+)?)\s*s(?:ecs?|econds?)?\b|\b(\d{1,3}(?:\.\d+)?)\s*(?:s|secs?|seconds?)\b/gi;
+  const re = /\b(\d{1,2}):([0-5]\d(?:\.\d+)?)s?\b|\b(\d{1,2})\s*m(?:in)?\s*(\d{1,2}(?:\.\d+)?)\s*s(?:ecs?|econds?)?\b|\b(\d{1,3}(?:\.\d+)?)\s*(?:s|secs?|seconds?)\b/gi;
   for (const m of note.matchAll(re)) {
     if (m[5] !== undefined) {                 // "10 seconds" is a length, not a moment, in "10 seconds shorter", "by 10 seconds"
       const before = note.slice(0, m.index).trim().split(/\s+/).pop()?.toLowerCase() ?? "";
