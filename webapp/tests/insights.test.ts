@@ -21,6 +21,8 @@ test("your reels over time: the average, the change, and what most often holds t
     video("c", 3), video("d", 4)];
   const r = insights(vs)!;
   assert.equal(r.videos, 4);
+  assert.equal(r.scroll.of, 4);
+  assert.equal(r.scroll.passed, 0);                // every one opens with "so" and has no hook or movement
   assert.ok(r.change !== null && r.change > 0, `later reels score higher: ${r.change}`);
   assert.ok(r.top, "a repeated problem is named");
   assert.ok(r.averageLength > 0 && r.averageLength < 20);

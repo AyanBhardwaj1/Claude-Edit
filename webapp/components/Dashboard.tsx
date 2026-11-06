@@ -150,6 +150,8 @@ export function Dashboard({ user, settings, theme, onNew, onOpen, onGo, onSample
                   {stats.change !== null && <span className={`small block ${stats.change >= 0 ? "say-ok" : "say-bad"}`}>
                     {stats.change >= 0 ? "▲" : "▼"} {Math.abs(stats.change)} from your earlier reels</span>}</div>
                 <div><b className="num big-n">{stats.averageLength}s</b><span className="small muted block">average length</span></div>
+                <div><b className="num big-n">{stats.scroll.passed}<span className="small muted"> / {stats.scroll.of}</span></b>
+                  <span className="small muted block">pass the scroll test</span></div>
               </div>
               {stats.top && <p className="small ins-top"><b>Most often missing: {stats.top.title.charAt(0).toLowerCase() + stats.top.title.slice(1)}</b> ({stats.top.count} reels). {stats.top.fix}</p>}
             </section>

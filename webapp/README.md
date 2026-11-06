@@ -101,8 +101,8 @@ vertical reel with a cover and a post caption, then change it by typing notes. E
 27. **Show the app's buttons**: draws Reels, TikTok or Shorts UI over the 9:16 preview and says when its caption block
     covers your subtitles (`lib/safezones.ts`, the same zones as `editor safezone`).
 28. **Your reels**: on the dashboard once you have two videos, your reel check scores over time (a trend line, the
-    average, the change from your earlier reels, the average length) and what most often holds them back, with where
-    to fix it (`lib/insights.ts`).
+    average, the change from your earlier reels, the average length, how many pass the scroll test) and what most often
+    holds them back, with where to fix it (`lib/insights.ts`).
 29. **Scroll test**: plays the first 3 seconds with the sound off, the way most people meet a reel, then says what a
     scroller got from them: a hook on screen, words to read, the picture moving, an opening that is the point, each
     with its fix (`lib/scrolltest.ts`). The speakers are muted; an export keeps its sound. **Loop test** plays the last
