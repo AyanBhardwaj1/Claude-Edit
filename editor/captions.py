@@ -202,7 +202,9 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                 parts.append(f"{{{tags}}}{txt}{{\\r}}" if tags else txt)
                 if line_break and k == line_break - 1:
                     parts.append("\\N")
-            text = " ".join(parts).replace(" \\N ", "\\N")
+            # a space plus a thin space: the bold outline and the growing spoken word ate most of a plain space
+            gap = " \u2009" if st["pop"] > 1.0 else " "
+            text = gap.join(parts).replace(f"{gap}\\N{gap}", "\\N")
             intro = "\\fscx92\\fscy92\\t(0,80,\\fscx100\\fscy100)" if j == 0 and st["pop"] > 1.0 else ""
             fade = "\\fad(60,0)" if j == 0 else ""
             events.append(f"Dialogue: 1,{ass_time(ev_start)},{ass_time(ev_end)},Cap,,0,0,0,,"

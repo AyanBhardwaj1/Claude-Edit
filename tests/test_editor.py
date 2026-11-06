@@ -167,7 +167,7 @@ def test_chapter_pills_and_white_style(tmp_path):
                           chapters=[{"start": 0.0, "text": "1: The hook"}], duration=5.0).read_text()
     pill = [line for line in text.splitlines() if line.startswith("Dialogue: 3")]
     assert pill and "\\p1" in pill[0] and pill[0].split(",")[2] == "0:00:05.00"
-    assert "1: The hook" in text and "Step 1" in text          # spoken numbers show as digits
+    assert "1: The hook" in text and "Step 1" in text.replace(" \u2009", " ")   # spoken numbers show as digits
 
 
 def test_music_library_roundtrip(tmp_path, monkeypatch):
