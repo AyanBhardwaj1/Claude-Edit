@@ -218,3 +218,10 @@ def test_dev_addresses_on_screen_are_flagged(tmp_path):
     assert report["shots"][0]["dev_text"] == ["localhost:5173"]       # only what's in view, only dev addresses
     (x, y, w, h), = report["shots"][0]["dev_boxes"]                  # where it is, to blur it in the video
     assert 0 < x < 0.6 and y < 0.2 and 0 < w < 0.5 and 0 < h < 0.1
+
+
+def test_dev_boxes_follow_a_clipped_shot():
+    from editor.shots import clip_boxes
+    # a box at the top middle of a 1280x720 page, and one at the bottom; the still is clipped to x 320-960, y 0-360
+    assert clip_boxes([[0.5, 0.0, 0.25, 0.05], [0.0, 0.9, 0.1, 0.05]], [320, 0, 640, 360], 1280, 720) == [[0.5, 0.0, 0.5, 0.1]]
+    assert clip_boxes([[0.1, 0.1, 0.1, 0.1]], [0, 0, 100, 100], 0, 0) == [[0.1, 0.1, 0.1, 0.1]]   # no viewport known: as is

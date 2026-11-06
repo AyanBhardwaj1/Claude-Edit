@@ -229,7 +229,9 @@ def _picture_key(cut_dir, p, captions, track, zooms, punch_in, grade, lut, sharp
     cut_dir = Path(cut_dir)
     # "settings" only records the CLI choices (music level too); the ones that shape the picture are keyed directly
     pic_edl = {k: v for k, v in edl.items() if k not in ("music", "sfx", "post", "notes", "todo", "settings")}
-    br = [{**{k: v for k, v in b.items() if k != "nat"}, "_file": sig(b.get("path"))} for b in broll or []]
+    # pictures by content: treatments (text-pop, post-wall, icon-wall) rewrite their PNG on every run
+    br = [{**{k: v for k, v in b.items() if k != "nat"},
+           "_file": sig(b.get("path"), content=Path(str(b.get("path", ""))).suffix.lower() in IMAGE_EXT)} for b in broll or []]
     blob = [sig(cut_dir / "cut.mkv"), sig(cut_dir / "cut_meta.json", True), sig(captions, True), sig(track, True),
             zooms, punch_in, grade, sig(lut), sharpen, fit, br, crf, auto_color, draft, p, pic_edl, trans]
     return hashlib.sha1(json.dumps(blob, sort_keys=True, default=str).encode()).hexdigest()
