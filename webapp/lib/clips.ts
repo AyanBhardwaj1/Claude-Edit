@@ -47,6 +47,8 @@ export async function makeClip(s: Settings, parent: Project, c: Clip, rules: Sty
   const words = parent.words.slice(idx.get(c.from)!, idx.get(c.to)! + 1);
   const p: Project = { ...structuredClone(parent), id: uid(), title: c.title, createdAt: new Date().toISOString(), updatedAt: "",
     words, versions: [], current: 0, status: "transcribed", parent: parent.id, sample: false };
+  // a pasted script: the clip keeps the same words as heard (ids match 1:1), so "Use what it heard" still works
+  p.wordsHeard = parent.wordsHeard?.slice(idx.get(c.from)!, idx.get(c.to)! + 1);
   p.analysis = analyze(words);
   await saveProject(p);
   const summary = await makeFirstEdit(p, s, rules, onProgress);

@@ -16,6 +16,7 @@ const CUT_NAME: Record<Transition, string> = { none: "Plain cut", punch: "Punch-
 const IN_NAME: Record<BrollIn, string> = { pop: "Pop", slide: "Slide up", zoom: "Zoom", spin: "Spin" };
 const ACCENTS = ["#FFE14D", "#FF9F43", "#FF3D9A", "#7C5CFF", "#3DA9FF", "#2EE59D", "#FFFFFF"];
 import { Icon } from "./Icons";
+import { ScriptFix } from "./ScriptFix";
 
 const TABS = ["Cut", "Subtitles", "Motion", "Music", "Pictures", "Cover", "Post"] as const;
 const LABEL: Record<string, string> = { "card-above-head": "Picture above your head", "side-card": "Picture beside you",
@@ -25,8 +26,8 @@ const CARD_NAME = { number: "A number that counts up", list: "A list that ticks 
 const PRESETS: [CaptionPreset, string][] = [["studio", "Studio"], ["bold", "Bold"], ["white", "White"], ["block", "Block"], ["boxed", "Boxed"],
   ["minimal", "Minimal"]];
 
-export function Drawer({ project: p, edit, onApply, settings, onMakeMusic }: { project: Project; edit: Edit; onApply: (e: Edit, what: string) => void;
-  settings?: Settings; onMakeMusic?: () => void }) {
+export function Drawer({ project: p, edit, onApply, settings, onMakeMusic, onWords }: { project: Project; edit: Edit; onApply: (e: Edit, what: string) => void;
+  settings?: Settings; onMakeMusic?: () => void; onWords?: () => void }) {
   const [tab, setTab] = useState<(typeof TABS)[number]>("Cut");
   const [e, setE] = useState<Edit>(() => structuredClone(edit));
   const [base, setBase] = useState(edit);
@@ -54,7 +55,11 @@ export function Drawer({ project: p, edit, onApply, settings, onMakeMusic }: { p
 
   function toggleWord(id: string) {
     const next = new Set(kept);
-    if (next.has(id)) next.delete(id); else next.add(id);
+    // a word with a pasted script's text can hold the time of the empty words after it (lib/retext.ts): they go with it
+    const i0 = idx.get(id)!, group = [id];
+    for (let i = i0 + 1; i < p.words.length && !p.words[i].w.trim() && p.words[i].src === p.words[i0].src; i++) group.push(p.words[i].id);
+    const on = !next.has(id);
+    for (const g of group) if (on) next.add(g); else next.delete(g);
     // rebuild ranges in source order (re-ordering is the editor's job: keep it simple here)
     const keep: Range[] = [];
     p.words.forEach((w, i) => {
@@ -67,7 +72,7 @@ export function Drawer({ project: p, edit, onApply, settings, onMakeMusic }: { p
 
   const music = p.library.filter((a) => a.kind === "music");
   const pictures = p.library.filter((a) => a.kind !== "music");
-  const textOf = (r: Range) => { const a = idx.get(r.from)!, b = idx.get(r.to)!; return p.words.slice(a, b + 1).map((w) => w.w).join(" "); };
+  const textOf = (r: Range) => { const a = idx.get(r.from)!, b = idx.get(r.to)!; return p.words.slice(a, b + 1).map((w) => w.w).filter(Boolean).join(" "); };
   const opt = <T,>(cur: T, list: [T, string][], set: (v: T) => void, label: string) => (
     <div className="seg" role="group" aria-label={label}>
       {list.map(([v, n]) => <button key={n} aria-pressed={cur === v} onClick={() => set(v)}>{n}</button>)}
@@ -92,7 +97,7 @@ export function Drawer({ project: p, edit, onApply, settings, onMakeMusic }: { p
             <input id="gap" className="range" type="range" min={0.05} max={0.6} step={0.01} value={e.gapCap} onChange={(ev) => setE({ ...e, gapCap: +ev.target.value })} />
           </div>
           <div className="words" aria-label="Transcript">
-            {p.words.map((w, i) => (
+            {p.words.map((w, i) => !w.w.trim() ? null : (
               <span key={w.id}>
                 {i > 0 && (p.words[i - 1].src !== w.src || w.s - p.words[i - 1].e > 1) && <br />}
                 <button className={`w ${kept.has(w.id) ? "" : "cut"}`} aria-pressed={!kept.has(w.id)} onClick={() => toggleWord(w.id)}>{w.w}</button>{" "}
@@ -137,6 +142,7 @@ export function Drawer({ project: p, edit, onApply, settings, onMakeMusic }: { p
             <input id="font" className="input" value={e.captions.font} autoComplete="off" spellCheck={false} onChange={(ev) => cap({ font: ev.target.value })}
               onBlur={(ev) => loadFont(ev.target.value)} />
           </div>
+          {onWords && <ScriptFix project={p} onChange={onWords} />}
           <div className="field">
             <span className="label">Fix a word</span>
             {e.corrections.map((c, i) => (
@@ -260,7 +266,7 @@ export function Drawer({ project: p, edit, onApply, settings, onMakeMusic }: { p
             {!pictures.length && <p className="small muted">Add pictures or clips with &ldquo;Add a song, picture or clip&rdquo; under the notes.</p>}
           </div>
           {picFor && <div className="words" aria-label="Pick a word">
-            {p.words.filter((w) => kept.has(w.id)).map((w, k, arr) => (
+            {p.words.filter((w) => kept.has(w.id) && w.w.trim()).map((w, k, arr) => (
               <button key={w.id} className="w" onClick={() => {
                 const end = arr.slice(k).find((x) => x.e - w.s >= (picFor === "__card" ? 2.6 : 2.0)) ?? arr[arr.length - 1];
                 if (picFor === "__card") {
@@ -280,7 +286,7 @@ export function Drawer({ project: p, edit, onApply, settings, onMakeMusic }: { p
             <label htmlFor="cover-word">The moment for your cover (pick a word)</label>
             <select id="cover-word" className="select" value={e.cover.word ?? ""} onChange={(ev) => setE({ ...e, cover: { ...e.cover, word: ev.target.value || null } })}>
               <option value="">Automatic</option>
-              {p.words.filter((w) => kept.has(w.id)).map((w) => <option key={w.id} value={w.id}>{w.w} ({w.s.toFixed(1)}s)</option>)}
+              {p.words.filter((w) => kept.has(w.id) && w.w.trim()).map((w) => <option key={w.id} value={w.id}>{w.w} ({w.s.toFixed(1)}s)</option>)}
             </select>
           </div>
           <div className="field">

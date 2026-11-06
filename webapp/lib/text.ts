@@ -102,8 +102,30 @@ export function chunk(words: CapWord[], maxWords: number): Cue[] {
 }
 
 export function captionWords(words: OutWord[], corrections: { from: string; to: string }[]): CapWord[] {
-  const cw = words.map((w) => ({ id: w.id, text: w.w.trim(), os: w.os, oe: w.oe, seg: w.seg }));
-  return digits(applyCorrections(cw, corrections));
+  return digits(applyCorrections(spokenWords(words), corrections));
+}
+
+/** One caption word per written word. A pasted script (lib/retext.ts) can leave a heard word holding several script words
+ *  ("Chat GPT": split over its time by length) or none (its text merged into the word before: that word stays up). */
+export function spokenWords(words: OutWord[]): CapWord[] {
+  const out: CapWord[] = [];
+  for (const w of words) {
+    const toks = w.w.trim().split(/\s+/).filter(Boolean);
+    if (!toks.length) {
+      const prev = out[out.length - 1];
+      if (prev && prev.seg === w.seg) prev.oe = w.oe;
+      continue;
+    }
+    if (toks.length === 1) { out.push({ id: w.id, text: toks[0], os: w.os, oe: w.oe, seg: w.seg }); continue; }
+    const weights = toks.map((t) => t.length + 1), total = weights.reduce((x, y) => x + y, 0);
+    let acc = 0;
+    toks.forEach((t, k) => {
+      const os = w.os + ((w.oe - w.os) * acc) / total;
+      acc += weights[k];
+      out.push({ id: k ? `${w.id}.${k}` : w.id, text: t, os, oe: w.os + ((w.oe - w.os) * acc) / total, seg: w.seg });
+    });
+  }
+  return out;
 }
 
 // ------------------------------------------------------------------ boxed subtitles: a phrase at a time
