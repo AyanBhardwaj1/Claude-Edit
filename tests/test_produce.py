@@ -219,6 +219,15 @@ def test_init_drafts_a_spec_from_an_inventory(tmp_path):
     auto = spec["audio"]["music"][0]["automation"]                   # dips under the on-camera dialogue
     assert [0.6 - 0.4, 0] in [[round(x, 2), y] for x, y in auto] or auto[0] == [0.0, 0]
     assert [0.0, -10] in auto and [1.9, -10] in auto
+    assert any('no "brief" in the spec' in w for w in produce.validate(s)[1]) is False   # no brief next to it
+    brief = tmp_path / "BRIEF.md"
+    brief.write_text("## Captions\n0:01 Hello there.\n0:03 Voice over, as written.\n")
+    assert any('add "brief": "BRIEF.md"' in w for w in produce.validate(produce.Spec(out))[1])
+    spec = produce.init_spec(raw, out, inv, brief=brief)                  # linked, and its lines go to their voices
+    assert spec["brief"] == "BRIEF.md"
+    assert spec["captions"]["voices"]["v_scene_1"]["lines"] == [{"text": "Hello there."}]
+    assert spec["captions"]["voices"]["v_vo"]["lines"] == [{"text": "Voice over, as written."}]
+    assert not [k for pc in json.loads(out.read_text())["pieces"] for k in pc if k.startswith("_")]   # captions only
 
 
 def test_versions_keep_each_note(tmp_path):

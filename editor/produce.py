@@ -274,6 +274,12 @@ def validate(spec: "Spec") -> tuple[list[str], list[str]]:
                     errors.append(f"extras {x.get('name')}: {e}")
     if spec.data.get("brief") and not spec.p(spec.data["brief"]).exists():
         warnings.append(f"brief not found: {spec.data['brief']}")
+    if not spec.data.get("brief"):
+        near = [f for f in sorted(spec.root.glob("*.md")) if re.search(r"brief|script|edit", f.stem, re.I)
+                and brief_lines(f.read_text(errors="ignore"))]
+        if near:
+            warnings.append(f'no "brief" in the spec, so numbers and caption lines aren\'t checked against it: add '
+                            f'"brief": "{near[0].name}"')
     return errors, warnings
 
 
@@ -677,8 +683,9 @@ def captions_from_brief(spec_path: str | Path, brief: str | Path) -> dict:
     """Give each voice its lines from the brief's caption list: each line goes to the voice whose recognised words
     share the most with it (in order), then `lines` makes one card per line timed on what was heard."""
     spec = Spec(spec_path)
+    raw = json.loads(Path(spec_path).read_text())        # write back only the captions, not what loading filled in
     lines = brief_lines(Path(brief).read_text())
-    caps = spec.data.setdefault("captions", {})
+    caps = raw.setdefault("captions", {})
     vmap = caps.setdefault("voices", {})
     heard = {}
     for name, src in vmap.items():
@@ -706,7 +713,7 @@ def captions_from_brief(spec_path: str | Path, brief: str | Path) -> dict:
     for n, ls in assigned.items():
         if ls:
             vmap[n] = {"words": heard[n][0], "lines": ls}
-    Path(spec_path).write_text(json.dumps(spec.data, indent=1, ensure_ascii=False) + "\n")
+    Path(spec_path).write_text(json.dumps(raw, indent=1, ensure_ascii=False) + "\n")
     report = {"assigned": {n: len(ls) for n, ls in assigned.items() if ls},
               "unmatched": [f"{ln['at']} {ln['text']}" for ln in lost]}
     log(f"produce: captions from the brief: {sum(report['assigned'].values())} line(s) placed, "
@@ -1294,7 +1301,8 @@ def _measure_lufs(path: Path, a: float, b: float) -> float | None:
 
 
 def init_spec(folder: str | Path, out: str | Path, inventory_dir: str | Path | None = None, transcribe: bool = True,
-              width: int = 1920, height: int = 1080, fps: int = 30, shots: str | Path | None = None) -> dict:
+              width: int = 1920, height: int = 1080, fps: int = 30, shots: str | Path | None = None,
+              brief: str | Path | None = None) -> dict:
     """A starting spec from a footage folder: each clip trimmed to its speech (a breath either side), voice-over files
     over a placeholder picture, pictures as framed shots, captions from the word times, an original music bed, and
     a freeze-frame end card. Every placeholder is listed under "todo"; it's a draft to edit, not the edit."""
@@ -1383,8 +1391,13 @@ def init_spec(folder: str | Path, out: str | Path, inventory_dir: str | Path | N
         "overlay": {"elements": [{"type": "end_card", "lines": ["TITLE", "website", "names"], "t_in": "end+0.4",
                                   "t_out": "end.end-0.3"}] if last_video else []},
     }
+    if brief:
+        spec["brief"] = os.path.relpath(Path(brief).resolve(), out.parent)
     out.write_text(json.dumps(spec, indent=1, ensure_ascii=False) + "\n")
     log(f"produce init: {len(pieces)} pieces, {len(voices)} voices, {total:.1f} s -> {out}")
+    if brief and caps:
+        captions_from_brief(out, brief)                # the brief's caption lines, each on the voice that says it
+        spec = json.loads(out.read_text())
     return spec
 
 
@@ -1864,9 +1877,11 @@ def main(argv=None) -> int:
         ip.add_argument("--no-transcribe", action="store_true")
         ip.add_argument("--size", default="1920x1080")
         ip.add_argument("--shots", help="a capture shots.json: each screen becomes a framed piece aimed at its focus")
+        ip.add_argument("--brief", help="the production brief: linked for the numbers and caption-line checks, and its "
+                                        "caption list given to the voices (captions-from-brief)")
         ia = ip.parse_args(argv[1:])
         w, h = (int(x) for x in ia.size.lower().split("x"))
-        init_spec(ia.folder, ia.out, ia.inventory, not ia.no_transcribe, w, h, ia.shots)
+        init_spec(ia.folder, ia.out, ia.inventory, not ia.no_transcribe, w, h, shots=ia.shots, brief=ia.brief)
         print(Spec(ia.out).table())
         return 0
     a = ap.parse_args(argv)

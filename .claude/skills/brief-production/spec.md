@@ -5,7 +5,8 @@ One JSON file is the whole video. Paths are relative to the spec's folder. Times
 `"s3"` (start of piece s3), `"s3+1.2"`, `"s3.end-0.5"`, `"@v3:2.01"` (where source second 2.01 of voice v3 lands).
 
 ```bash
-python3 -m editor produce init projects/<name>/raw -o projects/<name>/produce.json   # a first draft
+python3 -m editor produce init projects/<name>/raw -o projects/<name>/produce.json --brief projects/<name>/BRIEF.md
+                                                   # a first draft, the brief linked and its caption lines given out
 python3 -m editor produce projects/<name>/produce.json --plan                       # table, captions, checks
 python3 -m editor produce projects/<name>/produce.json --range d7b d7c.end          # quick look at a stretch
 python3 -m editor produce projects/<name>/produce.json --at 1:23 s4+2               # what's on screen / in the mix then
