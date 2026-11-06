@@ -574,8 +574,9 @@ def mix(spec: Spec) -> Path:
     buses = []
     if voices:
         graph.append(f"{''.join(f'[{v}]' for v in voices)}amix=inputs={len(voices)}:normalize=0,"
-                     f"apad=whole_dur={total},asplit=2[vox][vsc]")
+                     f"apad=whole_dur={total},asplit=3[vox][vsc][vstem]")
         buses.append("[vox]")
+    mstems = []
     ducked = [m for m, d in zip(music, duck) if d]
     free = [m for m, d in zip(music, duck) if not d]
     if ducked:
@@ -584,20 +585,36 @@ def mix(spec: Spec) -> Path:
                      f"apad=whole_dur={total}[mus]")
         if voices:
             graph.append(f"[mus][vsc]sidechaincompress=threshold={d.get('threshold', 0.015)}:ratio={d.get('ratio', 10)}"
-                         f":attack={d.get('attack', 150)}:release={d.get('release', 400)}:makeup=1[mduck]")
+                         f":attack={d.get('attack', 150)}:release={d.get('release', 400)}:makeup=1,asplit=2[mduck][ms0]")
             buses.append("[mduck]")
         else:
-            buses.append("[mus]")
+            graph.append("[mus]asplit=2[mus1][ms0]")
+            buses.append("[mus1]")
+        mstems.append("[ms0]")
     elif voices:
         graph.append("[vsc]anullsink")
-    buses += [f"[{x}]" for x in free + fx]
+    for i, m in enumerate(free):                    # music that doesn't duck still counts against the voice
+        graph.append(f"[{m}]asplit=2[{m}a][ms{i + 1}]")
+        mstems.append(f"[ms{i + 1}]")
+    buses += [f"[{x}a]" for x in free] + [f"[{x}]" for x in fx]
     if not buses:
         raise EditorError("the spec has no audio")
     graph.append(f"{''.join(buses)}amix=inputs={len(buses)}:normalize=0,apad=whole_dur={total},atrim=0:{total},"
                  f"alimiter=limit=0.95[pre]")
+    stems = []                                       # voice and music buses, for the review's "can we hear you" check
+    if voices and mstems:
+        graph.append(f"{''.join(mstems)}amix=inputs={len(mstems)}:normalize=0[mstem]")
+        stems = ["-map", "[vstem]", "-ac", "1", "-ar", "16000", str(spec.work / "stem_voice.wav"),
+                 "-map", "[mstem]", "-ac", "1", "-ar", "16000", str(spec.work / "stem_music.wav")]
+    else:
+        for x in ("[vstem]", *mstems):
+            if voices or x != "[vstem]":
+                graph.append(f"{x}anullsink")
+        for f in ("stem_voice.wav", "stem_music.wav"):
+            (spec.work / f).unlink(missing_ok=True)
     pre = spec.work / "mix_pre.wav"
     run(["ffmpeg", "-y", *ins, "-filter_complex", ";".join(graph), "-map", "[pre]", "-ar", "48000", "-ac", "2",
-         "-c:a", "pcm_s24le", str(pre)])
+         "-c:a", "pcm_s24le", str(pre), *stems])
     o = spec.data.get("output", {})
     out = spec.work / "mix.wav"
     _loudnorm(pre, out, float(o.get("lufs", -14)), float(o.get("tp", -1.5)))
@@ -733,6 +750,44 @@ def preview(final: Path) -> Path:
 
 # ---------------------------------------------------------------- review
 
+def music_gaps(spec: Spec, win: float = 0.4) -> list[dict]:
+    """How far the music sits under each voice while it speaks (dB in the speech band 300-4000 Hz, where music masks
+    words; the median over 0.4 s windows while speaking, and the worst 10%), from the stems the mix wrote. The lesson: a skit mixed like a voice-over bed, and "we can't hear ourselves"."""
+    import subprocess
+    import numpy as np
+    vp, mp = spec.work / "stem_voice.wav", spec.work / "stem_music.wav"
+    if not (vp.exists() and mp.exists()):
+        return []
+
+    def pcm(p):
+        raw = subprocess.run(["ffmpeg", "-v", "error", "-i", str(p), "-af", "highpass=f=300,highpass=f=300,"
+                              "lowpass=f=4000,lowpass=f=4000", "-f", "f32le", "-ac", "1", "-ar", "16000", "-"],
+                             capture_output=True).stdout
+        return np.frombuffer(raw, np.float32)
+
+    v, m = pcm(vp), pcm(mp)
+    n = int(win * 16000)
+    k = min(len(v), len(m)) // n
+    if k == 0:
+        return []
+    rms = lambda x: np.sqrt(np.mean(x[:k * n].reshape(k, n) ** 2, axis=1) + 1e-12)  # noqa: E731
+    vdb, mdb = 20 * np.log10(rms(v)), 20 * np.log10(rms(m))
+    out = []
+    for name, vo in spec.voices.items():
+        a = spec.t(vo.get("at", 0))
+        d = (float(vo["out"]) - float(vo.get("in", 0))) if "out" in vo else float(vo.get("dur", 0))
+        i0, i1 = int(a / win), min(k, int((a + d) / win))
+        idx = [i for i in range(i0, i1) if vdb[i] > -40 and vdb[i] > vdb[i0:i1].max() - 12]   # while speaking
+        if not idx:
+            out.append({"voice": name, "gap_db": None, "at": a})
+            continue
+        gap = vdb[idx] - mdb[idx]
+        worst = idx[int(np.argmin(gap))]
+        out.append({"voice": name, "gap_db": round(float(np.median(gap)), 1),
+                    "worst_db": round(float(np.percentile(gap, 10)), 1), "at": round(worst * win, 1)})
+    return out
+
+
 def review(spec: Spec, final: Path | None = None) -> dict:
     """What a human checks before sending a draft: length vs target, loudness, captions on every spoken line,
     graphics ending inside the video, and a frame at every graphic (sheets to Read)."""
@@ -777,6 +832,12 @@ def review(spec: Spec, final: Path | None = None) -> dict:
         if pct < 60:
             issues.append(f"voice {name} ({a:.1f}-{a + d:.1f} s) has captions on only {pct}% of it")
     rep["captions"] = cover
+    gaps = music_gaps(spec)
+    rep["music_under_voice"] = gaps
+    for g in gaps:
+        if g["gap_db"] is not None and g["gap_db"] < float(spec.data.get("output", {}).get("min_voice_gap", 9)):
+            issues.append(f"voice {g['voice']}: the music is only {g['gap_db']} dB under the voice (speech band, "
+                          f"worst around {g['at']:.1f} s): people may not hear what's said")
     for (a1, b1), (a2, b2) in zip(caps, caps[1:]):
         if a2 < b1 - 0.05:
             issues.append(f"captions overlap at {a2:.2f} s")
@@ -822,7 +883,9 @@ def review(spec: Spec, final: Path | None = None) -> dict:
     rep["issues"] = issues
     (out / "review.json").write_text(json.dumps(rep, indent=1))
     lines = [f"# Review of {final.name}", "", f"- length {rep['duration']} s, {rep['lufs']} LUFS, peak {rep['peak']} dBFS",
-             *[f"- captions on {c['voice']}: {c['covered_pct']}%" for c in cover], "",
+             *[f"- captions on {c['voice']}: {c['covered_pct']}%" for c in cover],
+             *[f"- music under {g['voice']}: {g['gap_db']} dB (worst 10%: {g['worst_db']} dB)" for g in gaps
+               if g["gap_db"] is not None], "",
              "## Issues" if issues else "No automatic issues found.", *[f"- {x}" for x in issues], "",
              "Read: " + ", ".join(Path(x).name for x in [rep["contact_sheet"], *sheets]),
              "Still yours to check: every frame of each sheet (overlaps, readability, faces), and say you can't hear it."]
