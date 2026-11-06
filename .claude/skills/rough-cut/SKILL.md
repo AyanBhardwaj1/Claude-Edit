@@ -63,6 +63,13 @@ under Edit it myself → Cut.
 cutting every one can make the talk sound clipped, so offer it: `--only basically,literally --apply`, then re-run from
 `cut` and look at each join with `editor review`. Cutmind has the same in the Cut tab.
 
+## Fit to a length
+"Make it under 60 s": re-plan with a smaller `--max-gap` first (tighter pauses cost no content). If it's still over,
+`python3 -m editor fit projects/<n>/work --under 60` lists the lines that grip least (a line said again first; the
+hook, the ending, list items like "the first one" and three lines always stay). It's a starting point for your own
+judgement, not the edit: read the lines against the red thread, then `--apply` (or cut different ones yourself) and
+re-run from `cut`. Cutmind has the same in the Cut tab.
+
 ## Cold open
 `editor pacing` names a later line that grips more than the opening (stronger_line_for_a_cold_open). It's an
 editorial call: propose it. On a yes, `python3 -m editor coldopen projects/<n>/work --apply` (or `--words w40-w48`

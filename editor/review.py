@@ -202,10 +202,8 @@ def stronger_opening(words: list[dict]) -> str | None:
             f'a cold open? (editor coldopen <work>)') if best else None
 
 
-def strongest_line(words: list[dict]) -> dict | None:
-    """A later line that grips more than the one the cut opens with (a number, a strong word, "you", a question,
-    short), as a cold-open suggestion; lines that lean on what came before ("Step two", "Then") never count. The
-    same rule as Cutmind's lib/coldopen.ts."""
+def spoken_lines(words: list[dict]) -> list[list[dict]]:
+    """The cut's spoken lines: split at sentence ends and pauses over 0.7 s (as Cutmind's sentences())."""
     lines, cur, prev = [], [], None
     for w in words:
         t = str(w.get("text", "")).strip()
@@ -221,20 +219,31 @@ def strongest_line(words: list[dict]) -> dict | None:
             cur = []
     if cur:
         lines.append(cur)
+    return lines
 
-    def score(line: list[dict]) -> tuple[int, list[str]]:
-        text = " ".join(str(w["text"]).strip() for w in line)
-        why, sc = [], 0
-        if _NUMBER.search(text):
-            sc, why = sc + 2, why + ["a number"]
-        strong = next((x for x in re.sub(r"[^a-z' ]", " ", text.lower()).split() if x in _STRONG), None)
-        if strong:
-            sc, why = sc + 2, why + [f'a strong word ("{strong}")']
-        if re.search(r"\byou(r|'re|'ll)?\b", text, re.I):
-            sc, why = sc + 1, why + ['it talks to "you"']
-        if re.search(r"\?[\"')]*$", text):
-            sc, why = sc + 1, why + ["a question"]
-        return sc + (1 if len(line) <= 12 else 0), why
+
+def grip(line: list[dict]) -> tuple[int, list[str]]:
+    """How much a line grips (the cold open's rules): a number, a strong word, "you", a question, short."""
+    text = " ".join(str(w["text"]).strip() for w in line)
+    why, sc = [], 0
+    if _NUMBER.search(text):
+        sc, why = sc + 2, why + ["a number"]
+    strong = next((x for x in re.sub(r"[^a-z' ]", " ", text.lower()).split() if x in _STRONG), None)
+    if strong:
+        sc, why = sc + 2, why + [f'a strong word ("{strong}")']
+    if re.search(r"\byou(r|'re|'ll)?\b", text, re.I):
+        sc, why = sc + 1, why + ['it talks to "you"']
+    if re.search(r"\?[\"')]*$", text):
+        sc, why = sc + 1, why + ["a question"]
+    return sc + (1 if len(line) <= 12 else 0), why
+
+
+def strongest_line(words: list[dict]) -> dict | None:
+    """A later line that grips more than the one the cut opens with (a number, a strong word, "you", a question,
+    short), as a cold-open suggestion; lines that lean on what came before ("Step two", "Then") never count. The
+    same rule as Cutmind's lib/coldopen.ts."""
+    lines = spoken_lines(words)
+    score = grip
     if len(lines) < 2:
         return None
     opener, _ = score(lines[0])

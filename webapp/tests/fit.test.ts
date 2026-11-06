@@ -72,3 +72,10 @@ test("a line said again later in the cut is the first to go", () => {
   assert.match(plan.drop[0].text, /^Here is the secret/);
   assert.ok(plan.drop[0].at > 15);                 // the later one, not the first time it's said
 });
+
+test("a list item is never cut: the others lean on it", () => {
+  const p = project();
+  p.words.filter((w) => w.w === "It" && w.s < 5).forEach((w) => (w.w = "Step"));          // "Step was a normal week…"
+  const e = { ...defaultEdit(p), keep: [{ from: "w0", to: `w${p.words.length - 1}` }], gapCap: 0.4 };
+  assert.ok(planFit(p, e, 30).drop.every((d) => !d.text.startsWith("Step")));
+});

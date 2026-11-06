@@ -128,11 +128,11 @@ export function Drawer({ project: p, edit, onApply, settings, onMakeMusic, onWor
                   {fit.gapCap < e.gapCap ? "Tighter pauses" : ""}{fit.gapCap < e.gapCap && fit.drop.length ? ", and cut " : fit.drop.length ? "Cut " : ""}
                   {fit.drop.length ? (fit.drop.length === 1 ? "the line that grips least" : `the ${fit.drop.length} lines that grip least`) : ""}
                   {fit.drop.length || fit.gapCap < e.gapCap ? `: ${formatTime(fit.now)} → ${formatTime(fit.after)}.` : ""}
-                  {!fit.reached && ` That's as short as it goes keeping your hook, your ending and three lines: try “Faster talking” too.`}
+                  {!fit.reached && ` That's as short as it goes keeping your hook, your ending, your list (“the first one”, “step 2”) and three lines: try “Faster talking”, or cut a line yourself below.`}
                 </p>
                 {fit.drop.length > 0 && <ul className="small muted fit-drop">{fit.drop.map((d) => <li key={d.ids[0]}>“{d.text}” <span className="num">({d.seconds.toFixed(1)} s)</span></li>)}</ul>}
-                <button type="button" className="btn sm" onClick={() => { setE(applyFit(p, e, fit)); setFitTo(null); }}>
-                  {fit.drop.length > 1 ? "Cut them" : fit.drop.length ? "Cut it" : "Tighten the pauses"}</button>
+                {(fit.drop.length > 0 || fit.gapCap < e.gapCap) && <button type="button" className="btn sm" onClick={() => { setE(applyFit(p, e, fit)); setFitTo(null); }}>
+                  {fit.drop.length > 1 ? "Cut them" : fit.drop.length ? "Cut it" : "Tighten the pauses"}</button>}
                 <span className="hint">Your hook and ending stay. Bring any line back by clicking its words below.</span>
               </div>)}
             </div>

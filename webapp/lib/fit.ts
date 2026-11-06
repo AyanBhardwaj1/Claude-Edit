@@ -1,6 +1,6 @@
 // Fit to a length ("make it under 60 seconds"), without AI: first the pauses get tighter, then the sentences that grip
 // least go: a line said again earlier first, then the cold open's rules (no number, no strong word, not to "you",
-// long; a line naming something counts for more). The first sentence (the hook) and
+// long; a line naming something counts for more). A list item ("the first one", "step 2", "finally") is never cut. The first sentence (the hook) and
 // the last (the ending, the call to action) always stay, and at least three sentences are left. It's a proposal: the
 // lines it cuts are listed, and each one can be brought back in the words below.
 import { sameLine } from "./analyze";
@@ -11,6 +11,7 @@ import type { Edit, Project } from "./types";
 
 export const FIT_TARGETS = [30, 45, 60, 90] as const;
 const TIGHT_GAP = 0.12;
+const LIST = /\b(first|second|third|fourth|fifth|number (one|two|three|four|five|\d+)|step|tip|part|finally|lastly)\b/i;
 
 export type FitLine = { ids: string[]; text: string; at: number; seconds: number };
 export type FitPlan = { target: number; now: number; after: number; gapCap: number; drop: FitLine[]; reached: boolean };
@@ -35,8 +36,10 @@ export function planFit(p: Project, e: Edit, target: number): FitPlan {
       const first = timeOf.get(s.ids[0])!, last = timeOf.get(s.ids[s.ids.length - 1])!;
       // a line that names something (a capitalised word mid-sentence: an app, a person, a place) carries content
       const names = s.text.split(/\s+/).slice(1).some((w) => /^[A-Z][a-z]/.test(w.replace(/^[^A-Za-z]+/, "")) && !/^I('|$)/.test(w));
-      return { ...s, seconds: last.oe - first.os, score: grip(s.text, s.ids.length).score + (names ? 2 : 0) - (again ? 10 : 0) };
-    });
+      // a list item ("The first one is", "Number two", "Step 3", "Finally") is structure: the others lean on it
+      const listed = LIST.test(s.text.split(/\s+/).slice(0, 5).join(" "));
+      return { ...s, listed: listed && !again, seconds: last.oe - first.os, score: grip(s.text, s.ids.length).score + (names ? 2 : 0) - (again ? 10 : 0) };
+    }).filter((s) => !s.listed);                       // never a list item: the others lean on it
     // the least gripping first; between equals, the longest (one cut saves more)
     middle.sort((a, b) => a.score - b.score || b.seconds - a.seconds);
     for (const s of middle) {
