@@ -135,18 +135,22 @@ function placeLayer(p: Project, tl: Timeline, L: Layer): Layer["place"] {
   const still = L.asset?.kind === "image" && !phone;
   const core = face?.core ?? { x0: W * 0.3, x1: W * 0.7, y0: H * 0.3, y1: H * 0.5 };
   const fit = (zw: number, zh: number) => { const w = Math.min(zw, zh * aspect, 0.88 * W, 0.88 * U * Math.max(1, aspect)); return { w, h: w / aspect }; };
+  // on a reel the apps draw their like / comment / share column down the right (from ~85% across, 36-88% down):
+  // a card reaching that low stays left of it (lib/safezones.ts)
+  const right = H > 1.5 * W ? 0.84 * W : W - SIDE, buttonsTop = 0.35 * H;
   if (t === "card-above-head") {
     const top = SAFE_TOP, bottom = core.y0 - 0.01 * H;
     if (bottom - top > 0.06 * H) {
-      const { w, h } = fit(W - 2 * SIDE, bottom - top);
+      const edge = bottom > buttonsTop ? right : W - SIDE;
+      const { w, h } = fit(edge - SIDE, bottom - top);
       if (w >= minW) {
-        const cx = Math.min(Math.max(face?.cx ?? W / 2, SIDE + w / 2), W - SIDE - w / 2);
+        const cx = Math.min(Math.max(face?.cx ?? W / 2, SIDE + w / 2), edge - w / 2);
         return { x: cx - w / 2, y: bottom - h, w, h, tilt: still ? -2.5 : 0, mode: "card" };
       }
     }
   }
   // beside the face (side cards, phones, and above-head cards that can't read above)
-  const sides = { left: [SIDE, core.x0 - 0.01 * W], right: [core.x1 + 0.01 * W, W - SIDE] } as const;
+  const sides = { left: [SIDE, core.x0 - 0.01 * W], right: [core.x1 + 0.01 * W, right] } as const;
   const order = L.b.side === "left" || L.b.side === "right" ? [L.b.side] :
     (Object.keys(sides) as ("left" | "right")[]).sort((a, b) => (sides[b][1] - sides[b][0]) - (sides[a][1] - sides[a][0]));
   for (const k of order) {
@@ -469,11 +473,13 @@ function drawCaptions(g: CanvasRenderingContext2D, e: Edit, scene: Scene, t: num
   const font = (sz: number) => `${st.weight} ${sz}px "${e.captions.font}", Montserrat, Inter, Arial, sans-serif`;
   g.font = font(size);
   const full = words.join(" ");
-  while (g.measureText(full).width > W * 0.87 && size > 0.62 * base) { size *= 0.94; g.font = font(size); }
+  const gaps = Math.max(0, words.length - 1);
+  while (g.measureText(full).width + 0.12 * size * gaps > W * 0.87 && size > 0.62 * base) { size *= 0.94; g.font = font(size); }
   const y = (split ? 0.8 : e.captions.position) * H;
-  const total = g.measureText(full).width;
+  // the spoken word grows (up to ~8%) and has an outline: a plain space between words would vanish next to it
+  const space = g.measureText(" ").width + 0.12 * size;
+  const total = words.reduce((sum, w) => sum + g.measureText(w).width, 0) + space * Math.max(0, words.length - 1);
   let x = W / 2 - total / 2;
-  const space = g.measureText(" ").width;
   const since = t - cue.start;
   const cueAlpha = anim === "fade" ? clamp01(since / 0.16) : 1;
   if (st.box) {

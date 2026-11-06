@@ -82,6 +82,9 @@ def test_place_card_above_beside_split():
     assert text["mode"] == "split"                                     # no readable room around a close-up
     side = placement.place_card(0.6, "photo", {**FACE_LOW, "x0": 600, "x1": 900, "cx": 750}, 1080, 1920, side="beside")
     assert side["mode"] == "card" and "left" in side["how"]
+    # a face on the left: the card goes right, but stays left of the apps' like / comment / share column
+    right = placement.place_card(0.6, "photo", {**FACE_LOW, "x0": 150, "x1": 450, "cx": 300}, 1080, 1920, side="right")
+    assert right["mode"] == "card" and (right["x"] + right["width"] / 2) <= 0.84 + 1e-6
 
 
 def test_text_pop_and_walls(tmp_path):
