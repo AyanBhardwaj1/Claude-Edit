@@ -85,6 +85,8 @@ vertical reel with a cover and a post caption, then change it by typing notes. E
     you make in two different videos (bigger subtitles, fewer zooms, quieter music, tighter cuts...) is offered once as a
     style rule for next time; a no is remembered too (`lib/learn.ts`). The editor's keyboard shortcuts are one `?` away,
     and **Compare** (or C) plays the version before from the same word, to hear and see what a note changed.
+24. **Share from your phone**: after an export, Share… opens the phone's share sheet with the video (Instagram, TikTok,
+    Messages…) and copies the post caption to paste in; it only shows where the browser can share files.
 
 ## Privacy and keys
 - Videos never leave the browser: they're processed on the user's computer and kept in IndexedDB.
