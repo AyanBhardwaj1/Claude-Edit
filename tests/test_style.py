@@ -145,3 +145,28 @@ def test_auto_flag_beats_project_beats_learned_beats_builtin(tmp_path):
     args = _auto_args(no_learned_style=True)
     cli._resolve_style(args, tmp_path / "none")
     assert args.max_gap == 0.30 and args.style == "bold"
+
+
+def test_productions_learn_and_apply(tmp_path):
+    spec = {"output": {"width": 1920, "height": 1080, "lufs": -14}, "frame": {"backdrop": "#f4f1e6", "scale": 0.92},
+            "pieces": [{"name": "a", "type": "color", "dur": 2}, {"name": "end", "type": "freeze", "from": "a", "dur": 6}],
+            "audio": {"music": [{"src": {"compose": {"mood": "warm"}}, "gain": -3}]},
+            "captions": {"max_chars": 42}, "extras": [{"name": "square"}]}
+    kind, s = style.detect(spec)
+    assert kind == "production" and s["production.music.mood"] == "warm" and s["production.end.dur"] == 6.0
+    assert s["production.extras"] == "square" and s["production.size"] == "1920x1080"
+    f = tmp_path / "produce.json"
+    f.write_text(json.dumps(spec))
+    style.snapshot(f)
+    spec["audio"]["music"][0]["gain"] = -8          # the user had the music turned down before approving
+    f.write_text(json.dumps(spec))
+    lines = style.learn(f)
+    assert any("production.music.gain" in ln for ln in lines)
+    style.note("Productions: ivory frame, 40-character captions", kind="production",
+               sets=["production.captions.max_chars=40", "production.frame.backdrop=#f4f1e6"])
+    g = tmp_path / "new.json"
+    g.write_text(json.dumps({"pieces": [{"name": "x", "type": "color", "dur": 1}]}))
+    done = style.apply(g)
+    new = json.loads(g.read_text())
+    assert new["captions"]["max_chars"] == 40 and new["frame"]["backdrop"] == "#f4f1e6"
+    assert done

@@ -27,12 +27,15 @@ Scopes: `brand:<name>` beats `kind:reel|launch` beats `global`. Brand colours st
    fillers, caption style and position, audio preset, music level, platform preset, grade; plus punch-ins, SFX
    and the progress bar after planning). Pass `--brand <name>` for a brand's own style; `--no-learned-style` to
    ignore it. An explicit flag or this project's EDL `settings` always wins.
-3. Launch videos: after writing `plan.json`, run `python3 -m editor style apply launches/<name>/plan.json`
+3. Productions (brief-production): after `editor produce init` or writing the spec, run
+   `python3 -m editor style apply projects/<name>/produce.json` (frame look, caption length, loudness) and
+   `python3 -m editor style check projects/<name>/produce.json`.
+4. Launch videos: after writing `plan.json`, run `python3 -m editor style apply launches/<name>/plan.json`
    (fills only what the plan leaves unset, never overwrites) and `python3 -m editor style check <plan.json>`;
    reconcile each drift line: match the preference, or keep the difference if this brief asks for it.
-4. Ask fewer questions: skip brief questions the style already answers confidently, and say so in one line
+5. Ask fewer questions: skip brief questions the style already answers confidently, and say so in one line
    ("Going 16:9, no voiceover, music and SFX only, from your style; tell me if this one is different.").
-5. In the plan you propose, name the learned defaults you used in one line.
+6. In the plan you propose, name the learned defaults you used in one line.
 
 ## While editing
 - **Every** time the user gives feedback that is a preference (not a one-off fix of this video's content),
@@ -54,6 +57,7 @@ Scopes: `brand:<name>` beats `kind:reel|launch` beats `global`. Brand colours st
 
 ## When the user approves
 ```bash
+python3 -m editor style learn projects/<name>/produce.json     # productions (editor produce snapshots the first render)
 python3 -m editor style learn projects/<name>/work/edl.json      # reels
 python3 -m editor style learn launches/<name>/plan.json          # launch videos
 ```

@@ -808,6 +808,9 @@ def produce(spec_path: str | Path, only: str | None = None, jobs: int = 4, want_
                 if not need.exists():
                     raise EditorError(f"{need.name} is missing: run without --only first")
             res["file"] = str(composite(spec, base, ov, audio))
+            from . import style
+            if not style._snap_path(spec.path).exists():       # the first render is the first draft
+                style.snapshot(spec.path)
             if want_preview:
                 res["preview"] = str(preview(Path(res["file"])))
         elif st == "extras":
