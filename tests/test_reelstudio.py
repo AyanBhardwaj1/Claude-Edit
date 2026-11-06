@@ -281,3 +281,12 @@ def test_names_curly_apostrophes_and_svg_logos(tmp_path, monkeypatch):
     monkeypatch.setattr(images, "save_hit", lambda hit, project, name=None: {"path": str(tmp_path / "p" / "broll" / "web" / "notion.svg")})
     assert main(["names", str(work), "--logos", "--apply"]) == 0
     assert __import__("json").loads((work / "edl.json").read_text())["broll"] == []     # an SVG would flash for one frame
+
+
+def test_pacing_fix_adds_word_anchored_zooms_in_bare_face_stretches():
+    from editor.review import stillness_zooms
+    ws = [dict(w, id=f"w{i}") for i, w in enumerate(words("one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty"))]
+    z = stillness_zooms(["1.0-8.0s"], ws)
+    assert len(z) >= 2 and all(set(x) == {"words", "scale", "ease"} for x in z)
+    assert [x["scale"] for x in z[:2]] == [1.15, 1.25]
+    assert stillness_zooms([], ws) == []

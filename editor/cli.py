@@ -195,6 +195,8 @@ def main(argv=None):
 
     p = sub.add_parser("pacing", help="draft checks: bare face > 4.5 s, zooms only > 10 s, flashes, names not shown")
     p.add_argument("work_dir")
+    p.add_argument("--fix", action="store_true", help="add word-anchored zooms where the face is bare for over 4.5 s "
+                   "(the safe fix; re-run from render after)")
 
     p = sub.add_parser("version", help="save the current render as vN with the note that made it; list; restore")
     p.add_argument("project")
@@ -763,6 +765,15 @@ def cmd_pacing(args):
     rep = pacing(edl, load_words(work), meta["duration"], punch_cuts(edl, meta))
     for k, v in rep.items():
         print(f"{'!!' if v else 'ok'}  {k}: {v if v else '-'}")
+    if getattr(args, "fix", False) and rep["face_only_over_4_5s"]:
+        from .review import stillness_zooms
+        add = stillness_zooms(rep["face_only_over_4_5s"], load_words(work))
+        if add:
+            raw = load_json(meta["edl"])
+            raw.setdefault("zooms", []).extend(add)
+            save_json(meta["edl"], raw)
+            log(f"pacing --fix: {len(add)} zoom(s) added to {meta['edl']} on the words in the bare-face stretches: "
+                f"re-run from render")
 
 
 def cmd_version(args):
