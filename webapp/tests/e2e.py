@@ -131,6 +131,9 @@ with sync_playwright() as pw:
     page.get_by_placeholder("Tell your editor what to change").fill("music too loud at the start")
     page.get_by_role("button", name="Send").click()
     page.get_by_text("Version 2: I turned the music down at the start.").wait_for(timeout=30000)
+    changed = page.locator(".msg .changes").last.inner_text()
+    assert "Music turned down in 1 place" in changed, changed   # measured, not the AI's word for it
+    page.locator(".msg.ed").last.screenshot(path=str(out / "2b-note-changes.png"))
     page.get_by_role("button", name="Yes, remember it").click()
     style = page.evaluate("Object.keys(localStorage).filter(k => k.startsWith('ce.style.')).map(k => localStorage.getItem(k))")
     assert len(style) == 1 and json.loads(style[0])[0]["text"] == "Keep music quieter under talking.", style

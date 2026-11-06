@@ -76,6 +76,11 @@ vertical reel with a cover and a post caption, then change it by typing notes. E
     picture (speed, size, mirror, pause with Space or a tap, a still script for reduced motion). The takes and the script
     go straight into the edit, so the subtitles are spelled like the script (`lib/camrec.ts`, `components/FilmRecorder.tsx`).
     Settings shows what Cutmind has learned about timings on this device, with a reset.
+22. **Notes you can trust**: under each version, what really changed, measured by comparing the two edits (the
+    length and the words cut or brought back, subtitle style, music and its dips, pictures added or removed, zooms, the
+    hook title), next to the AI's own summary; "Nothing in the video changed" when a note didn't land
+    (`lib/changes.ts`). A note with a time in it ("at 0:12 zoom in") gives the AI editor the words, pictures and zooms
+    at that moment of the edited video, and the At button beside the note box adds where the player is (`lib/moments.ts`).
 
 ## Privacy and keys
 - Videos never leave the browser: they're processed on the user's computer and kept in IndexedDB.

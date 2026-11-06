@@ -26,8 +26,9 @@ const MusicMaker = dynamic(() => import("./MusicMaker").then((m) => m.MusicMaker
 import { Icon } from "./Icons";
 import { RecordScreen } from "./ScreenRecorder";
 import { clock } from "./Tiles";
+import { changeList } from "@/lib/changes";
 
-type Msg = { who: "you" | "ed"; text: string; rule?: string };
+type Msg = { who: "you" | "ed"; text: string; rule?: string; changes?: string[] };
 
 export function Editor({ project, settings, firstSummary, onBack, onOpenProject, onOpenAnim }: { project: Project; settings: Settings; firstSummary?: string;
   onBack: () => void; onOpenProject?: (p: Project, summary: string) => void; onOpenAnim?: (id: string) => void }) {
@@ -40,7 +41,8 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
   const [dur, setDur] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [msgs, setMsgs] = useState<Msg[]>(() => (firstSummary ? [{ who: "ed", text: firstSummary }] :
-    project.versions.map((v) => ({ who: "ed" as const, text: `Version ${v.n}: ${v.summary}` }))));
+    project.versions.map((v, i) => ({ who: "ed" as const, text: `Version ${v.n}: ${v.summary}`,
+      changes: i > 0 ? changeList(project, project.versions[i - 1].edit, v.edit) : undefined }))));
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState("");
   const [drawer, setDrawer] = useState(false);
@@ -166,12 +168,14 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
     if (!hasKey) { setMsgs((m) => [...m, { who: "ed", text: "I can't change the video from a note without an AI editor. Add your key in Settings, or use \"Edit it myself\"." }]); return; }
     setBusy("Working on your note…"); setErr("");
     try {
+      const before = (p.versions.find((v) => v.n === p.current) ?? p.versions[p.versions.length - 1]).edit;
       const r = await applyUserNote(p, settings, loadRules(), text, (m) => setBusy(m));
+      const after = p.versions.find((v) => v.n === p.current)!.edit;
       setP({ ...p });
       const always = /\b(always|from now on|every (video|time)|remember|next time|never again)\b/i.test(text);
       if (r.styleRule && always) addRule(r.styleRule);
       setMsgs((m) => [...m, { who: "ed", text: `Version ${p.current}: ${r.summary}` + (r.styleRule && always ? " I'll remember that for next time." : ""),
-        rule: r.styleRule && !always ? r.styleRule : undefined }]);
+        rule: r.styleRule && !always ? r.styleRule : undefined, changes: changeList(p, before, after) }]);
     } catch (e) { setErr((e as { userMessage?: string }).userMessage ?? String(e)); }
     setBusy("");
   }
@@ -434,6 +438,9 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
                 <div key={i} className={`msg ${m.who}`}>
                   <span className="who-said">{m.who === "you" ? "You" : "Your editor"}</span>
                   <span>{m.text}</span>
+                  {m.changes && (m.changes.length
+                    ? <ul className="changes small" aria-label={`What changed in this version, measured`}>{m.changes.map((c, k) => <li key={k}>{c}</li>)}</ul>
+                    : <p className="changes small warn">Nothing in the video changed. Try saying it another way, or use Edit it myself.</p>)}
                   {m.rule && (
                     <div className="ask">
                       <div className="small">Remember this for next time? &ldquo;{m.rule}&rdquo;</div>

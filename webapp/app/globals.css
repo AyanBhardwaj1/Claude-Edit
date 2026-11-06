@@ -769,3 +769,8 @@ button.attach { background: none; border: 0; font: inherit; font-size: 13px; tex
 .learned li { display: flex; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--line); padding: 4px 0; }
 .learned .num { font-variant-numeric: tabular-nums; color: var(--ink-2); }
 .composer .at-btn { align-self: center; white-space: nowrap; }
+/* Editor chat: what a version really changed, measured (lib/changes.ts) */
+.msg .changes { display: block; margin: 8px 0 0; padding: 8px 0 0 18px; box-shadow: 0 -1px 0 var(--line); color: var(--ink-2); white-space: normal; }
+.msg .changes li { margin: 2px 0; }
+.msg p.changes { padding-left: 0; }
+.msg .changes.warn { color: var(--bad-text); }
