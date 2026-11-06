@@ -221,7 +221,9 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
     setAttn(attention(pl.tl, edit));
     setNames(namedNotShown(pl.tl, edit));
     // titles carry over by sentence (an AI-named chapter keeps its name after a new version or a note)
-    setChapters((prev) => chapterMarks(pl.tl).map((m) => ({ ...m, title: prev.find((c) => c.from === m.from)?.title ?? m.title })));
+    // titles carry over by sentence: saved with the edit, or named earlier in this session
+    setChapters((prev) => chapterMarks(pl.tl).map((m) => ({ ...m,
+      title: edit.chapters?.find((c) => c.from === m.from)?.title ?? prev.find((c) => c.from === m.from)?.title ?? m.title })));
     setSwore(swears(pl.tl).map((w) => ({ id: w.id, w: w.w.trim(), at: w.os })));
     setScroll({ ...scrollTest(pl.tl, edit), loop: loopCheck(pl.tl), cold: strongestLine(pl.tl) }); setShownTest(null);
     void waveform(p, pl.tl).then((w) => { if (gen === mounts.current) setWave(w); });
@@ -819,10 +821,18 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
                   <button type="button" className="btn sm" disabled={inPost || recording || cmp} onClick={async () => {
                     const before = version.edit;
                     const caption = before.post.caption.replace(/\n*Chapters\n(?:\d+:\d\d(?::\d\d)? .*\n?)+/g, "").trimEnd();
-                    const fixed = { ...before, post: { ...before.post, caption: `${caption}${caption ? "\n\n" : ""}Chapters\n${text}` } };
+                    const fixed = { ...before, chapters: chapters.map((c) => ({ from: c.from, title: c.title })),
+                      post: { ...before.post, caption: `${caption}${caption ? "\n\n" : ""}Chapters\n${text}` } };
                     await saveManual(p, fixed, "YouTube chapters in the post"); setP({ ...p });
                     setMsgs((m) => [...m, { who: "ed", v: p.current, text: `Version ${p.current}: the post caption lists ${chapters.length} chapters.` }]);
                   }}>{inPost ? "In the post" : "Add to the post"}</button>
+                  <button type="button" className="btn sm" aria-pressed={!!version.edit.chapterPills} disabled={recording || cmp} onClick={async () => {
+                    const before = version.edit, on = !before.chapterPills;
+                    const fixed = { ...before, chapterPills: on || undefined, chapters: chapters.map((c) => ({ from: c.from, title: c.title })) };
+                    await saveManual(p, fixed, on ? "chapter titles on screen" : "no chapter titles on screen"); setP({ ...p });
+                    setMsgs((m) => [...m, { who: "ed", v: p.current, text: on ? `Version ${p.current}: each chapter's title shows at the top as it starts.`
+                      : `Version ${p.current}: no chapter titles on screen.` }]);
+                  }}>{version.edit.chapterPills ? "On screen" : "Show on screen"}</button>
                 </div>
               </section>);
           })()}

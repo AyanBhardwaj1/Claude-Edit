@@ -84,6 +84,8 @@ export type Edit = {
   translation?: Translation;      // subtitles in another language (lib/translate.ts)
   bleeps?: string[];              // word ids bleeped: voice muted under a tone, subtitles masked (lib/bleep.ts)
   loudness?: number;              // dB added before the master compressor and limiter, set by Match loudness
+  chapters?: { from: string; title: string }[];   // YouTube chapters, anchored on their first words (lib/chapters.ts)
+  chapterPills?: boolean;         // show each chapter's title on screen as it starts
 };
 
 /** Subtitles in another language: one translated line per spoken phrase, timed by the words it covers. */

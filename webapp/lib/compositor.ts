@@ -236,6 +236,7 @@ export function drawFrame(g: CanvasRenderingContext2D, p: Project, e: Edit, scen
   if (fx?.kind === "flash") { g.fillStyle = `rgba(255,255,255,${(0.85 * fx.k ** 1.5).toFixed(3)})`; g.fillRect(0, 0, W, H); }
   if (fx?.kind === "fade") { g.fillStyle = `rgba(0,0,0,${(0.92 * fx.k ** 1.2).toFixed(3)})`; g.fillRect(0, 0, W, H); }
   drawWatermark(g, W, H);
+  if (e.chapterPills && e.chapters?.length) drawChapterPill(g, e, scene, t, m.accent);
   if (m.progress && scene.tl.duration > 0) {
     const h = Math.max(6, 0.006 * H);
     g.fillStyle = "rgba(255,255,255,0.22)"; g.fillRect(0, 0, W, h);
@@ -455,6 +456,27 @@ function drawTranslated(g: CanvasRenderingContext2D, e: Edit, text: string, alph
   g.restore();
 }
 
+/** A chapter's title as it starts: a pill at the top left for 2.8 s, sliding in and fading out (like the reel CLI's
+ *  chapter pills). Chapters whose first word is cut don't show. */
+function drawChapterPill(g: CanvasRenderingContext2D, e: Edit, scene: Scene, t: number, accent: string) {
+  const starts = e.chapters!.map((c) => ({ at: scene.tl.byId.get(c.from)?.os, title: c.title }))
+    .filter((c): c is { at: number; title: string } => c.at !== undefined && !!c.title);
+  const c = starts.filter((x) => t >= Math.max(0, x.at - 0.05) && t < x.at + 2.8).pop();
+  if (!c) return;
+  const k = clamp01((t - c.at + 0.05) / 0.25), out = clamp01((c.at + 2.8 - t) / 0.3);
+  const size = 0.034 * U, pad = 0.6 * size;
+  g.save();
+  g.globalAlpha = Math.min(k, out);
+  g.font = `700 ${size}px Montserrat, Inter, Arial, sans-serif`;
+  const w = g.measureText(c.title).width + 2 * pad + 0.5 * size, h = 1.9 * size;
+  const x = 0.04 * W - (1 - ease.out(k)) * 0.05 * W, y = (W > H ? 0.06 : 0.1) * H;
+  g.fillStyle = "rgba(10,10,12,0.78)"; rounded(g, x, y, w, h, h / 2); g.fill();
+  g.fillStyle = accent; g.beginPath(); g.arc(x + pad, y + h / 2, 0.18 * size, 0, Math.PI * 2); g.fill();
+  g.fillStyle = "#fff"; g.textBaseline = "middle"; g.textAlign = "left";
+  g.fillText(c.title, x + pad + 0.5 * size, y + h / 2 + 0.03 * size);
+  g.restore();
+}
+
 function drawCaptions(g: CanvasRenderingContext2D, e: Edit, scene: Scene, t: number, split: boolean) {
   const cue = scene.cues.find((c) => t >= c.start && t < c.end);
   if (!cue) return;
@@ -476,11 +498,14 @@ function drawCaptions(g: CanvasRenderingContext2D, e: Edit, scene: Scene, t: num
   g.font = font(size);
   const full = words.join(" ");
   const gaps = Math.max(0, words.length - 1);
-  while (g.measureText(full).width + 0.12 * size * gaps > W * 0.87 && size > 0.62 * base) { size *= 0.94; g.font = font(size); }
+  while (g.measureText(full).width * 1.1 + 0.06 * size * gaps > W * 0.87 && size > 0.62 * base) { size *= 0.94; g.font = font(size); }
   const y = (split ? 0.8 : e.captions.position) * H;
   // the spoken word grows (up to ~8%) and has an outline: a plain space between words would vanish next to it
-  const space = g.measureText(" ").width + 0.12 * size;
-  const total = words.reduce((sum, w) => sum + g.measureText(w).width, 0) + space * Math.max(0, words.length - 1);
+  // the gap after each word allows for both neighbours growing (~5% of their width each side when spoken) and the
+  // outline: a long word like "CAPTIONING" grows by more than a fixed gap
+  const widths = words.map((w) => g.measureText(w).width);
+  const gapAfter = (i: number) => g.measureText(" ").width + 0.06 * size + 0.05 * (widths[i] + (widths[i + 1] ?? 0));
+  const total = widths.reduce((a, b) => a + b, 0) + widths.slice(0, -1).reduce((sum, _, i) => sum + gapAfter(i), 0);
   let x = W / 2 - total / 2;
   const since = t - cue.start;
   const cueAlpha = anim === "fade" ? clamp01(since / 0.16) : 1;
@@ -531,6 +556,6 @@ function drawCaptions(g: CanvasRenderingContext2D, e: Edit, scene: Scene, t: num
       if (anim === "typewriter" && text.length < w.length && Math.floor(t * 4) % 2 === 0) g.fillRect(-ww / 2 + tw + 4, -0.42 * size, 0.08 * size, 0.84 * size);
       g.restore();
     }
-    x += ww + space;
+    x += ww + gapAfter(i);
   });
 }
