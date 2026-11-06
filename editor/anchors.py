@@ -138,3 +138,57 @@ def listing(work: str | Path, find_phrase: str | None = None, unsure: float = 0.
     flag = lambda w: "(?)" if w.get("prob", 1.0) < unsure else ""      # noqa: E731
     return "\n".join(f"{ln[0]['start']:6.2f}s  " + " ".join(f"{w['text']}{flag(w)}[{w.get('id', '?')}]" for w in ln)
                      for ln in lines)
+
+
+def _clock(x) -> float:
+    m = re.fullmatch(r"(\d+):(\d{1,2}(?:\.\d+)?)", str(x).strip())
+    return int(m[1]) * 60 + float(m[2]) if m else float(x)
+
+
+def moment(work: str | Path, at, around: float = 1.5) -> str:
+    """What the reel has at one output moment ("0:12" or 12.0): the segment and its source second, the words said
+    around then (with ids, for anchors), and the EDL entries on screen or in the mix. A note like "at 0:12 the b-roll
+    covers my face" becomes the exact entry to change."""
+    work = Path(work)
+    t = _clock(at)
+    meta = load_json(work / "cut_meta.json")
+    words = load_words(work)
+    lines = [f"at {int(t // 60)}:{t % 60:05.2f} ({t:.2f} s of {meta['duration']:.2f} s)"]
+    for seg in meta["timeline"]:
+        if seg["start"] <= t < seg["end"] or (t == seg["end"] == meta["duration"]):
+            src = seg["src_start"] + (t - seg["start"]) * seg.get("speed", 1.0)
+            lines.append(f"  segment {seg['index']}: source {seg['src']} at {src:.2f} s (EDL segments are source "
+                         f"seconds; speed {seg.get('speed', 1.0)})")
+            break
+    near = [w for w in words if w["end"] >= t - around and w["start"] <= t + around]
+    if near:
+        lines.append("  words:   " + " ".join(f"{w['text']}[{w.get('id', '?')}]" for w in near))
+    else:
+        lines.append("  words:   none around then (a pause, or past the end)")
+    edl = resolve(load_json(work / "edl.json"), words) if (work / "edl.json").exists() else {}
+    for b in edl.get("broll") or []:
+        a = float(b.get("start", 0))
+        if a <= t <= a + float(b.get("dur", 0)):
+            what = b.get("path") or b.get("treatment") or b.get("text") or "?"
+            lines.append(f"  b-roll:  {what} {a:.2f}-{a + float(b.get('dur', 0)):.2f}"
+                         + (f" ({b['treatment']})" if b.get("treatment") and b.get("path") else "")
+                         + (f" on {b.get('on') or b.get('words')!r}" if b.get("on") or b.get("words") else ""))
+    for z in edl.get("zooms") or []:
+        if float(z.get("start", 0)) <= t <= float(z.get("end", 0)):
+            lines.append(f"  zoom:    {z.get('scale')}x {float(z['start']):.2f}-{float(z['end']):.2f}")
+    music = edl.get("music") if isinstance(edl.get("music"), dict) else {}
+    for au in music.get("automation") or []:
+        if float(au.get("start", 0)) <= t <= float(au.get("end", 0)):
+            lines.append(f"  music:   {au.get('db', au.get('gain'))} dB {float(au['start']):.2f}-{float(au['end']):.2f}")
+    if music.get("path"):
+        lines.append(f"  music:   {music['path']}" + (f" at {music['gain']} dB" if "gain" in music else ""))
+    for x in edl.get("sfx") or [] if isinstance(edl.get("sfx"), list) else []:
+        if abs(float(x.get("at", -9)) - t) <= 1.0:
+            lines.append(f"  sfx:     {x.get('type') or x.get('path')} at {float(x['at']):.2f}")
+    chs = [c for c in edl.get("chapters") or [] if float(c.get("start", 0)) <= t]
+    if chs:
+        lines.append(f"  chapter: {chs[-1].get('title')}")
+    title = edl.get("title") if isinstance(edl.get("title"), dict) else None
+    if title and t <= float(title.get("dur", title.get("end", 0)) or 0):
+        lines.append(f"  hook title: {title.get('text')!r}")
+    return "\n".join(lines)
