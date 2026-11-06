@@ -1,10 +1,25 @@
 {
  "machines": {
   "linux-x86_64-4cpu": {
+   "audio:rush": {
+    "last": "2026-11-06",
+    "rate": 12.138,
+    "runs": 10
+   },
+   "captions:rush": {
+    "last": "2026-11-06",
+    "rate": 0.204,
+    "runs": 11
+   },
    "capture:standard": {
     "last": "2026-11-06",
     "rate": 642.857,
     "runs": 2
+   },
+   "check:rush": {
+    "last": "2026-11-06",
+    "rate": 17.021,
+    "runs": 1
    },
    "composite:rush": {
     "last": "2026-11-06",
@@ -15,6 +30,11 @@
     "last": "2026-11-06",
     "rate": 54.999,
     "runs": 3
+   },
+   "cut:rush": {
+    "last": "2026-11-06",
+    "rate": 12.79,
+    "runs": 1
    },
    "mix:rush": {
     "last": "2026-11-06",
@@ -45,6 +65,16 @@
     "last": "2026-11-06",
     "rate": 57.222,
     "runs": 6
+   },
+   "plan:rush": {
+    "last": "2026-11-06",
+    "rate": 0.667,
+    "runs": 1
+   },
+   "track:rush": {
+    "last": "2026-11-06",
+    "rate": 7.759,
+    "runs": 10
    },
    "transcribe:rush": {
     "last": "2026-11-06",

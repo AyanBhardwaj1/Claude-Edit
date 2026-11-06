@@ -53,12 +53,16 @@ SMOOTH_SECONDS = 0.6   # gaussian sigma for camera motion inside a segment
 EASE_DEFAULT = 0.18
 
 
+LAST_REMUX = False     # the last render only swapped in new sound (its time says nothing about rendering)
+
+
 def render(cut_dir: str | Path, out: str | Path, preset: str = "reels", audio: str | None = None,
            captions: str | None = None, track: str | None = None, zooms: list[dict] | None = None,
            punch_in: float | None = None, grade: str = "natural", lut: str | None = None,
            sharpen: float = 0.35, fit: str = "crop", broll: list[dict] | None = None, crf: int | None = None,
            fps_cap: float = 60.0, auto_color: float = 0.5, sfx: bool = True, draft: bool = False,
            speed: str | None = None) -> Path:
+    global LAST_REMUX
     cut_dir = Path(cut_dir)
     meta = load_json(cut_dir / "cut_meta.json")
     src = cut_dir / "cut.mkv"
@@ -106,10 +110,12 @@ def render(cut_dir: str | Path, out: str | Path, preset: str = "reels", audio: s
     stamp = Path(str(out) + ".picture")
     if Path(out).exists() and stamp.exists() and stamp.read_text() == picture:
         # a sound-only note (music level, a dip, effects): keep the encoded picture, rebuild only the audio
+        LAST_REMUX = True
         _remux_audio(Path(out), cut_dir, audio, broll or [], sfx_events)
         log(f"render: same picture as last time, new sound only (remuxed, no re-encode) -> {out}")
         return Path(out)
     stamp.unlink(missing_ok=True)
+    LAST_REMUX = False
 
     seg_of_frame = _segment_index(timeline, n_frames, fps)
     face_x, face_y, has_face = _face_path(track, timeline, n_frames, fps)
