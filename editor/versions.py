@@ -65,6 +65,39 @@ def restore(project: str | Path, n: int) -> Path:
     return project / "work" / "edl.json"
 
 
+def suggest_chapters(words: list[dict], duration: float) -> list[dict]:
+    """Chapters for a cut over a minute, as Cutmind's lib/chapters.ts does: about one a minute (3 to 8), each at the
+    sentence start nearest its even share of the video, 10 s or more apart, titled with the sentence's opening words
+    (better titles are an editorial pass). [{"words": "w12-w12", "text": ..., "start": s}] (start for showing only)."""
+    import re as _re
+    if duration < 60:
+        return []
+    spoken = [w for w in words if str(w.get("text", "")).strip() and w.get("id")]
+    starts, new = [], True
+    for i, w in enumerate(spoken):
+        if new:
+            starts.append(i)
+        new = bool(_re.search(r"[.!?][\"')]*$", str(w["text"]).strip()))
+    want = max(3, min(8, round(duration / 60)))
+    picked = [0] if starts else []
+    for k in range(1, want):
+        target = duration * k / want
+        prev = float(spoken[picked[-1]]["start"]) if picked else 0.0
+        ok = [i for i in starts if float(spoken[i]["start"]) - prev >= 10 and duration - float(spoken[i]["start"]) >= 10 and i not in picked]
+        if ok:
+            picked.append(min(ok, key=lambda i: abs(float(spoken[i]["start"]) - target)))
+    picked.sort()
+    lead = _re.compile(r"^(so|and|but|okay|ok|now|then|also|well|um|uh)\b,?\s*", _re.I)
+    out = []
+    for n, i in enumerate(picked):
+        text = " ".join(str(w["text"]).strip() for w in spoken[i:i + 12])
+        text = _re.split(r"(?<=[.!?])\s", text)[0]
+        title = " ".join(lead.sub("", text).rstrip(".!?,;:").split()[:6])
+        title = "Intro" if n == 0 else (title[:1].upper() + title[1:] if title else f"Part {n + 1}")
+        out.append({"words": f"{spoken[i]['id']}-{spoken[i]['id']}", "text": title, "start": round(float(spoken[i]["start"]), 2)})
+    return out if len(out) >= 3 else []
+
+
 def youtube_chapters(project: str | Path, edl: dict) -> str:
     """The EDL's chapters as YouTube description timestamps ("0:00 Intro" lines), which YouTube turns into chapters
     when there are at least 3, the first at 0:00 and each at least 10 s long; "" otherwise (with why, in the log)."""

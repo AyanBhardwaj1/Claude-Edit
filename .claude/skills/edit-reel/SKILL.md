@@ -61,7 +61,8 @@ yes**, unless they told you to just do it.
 python3 -m editor auto projects/<name> --from plan --to plan [--speed 1.1]
 ```
 Read `work/rough_cut_viz.png` and `work/edl.json`: audit `removed`, move the hook first, cut tangents,
-set `"title"`, `"emphasis"` and `"chapters"`. Tight talk: `--max-gap 0.15`. A front-camera take whose
+set `"title"`, `"emphasis"` and `"chapters"` (`editor chapters <work>` suggests them for a cut over a minute,
+`--apply` writes them; give them better titles by hand; the post kit lists them as YouTube timestamps). Tight talk: `--max-gap 0.15`. A front-camera take whose
 room text reads backwards: `"mirror": true` on that source. Use `python3 -m editor inspect <raw clip> <start> <end> -o x.png
 --transcript projects/<name>/work/transcript.json` at ambiguous cut points. Many takes of the same beat:
 brief a sub-agent with video-use's editor brief (`.claude/skills/video-use/SKILL.md`, "Editor sub-agent brief").

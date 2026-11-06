@@ -243,6 +243,11 @@ def main(argv=None):
     p.add_argument("--preset", default="reels")
     p.add_argument("--auto-args", default="", help="the rest of your usual `editor auto` flags, in quotes (style, music...)")
 
+    p = sub.add_parser("chapters", help="suggest chapters (about one a minute, at sentence starts) for a cut over a minute")
+    p.add_argument("work_dir")
+    p.add_argument("--apply", action="store_true", help="write them to edl.json (on-screen chapter pills, and the "
+                   "YouTube timestamps in the post); re-run from captions")
+
     p = sub.add_parser("triage", help="classify raw/ clips: a-roll (founder-to-camera) vs reusable / one-off b-roll")
     p.add_argument("project")
 
@@ -900,6 +905,25 @@ def cmd_variants(args):
         main([*base, "--from", "captions", "--to", "render"])
     for k, (f, hook) in enumerate(zip(made, args.hooks)):
         print(f"hook {chr(66 + k)}: {f}  ({hook})")
+    return 0
+
+
+def cmd_chapters(args):
+    from .anchors import load_words
+    from .versions import suggest_chapters
+    work = Path(args.work_dir)
+    meta = load_json(work / "cut_meta.json")
+    chs = suggest_chapters(load_words(work), float(meta["duration"]))
+    if not chs:
+        print("no chapters: a cut over a minute with sentences 10 s or more apart gets them")
+        return 0
+    for c in chs:
+        print(f"{int(c['start']) // 60}:{int(c['start']) % 60:02d} {c['text']}  (words {c['words']})")
+    if args.apply:
+        edl = load_json(meta["edl"])
+        edl["chapters"] = [{"words": c["words"], "text": c["text"]} for c in chs]
+        save_json(meta["edl"], edl)
+        log(f"chapters: {len(chs)} written to {meta['edl']}: re-run from captions (pills on screen, timestamps in the post)")
     return 0
 
 

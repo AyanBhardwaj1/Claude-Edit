@@ -121,3 +121,28 @@ def test_post_lists_youtube_chapters_when_youtube_would_take_them(tmp_path):
     (project / "work" / "edl.json").write_text(json.dumps(edl))
     text = write_post(project, "Switching editors.", ["#a", "#b", "#c", "#d", "#e"]).read_text()
     assert "0:00 Why I switched" in text and text.index("1:02") < text.index("#a")
+
+
+def test_suggest_chapters_and_cli_apply(tmp_path):
+    import json
+    from editor.anchors import resolve
+    from editor.cli import main
+    from editor.versions import suggest_chapters, youtube_chapters
+    ws = []
+    for s in range(48):                                   # a 10-word sentence every 5 s: 4 minutes
+        for i, t in enumerate(f"so this is the next part of what I learned {s}.".split()):
+            ws.append({"id": f"w{len(ws)}", "text": t, "start": s * 5 + i * 0.4, "end": s * 5 + i * 0.4 + 0.33})
+    chs = suggest_chapters(ws, 240.0)
+    assert len(chs) == 4 and chs[0]["text"] == "Intro" and chs[1]["text"].startswith("This is the next part")
+    assert all(b["start"] - a["start"] >= 10 for a, b in zip(chs, chs[1:]))
+    assert suggest_chapters(ws[:100], 50.0) == []
+    work = tmp_path / "p" / "work"
+    work.mkdir(parents=True)
+    (work / "edl.json").write_text(json.dumps({"segments": []}))
+    (work / "cut_words.json").write_text(json.dumps({"words": ws}))
+    (work / "cut_meta.json").write_text(json.dumps({"duration": 240.0, "edl": str(work / "edl.json")}))
+    assert main(["chapters", str(work), "--apply"]) == 0
+    edl = json.loads((work / "edl.json").read_text())
+    starts = [c["start"] for c in resolve(edl, ws)["chapters"]]
+    assert starts[0] == 0.0 and len(starts) == 4
+    assert youtube_chapters(tmp_path / "p", edl).startswith("0:00 Intro\n")
