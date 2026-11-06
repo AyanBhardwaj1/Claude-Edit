@@ -26,7 +26,7 @@ export function Dashboard({ user, settings, theme, onNew, onOpen, onGo, onSample
   const [welcome, setWelcome] = useState(false);
   useEffect(() => { try { setWelcome(!localStorage.getItem(`cutmind.welcomed.${user.id}`)); } catch { /* storage blocked */ } }, [user.id]);
   const dismiss = () => { setWelcome(false); try { localStorage.setItem(`cutmind.welcomed.${user.id}`, "1"); } catch { /* storage blocked */ } };
-  const NEWS = `cutmind.news.2026-11b.${user.id}`;
+  const NEWS = `cutmind.news.2026-11c.${user.id}`;      // a new key: the panel shows again for what's new
   const [news, setNews] = useState(false);
   useEffect(() => { try { setNews(!localStorage.getItem(NEWS)); } catch { /* storage blocked */ } }, [NEWS]);
   const hideNews = () => { setNews(false); try { localStorage.setItem(NEWS, "1"); } catch { /* storage blocked */ } };
@@ -161,14 +161,15 @@ export function Dashboard({ user, settings, theme, onNew, onOpen, onGo, onSample
               <div className="panel-head"><h2 id="news-h">New in Cutmind</h2>
                 <button className="btn ghost icon sm" aria-label="Hide what's new" onClick={hideNews}>&times;</button></div>
               <ul className="setup news-list">
-                <li><span className="what grow"><b>Film it here</b>: record takes in Cutmind with your script on a teleprompter.</span>
-                  <button className="btn sm" onClick={() => onNew()}>Try it</button></li>
-                <li><span className="what grow"><b>Notes with a time</b>: &ldquo;at 0:12 zoom in&rdquo; lands on the right words. The At button adds where you are.</span></li>
-                <li><span className="what grow"><b>What really changed</b>: every version lists its changes, measured, and <b>Compare</b> (C) plays the one before.</span></li>
-                <li><span className="what grow"><b>Learns your taste</b>: a change you make before exporting two videos is offered as a style rule.</span>
-                  <button className="btn sm" onClick={() => onGo("style")}>My style</button></li>
-                <li><span className="what grow"><b>Back up your videos</b>: one file keeps every video safe, and moves it to another browser.</span>
-                  <button className="btn sm" onClick={() => onGo("settings")}>Back up</button></li>
+                <li><span className="what grow"><b>Scroll test</b> (T): the first 3 seconds with the sound off, then what a scroller got, with
+                  one-click fixes and your strongest line to open with. <b>Loop test</b> (L) plays the end into the start.</span></li>
+                <li><span className="what grow"><b>Before you post</b>: every check in one line at export, with <b>Fix what I can</b> and the
+                  export&apos;s measured loudness (<b>Match loudness</b> brings it to about -14 LUFS).</span></li>
+                <li><span className="what grow"><b>Bleep</b> strong language, <b>show the logos</b> of apps you name, play the talk at{" "}
+                  <b>1.1-1.3×</b> with the pitch kept, and <b>test other hooks</b> as trial reels.</span></li>
+                <li><span className="what grow"><b>YouTube chapters</b> for long wide videos: in the description and, if you like, on screen.</span></li>
+                <li><span className="what grow"><b>Make a copy</b> of a video to try something different without touching it.</span>
+                  <button className="btn sm" onClick={() => onGo("videos")}>My videos</button></li>
               </ul>
             </section>
           )}
