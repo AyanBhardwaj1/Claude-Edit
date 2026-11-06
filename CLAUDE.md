@@ -24,6 +24,8 @@ Claude makes the editorial calls and checks the result visually.
 - **Speed vs quality** is the user's call: "we have 10 minutes" / "hurry" → rush, "take your time" / "best" → polish
   (`.claude/skills/edit-reel/effort.md`; `editor effort show --budget <min>`, `editor auto --effort|--budget`).
   Answer "how long?" before starting. Timings are learned per machine (`library/style/timings.json`).
+- **Notes on a draft** (any video, with or without a timestamp): **video-notes** skill: find the moment (`--at`), the
+  smallest change, `--estimate` before rendering, `--changes` after, a version per note, preferences to style memory.
 - **Self-improve after every video**: style notes (what the user said), 1-5 lessons (`editor lessons add`; read
   `.claude/skills/edit-reel/lessons.md` before planning), `editor effort record` for hand-run stages.
 - A written production brief (script + effects plan + scene clips + app demos, e.g. a hackathon demo):
