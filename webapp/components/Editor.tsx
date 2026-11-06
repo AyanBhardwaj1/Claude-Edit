@@ -27,6 +27,7 @@ import { Icon } from "./Icons";
 import { RecordScreen } from "./ScreenRecorder";
 import { clock } from "./Tiles";
 import { changeItems, type Change } from "@/lib/changes";
+import { attention, type Attention } from "@/lib/attention";
 import { Shortcuts } from "./Shortcuts";
 import { VoiceNote } from "./VoiceNote";
 import { anchorSpoken } from "@/lib/moments";
@@ -69,6 +70,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
   const [renaming, setRenaming] = useState(false);
   const [wave, setWave] = useState<number[] | null>(null);
   const [check, setCheck] = useState<{ score: number; checks: Check[] } | null>(null);
+  const [attn, setAttn] = useState<Attention | null>(null);
   const [track, setTrack] = useState<{ segs: [number, number][]; layers: { s: number; e: number; text: boolean; label: string }[]; zooms: [number, number][] } | null>(null);
   const [all, setAll] = useState<{ f: Format; url: string; ext: string }[] | null>(null);
   const [maker, setMaker] = useState(false);
@@ -127,6 +129,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
     if (!canvas.current || gen !== mounts.current) return;
     canvas.current!.dataset.cuts = pl.scene.cuts.map((c) => c.toFixed(3)).join(",");   // for tests and tools
     setCheck(reelCheck(p, edit, pl.tl));
+    setAttn(attention(pl.tl, edit));
     void waveform(p, pl.tl).then((w) => { if (gen === mounts.current) setWave(w); });
     setTrack({ segs: pl.tl.segments.map((x) => [x.outStart, x.outEnd]), zooms: pl.scene.zooms.map((z) => [z.s, z.e]),
       layers: pl.scene.layers.map((L) => ({ s: L.start, e: L.end, text: L.b.treatment === "text-pop", label: L.b.text ?? L.b.card?.text ?? p.library.find((x) => x.key === L.b.asset)?.name ?? "Picture" })) });
@@ -395,6 +398,9 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
                 style={{ left: `${(100 * L.s) / dur}%`, width: `${Math.max(0.8, (100 * (L.e - L.s)) / dur)}%` }}><span>{L.label}</span></i>)}</div>
               {wave && <svg className="wave" viewBox={`0 0 ${wave.length} 20`} preserveAspectRatio="none" aria-hidden="true">
                 <path d={wave.map((v, i) => `M${i + 0.5} ${10 - v * 9}V${10 + v * 9}`).join("")} /></svg>}
+              {attn && <div className="lane attn">{attn.risk.map((r, i) => r > 0.15 &&
+                <i key={i} style={{ left: `${(100 * i * attn.step) / dur}%`, width: `${(100 * attn.step) / dur}%`, opacity: Math.min(1, 0.25 + r) }}
+                  className={r >= 0.55 ? "hi" : "lo"} />)}</div>}
               <div className="lane thin">{track.zooms.map(([a, b], i) => <i key={i} className="zm" style={{ left: `${(100 * a) / dur}%`, width: `${(100 * (b - a)) / dur}%` }} />)}</div>
               <b className="head" style={{ left: `${(100 * t) / dur}%` }} />
             </div>
@@ -491,6 +497,15 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
                     </li>))}
                 </ul>
               </div>
+              {attn && attn.spots.length > 0 && (
+                <div className="drift">
+                  <h3 className="small">Where viewers may drift</h3>
+                  <ul>{attn.spots.map((sp) => (
+                    <li key={sp.from}><button type="button" className="linkish" onClick={() => { const v = Math.max(0, sp.from - 0.5); setT(v); void player.current?.seek(v); }}>
+                      <span className="num">{clock(sp.from)}–{clock(sp.to)}</span> · {sp.text}</button>
+                      <span className="small muted block">{sp.fix}</span></li>))}</ul>
+                  <p className="small faint">The red marks under the timeline. A guide from what is on screen and said, not a forecast.</p>
+                </div>)}
             </section>
           )}
 
