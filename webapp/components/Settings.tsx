@@ -6,12 +6,13 @@ import { makeBackup, restoreBackup } from "@/lib/backup";
 import { brandOf } from "@/lib/brand";
 import { effortOf } from "@/lib/effort";
 import { uid } from "@/lib/media";
-import { getMedia, putMedia } from "@/lib/store";
+import { getMedia, putMedia, readLocal, writeLocal } from "@/lib/store";
 import { THEMES, type ThemeId } from "@/lib/theme";
 import { estimate, estimateText, learnedSummary, resetLearned } from "@/lib/timings";
 import type { Brand, Settings as S } from "@/lib/types";
 import { EffortPicker } from "./EffortPicker";
 import { Icon } from "./Icons";
+import { ago } from "./Tiles";
 
 type Note = { ok: boolean; text: string } | null;
 
@@ -264,6 +265,7 @@ function Learned() {
 function Backup() {
   const [say, setSay] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState("");
+  const [last, setLast] = useState<string | null>(() => readLocal("ce.lastBackup"));
   const backup = async () => {
     setSay(null); setBusy("Packing your videos…");
     try {
@@ -273,6 +275,7 @@ function Backup() {
       a.download = `Cutmind backup ${new Date().toISOString().slice(0, 10)}.cutmind`;
       a.click();
       setTimeout(() => URL.revokeObjectURL(a.href), 60_000);
+      const now = new Date().toISOString(); writeLocal("ce.lastBackup", now); setLast(now);
       setSay({ ok: true, text: `Backed up ${stats.projects} video${stats.projects === 1 ? "" : "s"}, ${stats.anims} animation${stats.anims === 1 ? "" : "s"} and ${stats.rules} style rule${stats.rules === 1 ? "" : "s"} (${(blob.size / 1e6).toFixed(1)} MB).` });
     } catch (e) { setSay({ ok: false, text: (e as Error).message }); }
     setBusy("");
@@ -295,6 +298,7 @@ function Backup() {
           <input type="file" accept=".cutmind,application/zip" className="sr-only" disabled={!!busy}
             onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void restore(f); }} /></label>
       </div>
+      <p className="small faint">Last backup from this browser: {last ? ago(last) : "never"}</p>
       <p className="small" role="status" aria-live="polite">{busy ? <><span className="spin" aria-hidden="true" /> {busy}</> :
         say ? <span className={say.ok ? "say-ok" : "say-bad"}>{say.text}</span> : null}</p>
     </div>
