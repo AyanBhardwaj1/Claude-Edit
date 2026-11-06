@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { changeList } from "../lib/changes";
+import { changeItems, changeList } from "../lib/changes";
 import { defaultEdit } from "../lib/edit";
 import type { Edit, Project, Word } from "../lib/types";
 
@@ -27,4 +27,17 @@ test("a version's real changes in plain lines: the cut, subtitles, music, pictur
   assert.ok(out.some((x) => /^Music: .* → Night Drive$/.test(x)));
   assert.ok(out.includes("Added “THE REAL TIP”"));
   assert.ok(out.includes("Music turned down in 1 place"));
+});
+
+test("a change you can see somewhere in the video points at a word there", () => {
+  const p = project();
+  const a: Edit = { ...defaultEdit(p), keep: [{ from: "w0", to: "w12" }], broll: [] };
+  const b: Edit = JSON.parse(JSON.stringify(a));
+  b.broll = [{ id: "x1", anchor: { from: "w10", to: "w11" }, treatment: "text-pop", text: "TIP" }];
+  b.music.automation = [{ anchor: { from: "w2", to: "w3" }, db: -6 }];
+  b.captions = { ...a.captions, size: a.captions.size + 10 };
+  const items = changeItems(p, a, b);
+  assert.deepEqual(items.find((c) => c.text.startsWith("Added"))?.at, "w10");
+  assert.deepEqual(items.find((c) => c.text.startsWith("Music turned down"))?.at, "w2");
+  assert.equal(items.find((c) => c.text.startsWith("Subtitles"))?.at, undefined);   // everywhere: nowhere to jump
 });
