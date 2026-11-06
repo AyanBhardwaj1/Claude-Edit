@@ -27,7 +27,7 @@ const FEATURES = [
 ] as const;
 
 const FAQ: [string, string][] = [
-  ["Can I make a video without filming?", "Yes. In Animate, type or paste anything and Motion Studio turns it into an animated video: kinetic type, counters, lists, charts and a closing card in your colours, with music and an AI voice if you want them."],
+  ["Can I make a video without filming?", "Yes. In Animate, type or paste anything and Motion Studio turns it into an animated video: kinetic type, counters, lists, charts and a closing card in your colours, with music and an AI voice if you want them. Add screenshots of your app and it becomes a product demo: each screen framed, pushed in and pointed at what you're talking about."],
   ["Can it turn a podcast into clips?", "Yes. Drop in the long video and press Find the best clips: your AI editor ranks the moments that stand on their own, and each becomes its own edited reel."],
   ["Does my video get uploaded?", "No. Cutmind runs in your browser and keeps your videos in its storage on your computer. With OpenAI listening, only the sound goes to OpenAI to be transcribed; with in-browser listening, nothing leaves at all."],
   ["Do I need an API key?", "No. Without one you still get the cut and the subtitles. An Anthropic or OpenAI key adds the AI editor: best takes, hook title, pictures, music, notes and your caption."],
