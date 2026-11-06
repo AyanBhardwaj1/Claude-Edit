@@ -33,3 +33,13 @@ test("notes and the change list know the talking speed", async () => {
   assert.ok(changeItems(p, base, fast).some((c) => c.text === "Talking speed as filmed → 1.1×"));
   assert.ok(changeItems(p, base, fast).some((c) => /^Length/.test(c.text)) === false || true);
 });
+
+test("the change list and summary name a loudness change", async () => {
+  const { changeItems } = await import("../lib/changes");
+  const { describe, defaultEdit } = await import("../lib/edit");
+  const ws = say("here is how I film a week of videos");
+  const p = { words: ws, sources: [{ id: 0, duration: 10 }], library: [], analysis: { defaultKeep: [{ from: "w0", to: "w7" }] } } as never;
+  const base = defaultEdit(p);
+  assert.ok(changeItems(p, base, { ...base, loudness: 6.8 }).some((c) => c.text === "Loudness up 6.8 dB"));
+  assert.equal(describe(base, { ...base, loudness: -3 }), "Changed loudness.");
+});

@@ -710,6 +710,14 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
                       <div className="before-post">
                         <p className="small"><b>Before you post</b> <span className="muted">{todo ? `${todo} thing${todo > 1 ? "s" : ""} to look at (beside the video)` : "everything checks out"}</span></p>
                         <ul>{items.map(([ok, text]) => <li key={text} className={ok ? "ok" : "bad"}><Icon name={ok ? "check" : "alert"} />{text}</li>)}</ul>
+                        {exp.lufs !== undefined && (exp.lufs < -16 || exp.lufs > -12) && <button type="button" className="btn sm mt-8" disabled={recording || cmp} onClick={async () => {
+                          // the measured export says how far off it is: the gain moves the next one to about -14 LUFS
+                          const before = version.edit, step = Math.round((-14 - exp.lufs!) * 10) / 10;
+                          const fixed = { ...before, loudness: Math.max(-12, Math.min(12, Math.round(((before.loudness ?? 0) + step) * 10) / 10)) };
+                          await saveManual(p, fixed, "loudness matched"); setP({ ...p }); setExp(null);
+                          setMsgs((m) => [...m, { who: "ed", v: p.current, text: `Version ${p.current}: ${step > 0 ? "louder" : "quieter"} by ${Math.abs(step).toFixed(1)} dB, for about -14 LUFS. Export again to check it.`,
+                            changes: changeItems(p, before, fixed) }]);
+                        }}><Icon name="wand" />Match loudness</button>}{" "}
                         {fix && <button type="button" className="btn sm mt-8" disabled={recording || cmp} onClick={async () => {
                           const before = version.edit;
                           await saveManual(p, fix.edit, "fix what I can"); setP({ ...p }); setExp(null);

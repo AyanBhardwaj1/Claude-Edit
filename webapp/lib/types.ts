@@ -83,6 +83,7 @@ export type Edit = {
   motion?: Motion;                // missing on edits made before motion existed: DEFAULT_MOTION applies
   translation?: Translation;      // subtitles in another language (lib/translate.ts)
   bleeps?: string[];              // word ids bleeped: voice muted under a tone, subtitles masked (lib/bleep.ts)
+  loudness?: number;              // dB added before the master compressor and limiter, set by Match loudness
 };
 
 /** Subtitles in another language: one translated line per spoken phrase, timed by the words it covers. */

@@ -77,6 +77,7 @@ export class Player {
     this.tl = buildTimeline(this.project.words, edit, this.project.sources.map((s) => s.duration));
     this.scene = buildScene(this.project, edit, this.tl, this.media);
     this.bleeps = bleepSpans(this.tl, edit.bleeps);
+    if (this.master) this.master.gain.value = db(Math.max(-12, Math.min(12, edit.loudness ?? 0)));
   }
 
   private ensureAudio() {
@@ -89,6 +90,7 @@ export class Player {
     const limit = ctx.createDynamicsCompressor();
     limit.threshold.value = -2; limit.ratio.value = 20; limit.attack.value = 0.001; limit.release.value = 0.05;
     this.master = ctx.createGain();
+    this.master.gain.value = db(Math.max(-12, Math.min(12, this.edit.loudness ?? 0)));   // Match loudness
     this.speakers = ctx.createGain(); this.speakers.gain.value = this.silent ? 0 : 1;
     this.master.connect(comp); comp.connect(limit); limit.connect(this.speakers); this.speakers.connect(ctx.destination);
     this.recDest = ctx.createMediaStreamDestination();
