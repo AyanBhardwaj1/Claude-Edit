@@ -299,6 +299,14 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
         if (mic && !mic.disabled) { ev.preventDefault(); mic.click(); }
         return;
       }
+      if ((ev.key === "[" || ev.key === "]") && !mod && !ev.altKey) {   // previous / next cut: check each join
+        ev.preventDefault();
+        // land just before each cut, so playing from there shows the join; compare landings, not cuts
+        const lands = pl.tl.segments.slice(1).map((x) => Math.max(0, x.outStart - 0.5));
+        const to = ev.key === "]" ? lands.find((c) => c > pl.t + 0.05) : [...lands].reverse().find((c) => c < pl.t - 0.05);
+        const v = to === undefined ? (ev.key === "]" ? dur : 0) : to;
+        setT(v); void pl.seek(v); return;
+      }
       if ((ev.key === "Home" || ev.key === "End") && !mod) { ev.preventDefault(); const v = ev.key === "Home" ? 0 : dur; setT(v); void pl.seek(v); return; }
       if (ev.key === " " && !mod) { ev.preventDefault(); void toggle(); return; }
       const step = ev.key === "ArrowLeft" ? -1 : ev.key === "ArrowRight" ? 1 : ev.key === "," ? -1 / 30 : ev.key === "." ? 1 / 30 : 0;
