@@ -5,7 +5,8 @@ One JSON file is the whole video. Paths are relative to the spec's folder. Times
 `"s3"` (start of piece s3), `"s3+1.2"`, `"s3.end-0.5"`, `"@v3:2.01"` (where source second 2.01 of voice v3 lands).
 
 ```bash
-python3 -m editor produce init projects/<name>/raw -o projects/<name>/produce.json   # a first draft
+python3 -m editor produce init projects/<name>/raw -o projects/<name>/produce.json --brief projects/<name>/BRIEF.md
+                                                   # a first draft, the brief linked and its caption lines given out
 python3 -m editor produce projects/<name>/produce.json --plan                       # table, captions, checks
 python3 -m editor produce projects/<name>/produce.json --range d7b d7c.end          # quick look at a stretch
 python3 -m editor produce projects/<name>/produce.json --at 1:23 s4+2               # what's on screen / in the mix then
@@ -40,9 +41,10 @@ Every piece: `name` (unique), `type`, optional `chapter` (YouTube chapter title)
 outgoing piece holds its last frame through it, so every piece still starts on time (times and references don't move).
 | type | fields |
 |---|---|
-| `video` | `src`, `in`, `out`, `speed`, `fit` cover/contain, `crop_y` (0-1), `grade` (none, neutral, hot, cool, warm, punchy, bw, or a raw ffmpeg chain; `bloom` false to drop hot's glow), `z0`/`z1` Ken Burns, `fx`/`fy` focus, `push` [at, dur, zoom, fx, fy] (accelerating push-in, a transition), `fade_in`/`fade_out` (s or [s, "white"]), `ramp_waits` {`speed` 6, `keep` 0.3, `min` 1.0, `label` "thinking…"}, `from_shot` ("caps/shots.json#route": that shot's stretch of a `capture shots --record` video) |
+| `video` | `src`, `in`, `out`, `speed`, `fit` cover/contain, `crop_y` (0-1), `grade` (none, neutral, hot, cool, warm, punchy, bw, or a raw ffmpeg chain; `bloom` false to drop hot's glow), `z0`/`z1` Ken Burns, `fx`/`fy` focus, `push` [at, dur, zoom, fx, fy] (accelerating push-in, a transition), `fade_in`/`fade_out` (s or [s, "white"]), `ramp_waits` {`speed` 6, `keep` 0.3, `min` 1.0, `label` "thinking…"}, `from_shot` ("caps/shots.json#route": that shot's stretch of a `capture shots --record` video), `redact` |
 | `framed` | `src` (image or video), `dur`, `in`, `z0`/`z1`, `fx`/`fy`, `punch` [t, zoom, fx, fy], `flash` (s of white shutter flash), `scale`/`radius`/`backdrop` overrides, `focus_from` ("shots/shots.json#route": aim the push and a punch-in at the element `capture shots` recorded with the shot's `"focus": "text=Quickest"`, centred as far as the edges allow) |
 | `still` | like framed but full frame |
+| (any video / framed / still) | `redact`: blur regions of the source before any move, `[[x, y, w, h], …]` (0-1 of its frame), or `"dev"` for the dev addresses `capture shots` found on that shot (it records where); `--plan` warns about a shot showing one without it |
 | `sequence` | `srcs` (stills blended in order: a time-lapse), `dur`, `framed` (true), `z1` |
 | `freeze` | `from` (a piece), `dur`, `blur`, `darken` (0-1), `blur_at`, `fade_out` |
 | `color` | `color`, `dur` (placeholders, title backgrounds) |

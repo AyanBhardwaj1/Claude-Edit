@@ -783,3 +783,9 @@ dialog.shortcuts h2 { font-size: 17px; margin: 0; }
 dialog.shortcuts dl { margin: 12px 0; display: grid; gap: 2px; }
 dialog.shortcuts .row-key { display: flex; justify-content: space-between; align-items: center; gap: 14px; padding: 6px 0; border-bottom: 1px solid var(--line); }
 dialog.shortcuts dt { display: flex; gap: 4px; flex-wrap: wrap; } dialog.shortcuts dd { margin: 0; text-align: right; color: var(--ink-2); font-size: 14px; }
+/* Editor: compare with the version before (C) */
+.phone.comparing { position: relative; box-shadow: 0 0 0 2px var(--accent); }
+.cmp-badge { position: absolute; z-index: 2; top: 18px; left: 50%; transform: translateX(-50%); white-space: nowrap; max-width: calc(100% - 24px);
+  overflow: hidden; text-overflow: ellipsis; font: 600 12px/1 var(--font-ui); padding: 6px 10px; border-radius: 999px; background: #000c; color: #fff; }
+.cmp-btn { white-space: nowrap; }
+.cmp-btn[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }

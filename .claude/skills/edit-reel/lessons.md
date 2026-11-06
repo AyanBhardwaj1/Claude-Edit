@@ -4,6 +4,10 @@ Read this before planning any non-trivial edit. After every video, append 1-5 le
 broke, what the user loved or rejected), newest first, one line each, under a dated heading. Preferences go to
 style memory (`editor style note`), timings to `editor effort record`; this file is for craft and process.
 
+## 2026-11-06 Walk-Free demo (audit)
+- [process] Link the brief in the spec ("brief": "BRIEF.md", or produce init --brief): without it the numbers-on-screen and caption-line checks silently don't run. The Walk-Free spec shipped without it.
+- [captions] Captions follow what was said, not the script: in skits the actors improvise, so the review's 'brief line not captioned' entries are checked by ear, not fixed by pasting the script.
+
 ## 2026-11-06 Overnight tooling
 - [process] Gate every commit on the tests in the same command (pytest ... | grep -q passed && git commit): a ';' let a failing test get committed once
 - [audio] loudnorm can drop the tail of short mixes: pad the mastered mix to the exact length

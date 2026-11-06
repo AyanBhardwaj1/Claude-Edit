@@ -192,9 +192,11 @@ class Spec:
 
 PIECE_KEYS = {
     "video": {"src", "in", "out", "speed", "fit", "pad", "crop_y", "grade", "bloom", "z0", "z1", "fx", "fy", "push",
-              "fade_in", "fade_out", "ramp_waits", "from_shot"},
-    "framed": {"src", "dur", "in", "z0", "z1", "fx", "fy", "punch", "flash", "scale", "radius", "backdrop", "focus_from"},
-    "still": {"src", "dur", "in", "z0", "z1", "fx", "fy", "punch", "flash", "scale", "radius", "backdrop", "focus_from"},
+              "fade_in", "fade_out", "ramp_waits", "from_shot", "redact"},
+    "framed": {"src", "dur", "in", "z0", "z1", "fx", "fy", "punch", "flash", "scale", "radius", "backdrop", "focus_from",
+               "redact"},
+    "still": {"src", "dur", "in", "z0", "z1", "fx", "fy", "punch", "flash", "scale", "radius", "backdrop", "focus_from",
+              "redact"},
     "sequence": {"srcs", "dur", "framed", "z1"},
     "freeze": {"from", "dur", "blur", "darken", "blur_at", "fade_out"},
     "color": {"color", "dur"},
@@ -272,8 +274,25 @@ def validate(spec: "Spec") -> tuple[list[str], list[str]]:
                     spec.t(x[k])
                 except EditorError as e:
                     errors.append(f"extras {x.get('name')}: {e}")
+    for pc in spec.pieces:                          # dev addresses / personal data on a captured screen
+        r, shot = pc.get("redact"), _shot_entry(spec, pc)
+        if r == "dev" and not (shot or {}).get("dev_boxes"):
+            warnings.append(f"piece {pc['name']}: redact \"dev\" but its shot has no recorded dev addresses")
+        elif r and r != "dev" and (not isinstance(r, list) or any(
+                not isinstance(b, list) or len(b) != 4 or not all(isinstance(v, (int, float)) and 0 <= v <= 1 for v in b)
+                for b in r)):
+            errors.append(f"piece {pc['name']}: redact is \"dev\" or a list of [x, y, w, h] boxes, 0-1 of the frame")
+        if (shot or {}).get("dev_text") and not r:
+            warnings.append(f"piece {pc['name']}: its shot shows {', '.join(shot['dev_text'][:2])}: add "
+                            f"\"redact\": \"dev\" (or capture the deployed site)")
     if spec.data.get("brief") and not spec.p(spec.data["brief"]).exists():
         warnings.append(f"brief not found: {spec.data['brief']}")
+    if not spec.data.get("brief"):
+        near = [f for f in sorted(spec.root.glob("*.md")) if re.search(r"brief|script|edit", f.stem, re.I)
+                and brief_lines(f.read_text(errors="ignore"))]
+        if near:
+            warnings.append(f'no "brief" in the spec, so numbers and caption lines aren\'t checked against it: add '
+                            f'"brief": "{near[0].name}"')
     return errors, warnings
 
 
@@ -350,6 +369,65 @@ def ramp_shimmers(spec: "Spec") -> list[dict]:
 
 # ---------------------------------------------------------------- pieces
 
+def _shot_entry(spec: Spec, pc: dict) -> dict | None:
+    """The `capture shots` entry a piece came from (focus_from / from_shot), if any."""
+    ref = pc.get("focus_from") or pc.get("from_shot")
+    if not ref:
+        return None
+    path, _, name = str(ref).partition("#")
+    try:
+        data = json.loads(spec.p(path).read_text())
+    except (OSError, ValueError):
+        return None
+    return next((x for x in data.get("shots", []) if x.get("name") == (name or pc["name"])), None)
+
+
+def redact_boxes(spec: Spec, pc: dict) -> list[list[float]]:
+    """The regions to blur in a piece's source, 0-1 of its frame: a list of [x, y, w, h], or "dev" for the dev
+    addresses `capture shots` found on that shot. Each box grows a little so no edge of the text shows."""
+    r = pc.get("redact")
+    if not r:
+        return []
+    if r == "dev":
+        r = (_shot_entry(spec, pc) or {}).get("dev_boxes") or []
+    out = []
+    for x, y, w, h in r:
+        m = 0.008
+        x0, y0 = max(0.0, x - m), max(0.0, y - m)
+        x1, y1 = min(1.0, x + w + m), min(1.0, y + h + m)
+        out.append([round(x0, 4), round(y0, 4), round(x1 - x0, 4), round(y1 - y0, 4)])
+    return out
+
+
+def _redact_graph(boxes: list[list[float]], inp: str, out: str) -> str:
+    """ffmpeg graph blurring each box of [inp] (0-1 of the frame) into [out]: a heavy box blur, text unreadable."""
+    parts, cur = [], inp
+    for i, (x, y, w, h) in enumerate(boxes):
+        nxt = out if i == len(boxes) - 1 else f"rd{i}"
+        parts.append(f"[{cur}]split[ra{i}][rb{i}];[rb{i}]crop=iw*{w}:ih*{h}:iw*{x}:ih*{y},"
+                     f"boxblur=luma_radius='min(w,h)/3':luma_power=3:chroma_radius='min(cw,ch)/3':chroma_power=3[bl{i}];"
+                     f"[ra{i}][bl{i}]overlay=main_w*{x}:main_h*{y}[{nxt}]")
+        cur = nxt
+    return ";".join(parts)
+
+
+def _redacted_src(spec: Spec, src: Path, boxes: list[list[float]]) -> Path:
+    """A copy of an image or clip with the boxes blurred (cached by content)."""
+    image = src.suffix.lower() in (".png", ".jpg", ".jpeg", ".webp", ".bmp")
+    out = spec.work / "redact" / f"{src.stem}.{_hash(str(src), _mtime(src), boxes)}{'.png' if image else '.mp4'}"
+    if not out.exists():
+        out.parent.mkdir(parents=True, exist_ok=True)
+        tmp = out.with_name(out.stem + ".part" + out.suffix)
+        graph = _redact_graph(boxes, "0:v", "o")
+        if image:
+            run(["ffmpeg", "-y", "-v", "error", "-i", str(src), "-filter_complex", graph, "-map", "[o]",
+                 "-frames:v", "1", str(tmp)])
+        else:
+            run(["ffmpeg", "-y", "-v", "error", "-i", str(src), "-filter_complex", graph, "-map", "[o]", *ENC, str(tmp)])
+        tmp.replace(out)
+    return out
+
+
 def _video_filter(spec: Spec, pc: dict, n: int) -> str:
     W, H, fps = spec.w, spec.h, spec.fps
     speed = float(pc.get("speed", 1.0))
@@ -406,10 +484,17 @@ def _render_piece(spec: Spec, pc: dict, out: Path) -> None:
     if kind == "video":
         src = spec.p(pc["src"])
         a, b = float(pc.get("in", 0)), float(pc.get("out"))
+        graph = _video_filter(spec, pc, n)
+        boxes = redact_boxes(spec, pc)
+        if boxes:                                   # blur first, on the source frame, so every move keeps it hidden
+            graph = _redact_graph(boxes, "0:v", "rdv") + ";" + graph.replace("[0:v]", "[rdv]")
         run(["ffmpeg", "-y", "-ss", f"{a}", "-to", f"{b}", "-i", str(src), "-filter_complex",
-             _video_filter(spec, pc, n), "-map", "[v]", "-frames:v", str(n), *ENC, str(out)])
+             graph, "-map", "[v]", "-frames:v", str(n), *ENC, str(out)])
     elif kind in ("framed", "still"):
         src = spec.p(pc["src"])
+        boxes = redact_boxes(spec, pc)
+        if boxes:
+            src = _redacted_src(spec, src, boxes)
         punch = tuple(pc["punch"]) if pc.get("punch") else None
         fr = spec.data.get("frame", {})
         scale = float(pc.get("scale", fr.get("scale", 0.92) if kind == "framed" else 1.0))
@@ -677,8 +762,9 @@ def captions_from_brief(spec_path: str | Path, brief: str | Path) -> dict:
     """Give each voice its lines from the brief's caption list: each line goes to the voice whose recognised words
     share the most with it (in order), then `lines` makes one card per line timed on what was heard."""
     spec = Spec(spec_path)
+    raw = json.loads(Path(spec_path).read_text())        # write back only the captions, not what loading filled in
     lines = brief_lines(Path(brief).read_text())
-    caps = spec.data.setdefault("captions", {})
+    caps = raw.setdefault("captions", {})
     vmap = caps.setdefault("voices", {})
     heard = {}
     for name, src in vmap.items():
@@ -706,7 +792,7 @@ def captions_from_brief(spec_path: str | Path, brief: str | Path) -> dict:
     for n, ls in assigned.items():
         if ls:
             vmap[n] = {"words": heard[n][0], "lines": ls}
-    Path(spec_path).write_text(json.dumps(spec.data, indent=1, ensure_ascii=False) + "\n")
+    Path(spec_path).write_text(json.dumps(raw, indent=1, ensure_ascii=False) + "\n")
     report = {"assigned": {n: len(ls) for n, ls in assigned.items() if ls},
               "unmatched": [f"{ln['at']} {ln['text']}" for ln in lost]}
     log(f"produce: captions from the brief: {sum(report['assigned'].values())} line(s) placed, "
@@ -747,14 +833,16 @@ def estimate(spec: Spec, effort: str = "standard") -> dict:
     plan = _overlay_plan(spec)
     ov_media = spec.total if plan and not plan[1].exists() else 0.0
     stages, learned = {}, 0
+    remux = _same_picture(spec, e)
     for st, media in (("pieces", todo_media), ("overlay", ov_media), ("mix", spec.total), ("composite", spec.total)):
         r, was = eff.rate(st, e, data)
-        stages[st] = round(r * media / 60.0, 1)
+        stages[st] = round(r * media / 60.0, 1) if not (st == "composite" and remux) else 3.0
         learned += was
     if e != "rush":
         stages["review"] = 60.0                       # contact sheets and checks, about a minute (effort.md)
     return {"effort": e, "stages": stages, "seconds": round(sum(stages.values()), 1), "learned": learned,
-            "pieces_to_render": [pc["name"] for pc in todo], "overlay_cached": bool(plan) and not ov_media}
+            "pieces_to_render": [pc["name"] for pc in todo], "overlay_cached": bool(plan) and not ov_media,
+            "remux": remux}
 
 
 def overlay(spec: Spec, jobs: int = 3, span: tuple[float, float] | None = None) -> Path | None:
@@ -940,19 +1028,48 @@ def _loudnorm(src: Path, out: Path, lufs: float, tp: float, total: float | None 
 ENCODE = {"rush": "veryfast", "standard": "veryfast", "polish": "slow"}    # final composite x264 preset by effort
 
 
+def _picture_key(spec: Spec, ov: Path | None, effort: str) -> str:
+    """The final picture as content: the pieces, how they join, the overlay, the encode settings."""
+    o = spec.data.get("output", {})
+    return _hash([_piece_key(spec, pc) for pc in spec.pieces], [pc.get("transition") for pc in spec.pieces],
+                 ov.name if ov else None, spec.w, spec.h, spec.fps, round(spec.total, 3), o.get("bitrate", "16M"),
+                 o.get("preset", ENCODE.get(effort, "veryfast")), {k: o.get(k) for k in ("maxrate", "bufsize")})
+
+
+def _same_picture(spec: Spec, effort: str) -> bool:
+    plan = _overlay_plan(spec)
+    stamp = spec.file.with_name(spec.file.name + ".picture")
+    return spec.file.exists() and stamp.exists() and stamp.read_text() == _picture_key(spec, plan[1] if plan else None,
+                                                                                         effort)
+
+
 def composite(spec: Spec, base: Path, ov: Path | None, audio: Path, out: Path | None = None,
               effort: str = "standard") -> Path:
     o = spec.data.get("output", {})
     out = out or spec.file
     out.parent.mkdir(parents=True, exist_ok=True)
     br = o.get("bitrate", "16M")
+    preset = o.get("preset", ENCODE.get(effort, "veryfast"))
+    # Same picture as last time (an audio-only note: a level, a dip, a new bed) -> keep the encoded video and swap in
+    # the new mix (seconds, not minutes)
+    picture = _picture_key(spec, ov, effort)
+    stamp = out.with_name(out.name + ".picture")
+    if out.exists() and stamp.exists() and stamp.read_text() == picture:
+        tmp = out.with_name(out.stem + ".remux" + out.suffix)
+        run(["ffmpeg", "-y", "-i", str(out), "-i", str(audio), "-map", "0:v", "-map", "1:a", "-t", f"{spec.total}",
+             "-c:v", "copy", "-c:a", "aac", "-b:a", o.get("audio_bitrate", "320k"), "-movflags", "+faststart", str(tmp)])
+        tmp.replace(out)
+        log("produce: composite: same picture as last time, new sound only (remuxed, no re-encode)")
+        return out
+    stamp.unlink(missing_ok=True)
     vf = (["-filter_complex", "[0:v][1:v]overlay=0:0:format=auto,format=yuv420p[v]", "-map", "[v]"] if ov
           else ["-map", "0:v"])
     run(["ffmpeg", "-y", "-i", str(base), *(["-i", str(ov)] if ov else []), "-i", str(audio), *vf,
-         "-map", f"{2 if ov else 1}:a", "-t", f"{spec.total}", "-c:v", "libx264",
-         "-preset", o.get("preset", ENCODE.get(effort, "veryfast")),
+         "-map", f"{2 if ov else 1}:a", "-t", f"{spec.total}", "-c:v", "libx264", "-preset", preset,
          "-b:v", br, "-maxrate", o.get("maxrate", "20M"), "-bufsize", o.get("bufsize", "32M"), "-r", str(spec.fps),
          "-c:a", "aac", "-b:a", o.get("audio_bitrate", "320k"), "-movflags", "+faststart", str(out)])
+    if out == spec.file:
+        stamp.write_text(picture)
     return out
 
 
@@ -1294,7 +1411,8 @@ def _measure_lufs(path: Path, a: float, b: float) -> float | None:
 
 
 def init_spec(folder: str | Path, out: str | Path, inventory_dir: str | Path | None = None, transcribe: bool = True,
-              width: int = 1920, height: int = 1080, fps: int = 30, shots: str | Path | None = None) -> dict:
+              width: int = 1920, height: int = 1080, fps: int = 30, shots: str | Path | None = None,
+              brief: str | Path | None = None) -> dict:
     """A starting spec from a footage folder: each clip trimmed to its speech (a breath either side), voice-over files
     over a placeholder picture, pictures as framed shots, captions from the word times, an original music bed, and
     a freeze-frame end card. Every placeholder is listed under "todo"; it's a draft to edit, not the edit."""
@@ -1383,8 +1501,13 @@ def init_spec(folder: str | Path, out: str | Path, inventory_dir: str | Path | N
         "overlay": {"elements": [{"type": "end_card", "lines": ["TITLE", "website", "names"], "t_in": "end+0.4",
                                   "t_out": "end.end-0.3"}] if last_video else []},
     }
+    if brief:
+        spec["brief"] = os.path.relpath(Path(brief).resolve(), out.parent)
     out.write_text(json.dumps(spec, indent=1, ensure_ascii=False) + "\n")
     log(f"produce init: {len(pieces)} pieces, {len(voices)} voices, {total:.1f} s -> {out}")
+    if brief and caps:
+        captions_from_brief(out, brief)                # the brief's caption lines, each on the voice that says it
+        spec = json.loads(out.read_text())
     return spec
 
 
@@ -1864,9 +1987,11 @@ def main(argv=None) -> int:
         ip.add_argument("--no-transcribe", action="store_true")
         ip.add_argument("--size", default="1920x1080")
         ip.add_argument("--shots", help="a capture shots.json: each screen becomes a framed piece aimed at its focus")
+        ip.add_argument("--brief", help="the production brief: linked for the numbers and caption-line checks, and its "
+                                        "caption list given to the voices (captions-from-brief)")
         ia = ip.parse_args(argv[1:])
         w, h = (int(x) for x in ia.size.lower().split("x"))
-        init_spec(ia.folder, ia.out, ia.inventory, not ia.no_transcribe, w, h, ia.shots)
+        init_spec(ia.folder, ia.out, ia.inventory, not ia.no_transcribe, w, h, shots=ia.shots, brief=ia.brief)
         print(Spec(ia.out).table())
         return 0
     a = ap.parse_args(argv)
@@ -1899,7 +2024,9 @@ def main(argv=None) -> int:
                  f"{est['learned']} of 4 stages learned here, the rest are first guesses") + ")")
         for st, sec in est["stages"].items():
             print(f"  {st:<10} {fmt_secs(sec):>8}" + (f"  {n} of {len(spec.pieces)} pieces to render" if st == "pieces"
-                                                     else "  cached" if st == "overlay" and est["overlay_cached"] else ""))
+                                                     else "  cached" if st == "overlay" and est["overlay_cached"]
+                                                     else "  same picture: new sound only" if st == "composite"
+                                                     and est.get("remux") else ""))
         return 0
     if a.at:
         for x in a.at:

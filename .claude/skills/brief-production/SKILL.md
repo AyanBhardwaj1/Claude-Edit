@@ -27,9 +27,10 @@ honest, and get a watchable draft to the user early. Read first:
   honest substitute unless it changes the story.
 
 ## 2. The timeline table
-Start from a draft: `python3 -m editor produce init projects/<name>/raw -o projects/<name>/produce.json [--shots <captures>/shots.json]`
-(clips trimmed to their speech, voice-overs over placeholders, captions from word times, a composed bed, an end
-card, and a `todo` list). Then reorder and refine it into the story; `--plan` prints the table below.
+Start from a draft: `python3 -m editor produce init projects/<name>/raw -o projects/<name>/produce.json --brief
+projects/<name>/BRIEF.md [--shots <captures>/shots.json]` (clips trimmed to their speech, voice-overs over placeholders,
+captions from word times, a composed bed, an end card, and a `todo` list; `--brief` links the brief, so numbers on
+screen and the caption list are checked against it, and gives each caption line to the voice that says it). Then reorder and refine it into the story; `--plan` prints the table below.
 Brief times are targets. From the real word times build a table: piece, source, in/out, speed, output start/end.
 Rebalance so the total hits the brief's length exactly (pad with breathing room on demos, never on dialogue).
 Every overlay, caption, SFX and music cue derives its time from this table (`out = src + offset`), so a re-time is
@@ -115,7 +116,8 @@ at that moment, so you change the right entry. Then change the spec (the smalles
 caption), check just that stretch with
 `editor produce produce.json --range d7b d7c.end` (720p, seconds: only changed pieces and that stretch's overlay
 render), then re-render with
-`editor produce produce.json --preview --note "<the user's note>"` (only changed pieces re-render; each note is
+`editor produce produce.json --preview --note "<the user's note>"` (only changed pieces re-render, and a sound-only
+note (a level, a dip, a new bed) keeps the encoded picture and swaps in the new mix: seconds, not minutes; each note is
 saved as out/versions/<name>.vN.mp4 with the spec and a line in project.md; `--versions` lists them). Before
 rendering, `--changes` lists what the spec edit changed since the last version, in plain words, and which stages
 re-render: check it touched only what the note asked, and use its lines to tell the user what changed. Record any
@@ -123,6 +125,8 @@ preference in the note with `editor style note`, and `editor style learn produce
 
 ## 6. Rules
 - Never fake model output, app features or numbers; label scripted demos; tag a model only where it produced the moment.
+- No dev addresses or other people's personal data on screen: `"redact": "dev"` (the spots `capture shots` recorded)
+  or `"redact": [[x, y, w, h]]` on the piece blurs them in the source, so every push and punch-in keeps them hidden.
 - Numbers exactly as in the brief or read off the recorded screen (write them down when you capture).
 - Captions on every spoken line; nothing over the length cap; no spinner on screen > 1 s.
 - You can't hear: report LUFS/peaks and ask the user to listen, especially dialogue over music.

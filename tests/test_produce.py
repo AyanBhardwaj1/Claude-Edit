@@ -219,6 +219,15 @@ def test_init_drafts_a_spec_from_an_inventory(tmp_path):
     auto = spec["audio"]["music"][0]["automation"]                   # dips under the on-camera dialogue
     assert [0.6 - 0.4, 0] in [[round(x, 2), y] for x, y in auto] or auto[0] == [0.0, 0]
     assert [0.0, -10] in auto and [1.9, -10] in auto
+    assert any('no "brief" in the spec' in w for w in produce.validate(s)[1]) is False   # no brief next to it
+    brief = tmp_path / "BRIEF.md"
+    brief.write_text("## Captions\n0:01 Hello there.\n0:03 Voice over, as written.\n")
+    assert any('add "brief": "BRIEF.md"' in w for w in produce.validate(produce.Spec(out))[1])
+    spec = produce.init_spec(raw, out, inv, brief=brief)                  # linked, and its lines go to their voices
+    assert spec["brief"] == "BRIEF.md"
+    assert spec["captions"]["voices"]["v_scene_1"]["lines"] == [{"text": "Hello there."}]
+    assert spec["captions"]["voices"]["v_vo"]["lines"] == [{"text": "Voice over, as written."}]
+    assert not [k for pc in json.loads(out.read_text())["pieces"] for k in pc if k.startswith("_")]   # captions only
 
 
 def test_versions_keep_each_note(tmp_path):
@@ -303,6 +312,50 @@ def test_estimate_counts_only_what_will_render(tmp_path):
     produce._piece_path(s, s.pieces[0]).write_bytes(b"x")          # a cached piece costs nothing
     again = produce.estimate(s, "standard")
     assert again["pieces_to_render"] == ["b", "c"] and again["stages"]["review"] == 60.0
+
+
+def test_redact_blurs_only_the_boxes_and_dev_uses_the_recorded_spots(tmp_path):
+    import numpy as np
+    from PIL import Image
+    rng = np.random.default_rng(1)
+    img = (rng.random((200, 400)) > 0.5).astype(np.uint8) * 255          # sharp noise: "text" everywhere
+    Image.fromarray(img).convert("RGB").save(tmp_path / "shot.png")
+    (tmp_path / "shots.json").write_text(json.dumps({"shots": [
+        {"name": "letter", "file": "shot.png", "focus": {"x": 0.5, "y": 0.5, "w": 0.2, "h": 0.1}, "dev_text": ["localhost:5173"], "dev_boxes": [[0.5, 0.0, 0.5, 0.5]]}]}))
+    spec = base_spec(pieces=[{"name": "letter", "type": "framed", "src": "shot.png", "dur": 1, "focus_from": "shots.json",
+                              "fx": 0.5, "fy": 0.5, "punch": [0.5, 1.2, 0.5, 0.5]}])
+    s = produce.Spec(write_spec(tmp_path, spec))
+    assert any("redact" in w and "localhost:5173" in w for w in produce.validate(s)[1])     # flagged until redacted
+    s.pieces[0]["redact"] = "dev"
+    assert not [w for w in produce.validate(s)[1] if "redact" in w]
+    boxes = produce.redact_boxes(s, s.pieces[0])
+    assert boxes == [[0.492, 0.0, 0.508, 0.508]]                          # a margin so no edge of the text shows
+    out = np.asarray(Image.open(produce._redacted_src(s, tmp_path / "shot.png", boxes)).convert("L"), dtype=float)
+    inside, outside = out[10:90, 220:390], out[110:190, 10:180]
+    assert inside.std() < 25 and outside.std() > 100                     # blurred flat there, untouched elsewhere
+    s.pieces[0]["redact"] = [[0.1, 0.2, 2, 0.1]]
+    assert any("redact is" in e for e in produce.validate(s)[0])
+
+
+def test_an_audio_only_note_keeps_the_encoded_picture(tmp_path):
+    subprocess.run(["ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i", "sine=frequency=440:duration=4",
+                    str(tmp_path / "voice.wav")], check=True)
+    spec = base_spec()
+    spec["audio"]["music"] = [{"src": {"compose": {"mood": "warm", "seed": 1}}, "at": 0, "gain": -10}]
+    path = write_spec(tmp_path, spec)
+    md5 = lambda f, m: subprocess.run(["ffmpeg", "-v", "error", "-i", str(f), "-map", m, "-c", "copy", "-f", "md5", "-"],  # noqa: E731
+                                      capture_output=True, text=True).stdout
+    out = Path(produce.produce(path, effort="rush")["file"])
+    v1, a1 = md5(out, "0:v"), md5(out, "0:a")
+    spec["audio"]["music"][0]["gain"] = -20                                # the note: "music quieter"
+    path.write_text(json.dumps(spec))
+    assert produce.estimate(produce.Spec(path), "rush")["remux"] is True
+    produce.produce(path, effort="rush")
+    assert md5(out, "0:v") == v1 and md5(out, "0:a") != a1                 # same video stream, new sound
+    spec["pieces"][1]["color"] = "green"                                   # a picture change encodes again
+    path.write_text(json.dumps(spec))
+    produce.produce(path, effort="rush")
+    assert md5(out, "0:v") != v1
 
 
 def test_a_script_line_nobody_said_in_that_voice_is_reported_not_hidden():
