@@ -37,9 +37,12 @@ export function parseRelayAnswer(text: string): Json | null {
   const tries = [body];
   const a = body.indexOf("{"), b = body.lastIndexOf("}");
   if (a >= 0 && b > a) tries.push(body.slice(a, b + 1));
-  for (const t of tries) {
+  // as pasted first (curly quotes inside a caption stay as they are); then with the chat's "smart" quotes straightened
+  // and trailing commas dropped, the two ways chat apps most often bend JSON
+  const bent = (t: string) => t.replace(/[“”]/g, '"').replace(/,\s*([}\]])/g, "$1");
+  for (const t of [...tries, ...tries.map(bent)]) {
     try {
-      const v = JSON.parse(t.replace(/[“”]/g, '"'));
+      const v = JSON.parse(t);
       if (v && typeof v === "object" && !Array.isArray(v)) return v as Json;
     } catch { /* the next try */ }
   }

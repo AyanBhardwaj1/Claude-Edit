@@ -34,3 +34,8 @@ test("with your plan, an AI step goes to the copy-and-paste window, never to an 
     assert.deepEqual(seen, ["submit_hooks"]);
   } finally { globalThis.fetch = realFetch; setRelay(null); }
 });
+
+test("curly quotes inside a caption survive; bent JSON from a chat app is still read", () => {
+  assert.deepEqual(parseRelayAnswer('{"caption": "He said “hi” to me"}'), { caption: "He said “hi” to me" });
+  assert.deepEqual(parseRelayAnswer('{“hooks”: [“a”, “b”],}'), { hooks: ["a", "b"] });
+});
