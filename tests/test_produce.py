@@ -204,3 +204,11 @@ def test_versions_keep_each_note(tmp_path):
     assert Path(v2["files"][0]).name == "x.v2.mp4" and Path(v2["files"][0]).exists()
     assert (s.file.parent / "versions" / "spec.v2.json").exists()
     assert "v2" in (tmp_path / "project.md").read_text() and "music quieter" in (tmp_path / "project.md").read_text()
+
+
+def test_numbers_must_come_from_the_brief():
+    assert produce._numbers("Heat on 2,300+ certificates; +62,748 crowns; 13–25% of the sun; 3.3°F; 9 hours") == \
+        {"2300", "62748", "13", "25%", "3.3"}
+    e = {"type": "counter", "lines": [{"text": "4,375 trees"}, {"text": "+62,748 tree crowns"}]}
+    assert produce._texts(e) == ["4,375 trees", "+62,748 tree crowns"]
+    assert "2,300" in produce._texts({"type": "big_stat", "from": 0, "to": 2300, "label": "US heat deaths"})

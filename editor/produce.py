@@ -721,6 +721,21 @@ def review(spec: Spec, final: Path | None = None) -> dict:
     for (a1, b1), (a2, b2) in zip(caps, caps[1:]):
         if a2 < b1 - 0.05:
             issues.append(f"captions overlap at {a2:.2f} s")
+    # numbers on screen must come from the brief or be declared as read off the app's screen ("numbers_from_screen")
+    if spec.data.get("brief"):
+        allowed = _numbers(spec.p(spec.data["brief"]).read_text()) | {_norm_num(str(x)) for x in
+                                                                     spec.data.get("numbers_from_screen", [])}
+        shown = {}
+        for e in els:
+            if e.get("type") == "caption":
+                continue                      # spoken words: what was said, checked by ear
+            for txt in _texts(e):
+                for n in _numbers(txt):
+                    shown.setdefault(n, txt)
+        rogue = sorted(n for n in shown if n not in allowed)
+        rep["numbers"] = {"shown": sorted(shown), "not_in_brief": rogue}
+        for n in rogue:
+            issues.append(f"number {n} on screen (\"{shown[n][:60]}\") isn't in the brief or numbers_from_screen")
     late = [e for e in els if float(e.get("t_out", e.get("t_in", 0)) or 0) > dur + 0.05]
     if late:
         issues.append(f"{len(late)} overlay element(s) end after the video")
@@ -850,6 +865,36 @@ def save_version(spec: Spec, note: str, files: list[str]) -> dict:
         fh.write(f"- v{n} ({entry['at'][:16]}): {note}\n")
     log(f"produce: saved version {n}: {note}")
     return entry
+
+
+NUM = re.compile(r"(?<![\w.])[+−-]?\d[\d,]*(?:\.\d+)?%?")
+
+
+def _norm_num(x: str) -> str:
+    return x.replace(",", "").replace("−", "-").lstrip("+").rstrip(".")
+
+
+def _numbers(text: str) -> set[str]:
+    """Numbers worth checking (2 digits or more, or with a % / decimal), normalised: '2,300+' -> '2300'."""
+    out = set()
+    for m in NUM.finditer(text):
+        n = _norm_num(m.group(0))
+        digits = re.sub(r"\D", "", n)
+        if len(digits) >= 2 or "%" in n or "." in n:
+            out.add(n)
+    return out
+
+
+def _texts(e: dict) -> list[str]:
+    out = []
+    for k, v in e.items():
+        if k in ("text", "label", "sub", "source", "heading") and isinstance(v, str):
+            out.append(v)
+        elif k in ("items", "lines") and isinstance(v, list):
+            out += [x if isinstance(x, str) else str(x.get("text", "")) for x in v]
+        elif k in ("from", "to") and e.get("type") == "big_stat":
+            out.append(f"{v:,}" if isinstance(v, (int, float)) and k == "to" else "")
+    return [t for t in out if t]
 
 
 # ---------------------------------------------------------------- driver
