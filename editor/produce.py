@@ -618,12 +618,46 @@ def extras(spec: Spec, final: Path) -> list[Path]:
         a, b = spec.t(x.get("from", 0)), spec.t(x.get("to", spec.total))
         w, h = x.get("size", [spec.w, spec.h])
         out = spec.p(x.get("file", f"{final.with_suffix('')}_{x['name']}.mp4"))
+        if x.get("kind") == "band":            # a vertical/square social cut: the frame as a band over its own blur
+            made.append(_band(final, out, a, b, int(w), int(h), x))
+            continue
         vf = (f"crop='min(iw,ih*{w}/{h})':'min(ih,iw*{h}/{w})':(iw-ow)*{x.get('x', 0.5)}:(ih-oh)*{x.get('y', 0.5)},"
               f"scale={w}:{h}:flags=lanczos")
         run(["ffmpeg", "-y", "-ss", f"{a}", "-to", f"{b}", "-i", str(final), "-vf", vf, "-c:v", "libx264", "-preset",
              "veryfast", "-crf", "18", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", str(out)])
         made.append(out)
     return made
+
+
+def _font(name: str | None) -> str | None:
+    from .fonts import installed
+    fonts = installed()
+    hit = fonts.get(name or "DM Sans Bold") or fonts.get(name or "DM Sans")
+    return str(hit) if hit else None             # None: ffmpeg's default font
+
+
+def _band(final: Path, out: Path, a: float, b: float, w: int, h: int, x: dict) -> Path:
+    """The finished frame scaled to the width, centred over a blurred, darkened copy filling the tall frame, with an
+    optional title above it (for 9:16 and 1:1 posts of a 16:9 video)."""
+    bw = w
+    bh = int(round(bw * 9 / 16 / 2) * 2)
+    y = int(x.get("band_y", (h - bh) / 2))
+    vf = (f"[0:v]split[a][b];[a]scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},"
+          f"gblur=sigma={x.get('blur', 30)},eq=brightness={-float(x.get('darken', 0.25))}[bg];"
+          f"[b]scale={bw}:{bh}:flags=lanczos[fg];[bg][fg]overlay=0:{y}")
+    title = x.get("title")
+    font = _font(x.get("font"))
+    if title:
+        safe = str(title).replace("\\", "\\\\").replace("'", "\u2019").replace(":", "\\:")
+        size = int(x.get("title_size", w * 0.075))
+        ff = f":fontfile='{font}'" if font else ""
+        vf += (f",drawtext=text='{safe}'{ff}:fontsize={size}:fontcolor={x.get('title_color', 'white')}"
+               f":x=(w-text_w)/2:y={max(40, y - size * 2)}:shadowcolor=black@0.5:shadowx=0:shadowy=3")
+    vf += ",format=yuv420p[v]"
+    run(["ffmpeg", "-y", "-ss", f"{a}", "-to", f"{b}", "-i", str(final), "-filter_complex", vf, "-map", "[v]",
+         "-map", "0:a?", "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-c:a", "aac", "-b:a", "192k",
+         "-movflags", "+faststart", str(out)])
+    return out
 
 
 def preview(final: Path) -> Path:
