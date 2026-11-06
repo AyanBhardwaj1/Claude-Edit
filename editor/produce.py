@@ -488,7 +488,7 @@ def caption_cards(words: list[dict], voice: str, src_in: float, src_out: float, 
     flush()
     for a_, b_ in zip(cards, cards[1:]):           # never overlap the next card
         a_["t_out"] = min(a_["t_out"], b_["t_in"], key=lambda r: float(r.split(":")[1]))
-    return cards
+    return [c for c in cards if float(c["t_out"].split(":")[1]) - float(c["t_in"].split(":")[1]) >= 0.2]
 
 
 def auto_captions(spec: Spec) -> list[dict]:
@@ -551,7 +551,7 @@ def script_cards(words: list[dict], voice: str, a: float, b: float, lines: list[
         cards.append(card)
     for x, y in zip(cards, cards[1:]):
         x["t_out"] = min(x["t_out"], y["t_in"], key=lambda r: float(r.split(":")[1]))
-    return cards
+    return [c for c in cards if float(c["t_out"].split(":")[1]) - float(c["t_in"].split(":")[1]) >= 0.2]
 
 
 def brief_lines(text: str) -> list[dict]:
