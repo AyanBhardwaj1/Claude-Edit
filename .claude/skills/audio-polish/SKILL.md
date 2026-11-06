@@ -37,14 +37,18 @@ Shorts, YouTube all normalise near there; louder only gets turned down).
 - `--music-db`: -18 (energetic) to -24 (talky). The voice must always win; if
   the user says "can't hear the music", go up 2 dB at a time, not more.
 - Only use music the user owns or has licensed. Say so if they ask you to find music. If they have none and
-  ask for it, an original bed can be generated (`editor gen music`, ai-generate skill).
+  ask for it, compose an original, royalty-free bed offline with `editor compose bed` (music-library skill),
+  or generate one (`editor gen music`, ai-generate skill).
 
 ## Sound effects
 **Real recordings sound best**: put the user's own / licensed files (or ones made with
 `editor gen sfx "<prompt>" --type whoosh`, ai-generate skill) in `library/sfx/<type>/`, e.g.
 `library/sfx/whoosh/air-01.wav`. They're used automatically, rotating between variants, each placed so its
 loudest moment lands on the frame. Without them the effects are synthesized in `editor/sfx.py`
-(whoosh, whip, pop, click, riser, impact, ding, glitch), so there's nothing to license.
+(whoosh, whip, pop, click, riser, impact, ding, glitch, thud, shutter, paper), so there's nothing to license.
+A richer studio set (stereo, panned) comes from `editor compose sfx <whoosh|whoosh_rev|whip|click|pop|thud|shutter|
+paper|ding> -o x.wav --library` (files it in `library/sfx/<type>/`); room / cicadas / birdsong beds from
+`editor compose ambience <kind> --length <s> -o x.wav`.
 `"sfx": "auto"` (EDL default) ties a whoosh to each b-roll/card entrance, a pop to each step pill and a
 click to snap zooms, a whip/whoosh/glitch/impact to each transition, at most one every 3 s, each started early by its attack so the hit lands on the
 frame. Override with a list: `"sfx": [{"type": "impact", "at": 12.4, "db": -16}]`, or `"none"`.

@@ -340,6 +340,11 @@ def main(argv=None):
     p = sub.add_parser("timeline", help="print the cut's words on the OUTPUT timeline (for placing zooms/b-roll)")
     p.add_argument("work_dir")
 
+    p = sub.add_parser("compose", help="original music + SFX synthesized from scratch (royalty-free): "
+                                       "bed, lofi, riser, sfx, ambience, list")
+    from .compose import add_arguments as _compose_arguments   # import-light: argparse only
+    _compose_arguments(p)
+
     p = sub.add_parser("overlay", add_help=False, prefix_chars="+",
                        help="designed overlay track: JSON spec -> transparent PNG-in-MOV (Node Playwright); "
                             "also `overlay frame OUT_DIR` / `overlay still SRC OUT` (screens on a rounded backdrop)")
@@ -908,6 +913,11 @@ def cmd_timeline(args):
         seg_words = [w for w in words if w["segment"] == seg["index"]]
         for g in _groups(seg_words, 8, 60):
             print(f"  {fmt_ts(g[0]['start'])}-{fmt_ts(g[-1]['end'])}  {' '.join(w['text'] for w in g)}")
+
+
+def cmd_compose(args):
+    from .compose import run
+    return run(args)
 
 
 def cmd_overlay(args):

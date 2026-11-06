@@ -43,7 +43,8 @@ a competitor-chips → "built for students" checklist, counters and a big statem
 - `sidechaincompress` stops at the shorter input: `apad=whole_dur=<total>` the sidechain voice bus.
 - Music under on-camera dialogue/skits must sit far lower than under voice-over: the user couldn't hear the skit at
   lo-fi −5 dB. What worked: music ~−16 dB from its −16 LUFS file, ambience ~−30 LUFS, voices +4-5 dB.
-- To land a music bed's final chord on the end card, repeat bars (bar-aligned crossfade) rather than time-stretch.
+- To land a music bed's final chord on the end card: `editor compose bed --end-chord-at <t>` (built for this); for a
+  licensed track, repeat bars (bar-aligned crossfade) rather than time-stretch.
 - `editor compose` makes original royalty-free beds/SFX when no licensed track exists; say a human must listen.
 - Vosk (offline) mangles names and Spanish; correct from the script and the screen, and say which lines are guesses.
 

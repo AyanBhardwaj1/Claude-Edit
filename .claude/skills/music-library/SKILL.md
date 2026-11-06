@@ -32,6 +32,37 @@ can't listen.
    The song ends with the last word (`"fade_out": 0.6` by default). An explicit `"db"` overrides the level.
 5. Tell the user which track and why. If nothing fits, say so and suggest a mood to add.
 
+## No licensed track? Compose an original bed
+When the user has no track they own or have licensed (and doesn't want an in-app sound), compose one. It is
+synthesized from scratch in code (no samples, no AI model), so it is an **original, royalty-free** work: say so.
+```bash
+python3 -m editor compose bed --length <video length - music start> --end-chord-at <t> \
+    --mood warm|lofi|tense|uplifting [--bpm 100] [--key D|Am] [--seed 7] -o projects/<n>/music/bed.wav [--library]
+python3 -m editor compose bed --length 60 --end-chord-at 55.2 --plan -o x.wav   # print the section plan only
+python3 -m editor compose lofi --length 20 -o loop.wav          # lo-fi loop (Rhodes, swung drums, vinyl)
+python3 -m editor compose riser --bpm 100 -o riser.wav          # one-bar rise into a hit (hit at length - 0.2 s)
+python3 -m editor compose list                                  # moods, sections, effects, ambiences
+```
+- `--length`: the output length the music covers (`editor timeline` gives the cut's duration). `editor audio`
+  plays the track from the first frame, so in the EDL use `"music": {"track": "projects/<n>/music/bed.wav",
+  "start": 0, "fade_out": 0.05}`: `start: 0` keeps the intro (auto entry would skip it) and the bed has its own ending.
+- `--end-chord-at`: where the final chord lands (the end card, the last word, the logo hit), in the bed's time.
+  The bar grid is anchored on it, so the chord falls on a downbeat; it rings out and the last ~0.2 s is silent.
+  Default: `length - ring` (ring 1.5-6 s).
+- Sections default to an automatic shape scaled to the length on that bar grid (intro, groove, fill, groove2,
+  lead, build, peak, breakdown, resolve; fewer when short). To hit the edit's beats, pass them:
+  `--sections "intro@0,groove@10.8,build@94.2,peak@103.8,breakdown@116.4,resolve@128.4"` (snapped to bars;
+  `--snap beat` for finer). Put the build under the setup line and the peak under the payoff.
+- Moods: warm (100 bpm, D major Rhodes + pads, the Walk-Free bed), uplifting (112, four-on-the-floor), tense
+  (92, harmonic minor, darker, no lead), lofi (86, swung, vinyl). Same seed + params = same audio; a new
+  `--seed` is a different take.
+- Output: 48 kHz stereo 24-bit WAV at -16 LUFS integrated, true peak <= -1.5 dBTP (ffmpeg loudnorm two-pass),
+  plus `<file>.json` provenance (`"generator": "editor compose", "original": true`, licence, params, measured
+  loudness). `--library [MOOD]` also adds it to this library (tags original, royalty-free).
+- **You can't hear it.** Report the printed LUFS / true peak and the section plan; render a spectrogram
+  (`ffmpeg -i bed.wav -lavfi showspectrumpic=s=1600x600 spec.png`) and Read it to confirm the structure (intro
+  thin, build rising, final chord, silent tail). Then tell the user a human must listen before it ships.
+
 ## Adding music
 - Ask for (or infer) mood and 2-4 vibe tags when adding. Tags are what make picking work.
 - Only add music the user owns or has a licence for. For Instagram/TikTok, platform

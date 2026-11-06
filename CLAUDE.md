@@ -98,7 +98,7 @@ editor/            python package (python3 -m editor)
   effort.py        speed vs quality: rush / standard / polish, learned per-machine timings, budget -> effort
   overlay/         designed overlay track from a JSON spec (captions, tags, counters, checklists...) -> alpha MOV;
                    frame.py puts app screens on a rounded, shadowed backdrop with Ken Burns / punch-ins
-  compose.py       original music beds, lo-fi, risers, SFX and ambiences synthesized in code (royalty-free)
+  compose/         original music beds, lo-fi, risers, SFX and ambiences synthesized in code (royalty-free)
 library/           hooks.md (265 hook templates), glossary.txt, style/ (learned style), music/, broll/, models/, sfx/ (media git-ignored)
 .claude/skills/    the workflow Claude follows
 webapp/            Cutmind: the workflow as a Vercel web app (Next.js; media work in the browser; users' own Anthropic/OpenAI keys)
