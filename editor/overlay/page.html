@@ -140,11 +140,16 @@ F.trace=s=>{const root=mk('div','full');const d='M'+s.points.map(p=>p.join(' '))
     const o=fade(t,s.t_in,s.t_out,.15);root.style.opacity=r3(o);const p=eIOC((t-s.t_in)/(s.draw_dur||1.5))*.15+.85*eOC((t-s.t_in)/(s.draw_dur||1.5));
     const off=r1(this.L*(1-p));ps.forEach(q=>q.style.strokeDashoffset=off);const pt=ps[2].getPointAtLength(this.L*p);
     [hg,hd].forEach(c=>{c.setAttribute('cx',r1(pt.x));c.setAttribute('cy',r1(pt.y))});return [r3(o),off]}}};
+// lay out items of widths ws in centred rows no wider than maxW: returns [{x, row}] and the number of rows
+const wrapRows=(ws,gap,maxW)=>{const rows=[[]];let cur=0;ws.forEach((w,i)=>{if(rows[rows.length-1].length&&cur+gap+w>maxW){rows.push([]);cur=0}
+  cur+=(rows[rows.length-1].length?gap:0)+w;rows[rows.length-1].push(i)});const out=new Array(ws.length);
+  rows.forEach((r,ri)=>{const tot=r.reduce((a,i)=>a+ws[i],0)+gap*(r.length-1);let x=(W-tot)/2;r.forEach(i=>{out[i]={x,row:ri};x+=ws[i]+gap})});
+  return {pos:out,n:rows.length}};
 F.chips_compete=s=>{const root=mk('div','full');const els=s.items.map(it=>mk('div','gchip',root,esc(it)));
   const lab=mk('div','abs ft',root,esc(s.label||''));lab.style.cssText+=`;font-size:28px;color:${K.muted_label};font-weight:600;letter-spacing:.02em;white-space:nowrap;text-shadow:0 1px 10px rgba(0,0,0,.25)`;
   s.t_in=Math.min(...s.times);const rowY=s.row_y!=null?s.row_y:H-320,cx=s.col_x!=null?s.col_x:110,cy=s.col_y!=null?s.col_y:330;
-  return {root,measure(){const ws=els.map(e=>e.offsetWidth),h=els[0]?els[0].offsetHeight:60,gap=18;const tot=ws.reduce((a,b)=>a+b,0)+gap*(ws.length-1);
-      let x=(W-tot)/2;this.row=ws.map(w=>{const p=[x,rowY-h/2];x+=w+gap;return p});this.col=ws.map((w,i)=>[cx,cy+i*(h+14)])},
+  return {root,measure(){const ws=els.map(e=>e.offsetWidth),h=els[0]?els[0].offsetHeight:60,gap=18;const L=wrapRows(ws,gap,W*.9);
+      const top=rowY-(L.n*h+(L.n-1)*14)/2;this.row=L.pos.map(p=>[p.x,top+p.row*(h+14)]);this.col=ws.map((w,i)=>[cx,cy+i*(h+14)])},
     upd(t){const o=clamp((s.t_out-t)/.25);root.style.opacity=r3(o);const q=s.t_column!=null?eIOC((t-s.t_column)/.5):0;const k=[r3(o),r3(q)];
       els.forEach((e,i)=>{const p=clamp((t-s.times[i])/.15);const sc=.8+.2*eOC(p);e.style.transformOrigin='50% 50%';
         k.push(...put(e,lerp(this.row[i][0],this.col[i][0],q),lerp(this.row[i][1],this.col[i][1],q),sc,eOC(p)))});
@@ -178,10 +183,12 @@ F.stamp=s=>{const root=mk('div','abs');const c=colorOf(s.color||'accent');root.i
   return {root,measure(){this.w=root.offsetWidth;this.h=root.offsetHeight;root.style.transformOrigin='50% 50%'},upd(t){const p=(t-s.t_in)/.38;const sc=1.4-.4*eOB(p,2.2);
     return put(root,s.x-this.w/2,s.y-this.h/2,sc,eOC(p*3)*clamp((s.t_out-t)/.25),s.rotate!=null?s.rotate:-6)}}};
 F.pills_row=s=>{const root=mk('div','full');const els=s.items.map(it=>{const e=mk('div','pill',root,esc(it));e.style.transformOrigin='50% 50%';return e});s.t_in=Math.min(...s.times);
-  return {root,measure(){const ws=els.map(e=>e.offsetWidth),gap=16;let x=(W-(ws.reduce((a,b)=>a+b,0)+gap*(ws.length-1)))/2;this.xs=ws.map(w=>{const v=x;x+=w+gap;return v})},
-    upd(t){const o=r3(clamp((s.t_out-t)/.25));root.style.opacity=o;const k=[o];els.forEach((e,i)=>{const p=(t-s.times[i])/.2;k.push(...put(e,this.xs[i],s.y!=null?s.y:H-180,.85+.15*eOB(p,2),eOC(p)))});return k}}};
+  return {root,measure(){const ws=els.map(e=>e.offsetWidth),gap=16,h=els[0]?els[0].offsetHeight:56;const L=wrapRows(ws,gap,W*.9);
+      this.xs=L.pos.map(p=>p.x);this.ys=L.pos.map(p=>p.row*(h+12))},
+    upd(t){const o=r3(clamp((s.t_out-t)/.25));root.style.opacity=o;const k=[o];const y0=s.y!=null?s.y:H-180;
+      els.forEach((e,i)=>{const p=(t-s.times[i])/.2;k.push(...put(e,this.xs[i],y0+this.ys[i],.85+.15*eOB(p,2),eOC(p)))});return k}}};
 F.url_band=s=>{const root=mk('div','abs');const y=s.y!=null?s.y:H-380;
-  root.innerHTML=`<div style="width:${W}px;height:180px;background:${K.bg};box-shadow:0 24px 70px ${S(.3)};display:flex;align-items:center;justify-content:center;position:relative"><div style="position:absolute;left:0;top:0;bottom:0;width:10px;background:${K.accent}"></div><div class="fd" style="font-weight:600;font-size:84px;line-height:1;color:${K.ink};letter-spacing:-.005em;padding-bottom:6px;white-space:nowrap">${esc(s.text)}</div></div>`;
+  root.innerHTML=`<div style="width:${W}px;height:180px;background:${K.bg};box-shadow:0 24px 70px ${S(.3)};display:flex;align-items:center;justify-content:center;position:relative"><div style="position:absolute;left:0;top:0;bottom:0;width:10px;background:${K.accent}"></div><div class="fd" style="font-weight:600;font-size:${Math.min(84,Math.floor(W*.9/Math.max(1,String(s.text).length*.52)))}px;line-height:1;color:${K.ink};letter-spacing:-.005em;padding-bottom:6px;white-space:nowrap">${esc(s.text)}</div></div>`;
   const band=root.children[0],txt=band.children[1];
   return {root,upd:t=>{const p=eIOC((t-s.t_in)/.6);const cl=r1(100*(1-p));band.style.clipPath=`inset(0 ${cl}% 0 0)`;const q=eOC((t-s.t_in-.3)/.5);
     txt.style.opacity=r3(q);txt.style.transform=`translateY(${r1(14*(1-q))}px)`;return [...put(root,0,y-90,1,clamp((s.t_out-t)/.25)),cl,r3(q)]}}};
