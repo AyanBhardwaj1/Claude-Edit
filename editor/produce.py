@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -716,6 +717,72 @@ def review(spec: Spec, final: Path | None = None) -> dict:
     return rep
 
 
+# ---------------------------------------------------------------- a first spec from the footage
+
+def init_spec(folder: str | Path, out: str | Path, inventory_dir: str | Path | None = None, transcribe: bool = True,
+              width: int = 1920, height: int = 1080, fps: int = 30) -> dict:
+    """A starting spec from a footage folder: each clip trimmed to its speech (a breath either side), voice-over files
+    over a placeholder picture, pictures as framed shots, captions from the word times, an original music bed, and
+    a freeze-frame end card. Every placeholder is listed under "todo"; it's a draft to edit, not the edit."""
+    from .inventory import inventory
+    folder, out = Path(folder).resolve(), Path(out).resolve()
+    inv_dir = Path(inventory_dir).resolve() if inventory_dir else out.parent / "work" / "inventory"
+    inv_json = inv_dir / "inventory.json"
+    inv = json.loads(inv_json.read_text()) if inv_json.exists() else inventory(folder, inv_dir, transcribe)
+    rel = lambda p: str(Path(os.path.relpath(p, out.parent)))  # noqa: E731
+    pieces, voices, caps, todo = [], [], {}, []
+    last_video = None
+    for it in inv["items"]:
+        name = re.sub(r"[^A-Za-z0-9_]+", "_", Path(it["file"]).stem).strip("_") or "clip"
+        src = rel(folder / it["file"])
+        words_path = inv_dir / f"{Path(it['file']).stem}.words.json"
+        words = json.loads(words_path.read_text()) if words_path.exists() else []
+        dur = float(it.get("duration") or 0)
+        if words:
+            a = max(0.0, float(words[0]["start"]) - 0.4)
+            b = min(dur, float(words[-1]["end"]) + 0.5) if dur else float(words[-1]["end"]) + 0.5
+        else:
+            a, b = 0.0, min(dur, 6.0) if dur else 4.0
+        if it["kind"] == "video":
+            pieces.append({"name": name, "type": "video", "src": src, "in": round(a, 2), "out": round(b, 2),
+                           "grade": "neutral"})
+            last_video = name
+            if it.get("has_audio") and words:
+                voices.append({"name": f"v_{name}", "src": src, "in": round(a, 2), "out": round(b, 2), "at": name})
+        elif it["kind"] == "audio" and words:
+            pieces.append({"name": name, "type": "color", "color": "#1f241c", "dur": round(b - a, 2)})
+            voices.append({"name": f"v_{name}", "src": src, "in": round(a, 2), "out": round(b, 2), "at": name})
+            todo.append(f"piece {name}: a placeholder under the voice-over {it['file']}: put app captures or b-roll here")
+        elif it["kind"] == "image":
+            pieces.append({"name": name, "type": "framed", "src": src, "dur": 4.0})
+        if words and voices and voices[-1]["src"] == src:
+            caps[voices[-1]["name"]] = rel(words_path)
+    if not pieces:
+        raise EditorError(f"nothing usable in {folder}")
+    if last_video:
+        pieces.append({"name": "end", "type": "freeze", "from": last_video, "dur": 6.0, "blur": 12, "darken": 0.3,
+                       "fade_out": 0.5})
+    total = sum(float(p.get("dur", 0)) if "dur" in p else (p["out"] - p["in"]) for p in pieces)
+    spec = {
+        "todo": todo + ["order the pieces into the story (inventory.md has what each clip says)",
+                        "correct the captions' words (offline transcripts mishear names): captions.replace",
+                        "write the overlay (tags, numbers, lower thirds, end card lines)", "check --plan, then render"],
+        "output": {"width": width, "height": height, "fps": fps, "file": f"out/{out.parent.name or 'video'}.mp4",
+                   "duration": round(total, 2), "lufs": -14},
+        "frame": {"scale": 0.92, "radius": 18, "backdrop": "#f4f1e6"},
+        "pieces": pieces,
+        "audio": {"voices": voices,
+                  "music": [{"src": {"compose": {"mood": "warm", "end_chord_at": round(max(1.0, total - 6.0), 2)}},
+                             "at": 0, "dur": round(total, 2), "gain": -3, "fade_in": 0.5}]},
+        "captions": {"voices": caps, "replace": {}},
+        "overlay": {"elements": [{"type": "end_card", "lines": ["TITLE", "website", "names"], "t_in": "end+0.4",
+                                  "t_out": "end.end-0.3"}] if last_video else []},
+    }
+    out.write_text(json.dumps(spec, indent=1, ensure_ascii=False) + "\n")
+    log(f"produce init: {len(pieces)} pieces, {len(voices)} voices, {total:.1f} s -> {out}")
+    return spec
+
+
 # ---------------------------------------------------------------- driver
 
 def produce(spec_path: str | Path, only: str | None = None, jobs: int = 4, want_preview: bool = False,
@@ -772,6 +839,19 @@ def main(argv=None) -> int:
     ap.add_argument("-j", "--jobs", type=int, default=4)
     ap.add_argument("--preview", action="store_true", help="also write a 720p preview")
     ap.add_argument("--effort", default="standard", help="for the learned timings (rush, standard, polish)")
+    if argv and argv[0] == "init":
+        ip = argparse.ArgumentParser(prog="editor produce init",
+                                     description="a starting spec from a footage folder (runs inventory first)")
+        ip.add_argument("folder")
+        ip.add_argument("-o", "--out", required=True)
+        ip.add_argument("--inventory", help="an existing inventory folder (inventory.json + <clip>.words.json)")
+        ip.add_argument("--no-transcribe", action="store_true")
+        ip.add_argument("--size", default="1920x1080")
+        ia = ip.parse_args(argv[1:])
+        w, h = (int(x) for x in ia.size.lower().split("x"))
+        init_spec(ia.folder, ia.out, ia.inventory, not ia.no_transcribe, w, h)
+        print(Spec(ia.out).table())
+        return 0
     a = ap.parse_args(argv)
     spec = Spec(a.spec)
     if a.plan:
