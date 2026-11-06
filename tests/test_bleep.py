@@ -36,3 +36,11 @@ def test_master_bleeps_the_span(tmp_path):
     mid, before = x[int(1.15 * sr):int(1.45 * sr)], x[int(0.3 * sr):int(0.7 * sr)]
     assert _band(mid, sr, 1000) > 0.6 and _band(mid, sr, 300) < 0.1        # the tone, the voice muted
     assert _band(before, sr, 300) > 0.6 and _band(before, sr, 1000) < 0.05   # untouched elsewhere
+
+
+def test_pacing_mentions_unbleeped_strong_language():
+    from editor.review import pacing
+    words = [{"id": "w0", "text": "this", "start": 0.0, "end": 0.3}, {"id": "w1", "text": "fucking", "start": 0.4, "end": 0.8},
+             {"id": "w2", "text": "rocks.", "start": 0.9, "end": 1.2}]
+    assert "f****** at 0.4s" in pacing({"broll": []}, words, 1.5)["strong_language"]
+    assert pacing({"broll": [], "bleep": True}, words, 1.5)["strong_language"] is None

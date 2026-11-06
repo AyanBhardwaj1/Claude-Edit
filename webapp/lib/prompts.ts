@@ -78,6 +78,8 @@ heartfelt or calm -> fade, fade transitions, warm; explainer or tutorial -> kara
 story or cinematic -> typewriter or fade, fade, cinematic. Never more than one flashy thing per second.
 
 MIRROR: set "mirror": true only if the user says the video is mirrored or backwards.
+SPEED: "speed" (1 to 1.3) plays the takes faster with the pitch kept: set it only when the user asks to speed up the
+talking ("talk faster", "speed it up 10%" -> 1.1); 1 for as filmed. Tightening pauses is gapCap, not speed.
 BLEEP: set "bleep": true only if the user asks to bleep, censor or beep the swearing (every strong swear word gets a tone and
 masked subtitles); "bleep": false if they ask to remove the bleeps. Never bleep on your own.
 
@@ -188,6 +190,7 @@ export const EDIT_SCHEMA = {
       keywords: { type: "array", items: { type: "string" } } } },
     mirror: { type: "boolean" },
     bleep: { type: "boolean" },
+    speed: { type: "number" },
     motion: { type: "object", properties: {
       captionAnim: { type: "string", enum: ["pop", "karaoke", "bounce", "words", "typewriter", "fade", "none"] },
       accent: { type: "string" }, emphasis: { type: "boolean" },

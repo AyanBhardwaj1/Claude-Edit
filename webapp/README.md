@@ -126,6 +126,11 @@ vertical reel with a cover and a post caption, then change it by typing notes. E
     (Simple Icons, credited) and puts it above your head on those words, as its own version (`lib/names.ts`).
 34. **Test other hooks**: after an export, type one or two other hook titles (Try 5 hooks fills them in) and export
     the same reel with each, one file per hook, to post as trial reels and keep the hook that holds people longest.
+35. **Talking speed**: Edit it myself → Cut plays the takes at 1.1×, 1.2× or 1.3× with the voice's pitch kept
+    (pictures and music play as they are), or a note like "speed it up 10%"; every word, subtitle and picture stays on
+    its words (`speed` in the edit, `srcAt`/`outAt` in `lib/timeline.ts`).
+36. **Before you post**: the export panel sums up the reel check, the scroll and loop tests, the app buttons, names
+    not shown and strong language, and says how many need a look.
 
 ## Privacy and keys
 - Videos never leave the browser: they're processed on the user's computer and kept in IndexedDB.

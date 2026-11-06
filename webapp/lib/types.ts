@@ -74,6 +74,7 @@ export type Motion = {
 
 export type Edit = {
   keep: Range[]; gapCap: number;
+  speed?: number;                 // talking speed, 1 (as filmed) to 1.3: the takes play faster, pitch kept
   captions: Captions; corrections: { from: string; to: string }[];
   broll: Broll[]; zooms: Zoom[]; music: Music;
   cover: { word: string | null; text: string };

@@ -52,6 +52,7 @@ export type AiEdit = {
   post?: { caption?: string; hashtags?: string[]; keywords?: string[] };
   mirror?: boolean;
   bleep?: boolean;                 // bleep every strong swear word (lib/bleep.ts), false to remove the bleeps
+  speed?: number;                  // talking speed 1-1.3 (1 = as filmed)
   motion?: Partial<Motion>;
   styleRule?: string | null;
 };
@@ -145,6 +146,7 @@ export function fromAi(p: Project, base: Edit, given: AiEdit, webAssets: Map<str
   if (ai.motion) e.motion = cleanMotion({ ...motionOf(e), ...ai.motion });
   if (ai.corrections) e.corrections = ai.corrections.filter((c) => c.from?.trim() && c.to?.trim()).slice(0, 60);
   if (ai.mirror !== undefined) p.sources.forEach((s) => (s.mirror = !!ai.mirror));
+  if (ai.speed !== undefined && ai.speed !== null) { const v = Math.round(clamp(ai.speed, 1, 1.3, 1) * 20) / 20; e.speed = v === 1 ? undefined : v; }
   if (ai.bleep === true) e.bleeps = swears(buildTimeline(p.words, e, p.sources.map((s) => s.duration))).map((w) => w.id);
   else if (ai.bleep === false) e.bleeps = [];
   const broll: Broll[] = [];

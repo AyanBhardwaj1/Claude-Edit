@@ -4,7 +4,7 @@
 
 import type { Edit, Range, Word } from "./types";
 
-export type Segment = { src: number; start: number; end: number; outStart: number; outEnd: number; words: string[] };
+export type Segment = { src: number; start: number; end: number; outStart: number; outEnd: number; words: string[]; speed: number };
 export type OutWord = Word & { os: number; oe: number; seg: number };
 export type Timeline = { segments: Segment[]; words: OutWord[]; duration: number; byId: Map<string, OutWord> };
 
@@ -34,7 +34,15 @@ export function keptIndexes(words: Word[], keep: Range[]): number[][] {
   return runs;
 }
 
-export function buildTimeline(words: Word[], edit: Pick<Edit, "keep" | "gapCap">, durations: number[]): Timeline {
+/** The talking speed an edit plays at: 1 as filmed, up to 1.3. */
+export const speedOf = (e: { speed?: number }) => Math.min(1.3, Math.max(1, Number.isFinite(e.speed) ? e.speed! : 1));
+
+/** The source time shown at an output time inside a segment, and back. */
+export const srcAt = (s: Segment, t: number) => s.start + (t - s.outStart) * s.speed;
+export const outAt = (s: Segment, src: number) => s.outStart + (src - s.start) / s.speed;
+
+export function buildTimeline(words: Word[], edit: Pick<Edit, "keep" | "gapCap" | "speed">, durations: number[]): Timeline {
+  const sp = speedOf(edit);
   const runs = keptIndexes(words, edit.keep);
   const segments: Segment[] = [];
   const out: OutWord[] = [];
@@ -57,10 +65,10 @@ export function buildTimeline(words: Word[], edit: Pick<Edit, "keep" | "gapCap">
       const prev = words[p[0] - 1], next = words[p[p.length - 1] + 1];
       const start = Math.max(0, first.s - lead, prev && prev.src === src && prev.e <= first.s ? prev.e : 0);
       const end = Math.max(start, Math.min(dur, last.e + tail, next && next.src === src && next.s >= last.e ? next.s : Infinity));
-      const seg: Segment = { src, start, end, outStart: t, outEnd: t + (end - start), words: p.map((i) => words[i].id) };
+      const seg: Segment = { src, start, end, outStart: t, outEnd: t + (end - start) / sp, words: p.map((i) => words[i].id), speed: sp };
       for (const i of p) {
         const w = words[i];
-        out.push({ ...w, os: t + (w.s - start), oe: t + (w.e - start), seg: segments.length });
+        out.push({ ...w, os: t + (w.s - start) / sp, oe: t + (w.e - start) / sp, seg: segments.length });
       }
       segments.push(seg);
       t = seg.outEnd;
@@ -83,5 +91,5 @@ export function sourceAt(tl: Timeline, t: number): { seg: number; src: number; t
   const k = i >= 0 ? i : tl.segments.length - 1;
   const s = tl.segments[k];
   if (!s) return null;
-  return { seg: k, src: s.src, time: s.start + Math.min(t, s.outEnd) - s.outStart };
+  return { seg: k, src: s.src, time: srcAt(s, Math.min(t, s.outEnd)) };
 }

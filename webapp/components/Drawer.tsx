@@ -105,6 +105,9 @@ export function Drawer({ project: p, edit, onApply, settings, onMakeMusic, onWor
             <label htmlFor="gap">Longest pause kept: <span className="num">{e.gapCap.toFixed(2)} s</span></label>
             <input id="gap" className="range" type="range" min={0.05} max={0.6} step={0.01} value={e.gapCap} onChange={(ev) => setE({ ...e, gapCap: +ev.target.value })} />
           </div>
+          <div className="field"><span className="label">Talking speed</span>
+            {opt(e.speed ?? 1, [[1, "As filmed"], [1.1, "1.1×"], [1.2, "1.2×"], [1.3, "1.3×"]], (v) => setE({ ...e, speed: v === 1 ? undefined : v }), "Talking speed")}
+            <span className="hint">Faster talking holds attention; your voice keeps its pitch. Pictures and music play as they are.</span></div>
           <div className="words" aria-label="Transcript">
             {p.words.map((w, i) => !w.w.trim() ? null : (
               <span key={w.id}>

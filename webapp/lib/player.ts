@@ -7,7 +7,7 @@ import { buildScene, drawFrame, H, setFormat, W, type Scene } from "./compositor
 import { LEVEL_GAP } from "./mix";
 import { clipTimeAt } from "./screenrec";
 import { bleepSpans } from "./bleep";
-import { buildTimeline, spanOf, type Timeline } from "./timeline";
+import { buildTimeline, outAt, spanOf, srcAt, type Segment, type Timeline } from "./timeline";
 import type { Edit, Project } from "./types";
 
 const db = (x: number) => Math.pow(10, x / 20);
@@ -151,7 +151,8 @@ export class Player {
     this.seg = k;
     this.cur = this.elFor(k);
     const s = this.tl.segments[k];
-    await this.seekEl(this.cur, s.start + (from - s.outStart));
+    this.rate(this.cur, s);
+    await this.seekEl(this.cur, srcAt(s, from));
     this.preload(k + 1);
     this.fired = new Set(this.scene.layers.filter((L) => L.start < from).map((L) => L.b.id));
     if (this.music) {
@@ -196,7 +197,7 @@ export class Player {
   private loop = () => {
     if (!this.playing || !this.cur) return;
     const s = this.tl.segments[this.seg];
-    let t = s.outStart + (this.cur.currentTime - s.start);
+    let t = outAt(s, this.cur.currentTime);
     if (this.cur.currentTime >= s.end - 0.017 || this.cur.ended) {
       const next = this.seg + 1;
       const old = this.cur;
@@ -205,6 +206,7 @@ export class Player {
       this.cur = this.elFor(next);
       const ns = this.tl.segments[next];
       if (Math.abs(this.cur.currentTime - ns.start) > 0.05) this.cur.currentTime = ns.start;
+      this.rate(this.cur, ns);
       void this.cur.play();
       old.pause();
       const go = this.gainOf(old), gn = this.gainOf(this.cur) as GainNode & { norm?: number };
@@ -220,7 +222,7 @@ export class Player {
     this.mixBleep(this.t);
     if (this.cur.readyState >= 2 && !this.cur.seeking)              // else hold the last frame: never flash black at a cut
       drawFrame(this.g, this.project, this.edit, this.scene, this.t, this.cur, this.tl.segments[this.seg].src,
-        this.tl.segments[this.seg].start + (this.t - this.tl.segments[this.seg].outStart));
+        srcAt(this.tl.segments[this.seg], this.t));
     this.onTime?.(this.t);
     this.raf = requestAnimationFrame(this.loop);
   };
@@ -253,6 +255,12 @@ export class Player {
   }
 
   /** The song: a measured gap under the voice, dipping under words, lifting in pauses, plus word-anchored lifts. */
+  /** A take plays at the edit's talking speed (the browser keeps the pitch). */
+  private rate(el: HTMLVideoElement, s: Segment) {
+    if (el.playbackRate !== s.speed) el.playbackRate = s.speed;
+    el.preservesPitch = true;
+  }
+
   private mixBleep(t: number) {
     this.setBleep(this.bleeps.some(([a, b]) => t >= a && t < b));
   }
@@ -306,7 +314,7 @@ export class Player {
     if (!s) { this.g.fillStyle = "#000"; this.g.fillRect(0, 0, W, H); return; }
     if (!this.pairs.length) this.ensureAudio();
     const el = this.elFor(k);
-    const st = s.start + (t - s.outStart);
+    const st = srcAt(s, t);
     await this.seekEl(el, st);
     for (const L of this.scene.layers) if (L.el instanceof HTMLVideoElement && t >= L.start && t < L.end) {
       L.el.currentTime = L.plan ? clipTimeAt(L.plan, t - L.start).t : t - L.start;
