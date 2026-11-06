@@ -18,7 +18,8 @@ demo). One spec holds the whole timeline:
 Times anywhere (audio `at`, overlay `t_in`/`t_out`/`t`/`times`/`t_column`, extras) can be numbers or references:
   "s3"        the output start of piece s3          "s3+1.2"   1.2 s after it        "s3.end-0.5"
   "@v1:2.01"  where source second 2.01 of voice v1 lands in the output (anchor captions on real word times)
-Pieces are cached by content, so a note that changes one shot re-renders only that shot.
+Pieces are cached by content, so a note that changes one shot re-renders only that shot. A screen recording with
+waits (spinners, an AI thinking) can speed through them: "ramp_waits": {"speed": 6, "label": "thinking…"}.
 
   editor produce spec.json                 # everything
   editor produce spec.json --plan          # the timeline table, total length, resolved times; renders nothing
@@ -92,6 +93,9 @@ class Spec:
             if "out" not in pc:
                 src = self.p(pc["src"])
                 pc["out"] = float(probe(src)["duration"])
+            if pc.get("ramp_waits"):
+                pc["_ramps"] = ramp_plan(self, pc)
+                return sum((b - a) / sp for a, b, sp in pc["_ramps"])
             return (float(pc["out"]) - float(pc.get("in", 0))) / float(pc.get("speed", 1.0))
         raise EditorError(f"piece {pc.get('name')}: {kind} needs a dur")
 
@@ -151,6 +155,66 @@ def _mtime(p: Path) -> float:
     return p.stat().st_mtime if p.exists() else 0.0
 
 
+# ---------------------------------------------------------------- waits in screen recordings
+
+def find_waits(src: Path, a: float, b: float, min_dur: float = 1.0, noise: str = "-50dB") -> list[tuple[float, float]]:
+    """Stretches where the picture doesn't change (spinners, AI thinking, page loads): (start, end) relative to a."""
+    import subprocess
+    r = subprocess.run(["ffmpeg", "-hide_banner", "-ss", f"{a}", "-to", f"{b}", "-i", str(src), "-vf",
+                        f"scale=480:-2,freezedetect=n={noise}:d={min_dur}", "-an", "-f", "null", "-"],
+                       capture_output=True, text=True)
+    starts = [float(x) for x in re.findall(r"freeze_start: ([\d.]+)", r.stderr)]
+    ends = [float(x) for x in re.findall(r"freeze_end: ([\d.]+)", r.stderr)]
+    if len(ends) < len(starts):
+        ends.append(b - a)
+    return list(zip(starts, ends))
+
+
+def ramp_plan(spec: "Spec", pc: dict) -> list[tuple[float, float, float]]:
+    """(start, end, speed) runs covering [in, out) relative to `in`: waits sped up, the rest at the piece's speed.
+    Each wait keeps `keep` s at normal speed on both sides so the viewer sees it start and end. Cached."""
+    r = pc["ramp_waits"] if isinstance(pc["ramp_waits"], dict) else {}
+    a, b = float(pc.get("in", 0)), float(pc["out"])
+    base, fast = float(pc.get("speed", 1.0)), float(r.get("speed", 6.0))
+    keep, min_dur = float(r.get("keep", 0.3)), float(r.get("min", 1.0))
+    src = spec.p(pc["src"])
+    cache = spec.work / "waits" / f"{_hash(str(src), _mtime(src), a, b, min_dur, r.get('noise'))}.json"
+    if cache.exists():
+        waits = [tuple(x) for x in json.loads(cache.read_text())]
+    else:
+        waits = find_waits(src, a, b, min_dur, r.get("noise", "-50dB"))
+        cache.parent.mkdir(parents=True, exist_ok=True)
+        cache.write_text(json.dumps(waits))
+    runs, t = [], 0.0
+    for w0, w1 in waits:
+        w0, w1 = w0 + keep, w1 - keep
+        if w1 - w0 < 0.2:
+            continue
+        if w0 > t:
+            runs.append((t, w0, base))
+        runs.append((w0, w1, fast))
+        t = w1
+    if t < b - a:
+        runs.append((t, b - a, base))
+    return runs
+
+
+def ramp_shimmers(spec: "Spec") -> list[dict]:
+    """A "thinking…" shimmer over every sped-up wait whose piece asks for a label."""
+    out = []
+    for pc in spec.pieces:
+        r = pc.get("ramp_waits")
+        if not (isinstance(r, dict) and r.get("label") and pc.get("_ramps")):
+            continue
+        t = spec.starts[pc["name"]][0]
+        for a, b, sp in pc["_ramps"]:
+            d = (b - a) / sp
+            if sp > float(pc.get("speed", 1.0)):
+                out.append({"type": "shimmer", "t_in": round(t, 3), "t_out": round(t + d, 3), "label": r["label"]})
+            t += d
+    return out
+
+
 # ---------------------------------------------------------------- pieces
 
 def _video_filter(spec: Spec, pc: dict, n: int) -> str:
@@ -158,7 +222,8 @@ def _video_filter(spec: Spec, pc: dict, n: int) -> str:
     speed = float(pc.get("speed", 1.0))
     fit = pc.get("fit", "cover")
     cy = float(pc.get("crop_y", 0.5))
-    chain = [f"setpts=(PTS-STARTPTS)/{speed}", f"fps={fps}"]
+    ramps = pc.get("_ramps")
+    chain = [f"fps={fps}"] if ramps else [f"setpts=(PTS-STARTPTS)/{speed}", f"fps={fps}"]
     if fit == "contain":
         chain += [f"scale={W}:{H}:force_original_aspect_ratio=decrease:flags=lanczos",
                   f"pad={W}:{H}:(ow-iw)/2:(oh-ih)/2:color={pc.get('pad', 'black')}"]
@@ -170,7 +235,14 @@ def _video_filter(spec: Spec, pc: dict, n: int) -> str:
     g = GRADES.get(grade, grade)                       # a name, or a raw ffmpeg filter chain
     if g:
         chain.append(g)
-    head = "[0:v]" + ",".join(chain)
+    if ramps:
+        parts = "".join(f"[r{i}]" for i in range(len(ramps)))
+        pre = (f"[0:v]split={len(ramps)}" + parts + ";" if len(ramps) > 1 else "[0:v]null[r0];") + ";".join(
+            f"[r{i}]trim={a_}:{b_},setpts=(PTS-STARTPTS)/{sp}[q{i}]" for i, (a_, b_, sp) in enumerate(ramps))
+        pre += ";" + "".join(f"[q{i}]" for i in range(len(ramps))) + f"concat=n={len(ramps)}:v=1:a=0[rr];"
+        head = pre + "[rr]" + ",".join(chain)
+    else:
+        head = "[0:v]" + ",".join(chain)
     if BLOOM.get(grade) and pc.get("bloom", True):
         head += (f",split[a][b];[b]gblur=sigma=22[g];[a][g]blend=all_mode=screen:all_opacity={BLOOM[grade]}")
     zoom = []
@@ -356,12 +428,12 @@ def auto_captions(spec: Spec) -> list[dict]:
 def overlay(spec: Spec, jobs: int = 3) -> Path | None:
     ov = spec.data.get("overlay")
     auto = auto_captions(spec)
-    if not ov and not auto:
+    if not ov and not auto and not ramp_shimmers(spec):
         return None
     if isinstance(ov, str):
         ov = json.loads(spec.p(ov).read_text())
     ov = dict(ov or {"elements": []})
-    ov["elements"] = list(ov.get("elements", [])) + auto
+    ov["elements"] = list(ov.get("elements", [])) + auto + ramp_shimmers(spec)
     ov = spec.resolve(ov)
     ov.setdefault("duration", spec.total)
     th = ov.setdefault("theme", {})

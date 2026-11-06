@@ -134,3 +134,25 @@ def test_inventory_lists_media_without_transcribing(tmp_path):
     a = next(i for i in res["items"] if i["file"] == "a.mp4")
     assert a["width"] == 320 and a["has_audio"] and Path(a["sheet"]).exists()
     assert "| a.mp4 | video |" in (tmp_path / "inv" / "inventory.md").read_text()
+
+
+@pytest.mark.slow
+def test_waits_in_a_screen_recording_are_sped_up(tmp_path):
+    # 1 s moving, 3 s frozen (a spinner that doesn't spin), 1 s moving
+    subprocess.run(["ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i", "testsrc2=s=320x180:r=30:d=1", "-f", "lavfi",
+                    "-i", "color=c=gray:s=320x180:r=30:d=3", "-f", "lavfi", "-i", "testsrc2=s=320x180:r=30:d=1",
+                    "-filter_complex", "[0][1][2]concat=n=3:v=1:a=0", "-pix_fmt", "yuv420p",
+                    str(tmp_path / "rec.mp4")], check=True)
+    spec = base_spec(pieces=[{"name": "rec", "type": "video", "src": "rec.mp4", "in": 0, "out": 5,
+                              "ramp_waits": {"speed": 6, "keep": 0.25, "label": "thinking…"}}])
+    spec["audio"] = {"music": [{"src": "rec.mp4", "at": 0}]}
+    s = produce.Spec(write_spec(tmp_path, spec))
+    runs = s.pieces[0]["_ramps"]
+    fast = [r for r in runs if r[2] == 6]
+    assert len(fast) == 1 and fast[0][0] == pytest.approx(1.25, abs=0.15) and fast[0][1] == pytest.approx(3.75, abs=0.15)
+    assert s.total == pytest.approx(5 - 2.5 + 2.5 / 6, abs=0.2)
+    shim = produce.ramp_shimmers(s)
+    assert shim and shim[0]["label"] == "thinking…"
+    path = tmp_path / "pieces_only.mp4"
+    produce._render_piece(s, s.pieces[0], path)
+    assert probe(path)["duration"] == pytest.approx(s.total, abs=0.1)

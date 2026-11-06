@@ -50,7 +50,9 @@ python3 -m editor produce projects/<name>/produce.json --only mix  # after an au
 ```
 - **Pieces** (in order; cached by content, so a note re-renders only the shots it touches):
   `video` (src, in/out, speed, grade hot|cool|neutral|warm|punchy|bw or a raw filter, crop_y, z0/z1 Ken Burns,
-  push [at,dur,zoom,fx,fy] for a push-in transition, fade_in/fade_out [s,"white"]), `framed` (app screen or photo
+  push [at,dur,zoom,fx,fy] for a push-in transition, fade_in/fade_out [s,"white"],
+  `ramp_waits` {"speed": 6, "label": "thinking…"} speeds through spinners and AI waits with a shimmer: never hold a
+  spinner more than 1 s), `framed` (app screen or photo
   on the rounded, shadowed backdrop; z0/z1, fx/fy, punch [t,zoom,fx,fy], flash for a shutter), `still` (full frame),
   `sequence` (stills cross-blended: a time-lapse from screenshots), `freeze` (last frame of another piece, blur and
   darken for an end card), `color`.
