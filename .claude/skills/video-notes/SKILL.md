@@ -17,7 +17,8 @@ first; the user's past preferences decide ambiguous notes.
 
 `--at` lists the piece / segment and its source second, the words then (with ids), and the b-roll, graphics, zooms,
 music dips, effects and chapter on screen or in the mix at that moment. Anchor the fix on those words or that piece,
-never on a raw output time: times move when anything before them changes.
+never on a raw output time: times move when anything before them changes. Segment numbers are `edl.json`'s; "segment 3-4"
+means EDL segments 3 and 4 touch and play as one piece (change the one holding the source second shown).
 
 Times in a note are the user's times in the video they watched (the version they were sent), give or take a second.
 
