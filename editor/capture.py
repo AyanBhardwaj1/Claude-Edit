@@ -17,18 +17,25 @@ from .util import EditorError, log, run
 CHROMIUM_FALLBACKS = ["/opt/pw-browsers"]
 
 
-def _launch(p):
+def chromium_fallback() -> str | None:
+    """An already-installed Chromium of another Playwright version (CHROMIUM_PATH, /opt/pw-browsers)."""
+    for root in [os.environ.get("CHROMIUM_PATH", ""), *CHROMIUM_FALLBACKS]:
+        if not root:
+            continue
+        found = [root] if os.path.isfile(root) else glob.glob(f"{root}/**/chrome", recursive=True)
+        exe = next((x for x in found if os.path.isfile(x) and os.access(x, os.X_OK)), None)
+        if exe:  # glob follows symlinked dirs
+            return exe
+    return None
+
+
+def _launch(p, **opts):
     try:
-        return p.chromium.launch()
+        return p.chromium.launch(**opts)
     except Exception as first:
-        # an already-installed Chromium of another Playwright version (glob follows symlinked dirs)
-        for root in [os.environ.get("CHROMIUM_PATH", ""), *CHROMIUM_FALLBACKS]:
-            if not root:
-                continue
-            found = [root] if os.path.isfile(root) else glob.glob(f"{root}/**/chrome", recursive=True)
-            exe = next((x for x in found if os.path.isfile(x) and os.access(x, os.X_OK)), None)
-            if exe:
-                return p.chromium.launch(executable_path=exe)
+        exe = chromium_fallback()
+        if exe:
+            return p.chromium.launch(executable_path=exe, **opts)
         raise EditorError(f"could not start Chromium; run `python3 -m playwright install chromium`: {first}") from first
 
 

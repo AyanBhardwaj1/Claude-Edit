@@ -31,8 +31,13 @@ one number. Captions: what was actually said, one card per line, ≤ 2 lines × 
 
 ## 3. Parallel work (one message, hard deadlines in every brief, "partial beats late")
 - **App demos**: capture per the brief's steps. Live site blocked or needs keys → run the app from its repo
-  (`add_repo` with the user's yes). Software-rendered WebGL → screenshots after in-page clicks, animated with camera
-  moves (lessons.md). Real model output only; scripted runs get a "scripted demo" label.
+  (`add_repo` with the user's yes). Turn the brief's steps into a shot list and run it once
+  (broll-library skill has the format); it works for software-rendered WebGL with no GPU:
+  `python3 -m editor capture shots demo_shots.json -o projects/<n>/broll/app [--record]`, e.g.
+  `{"base": "http://localhost:5173", "shots": [{"name": "route", "url": "/demo?tab=route", "wait": 40,
+  "do": [{"click": "Quickest"}], "read": {"eta": "text=min walk"}}]}`. Read `shots_sheet.jpg`, quote numbers from
+  `shots.json` `read`, re-run only what failed. Animate stills with camera moves (lessons.md); a choppy `--record`
+  → `capture stills-from`. Real model output only; scripted runs get a "scripted demo" label.
 - **Music**: a licensed track the user owns, else an original bed: `python3 -m editor compose bed --length <s>
   --bpm 100 --end-chord-at <end card start>` (music-library skill), plus `compose sfx`/`ambience`.
 - **Graphics**: write the overlay spec yourself (you own the timeline) and render it once:

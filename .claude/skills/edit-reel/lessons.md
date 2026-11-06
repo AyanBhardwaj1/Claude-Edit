@@ -30,7 +30,8 @@ a competitor-chips → "built for students" checklist, counters and a big statem
 - WebGL apps (Three.js maps) render a few frames a second in software: `Page.startScreencast` gave 0 frames,
   screenshots stalled during interactions, Playwright `click` timed out. What worked: wait for the page to settle,
   click from inside the page (`element.click()` in `page.evaluate`), wait 6-10 s, then CDP `Page.captureScreenshot`.
-  Budget ~60-90 s per screenshot. Next time also try headed Chromium under `xvfb-run` + ffmpeg `x11grab`.
+  Budget ~60-90 s per screenshot. All of this is now `editor capture shots` (shot list JSON); its `--record`
+  (headed Chromium on Xvfb + `x11grab`) does capture WebGL motion, but only as fast as the page renders.
 - Choppy recordings still have value: `mpdecimate` extracts the unique frames as clean stills.
 - Stills + Ken Burns + punch-ins on the framed backdrop read as a deliberate style, not a fallback.
 - Live sites are often blocked from the sandbox: run the app from its repo. A newer Node than the machine's: `npm

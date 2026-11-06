@@ -48,7 +48,8 @@ PRIORS = {
     "transcribe": 35.0, "plan": 3.0, "cut": 20.0, "audio": 12.0, "track": 15.0, "captions": 1.0,
     "render": 95.0, "check": 30.0,
     # hand-run productions (editor effort record): per minute of the finished video
-    "capture": 120.0,     # app screenshots / screen captures (slow on machines without a GPU)
+    "capture": 120.0,     # app screenshots / screen captures (slow without a GPU); `capture shots` records
+                          # itself with 1 shot = 5 s of media
     "pieces": 75.0,       # per-shot clips: framing, Ken Burns, speed changes
     "overlay": 57.0,      # editor overlay render (measured: 176 s video in 166 s at -j 3)
     "mix": 10.0,          # audio mix + loudnorm
