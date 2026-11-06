@@ -87,7 +87,7 @@ test("a hook title cut short by the next card is too quick to read", () => {
   const h = r.lines.find((l) => l.id === "hook")!;
   assert.equal(h.ok, false); assert.match(h.text, /is up for 0\.\d s/); assert.match(h.fix!, /cuts it short/);
   const alone = edit({ broll: [long] as never });
-  assert.ok(scrollTest(buildTimeline(ws, alone, [10]), alone).lines.find((l) => l.id === "hook")!.ok === false);   // 10 words: 2.9 s needed, up 2.0 s
+  assert.ok(scrollTest(buildTimeline(ws, alone, [10]), alone).lines.find((l) => l.id === "hook")!.ok);   // alone, it's held its 2.9 s
   const short = edit({ broll: [hook] as never });
   assert.ok(scrollTest(buildTimeline(ws, short, [10]), short).lines.find((l) => l.id === "hook")!.ok);
 });
@@ -123,4 +123,10 @@ test("a hook title written for a reel without one is on screen from the first wo
   assert.ok(scrollTest(tl, h).lines.find((l) => l.id === "hook")!.ok);
   assert.equal(withHook(h, "Another", tl).broll.length, 1, "an existing hook is replaced, not doubled");
   assert.equal(withHook(e, "No timeline").broll.length, 0);
+});
+
+test("a 7-word hook alone is held long enough to read", () => {
+  const ws = say("rent is the biggest bill you pay and here is how");
+  const seven = edit({ broll: [{ ...hook, text: "The one bill you can cut today" }] as never });
+  assert.ok(scrollTest(buildTimeline(ws, seven, [10]), seven).lines.find((l) => l.id === "hook")!.ok);
 });

@@ -9,7 +9,7 @@ import { activeBrand, hasBrand } from "./brand";
 import { backdropFor, framedLayout, framedView, type FaceZone, type FramedLayout } from "./framed";
 import { clipPlan, type Piece } from "./screenrec";
 import { drawBackground, drawScene, type Anim, type Scene as CardScene } from "./studio";
-import { boxedChars, boxedCues, boxedLines, captionWords, chunk, type Cue } from "./text";
+import { boxedChars, boxedCues, boxedLines, captionWords, chunk, readTime, type Cue } from "./text";
 import { spanOf, type Timeline } from "./timeline";
 import type { Asset, Broll, Edit, Format, Project } from "./types";
 
@@ -55,7 +55,9 @@ export function buildScene(p: Project, e: Edit, tl: Timeline, media: Map<string,
   sorted.forEach(({ b, span }, k) => {
     const asset = b.asset ? p.library.find((a) => a.key === b.asset) : undefined;
     const isVideo = asset?.kind === "video";
-    let start = span![0], end = Math.max(span![1] + (b.treatment === "text-pop" ? 0.15 : 0.05), start + (isVideo ? 0.6 : 2.0));
+    // the hook title stays up long enough to read (lib/scrolltest.ts checks the same)
+    const hold = isVideo ? 0.6 : b.treatment === "text-pop" && b.style === "label" && b.tilt === 0 ? Math.max(2.0, readTime(b.text ?? "")) : 2.0;
+    let start = span![0], end = Math.max(span![1] + (b.treatment === "text-pop" ? 0.15 : 0.05), start + hold);
     const next = sorted[k + 1]?.span;
     if (next && next[0] < end && next[0] > start + 0.3) end = next[0];              // the next visual cuts this one short
     const layer: Layer = { b, start, end: Math.min(end, tl.duration), asset, el: b.asset ? media.get(b.asset) : undefined, plan: clipPlan(asset) };

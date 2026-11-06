@@ -199,3 +199,6 @@ export function boxedCues(words: CapWord[], maxChars = 42, maxLines = 2): Cue[] 
 
 /** How many characters a boxed line holds in this frame at this type size (42 where it fits, fewer on a narrow reel). */
 export const boxedChars = (frameW: number, size: number) => Math.max(18, Math.min(42, Math.floor((0.86 * frameW) / (0.5 * size))));
+
+/** About how long a short line takes to read on a phone: a moment to notice it, then ~4 words a second. */
+export const readTime = (text: string) => 0.4 + 0.25 * text.trim().split(/\s+/).filter(Boolean).length;
