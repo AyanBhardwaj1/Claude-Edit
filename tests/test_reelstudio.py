@@ -286,9 +286,15 @@ def test_names_curly_apostrophes_and_svg_logos(tmp_path, monkeypatch):
 def test_pacing_fix_adds_word_anchored_zooms_in_bare_face_stretches():
     from editor.review import stillness_zooms
     ws = [dict(w, id=f"w{i}") for i, w in enumerate(words("one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty"))]
-    z = stillness_zooms(["1.0-8.0s"], ws)
-    assert len(z) >= 2 and all(set(x) == {"words", "scale", "ease"} for x in z)
-    assert [x["scale"] for x in z[:2]] == [1.15, 1.25]
+    z = stillness_zooms(["1.0-8.0s"], ws)                 # 7 s: one zoom inside it leaves two gaps under 4.5 s
+    assert len(z) == 1 and set(z[0]) == {"words", "scale", "ease"}
+    a, b = z[0]["words"].split("-")
+    start = next(float(w["start"]) for w in ws if w["id"] == a)
+    end = next(float(w["end"]) for w in ws if w["id"] == b)                   # the zoom holds until its last word
+    assert start - 1.0 < 4.5 and 8.0 - end < 4.5
+    long = [dict(w, id=f"w{i}", start=i * 0.5, end=i * 0.5 + 0.4) for i, w in enumerate(ws * 3)]
+    z = stillness_zooms(["0.0-29.0s"], long)
+    assert [x["scale"] for x in z[:2]] == [1.15, 1.25] and len(z) <= 5        # about one every 6 s, not every 3
     assert stillness_zooms([], ws) == []
 
 
@@ -314,3 +320,20 @@ def test_variants_render_each_hook_and_restore_the_edl(tmp_path, monkeypatch):
     assert (project / "out" / "demo_reels - hook B.mp4").read_text() == "Hook two"
     assert (project / "out" / "demo_reels - hook C.mp4").read_text() == "Hook three"
     assert json.loads((project / "work" / "edl.json").read_text()) == edl
+
+
+def test_before_post_collects_file_edit_and_app_checks(tmp_path):
+    import json
+    from editor.cli import _before_post
+    work = tmp_path / "w"
+    work.mkdir()
+    ws = [dict(w, id=f"w{i}") for i, w in enumerate(words("so this is how I film a week of videos in an hour"))]
+    (work / "edl.json").write_text(json.dumps({"segments": [], "broll": []}))
+    (work / "cut_words.json").write_text(json.dumps({"words": ws}))
+    (work / "cut_meta.json").write_text(json.dumps({"duration": 12.0, "edl": str(work / "edl.json"), "timeline": []}))
+    qa = {"checks": [{"check": "loudness", "ok": False, "detail": "-19.0 LUFS (target -14.0)"}, {"check": "fps", "ok": True, "detail": "30"}]}
+    rep = _before_post(work, tmp_path, qa, [{"platform": "tiktok", "from": 1.0, "to": 2.0, "zone": "caption block"}])
+    whats = [i["what"] for i in rep["items"]]
+    assert "file loudness" in whats and "captions under app UI" in whats and "opens with warm up" in whats
+    assert "face only over 4.5 s" in whats and "fps" not in " ".join(whats)
+    assert json.loads((tmp_path / "before_post.json").read_text())["to_look_at"] == len(rep["items"])
