@@ -249,6 +249,15 @@ async (a) => {
       for (const [k, sel] of Object.entries(a.target)) out[k] = readText(sel);
       return {ok: true, detail: out};
     }
+    case 'where': {
+      // where the thing a shot is about sits on screen, as 0-1 of the viewport (for produce's punch-ins)
+      const el = find(a.target, 'text');
+      if (!el) return {ok: false, detail: 'not found'};
+      const r = el.getBoundingClientRect();
+      const W = innerWidth, H = innerHeight;
+      return {ok: true, detail: {x: +((r.left + r.width / 2) / W).toFixed(4), y: +((r.top + r.height / 2) / H).toFixed(4),
+                                 w: +(r.width / W).toFixed(4), h: +(r.height / H).toFixed(4)}};
+    }
     case 'marker': {
       let d = document.getElementById('__ce_marker');
       if (a.on && !d) {
@@ -590,6 +599,16 @@ async def _one_shot(s, spec, page, cdp, js, guard, out_dir, rec, t_start) -> dic
             log(f"shots: {name}: read {json.dumps(entry['read'])[:200]}")
         except Exception as e:  # noqa: BLE001
             entry["failed"].append({"action": "read", "error": type(e).__name__})
+
+    if s.get("focus"):
+        try:
+            r = await js("where", s["focus"], 15)
+            if r.get("ok"):
+                entry["focus"] = r["detail"]
+            else:
+                entry["failed"].append({"action": f"focus {s['focus']}", "error": "not found"})
+        except Exception as e:  # noqa: BLE001
+            entry["failed"].append({"action": "focus", "error": type(e).__name__})
 
     try:   # dev addresses visible on the page would end up in the video: flag them (blur, or capture the live site)
         found = await guard(page.evaluate(DEV_TEXT_JS, DEV_PATTERN), 15)

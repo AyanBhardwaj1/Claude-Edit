@@ -74,6 +74,11 @@ class Spec:
         names = [pc.get("name") for pc in self.pieces]
         if None in names or len(set(names)) != len(names):
             raise EditorError("every piece needs a unique name")
+        for pc in self.pieces:
+            if pc.get("from_shot"):
+                self._from_shot(pc)
+            if pc.get("focus_from"):
+                self._focus_from(pc)
         self.starts, t = {}, 0.0
         for pc in self.pieces:
             pc["_dur"] = self.piece_dur(pc)
@@ -81,6 +86,46 @@ class Spec:
             t += pc["_dur"]
         self.total = t
         self.voices = {v["name"]: v for v in self.data.get("audio", {}).get("voices", []) if v.get("name")}
+
+    def _from_shot(self, pc: dict) -> None:
+        """"from_shot": "caps/shots.json#route" on a video piece: that shot's stretch of the `capture shots --record`
+        video (src, in, out filled in unless the piece sets them)."""
+        ref = str(pc["from_shot"])
+        path, _, name = ref.partition("#")
+        data = json.loads(self.p(path).read_text())
+        shot = next((x for x in data.get("shots", []) if x.get("name") == (name or pc["name"])), None)
+        if not data.get("recording") or not shot or shot.get("rec_in") is None or shot.get("rec_out") is None:
+            raise EditorError(f"piece {pc['name']}: {ref} has no recorded stretch (capture with --record)")
+        rec = Path(path).parent / data["recording"]
+        pc.setdefault("src", str(rec))
+        pc.setdefault("in", round(float(shot["rec_in"]), 2))
+        pc.setdefault("out", round(float(shot["rec_out"]), 2))
+        pc.setdefault("type", "video")
+
+    def _focus_from(self, pc: dict) -> None:
+        """"focus_from": "shots/shots.json#route": aim the Ken Burns and a punch-in at the element `capture shots`
+        recorded for that shot (its "focus"), unless the piece sets fx/fy/punch itself."""
+        ref = str(pc["focus_from"])
+        path, _, name = ref.partition("#")
+        try:
+            data = json.loads(self.p(path).read_text())
+        except (OSError, ValueError) as e:
+            raise EditorError(f"piece {pc['name']}: focus_from {ref}: {e}") from e
+        shot = next((x for x in data.get("shots", []) if x.get("name") == (name or pc["name"])), None)
+        f = (shot or {}).get("focus")
+        if not f:
+            raise EditorError(f"piece {pc['name']}: no recorded focus for shot {name or pc['name']!r} in {path} "
+                              "(add \"focus\": \"text=...\" to that shot and capture again)")
+        # zoompan keeps the anchor at the same relative place in view; to put the target in the middle of the view at
+        # zoom z the anchor is (target - 0.5/z) / (1 - 1/z), clamped to the picture's edges
+        anchor = lambda t, z: round(min(1.0, max(0.0, (t - 0.5 / z) / (1 - 1 / z))), 4) if z > 1.001 else t  # noqa: E731
+        z1 = float(pc.get("z1", 1.06))
+        pc.setdefault("fx", anchor(f["x"], z1))
+        pc.setdefault("fy", anchor(f["y"], z1))
+        if "punch" not in pc:
+            dur = float(pc.get("dur", 4))
+            zoom = round(max(1.3, min(2.0, 0.45 / max(f.get("w", 0.3), f.get("h", 0.3), 0.05))), 2)
+            pc["punch"] = [round(min(1.2, dur * 0.35), 2), zoom, anchor(f["x"], zoom * z1), anchor(f["y"], zoom * z1)]
 
     def p(self, rel) -> Path:
         q = Path(rel)
@@ -147,9 +192,9 @@ class Spec:
 
 PIECE_KEYS = {
     "video": {"src", "in", "out", "speed", "fit", "pad", "crop_y", "grade", "bloom", "z0", "z1", "fx", "fy", "push",
-              "fade_in", "fade_out", "ramp_waits"},
-    "framed": {"src", "dur", "in", "z0", "z1", "fx", "fy", "punch", "flash", "scale", "radius", "backdrop"},
-    "still": {"src", "dur", "in", "z0", "z1", "fx", "fy", "punch", "flash", "scale", "radius", "backdrop"},
+              "fade_in", "fade_out", "ramp_waits", "from_shot"},
+    "framed": {"src", "dur", "in", "z0", "z1", "fx", "fy", "punch", "flash", "scale", "radius", "backdrop", "focus_from"},
+    "still": {"src", "dur", "in", "z0", "z1", "fx", "fy", "punch", "flash", "scale", "radius", "backdrop", "focus_from"},
     "sequence": {"srcs", "dur", "framed", "z1"},
     "freeze": {"from", "dur", "blur", "darken", "blur_at", "fade_out"},
     "color": {"color", "dur"},
@@ -1145,7 +1190,7 @@ def _measure_lufs(path: Path, a: float, b: float) -> float | None:
 
 
 def init_spec(folder: str | Path, out: str | Path, inventory_dir: str | Path | None = None, transcribe: bool = True,
-              width: int = 1920, height: int = 1080, fps: int = 30) -> dict:
+              width: int = 1920, height: int = 1080, fps: int = 30, shots: str | Path | None = None) -> dict:
     """A starting spec from a footage folder: each clip trimmed to its speech (a breath either side), voice-over files
     over a placeholder picture, pictures as framed shots, captions from the word times, an original music bed, and
     a freeze-frame end card. Every placeholder is listed under "todo"; it's a draft to edit, not the edit."""
@@ -1182,6 +1227,17 @@ def init_spec(folder: str | Path, out: str | Path, inventory_dir: str | Path | N
             pieces.append({"name": name, "type": "framed", "src": src, "dur": 4.0})
         if words and voices and voices[-1]["src"] == src:
             caps[voices[-1]["name"]] = rel(words_path)
+    if shots:                                         # app captures (editor capture shots): framed, aimed at their focus
+        shots = Path(shots).resolve()
+        for sh in json.loads(shots.read_text()).get("shots", []):
+            if not sh.get("file"):
+                continue
+            name = "shot_" + re.sub(r"[^A-Za-z0-9_]+", "_", sh["name"]).strip("_")
+            pc = {"name": name, "type": "framed", "src": rel(shots.parent / sh["file"]), "dur": 4.0}
+            if sh.get("focus"):
+                pc["focus_from"] = f"{rel(shots)}#{sh['name']}"
+            pieces.append(pc)
+            todo.append(f"piece {name}: place it where the voice talks about it (and trim its dur)")
     if not pieces:
         raise EditorError(f"nothing usable in {folder}")
     for v in voices:                                  # level every voice to the same loudness (pocket mics are quiet)
@@ -1527,9 +1583,10 @@ def main(argv=None) -> int:
         ip.add_argument("--inventory", help="an existing inventory folder (inventory.json + <clip>.words.json)")
         ip.add_argument("--no-transcribe", action="store_true")
         ip.add_argument("--size", default="1920x1080")
+        ip.add_argument("--shots", help="a capture shots.json: each screen becomes a framed piece aimed at its focus")
         ia = ip.parse_args(argv[1:])
         w, h = (int(x) for x in ia.size.lower().split("x"))
-        init_spec(ia.folder, ia.out, ia.inventory, not ia.no_transcribe, w, h)
+        init_spec(ia.folder, ia.out, ia.inventory, not ia.no_transcribe, w, h, ia.shots)
         print(Spec(ia.out).table())
         return 0
     a = ap.parse_args(argv)

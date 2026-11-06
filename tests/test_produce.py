@@ -199,15 +199,21 @@ def test_init_drafts_a_spec_from_an_inventory(tmp_path):
     (inv / "inventory.json").write_text(json.dumps({"items": [
         {"file": "scene 1.mp4", "kind": "video", "duration": 6.0, "has_audio": True},
         {"file": "vo.wav", "kind": "audio", "duration": 5.0, "has_audio": True}]}))
+    caps = tmp_path / "caps"
+    caps.mkdir()
+    (caps / "route.png").write_bytes(b"")
+    (caps / "shots.json").write_text(json.dumps({"shots": [{"name": "route", "file": "route.png",
+                                                            "focus": {"x": 0.5, "y": 0.5, "w": 0.2, "h": 0.1}}]}))
     out = tmp_path / "produce.json"
-    spec = produce.init_spec(raw, out, inv)
+    spec = produce.init_spec(raw, out, inv, shots=caps / "shots.json")
     names = [p["name"] for p in spec["pieces"]]
-    assert names == ["scene_1", "vo", "end"]
+    assert names == ["scene_1", "vo", "shot_route", "end"]
+    assert spec["pieces"][2]["focus_from"] == "caps/shots.json#route"
     assert spec["pieces"][0]["in"] == 0.6 and spec["pieces"][0]["out"] == 2.5
     assert spec["pieces"][1]["type"] == "color" and spec["pieces"][1]["dur"] == pytest.approx(3.4)
     assert set(spec["captions"]["voices"]) == {"v_scene_1", "v_vo"}
     s = produce.Spec(out)                       # it loads and resolves as a real spec
-    assert s.total == pytest.approx(1.9 + 3.4 + 6.0)
+    assert s.total == pytest.approx(1.9 + 3.4 + 4.0 + 6.0)
     assert produce.auto_captions(s)[0]["text"] == "Hello there."
     assert any("placeholder" in t for t in spec["todo"])
     auto = spec["audio"]["music"][0]["automation"]                   # dips under the on-camera dialogue
@@ -318,3 +324,34 @@ def test_band_titles_wrap_and_shrink_to_fit():
     assert lines == ["A cooler way", "across campus"]
     size, lines = produce._fit_title("Walk-Free: the shadiest way home from every class on campus", 1080, 81)
     assert len(lines) == 2 and size * 0.56 * max(map(len, lines)) <= 1080 * 0.88
+
+
+def test_punch_in_aimed_at_a_captured_element(tmp_path):
+    (tmp_path / "shots.json").write_text(json.dumps({"shots": [
+        {"name": "route", "file": "route.png", "focus": {"x": 0.12, "y": 0.4, "w": 0.2, "h": 0.1}},
+        {"name": "home", "file": "home.png"}]}))
+    (tmp_path / "route.png").write_bytes(b"")
+    spec = base_spec(pieces=[{"name": "r", "type": "framed", "src": "route.png", "dur": 4, "focus_from": "shots.json#route"}])
+    s = produce.Spec(write_spec(tmp_path, spec))
+    pc = s.pieces[0]
+    assert pc["punch"][:2] == [1.2, 2.0]
+    z = 2.0 * 1.06                                 # the punch times the Ken Burns
+    ax, ay = pc["punch"][2:]
+    assert ax == 0.0                               # too close to the left edge to centre: the view starts at the edge
+    assert (ay * (1 - 1 / z) + 0.5 / z) == pytest.approx(0.4, abs=1e-3)   # centred vertically
+    spec["pieces"][0]["focus_from"] = "shots.json#home"
+    with pytest.raises(EditorError, match="no recorded focus"):
+        produce.Spec(write_spec(tmp_path, spec))
+
+
+def test_a_video_piece_from_a_recorded_shot(tmp_path):
+    subprocess.run(["ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i", "testsrc2=s=320x180:r=30:d=6", "-pix_fmt", "yuv420p",
+                    str(tmp_path / "shots.mp4")], check=True)
+    (tmp_path / "shots.json").write_text(json.dumps({"recording": "shots.mp4", "shots": [
+        {"name": "route", "rec_in": 1.0, "rec_out": 3.5}, {"name": "still", "rec_in": None}]}))
+    spec = base_spec(pieces=[{"name": "r", "type": "video", "from_shot": "shots.json#route", "ramp_waits": {"speed": 4}}])
+    s = produce.Spec(write_spec(tmp_path, spec))
+    assert (s.pieces[0]["in"], s.pieces[0]["out"]) == (1.0, 3.5) and s.pieces[0]["src"] == "shots.mp4"
+    spec["pieces"][0]["from_shot"] = "shots.json#still"
+    with pytest.raises(EditorError, match="no recorded stretch"):
+        produce.Spec(write_spec(tmp_path, spec))
