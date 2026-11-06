@@ -66,11 +66,11 @@ body:has(.site) { background: #ffffff; color: #000000; }
 .hero .fact span { display: block; margin-top: 8px; font-size: 16px; line-height: 1.35; }
 
 /* a fragment of the real app, set in the app's own Studio look */
-.ui { --u-bg: #121110; --u-s: #1b1a18; --u-s2: #242320; --u-ink: #f2efe9; --u-2: #b4afa6; --u-3: #8a857c; --u-acc: #ff7a3d;
+.ui { --u-bg: #121110; --u-s: #1b1a18; --u-s2: #242320; --u-ink: #f2efe9; --u-2: #b4afa6; --u-3: #98948c; --u-acc: #ff7a3d;
   background: var(--u-bg); color: var(--u-ink); font: 400 15px/1.5 Geist, ui-sans-serif, system-ui, sans-serif; overflow: hidden; }
 .ui-editor { display: grid; grid-template-columns: 1.1fr 1fr; gap: 16px; padding: 22px; padding-top: 96px; height: 100%; }
 .ui .pnl { background: var(--u-s); border-radius: 14px; padding: 18px; display: grid; gap: 12px; align-content: start; min-width: 0; }
-.ui .pnl h4 { margin: 0; font: 600 16px/1.2 Geist, sans-serif; letter-spacing: -0.01em; }
+.ui .pnl h4, .ui .pnl .h4 { margin: 0; font: 600 16px/1.2 Geist, sans-serif; letter-spacing: -0.01em; }
 .ui .bub { max-width: 90%; padding: 10px 14px; border-radius: 14px; font-size: 14px; }
 .ui .bub small { display: block; font-size: 12px; font-weight: 600; opacity: .65; }
 .ui .bub.you { justify-self: end; background: var(--u-acc); color: #1c0b02; border-bottom-right-radius: 6px; }

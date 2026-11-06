@@ -67,14 +67,14 @@ export default function Landing() {
             <div className="ui" data-ui role="img" aria-label="The Cutmind editor: a note asking for quieter music, and Version 2 with the music turned down">
               <div className="ui-editor">
                 <div className="pnl">
-                  <h4>Notes for your editor</h4>
+                  <div className="h4">Notes for your editor</div>
                   <div className="bub them"><small>Your editor</small>I kept your last take of each line, cut 41 seconds of pauses and added your song.</div>
                   <div className="bub you"><small>You</small>music too loud at the start</div>
                   <div className="bub them"><small>Your editor</small>Version 2: I turned the music down under your first two lines.</div>
                   <div className="vers"><span>Version 1</span><span className="on">Version 2</span></div>
                 </div>
                 <div className="pnl">
-                  <h4>What I did</h4>
+                  <div className="h4">What I did</div>
                   <ul className="did"><li>Kept your best takes · 0:58 long</li><li>Added subtitles</li><li>Added music: morning-walk.mp3</li>
                     <li>6 pictures and 2 text cards</li><li>5 zooms</li><li>Wrote your post caption</li></ul>
                 </div>
