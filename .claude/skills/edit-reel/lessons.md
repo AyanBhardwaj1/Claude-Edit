@@ -14,6 +14,8 @@ style memory (`editor style note`), timings to `editor effort record`; this file
 - [audio] produce init now levels every voice to -16 LUFS and dips the bed 10 dB under on-camera dialogue: a zero-touch draft had skit music only 4 dB under the voices
 - [process] Test new ffmpeg graphs on the real project, not only synthetic colour pieces: xfade broke on real pieces (mixed timebases after a plain cut) while the unit test passed
 - [process] A sound-only note (music level) on the 3-min Walk-Free spec went from 3m39s to 28s: produce now reuses the joined picture (77 s with transitions) and remuxes the new mix onto the encoded video (122 s -> 9 s). Say so when a note is audio-only; --estimate predicted 28 s.
+- [process] A cache key must leave out everything that doesn't change its output: edl.settings recorded music.db, so the reel picture key never matched and the remux silently never fired. Test a cache by changing only what it should ignore.
+- [process] Learned timings must only learn from real work: remuxes (1 s) recorded as renders dragged render:rush to 84 and composite:rush to 17 s/min. Skip shortcut runs when recording.
 
 ## 2026-11-05 Walk-Free hackathon demo (2:56, 16:9, brief-driven, rush effort, about 35 min)
 What the user loved (draft 4: "wow that's really good"): app screens on an ivory frame at 92% with rounded corners
