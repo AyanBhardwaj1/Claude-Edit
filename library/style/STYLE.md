@@ -44,3 +44,6 @@ Update it with `editor style note` (what the user says) and `editor style learn`
 - [brand:youbank] Use the live site youbank-nu.vercel.app: real UI recorded from it, its address in the browser bar and on the end card  `bf7d5d7c` (2026-10-30)
 - [brand:youbank] YouBank videos: show the app in its Lavender UI style (light, violet accent #7c3aed) with a matching lavender-light video look and violet logo; not the amber-on-black Terminal style  `b42fab30` (2026-10-30)
 - [brand:youbank] Investor (VC fundraising) videos: dark cinematic, near-black with violet glow, Lavender product UI inside, sourced market figures; no invented traction  `b4822aff` (2026-10-31)
+- [global] Music and ambience must sit well under on-camera dialogue and skits; we have to hear ourselves clearly  `c4828fe9` (2026-11-06)
+- [global] When we're short on time, do it fast and send a draft; when asked, spend more time for better quality  `f5139933` (2026-11-06)
+- [brand:walk-free] Walk-Free demo look (approved): app screens on an ivory frame with rounded corners and soft shadow, push-ins and punch-ins, small Meta model pills, captions in a dark box, checklist and chips graphics, logo sting, hot-to-cool grade, end card over a blurred freeze-frame  `c7bc67a0` (2026-11-06)

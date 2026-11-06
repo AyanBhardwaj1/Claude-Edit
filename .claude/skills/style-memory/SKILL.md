@@ -44,6 +44,11 @@ Scopes: `brand:<name>` beats `kind:reel|launch` beats `global`. Brand colours st
   ```
   Scope it as narrowly as the user meant it: one brand's thing goes under `--brand`; "always" / "every video"
   goes under the kind or global. If unsure whether it's a habit or a one-off, record it under the brand.
+- Speed vs quality is a preference too: when the user keeps asking for fast drafts (or for the best possible),
+  record it: `python3 -m editor style note "Fast drafts first" --kind reel --set reel.effort=rush`. `editor auto`
+  then uses that effort when no `--effort`/`--budget` is given. How long things take is learned separately and
+  automatically (`library/style/timings.json`, see edit-reel's effort.md).
+- Craft lessons that aren't preferences (what broke, what took too long) go to `.claude/skills/edit-reel/lessons.md`.
 - `editor auto` snapshots the first render's EDL automatically. For launch videos, snapshot the plan when you
   first show a render: `python3 -m editor style snapshot launches/<name>/plan.json`.
 

@@ -21,6 +21,13 @@ Claude makes the editorial calls and checks the result visually.
   transitions (`"transitions"` in the EDL, b-roll `"in"`/`"out"`: broll-motion), custom caption fonts
   (`editor fonts add`, EDL `"captions"`: captions), pro sound (room tone, RNNoise, `studio`/`podcast`,
   b-roll `"nat"`, real SFX in `library/sfx/<type>/`: audio-polish).
+- **Speed vs quality** is the user's call: "we have 10 minutes" / "hurry" → rush, "take your time" / "best" → polish
+  (`.claude/skills/edit-reel/effort.md`; `editor effort show --budget <min>`, `editor auto --effort|--budget`).
+  Answer "how long?" before starting. Timings are learned per machine (`library/style/timings.json`).
+- **Self-improve after every video**: style notes (what the user said), 1-5 lines in
+  `.claude/skills/edit-reel/lessons.md` (read it before planning), `editor effort record` for hand-run stages.
+- A written production brief (script + effects plan + scene clips + app demos, e.g. a hackathon demo):
+  **brief-production** skill (`editor overlay` designed overlay track, `editor compose` original music).
 - **style-memory** learns the user's editing taste over time (`library/style/`, `editor style`): read
   `library/style/STYLE.md` before every first draft, record each preference the user voices with `style note`,
   and `style learn` the EDL / plan when they approve. `editor auto` applies the confident defaults itself.
@@ -88,6 +95,10 @@ editor/            python package (python3 -m editor)
   cover.py         cover/thumbnail from a clean reframed frame
   qa.py            spec/loudness check, contact sheet, frame grabs
   style.py         style memory: learned editing preferences (notes, draft -> approved changes) -> first drafts
+  effort.py        speed vs quality: rush / standard / polish, learned per-machine timings, budget -> effort
+  overlay/         designed overlay track from a JSON spec (captions, tags, counters, checklists...) -> alpha MOV;
+                   frame.py puts app screens on a rounded, shadowed backdrop with Ken Burns / punch-ins
+  compose.py       original music beds, lo-fi, risers, SFX and ambiences synthesized in code (royalty-free)
 library/           hooks.md (265 hook templates), glossary.txt, style/ (learned style), music/, broll/, models/, sfx/ (media git-ignored)
 .claude/skills/    the workflow Claude follows
 webapp/            Cutmind: the workflow as a Vercel web app (Next.js; media work in the browser; users' own Anthropic/OpenAI keys)
