@@ -77,8 +77,10 @@ def test_old_default_caches_are_still_found(tmp_path, monkeypatch):
     legacy = transcribe._cache_path(work / "transcripts", clip, "faster-whisper")         # a cache from before variants
     legacy.write_text(json.dumps({"engine": "faster-whisper", "words": [{"text": "cached", "start": 0.1, "end": 0.5}]}))
     monkeypatch.setattr(transcribe, "_make", lambda *a, **k: (_ for _ in ()).throw(AssertionError("re-transcribed")))
-    transcribe.transcribe([str(clip)], work, engine="faster-whisper", glossary=["Claude Code", "WhisperX"])
+    transcribe.transcribe([str(clip)], work, engine="faster-whisper", glossary=transcribe._shipped_glossary())
     assert "cached" in (work / "transcript.txt").read_text()
+    with pytest.raises(AssertionError, match="re-transcribed"):                   # a new glossary name: transcribe again
+        transcribe.transcribe([str(clip)], work, engine="faster-whisper", glossary=[*transcribe._shipped_glossary(), "Cutmind"])
 
 
 def test_and_between_two_numbers_keeps_them_apart():
@@ -146,3 +148,52 @@ def test_suggest_chapters_and_cli_apply(tmp_path):
     starts = [c["start"] for c in resolve(edl, ws)["chapters"]]
     assert starts[0] == 0.0 and len(starts) == 4
     assert youtube_chapters(tmp_path / "p", edl).startswith("0:00 Intro\n")
+
+
+def test_a_version_takes_only_a_cover_made_for_its_render(tmp_path):
+    import os
+    import time as _t
+    from editor.versions import save_version
+    project = tmp_path / "p"
+    (project / "out").mkdir(parents=True)
+    (project / "out" / "cover.jpg").write_bytes(b"old cover")
+    old = _t.time() - 600
+    os.utime(project / "out" / "cover.jpg", (old, old))
+    (project / "out" / "p_reels.mp4").write_bytes(b"new render")        # a rush render: no new cover
+    d = save_version(project, "rush")
+    assert not (d / "cover.jpg").exists()
+
+
+def test_fix_zooms_never_span_a_cold_open_and_respect_the_rate():
+    from editor.anchors import find
+    from editor.review import stillness_zooms
+    cold = [{"id": f"w{i}", "text": "x", "start": (i - 50) * 0.4, "end": (i - 50) * 0.4 + 0.3} for i in range(50, 56)]
+    body = [{"id": f"w{i}", "text": "x", "start": 2.6 + i * 0.4, "end": 2.6 + i * 0.4 + 0.3} for i in range(0, 60)]
+    ws = cold + body
+    for z in stillness_zooms(["1.0-20.0s"], ws):
+        a, b = find(ws, z)
+        assert b["end"] - a["start"] < 2.0, z
+    assert len(stillness_zooms(["0.0-60.0s"], body, limit=2)) == 2 and stillness_zooms(["0.0-60.0s"], body, limit=0) == []
+
+
+def test_numbers_bigger_scale_after_and():
+    def say(t):
+        return " ".join(w["text"] for w in wordfix.digits([{"text": x, "start": i, "end": i + 0.5} for i, x in enumerate(t.split())]))
+    assert say("two hundred and fifty thousand dollars") == "$250,000"
+    assert say("one hundred and twenty thousand people") == "120,000 people"
+    assert say("between two hundred and three hundred dollars") == "between 200 and $300"
+
+
+def test_broll_readd_refiles_instead_of_duplicating(tmp_path, monkeypatch):
+    import subprocess
+    from editor import library
+    monkeypatch.setattr(library, "ROOT", tmp_path / "lib")
+    clip = tmp_path / "x.mp4"
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "color=black:s=64x64:d=1", str(clip)], check=True)
+    library.broll_add([str(clip)], "a")
+    inside = tmp_path / "lib" / "broll" / "a" / "x.mp4"
+    library.broll_add([str(inside)], "a", tags=["night"])                 # same category: updated in place
+    library.broll_add([str(inside)], "b")                                 # another category: moved, one entry
+    clips = library._broll_db()["clips"]
+    assert len(clips) == 1 and clips[0]["category"] == "b" and clips[0]["file"].startswith("broll/b/")
+    assert not inside.exists() and (tmp_path / "lib" / clips[0]["file"]).exists()

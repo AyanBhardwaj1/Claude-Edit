@@ -52,7 +52,8 @@ def transcribe(paths: list[str], out_dir: str | Path, model: str = "small", lang
             raise EditorError(f"{path} has no audio track to transcribe")
         variant = {c: _variant(c, model, language, glossary, num_speakers) for c in candidates}
         cached = _find_cache(cache_dir, path, candidates, variant)
-        if not cached and not any(_variant(c, model, language, None, num_speakers) for c in candidates):
+        if not cached and not any(_variant(c, model, language, None, num_speakers) for c in candidates) \
+                and sorted(glossary or []) == sorted(_shipped_glossary()):
             # a transcript cached before variants existed (the default model and language): its glossary was the
             # shipped one, so it still stands rather than re-transcribing every existing project once
             cached = _find_cache(cache_dir, path, candidates)
@@ -87,6 +88,13 @@ def transcribe(paths: list[str], out_dir: str | Path, model: str = "small", lang
 def _cache_key(path) -> str:
     st = os.stat(path)
     return hashlib.sha1(f"{Path(path).resolve()}|{st.st_size}|{int(st.st_mtime)}".encode()).hexdigest()[:12]
+
+
+def _shipped_glossary() -> list[str]:
+    """library/glossary.txt as it stands: the glossary every transcript cached before variants was made with (or as
+    near as can be known). A different glossary means a fresh transcript."""
+    path = Path(__file__).resolve().parent.parent / "library" / "glossary.txt"
+    return [ln.strip() for ln in path.read_text().splitlines() if ln.strip() and not ln.startswith("#")] if path.exists() else []
 
 
 def _variant(engine: str, model: str, language: str | None, glossary: list[str] | None, num_speakers: int | None) -> str:

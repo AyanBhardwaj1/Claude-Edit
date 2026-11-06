@@ -261,10 +261,13 @@ def _strong(words: list[dict], edl: dict) -> str | None:
     return f"{len(said)} strong word(s) ({first}): if the user wants it brand-safe, EDL \"bleep\": true"
 
 
-def stillness_zooms(gaps: list[str], words: list[dict], every: float = 6.0) -> list[dict]:
+def stillness_zooms(gaps: list[str], words: list[dict], every: float = 6.0, limit: int | None = None) -> list[dict]:
     """Word-anchored zooms for the bare-face stretches pacing reports ("1.0-9.0s"): one about every 6 s (the doctrine's
     one emphasis zoom every 4-8 s, and no more than 10 a minute), on the word being said there and held ~1.5 s,
-    alternating 1.15 / 1.25. A long bare stretch still wants b-roll: zooms alone don't carry it."""
+    alternating 1.15 / 1.25; `limit` caps how many (pacing --fix keeps the reel at 10 a minute or fewer). A long bare
+    stretch still wants b-roll: zooms alone don't carry it."""
+    if limit is not None and limit <= 0:
+        return []
     spoken = [w for w in words if str(w.get("text", "")).strip() and w.get("id")]
     out, k = [], 0
     for g in gaps:
@@ -274,15 +277,26 @@ def stillness_zooms(gaps: list[str], words: list[dict], every: float = 6.0) -> l
             first = next((w for w in spoken if float(w["start"]) >= t), None)
             if first is None or float(first["start"]) > b - 0.3:
                 break
-            last = [w for w in spoken if float(first["start"]) <= float(w["start"]) and float(w["end"]) <= float(first["start"]) + 1.6]
-            last = last[-1] if last else first
+            # the words after it in this play only (ids rising): never across a cold-open seam
+            i0, last = spoken.index(first), first
+            for w in spoken[i0 + 1:]:
+                if _wnum(w) <= _wnum(last) or float(w["end"]) > float(first["start"]) + 1.6:
+                    break
+                last = w
             # a stretch a cold open repeats plays these ids twice: name which play ("#2"), or the zoom lands up front
             nth = sum(1 for w in spoken[:spoken.index(first) + 1] if w["id"] == first["id"])
             out.append({"words": f"{first['id']}-{last['id']}" + (f"#{nth}" if nth > 1 else ""),
                         "scale": 1.15 if k % 2 == 0 else 1.25, "ease": 0.3})
             k += 1
+            if limit is not None and k >= limit:
+                return out
             t = float(first["start"]) + every
     return out
+
+
+def _wnum(w: dict) -> int:
+    m = re.fullmatch(r"w(\d+)", str(w.get("id", "")))
+    return int(m.group(1)) if m else -1
 
 
 def named_not_shown(edl: dict, words: list[dict]) -> list[dict]:

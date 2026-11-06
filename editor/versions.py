@@ -46,8 +46,10 @@ def save_version(project: str | Path, note: str = "") -> Path:
     d = project / "versions" / f"v{n}"
     d.mkdir(parents=True, exist_ok=True)
     shutil.copy2(video, d / "export.mp4")
-    if (project / "out" / "cover.jpg").exists():
-        shutil.copy2(project / "out" / "cover.jpg", d / "cover.jpg")
+    cover = project / "out" / "cover.jpg"
+    # only a cover made for this render: a rush run makes none, and an older one would show another version
+    if cover.exists() and cover.stat().st_mtime >= Path(video).stat().st_mtime - 1:
+        shutil.copy2(cover, d / "cover.jpg")
     if (project / "work" / "edl.json").exists():
         shutil.copy2(project / "work" / "edl.json", d / "edl.json")
     (d / "notes.md").write_text(f"{note or 'First draft'}\n\n_{datetime.now():%Y-%m-%d %H:%M}_\n")

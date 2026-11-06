@@ -779,7 +779,8 @@ def cmd_pacing(args):
         print(f"{'!!' if v else 'ok'}  {k}: {v if v else '-'}")
     if getattr(args, "fix", False) and rep["face_only_over_4_5s"]:
         from .review import stillness_zooms
-        add = stillness_zooms(rep["face_only_over_4_5s"], load_words(work))
+        room = int(float(meta["duration"]) / 6) - len(edl.get("zooms", []))     # 10 a minute at most, all told
+        add = stillness_zooms(rep["face_only_over_4_5s"], load_words(work), limit=max(0, room))
         if add:
             raw = load_json(meta["edl"])
             raw.setdefault("zooms", []).extend(add)
@@ -895,9 +896,11 @@ def cmd_variants(args):
                 edl["title"] = hook
             save_json(edl_path, edl)
             log(f"variants: hook {chr(66 + k)}: {hook!r}")
-            main([*base, "--from", "captions", "--to", "render"])
-            src = out_dir / f"{project.name}_{args.preset}.mp4"
-            dest = out_dir / f"{project.name}_{args.preset} - hook {chr(66 + k)}.mp4"
+            src = out_dir / f"{project.name}_{args.preset}{'_draft' if '--draft' in extra else ''}.mp4"
+            src.unlink(missing_ok=True)                 # never pass an earlier render off as this hook's
+            if main([*base, "--from", "captions", "--to", "render"]) != 0 or not src.exists():
+                raise EditorError(f"hook {chr(66 + k)} ({hook!r}) did not render: see the log above")
+            dest = out_dir / f"{project.name}_{args.preset}{'_draft' if '--draft' in extra else ''} - hook {chr(66 + k)}.mp4"
             src.replace(dest)
             made.append(dest)
     finally:
@@ -1296,7 +1299,7 @@ def cmd_auto(args):
                             f"(editor safezone {out_file} for the sheet)")
                 except EditorError as e:
                     log(f"safezone: not checked ({e})")
-            _before_post(work, out_dir, qa_report, safe_hits)
+            _before_post(work, out_dir, qa_report, safe_hits, title=args.title)
             if prof["review"]:
                 from .review import review
                 review(out_file, work, out_dir / "review")
@@ -1324,7 +1327,7 @@ def cmd_auto(args):
     log(f"done: {', '.join(stages)} (effort {effort})" + (f" -> {out_file}" if "render" in stages else ""))
 
 
-def _before_post(work: Path, out_dir: Path, qa_report: dict, safe_hits: list | None) -> dict:
+def _before_post(work: Path, out_dir: Path, qa_report: dict, safe_hits: list | None, title: str | None = None) -> dict:
     """Every check of a finished render in one block (and out/before_post.json): the file (qa), the edit (pacing:
     pace, first second, loop, names, strong language) and the app UI (safezone). What's flagged is to look at, not
     to fix blindly: strong language and cold opens are the user's call."""
@@ -1335,6 +1338,8 @@ def _before_post(work: Path, out_dir: Path, qa_report: dict, safe_hits: list | N
         from .review import pacing, punch_cuts
         meta = load_json(work / "cut_meta.json")
         edl = resolve_work(load_json(meta["edl"]), work)
+        if title:                                      # auto --title sets the hook the captions draw
+            edl["title"] = title
         for k, v in pacing(edl, load_words(work), meta["duration"], punch_cuts(edl, meta)).items():
             if v:
                 items.append({"what": k.replace("4_5s", "4.5 s").replace("10s", "10 s").replace("_", " "), "ok": False, "detail": v})

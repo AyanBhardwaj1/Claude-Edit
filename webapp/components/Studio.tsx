@@ -382,6 +382,14 @@ function StudioEditor({ anim, settings, onBack, onVoice }: { anim: Anim; setting
 
   const shape = FORMATS[a.format];
   const recording = !!exp && exp.pct < 100;
+  // the export's files are freed when a newer export replaces them or the editor closes
+  const expUrls = useRef<string[]>([]);
+  useEffect(() => {
+    const now = [exp?.url, exp?.still].filter((u): u is string => !!u);
+    for (const u of expUrls.current) if (!now.includes(u)) URL.revokeObjectURL(u);
+    expUrls.current = now;
+  }, [exp]);
+  useEffect(() => () => { for (const u of expUrls.current) URL.revokeObjectURL(u); }, []);
   const name = a.title.replace(/[\\/:*?"<>|]+/g, "").slice(0, 60) || "animation";
   return (
     <div className="page">
@@ -396,7 +404,7 @@ function StudioEditor({ anim, settings, onBack, onVoice }: { anim: Anim; setting
             aria-label={`Preview of the animation ${a.title}`} /></div>
           <div className="transport">
             <button className="play" onClick={toggle} disabled={recording} aria-label={playing ? "Pause" : "Play"}><Icon name={playing ? "pause" : "play"} /></button>
-            <input type="range" className="scrub" min={0} max={dur || 1} step={0.01} value={t} aria-label="Position"
+            <input type="range" className="scrub" min={0} max={dur || 1} step={0.01} value={t} aria-label="Position" disabled={recording}
               onChange={(ev) => { const v = +ev.target.value; setT(v); player.current?.seek(v); }} />
             <span className="time">{clock(t)} / {clock(dur)}</span>
           </div>
