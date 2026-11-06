@@ -62,7 +62,8 @@ Never record a one-off fix as a preference, and never in words they didn't say. 
 planned is a lesson: `python3 -m editor lessons add "<what and why>" --tag process`.
 
 ## Cutmind (the web app)
-The same loop is built in: notes with a time ("at 0:12 …", the At button adds the player's position) give the AI
-editor the words and pictures at that moment; every version lists what really changed, measured; Compare (C) plays
-the version before from the same word; a change the user makes before exporting two videos is offered as a style
-rule.
+The same loop is built in: notes with a time ("at 0:12 …", "1m23s", the At button adds the player's position) give
+the AI editor the words and pictures at that moment; a note can be spoken (the mic beside the box; "cut this part"
+gets the player's time); notes sent while it works wait their turn; every version lists what really changed,
+measured, and each change you can see jumps the player there; Compare (C) plays the version before from the same
+word; Undo this goes back a version; a change the user makes before exporting two videos is offered as a style rule.
