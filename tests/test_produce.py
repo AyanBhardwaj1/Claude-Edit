@@ -310,3 +310,11 @@ def test_a_vertical_production(tmp_path):
     info = probe(Path(res["file"]))
     assert (info["video"]["width"], info["video"]["height"]) == (180, 320)
     assert info["duration"] == pytest.approx(4.0, abs=0.1)
+
+
+def test_band_titles_wrap_and_shrink_to_fit():
+    assert produce._fit_title("Hi", 1080, 81) == (81, ["Hi"])
+    size, lines = produce._fit_title("A cooler way across campus", 1080, 81)
+    assert lines == ["A cooler way", "across campus"]
+    size, lines = produce._fit_title("Walk-Free: the shadiest way home from every class on campus", 1080, 81)
+    assert len(lines) == 2 and size * 0.56 * max(map(len, lines)) <= 1080 * 0.88

@@ -856,6 +856,21 @@ def _font(name: str | None) -> str | None:
     return str(hit) if hit else None             # None: ffmpeg's default font
 
 
+def _fit_title(title: str, w: int, size: int, k: float = 0.56, room: float = 0.88) -> tuple[int, list[str]]:
+    """(font size, lines): one line if it fits, else two balanced lines, shrinking until the longest fits."""
+    fits = lambda s_, n: s_ * k * n <= w * room  # noqa: E731 - an average character is ~0.56 em wide
+    if fits(size, len(title)):
+        return size, [title]
+    words = title.split()
+    best = min(range(1, len(words)), key=lambda i: abs(len(" ".join(words[:i])) - len(" ".join(words[i:]))),
+               default=None)
+    lines = [" ".join(words[:best]), " ".join(words[best:])] if best else [title]
+    longest = max(len(ln) for ln in lines)
+    while size > 12 and not fits(size, longest):
+        size -= 2
+    return size, lines
+
+
 def _band(final: Path, out: Path, a: float, b: float, w: int, h: int, x: dict) -> Path:
     """The finished frame scaled to the width, centred over a blurred, darkened copy filling the tall frame, with an
     optional title above it (for 9:16 and 1:1 posts of a 16:9 video)."""
@@ -868,11 +883,14 @@ def _band(final: Path, out: Path, a: float, b: float, w: int, h: int, x: dict) -
     title = x.get("title")
     font = _font(x.get("font"))
     if title:
-        safe = str(title).replace("\\", "\\\\").replace("'", "\u2019").replace(":", "\\:")
-        size = int(x.get("title_size", w * 0.075))
+        lines = _fit_title(str(title), w, int(x.get("title_size", w * 0.075)))
+        size = lines[0]
         ff = f":fontfile='{font}'" if font else ""
-        vf += (f",drawtext=text='{safe}'{ff}:fontsize={size}:fontcolor={x.get('title_color', 'white')}"
-               f":x=(w-text_w)/2:y={max(40, y - size * 2)}:shadowcolor=black@0.5:shadowx=0:shadowy=3")
+        top = max(40, y - size * (len(lines[1]) + 1) - size // 2)
+        for k, ln in enumerate(lines[1]):
+            safe = ln.replace("\\", "\\\\").replace("'", "\u2019").replace(":", "\\:").replace("%", "\\%")
+            vf += (f",drawtext=text='{safe}'{ff}:fontsize={size}:fontcolor={x.get('title_color', 'white')}"
+                   f":x=(w-text_w)/2:y={top + int(k * size * 1.15)}:shadowcolor=black@0.5:shadowx=0:shadowy=3")
     vf += ",format=yuv420p[v]"
     run(["ffmpeg", "-y", "-ss", f"{a}", "-to", f"{b}", "-i", str(final), "-filter_complex", vf, "-map", "[v]",
          "-map", "0:a?", "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-c:a", "aac", "-b:a", "192k",
