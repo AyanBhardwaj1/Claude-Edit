@@ -453,3 +453,10 @@ html.js .site .hero .shot { opacity: 0; transform: translateY(40px); animation: 
   .hero .ui-editor { animation: none !important; }
   .site .act:hover, .site .act:hover svg { transform: none; }
 }
+.frag-notes { display: grid; gap: 10px; padding: 20px; height: 100%; align-content: center; font: 500 14px/1.35 Geist, sans-serif; }
+.frag-notes .you { justify-self: end; background: var(--u-acc, #ff7a3d); color: #1c0b02; padding: 9px 13px; border-radius: 14px 14px 4px 14px; font-weight: 600; }
+.frag-notes .ed { justify-self: start; display: grid; gap: 6px; background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.1);
+  color: #eee; padding: 10px 13px; border-radius: 14px 14px 14px 4px; }
+.frag-notes .ed span { color: #bbb; font-size: 13px; } .frag-notes .ed i { color: #4cc98a; font-style: normal; }
+.frag-notes .acts { display: flex; gap: 8px; } .frag-notes .acts span { font: 600 12px/1 Geist, sans-serif; color: #ddd; padding: 7px 10px;
+  border-radius: 999px; border: 1px solid rgba(255,255,255,.18); } .frag-notes .acts .on { background: var(--u-acc, #ff7a3d); color: #1c0b02; border-color: transparent; }
