@@ -53,7 +53,8 @@ and the 3-5 biggest cuts.
 ## Pick a take
 The plan keeps one take of each line said more than once (the later, cleaner one). When the user prefers another
 ("use the first take of the intro", "the earlier one had more energy"): `python3 -m editor takes projects/<n>/work`
-lists every such line with its takes (`*` plays now); `--use 2:1 --apply` plays take 1 of line 2 where the line
+lists every such line with its takes (`*` plays now; `--clips` writes each take to `work/takes/` for the user
+to watch, since you can't hear them); `--use 2:1 --apply` plays take 1 of line 2 where the line
 played before (a re-ordered cut keeps its order; edge "um"s stay out), then re-run from `cut`. Cutmind has the same
 under Edit it myself → Cut.
 
