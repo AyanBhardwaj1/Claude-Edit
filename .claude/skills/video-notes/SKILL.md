@@ -70,7 +70,12 @@ word; Undo this goes back a version; a change the user makes before exporting tw
 Before a note even arrives, the Reel check's attention map marks where viewers may drift (the same picture for more
 than ~3 s, dead air, slow talking): "Add zooms there" fixes a same-picture spot in one click, "Ask your editor to fix
 these" sends the spots as one timed note. "Show the app's buttons" draws Reels / TikTok / Shorts UI over the preview
-and says when it covers the subtitles.
+and says when it covers the subtitles ("Raise them" moves them clear). The scroll test (T) plays the first 3 s muted
+and checks the hook (on screen by 0.5 s, up long enough to read), subtitles, motion and the opener, with one-click fixes
+(Cut the warm-up, Add a zoom there, Turn subtitles on) and the strongest line to "Open with it"; the loop test (L)
+plays the end into the start and flags dead air or a sign-off. A note like "the start is slow" or "people swipe away"
+maps to these first; on a reel the same checks are in `editor pacing` (first second, warm-up, hook reading time,
+loop seam).
 
 ## A note about the platform UI ("TikTok's buttons cover my caption")
 Run `python3 -m editor safezone <file> --work <work>`: it measures the captions from captions.ass against each
