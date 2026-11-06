@@ -36,7 +36,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from .util import EditorError, log, probe, run
+from .util import EditorError, load_json, log, probe, run
 
 GRADES = {
     "none": "",
@@ -63,17 +63,36 @@ class Spec:
     def __init__(self, path: str | Path):
         self.path = Path(path).resolve()
         self.root = self.path.parent
-        self.data = json.loads(self.path.read_text())
+        self.data = load_json(self.path)
+        if not isinstance(self.data, dict):
+            raise EditorError(f"{self.path.name}: a spec is a JSON object ({{\"pieces\": [...], ...}}), not a list")
+        for key, kind in (("output", dict), ("pieces", list), ("audio", dict), ("captions", dict)):
+            if key in self.data and not isinstance(self.data[key], kind):
+                raise EditorError(f"{self.path.name}: \"{key}\" must be a {'list' if kind is list else 'JSON object'}")
         o = self.data.get("output", {})
-        self.w, self.h, self.fps = int(o.get("width", 1920)), int(o.get("height", 1080)), int(o.get("fps", 30))
+        try:
+            self.w, self.h, self.fps = int(o.get("width", 1920)), int(o.get("height", 1080)), int(o.get("fps", 30))
+        except (TypeError, ValueError) as e:
+            raise EditorError(f"output width / height / fps must be numbers ({e})") from e
         self.file = self.p(o.get("file", "out/produce.mp4"))
         self.work = self.p(o.get("work", "work/produce"))
         self.pieces = self.data.get("pieces", [])
         if not self.pieces:
             raise EditorError("the spec has no pieces")
         names = [pc.get("name") for pc in self.pieces]
-        if None in names or len(set(names)) != len(names):
-            raise EditorError("every piece needs a unique name")
+        if any(not isinstance(pc, dict) for pc in self.pieces) or None in names or len(set(names)) != len(names):
+            raise EditorError("every piece is a JSON object with a unique name")
+        for pc in self.pieces:                              # what a piece can't render without
+            kind = pc.get("type", "video")
+            if kind in ("video", "framed", "still") and not pc.get("src") and not pc.get("from_shot"):
+                raise EditorError(f"piece {pc['name']}: a {kind} piece needs a \"src\"")
+            for k in ("dur", "in", "out", "speed"):
+                if k in pc and (isinstance(pc[k], bool) or not isinstance(pc[k], (int, float))):
+                    raise EditorError(f"piece {pc['name']}: \"{k}\" must be a number of seconds, not {pc[k]!r}")
+            if "dur" in pc and float(pc["dur"]) <= 0:
+                raise EditorError(f"piece {pc['name']}: \"dur\" must be more than 0")
+            if "speed" in pc and float(pc["speed"]) <= 0:
+                raise EditorError(f"piece {pc['name']}: \"speed\" must be more than 0")
         for pc in self.pieces:
             if pc.get("from_shot"):
                 self._from_shot(pc)
@@ -92,7 +111,7 @@ class Spec:
         video (src, in, out filled in unless the piece sets them)."""
         ref = str(pc["from_shot"])
         path, _, name = ref.partition("#")
-        data = json.loads(self.p(path).read_text())
+        data = load_json(self.p(path))
         shot = next((x for x in data.get("shots", []) if x.get("name") == (name or pc["name"])), None)
         if not data.get("recording") or not shot or shot.get("rec_in") is None or shot.get("rec_out") is None:
             raise EditorError(f"piece {pc['name']}: {ref} has no recorded stretch (capture with --record)")
@@ -108,8 +127,8 @@ class Spec:
         ref = str(pc["focus_from"])
         path, _, name = ref.partition("#")
         try:
-            data = json.loads(self.p(path).read_text())
-        except (OSError, ValueError) as e:
+            data = load_json(self.p(path))
+        except EditorError as e:
             raise EditorError(f"piece {pc['name']}: focus_from {ref}: {e}") from e
         shot = next((x for x in data.get("shots", []) if x.get("name") == (name or pc["name"])), None)
         f = (shot or {}).get("focus")
@@ -863,6 +882,8 @@ def captions_from_brief(spec_path: str | Path, brief: str | Path) -> dict:
     share the most with it (in order), then `lines` makes one card per line timed on what was heard."""
     spec = Spec(spec_path)
     raw = json.loads(Path(spec_path).read_text())        # write back only the captions, not what loading filled in
+    if not Path(brief).is_file():
+        raise EditorError(f"brief not found: {brief}")
     lines = brief_lines(Path(brief).read_text())
     caps = raw.setdefault("captions", {})
     vmap = caps.setdefault("voices", {})
@@ -1542,7 +1563,12 @@ def init_spec(folder: str | Path, out: str | Path, inventory_dir: str | Path | N
     folder, out = Path(folder).resolve(), Path(out).resolve()
     inv_dir = Path(inventory_dir).resolve() if inventory_dir else out.parent / "work" / "inventory"
     inv_json = inv_dir / "inventory.json"
-    inv = json.loads(inv_json.read_text()) if inv_json.exists() else inventory(folder, inv_dir, transcribe)
+    inv = load_json(inv_json) if inv_json.exists() else None
+    if inv is not None and not inventory_dir and Path(str(inv.get("folder", ""))).resolve() != Path(folder).resolve():
+        log(f"produce init: {inv_json} was made for {inv.get('folder')}: taking a fresh inventory of {folder}")
+        inv = None                                       # an inventory of another folder would plan the wrong footage
+    if inv is None:
+        inv = inventory(folder, inv_dir, transcribe)
     rel = lambda p: str(Path(os.path.relpath(p, out.parent)))  # noqa: E731
     pieces, voices, caps, todo = [], [], {}, []
     last_video = None
@@ -1573,7 +1599,7 @@ def init_spec(folder: str | Path, out: str | Path, inventory_dir: str | Path | N
             caps[voices[-1]["name"]] = rel(words_path)
     if shots:                                         # app captures (editor capture shots): framed, aimed at their focus
         shots = Path(shots).resolve()
-        for sh in json.loads(shots.read_text()).get("shots", []):
+        for sh in load_json(shots).get("shots", []):
             if not sh.get("file"):
                 continue
             name = "shot_" + re.sub(r"[^A-Za-z0-9_]+", "_", sh["name"]).strip("_")
@@ -1768,8 +1794,10 @@ def save_version(spec: Spec, note: str, files: list[str]) -> dict:
     n = len(hist) + 1
     kept = []
     for f in files:
+        if not f:                                          # no preview made: nothing to copy
+            continue
         f = Path(f)
-        if f.exists():
+        if f.is_file():
             dst = vdir / f"{f.stem}.v{n}{f.suffix}"
             shutil.copy2(f, dst)
             kept.append(str(dst))
@@ -2017,8 +2045,12 @@ def _clock(x) -> float | str:
     t = str(x).strip()
     m = re.fullmatch(r"(\d+):(\d{1,2}(?:\.\d+)?)", t) or re.fullmatch(r"(?:(\d+)\s*m(?:in)?\s*)?(?:(\d+(?:\.\d+)?)\s*s(?:ec)?)?", t.lower())
     if m and any(m.groups()):
+        if ":" in t and float(m[2]) >= 60:
+            raise EditorError(f"not a time: {x!r} (seconds go up to 59 in m:ss)")
         return int(m[1] or 0) * 60 + float(m[2] or 0)
-    return float(t) if re.fullmatch(r"-?(\d+\.?\d*|\.\d+)", t) else t
+    if re.fullmatch(r"-(\d+\.?\d*|\.\d+)", t):
+        raise EditorError(f"not a time: {x!r} (times start at 0)")
+    return float(t) if re.fullmatch(r"(\d+\.?\d*|\.\d+)", t) else t
 
 
 def what_is_at(spec: Spec, ref) -> dict:
@@ -2136,7 +2168,10 @@ def main(argv=None) -> int:
         ip.add_argument("--brief", help="the production brief: linked for the numbers and caption-line checks, and its "
                                         "caption list given to the voices (captions-from-brief)")
         ia = ip.parse_args(argv[1:])
-        w, h = (int(x) for x in ia.size.lower().split("x"))
+        m = re.fullmatch(r"(\d{2,5})x(\d{2,5})", ia.size.lower().strip())
+        if not m:
+            raise EditorError(f"--size is WIDTHxHEIGHT, like 1920x1080 or 1080x1920 (not {ia.size!r})")
+        w, h = int(m[1]), int(m[2])
         init_spec(ia.folder, ia.out, ia.inventory, not ia.no_transcribe, w, h, shots=ia.shots, brief=ia.brief)
         print(Spec(ia.out).table())
         return 0
@@ -2159,11 +2194,11 @@ def main(argv=None) -> int:
             print(f"warning {voice} {t0:.1f}-{t1:.1f} s (source): the recogniser was guessing (\"{guess[:50]}\"), "
                   "not captioned: use script lines or caption it by ear")
         if ov or auto:
-            ov = (json.loads(spec.p(ov).read_text()) if isinstance(ov, str) else ov) or {}
+            ov = (load_json(spec.p(ov)) if isinstance(ov, str) else ov) or {}
             els = spec.resolve({**ov, "elements": list(ov.get("elements", [])) + auto}).get("elements", [])
             late = [e for e in els if float(e.get("t_out", e.get("t_in", 0)) or 0) > spec.total + 0.01]
             print(f"overlay: {len(els)} elements" + (f", {len(late)} end after the video" if late else ""))
-        return 0
+        return 1 if errors else 0                       # scripts can stop on a spec that won't render
     if a.estimate:
         from .effort import fmt_secs
         est = estimate(spec, a.effort)

@@ -70,13 +70,19 @@ export default function App() {
     sampling.current = false;
   }, []);
 
+  const [notice, setNotice] = useState("");
+  useEffect(() => { if (!notice) return; const id = setTimeout(() => setNotice(""), 7000); return () => clearTimeout(id); }, [notice]);
   const route = useCallback(async (hash: string) => {
     if (hash.replace(/^#/, "") === "sample") { await sample(); return; }
     const r = parse(hash);
     setAnimId(r.screen === "animate" ? r.id : undefined);
     if (r.screen === "editor" && r.id) {
       const p = await loadProject(r.id);
-      if (!p) { history.replaceState(null, "", "#videos"); setScreen("videos"); return; }
+      if (!p) {                                       // an old link, or a video made in another browser
+        history.replaceState(null, "", "#videos"); setScreen("videos");
+        setNotice("That video isn't in this browser. Videos stay where they were made: move them with Settings → Your videos.");
+        return;
+      }
       setProject((cur) => (cur?.id === p.id ? cur : p));
     }
     setScreen(r.screen);
@@ -207,6 +213,7 @@ export default function App() {
       <Command go={(h) => { location.hash = h; if (!h) void route(""); }} onTheme={pickTheme} onSample={sample}
         onEffort={(effort) => { const s = { ...settings, effort }; saveSettings(s); setSettings(s); }} />
       {loading && <div className="toast" role="status"><span className="spin" aria-hidden="true" />{loading}</div>}
+      {notice && !loading && <div className="toast" role="status">{notice}</div>}
     </div>
   );
 }

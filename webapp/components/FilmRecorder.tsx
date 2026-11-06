@@ -158,7 +158,7 @@ export function FilmPanel({ initialScript = "", onUse, onClose }: {
   function begin() {
     const c = camera.current;
     if (!c?.stream) { setPhase("idle"); return; }
-    c.record();
+    if (!c.record()) { setPhase("idle"); return; }        // the browser couldn't start: the error is already shown
     setPhase("rec"); setElapsed(0);
     announce(`Recording take ${recN.current}.`);
     if (follow && words.length) { clock.current.reset(); clock.current.start(performance.now()); setRunning(true); }

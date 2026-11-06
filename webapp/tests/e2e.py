@@ -128,7 +128,7 @@ with sync_playwright() as pw:
     assert not t.startswith("0:00 /"), f"playback didn't advance: {t}"
     page.screenshot(path=str(out / "2-playing.png"))
 
-    page.get_by_placeholder("Tell your editor what to change").fill("music too loud at the start")
+    page.get_by_placeholder("What should change?").fill("music too loud at the start")
     page.get_by_role("button", name="Send").click()
     page.get_by_text("Version 2: I turned the music down at the start.").wait_for(timeout=30000)
     changed = page.locator(".msg .changes").last.inner_text()

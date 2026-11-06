@@ -25,3 +25,4 @@ def test_add_and_show(tmp_path):
     shown = lessons.show(grep="capture", path=f)
     assert "Blur dev URLs" in shown and "old lesson" not in shown
     assert lessons.show(path=f).splitlines()[-1].endswith("old lesson")
+    assert lessons.show(last=1, path=f).endswith("[audio] Music under skits much lower")   # --last: the newest

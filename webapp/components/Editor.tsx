@@ -27,7 +27,8 @@ import { Icon } from "./Icons";
 import { RecordScreen } from "./ScreenRecorder";
 import { clock } from "./Tiles";
 import { changeItems, type Change } from "@/lib/changes";
-import { attention, zoomsFor, type Attention } from "@/lib/attention";
+import { attention, spotsNote, zoomsFor, type Attention } from "@/lib/attention";
+import { PLATFORM_NAMES, subtitlesCovered, ZONES, type Platform } from "@/lib/safezones";
 import { Shortcuts } from "./Shortcuts";
 import { VoiceNote } from "./VoiceNote";
 import { anchorSpoken } from "@/lib/moments";
@@ -63,6 +64,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
   const [err, setErr] = useState("");
   const [toast, setToast] = useState("");
   const [keys, setKeys] = useState(false);
+  const [appUi, setAppUi] = useState<Platform | null>(null);   // draw Reels / TikTok / Shorts UI over the preview
   const lastBlob = useRef<Blob | null>(null);
   const [clips, setClips] = useState<Clip[] | null>(null);
   const [clipBusy, setClipBusy] = useState("");
@@ -223,12 +225,12 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
   const queue = useRef<string[]>([]);
   const working = useRef(false);
   const [waiting, setWaiting] = useState(0);
-  async function send() {
-    const text = note.trim();
+  async function send(given?: string) {
+    const text = (given ?? note).trim();
     if (!text) return;
     const hasKey = settings.provider === "anthropic" ? !!settings.anthropicKey : !!settings.openaiKey;
     setMsgs((m) => [...m, { who: "you", text }]);
-    setNote("");
+    if (given === undefined) setNote("");
     if (!hasKey) { setMsgs((m) => [...m, { who: "ed", text: "I can't change the video from a note without an AI editor. Add your key in Settings, or use \"Edit it myself\"." }]); return; }
     queue.current.push(text);
     if (working.current) { setWaiting(queue.current.length); setToast("Got it: I'll do that right after this note"); return; }
@@ -397,8 +399,11 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
         real person. Play it, open &ldquo;Edit it myself&rdquo;, change its shape and export it. Notes need an AI key in Settings.</span></div>}
       <div className={`ed-grid ${shape.w > shape.h ? "wide" : ""}`}>
         <div className="preview">
-          <div className={`phone ${shape.w >= shape.h ? "flat" : ""} ${cmp ? "comparing" : ""}`}>{cmp && <span className="cmp-badge" role="status">Version {prevN}, before this change</span>}<canvas ref={canvas} style={{ aspectRatio: `${shape.w} / ${shape.h}` }}
-            aria-label={`Preview of ${p.title}, version ${shown?.n ?? p.current}, ${shape.name.toLowerCase()} ${fmt}`} role="img" /></div>
+          <div className={`phone ${shape.w >= shape.h ? "flat" : ""} ${cmp ? "comparing" : ""}`}>{cmp && <span className="cmp-badge" role="status">Version {prevN}, before this change</span>}<div className="cv-wrap"><canvas ref={canvas} style={{ aspectRatio: `${shape.w} / ${shape.h}` }}
+            aria-label={`Preview of ${p.title}, version ${shown?.n ?? p.current}, ${shape.name.toLowerCase()} ${fmt}`} role="img" />
+            {appUi && shape.h > shape.w && <div className="ui-zones" aria-hidden="true">{ZONES[appUi].map((z) => (
+              <i key={z.what} style={{ left: `${z.x0 * 100}%`, top: `${z.y0 * 100}%`, width: `${(z.x1 - z.x0) * 100}%`, height: `${(z.y1 - z.y0) * 100}%` }}><span>{z.what}</span></i>))}</div>}
+            </div></div>
           <div className="transport">
             <button className="play" onClick={toggle} disabled={recording} aria-label={playing ? "Pause" : "Play"}><Icon name={playing ? "pause" : "play"} /></button>
             <input type="range" className="scrub" min={0} max={dur || 1} step={0.01} value={t} aria-label="Position"
@@ -410,6 +415,16 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
             <button className="btn ghost icon sm keys-btn" onClick={() => setKeys(true)} aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)"
               aria-haspopup="dialog"><kbd aria-hidden="true">?</kbd></button>
           </div>
+          {shape.h > shape.w && (
+            <div className="ui-pick small">
+              <span className="muted" id="ui-pick-l">Show the app&apos;s buttons</span>
+              <div className="seg sm" role="group" aria-labelledby="ui-pick-l">
+                {([null, "reels", "tiktok", "shorts"] as (Platform | null)[]).map((pl) => (
+                  <button key={pl ?? "off"} type="button" aria-pressed={appUi === pl} onClick={() => setAppUi(pl)}>{pl ? PLATFORM_NAMES[pl] : "Off"}</button>))}
+              </div>
+              {version && appUi && subtitlesCovered(version.edit).includes(appUi) && (
+                <p className="say-bad">{PLATFORM_NAMES[appUi]} covers part of your subtitles: raise them (Edit it myself → Subtitles → Position: Higher).</p>)}
+            </div>)}
           {track && dur > 0 && (
             <div className="track" aria-hidden="true" onPointerDown={(ev) => {
               const r = ev.currentTarget.getBoundingClientRect(); const v = Math.max(0, Math.min(dur, ((ev.clientX - r.left) / r.width) * dur));
@@ -509,7 +524,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
                     <circle cx="60" cy="60" r="52" className="fg" strokeDasharray={`${(check.score / 100) * 326.7} 326.7`} /></svg>
                   <b className="num">{check.score}</b>
                 </div>
-                <ul className="checks" tabIndex={0} aria-label="Reel check results">
+                <ul className="checks" aria-label="Reel check results">
                   {check.checks.filter((c) => !c.ok).concat(check.checks.filter((c) => c.ok)).map((c) => (
                     <li key={c.id} className={c.ok ? "ok" : c.warn ? "warn" : "bad"}>
                       <Icon name={c.ok ? "check" : "alert"} />
@@ -534,6 +549,8 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
                           setMsgs((m) => [...m, { who: "ed", v: p.current, text: `Version ${p.current}: I added zooms at ${clock(sp.from)}–${clock(sp.to)} so the picture keeps changing.`,
                             changes: changeItems(p, before, fixed) }]);
                         }}><Icon name="wand" />Add zooms there</button>)}</li>))}</ul>
+                  {(settings.provider === "anthropic" ? settings.anthropicKey : settings.openaiKey) &&
+                    <button type="button" className="btn sm" onClick={() => void send(spotsNote(attn.spots))}><Icon name="wand" />Ask your editor to fix these</button>}
                   <p className="small faint">The red marks under the timeline. A guide from what is on screen and said, not a forecast.</p>
                 </div>)}
             </section>
@@ -610,7 +627,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
             {err && <div className="alert err mt-12" role="alert"><Icon name="alert" /><span>{err}</span></div>}
             <div className="composer">
               <label className="sr-only" htmlFor="note">Note for your editor</label>
-              <textarea id="note" rows={1} value={note} placeholder="Tell your editor what to change…" aria-describedby="note-hint"
+              <textarea id="note" rows={1} value={note} placeholder="What should change?" aria-describedby="note-hint"
                 autoComplete="off" onChange={(ev) => setNote(ev.target.value)}
                 onKeyDown={(ev) => { if (ev.key === "Enter" && !ev.shiftKey && !ev.nativeEvent.isComposing) { ev.preventDefault(); void send(); } }} />
               <VoiceNote settings={settings} disabled={recording}
@@ -620,7 +637,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
                 aria-label={`Add the time ${clock(t)} to your note`}
                 onClick={() => { setNote((n) => `At ${clock(t)}, ${n.replace(/^at \d+:\d\d,\s*/i, "")}`);
                   document.getElementById("note")?.focus(); }}><span className="num">At {clock(t)}</span></button>}
-              <button className="btn primary" onClick={send} disabled={!note.trim()}><Icon name="send" />{busy ? "Queue" : "Send"}</button>
+              <button className="btn primary" onClick={() => void send()} disabled={!note.trim()}><Icon name="send" />{busy ? "Queue" : "Send"}</button>
             </div>
             <p className="hint note-hint" id="note-hint">For example: &ldquo;music too loud at the start&rdquo;, &ldquo;at 0:12 zoom in&rdquo; (the At button adds where the player is), &ldquo;show the Spotify logo when I say
               Spotify&rdquo;, &ldquo;cut the part about my cat&rdquo;. Enter sends, Shift+Enter starts a new line.</p>

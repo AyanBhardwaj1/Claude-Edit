@@ -189,7 +189,8 @@ STOPWORDS = {"i", "i'm", "i've", "i'll", "i'd", "the", "a", "and", "so", "but", 
 def pacing(edl: dict, words: list[dict], duration: float) -> dict:
     """What a hand edit would fix (from Reel Studio's draft checks): bare face over 4.5 s, over 10 s with zooms
     only, too many zooms, visuals that flash by, big word cards over budget, names said but never shown,
-    and too few b-roll moments for the length (hand edits carry about one per 6 s)."""
+    and too few b-roll moments for the length (hand edits carry about one per 6 s); and the first second: speech
+    starting after 0.6 s, or no hook title on screen."""
     broll = [b for b in edl.get("broll", []) if "start" in b and "dur" in b]
     zooms = [z for z in edl.get("zooms", []) if "start" in z and "end" in z]
     hook = lambda b: b.get("treatment") == "text-pop" and b.get("style") == "label" and float(b["start"]) < 1.0  # noqa: E731
@@ -219,8 +220,13 @@ def pacing(edl: dict, words: list[dict], duration: float) -> dict:
             names.append(core)
     per_min = len(zooms) / max(duration / 60, 1e-6)
     want = 0.75 * duration / 6
+    # the first second decides: speech from the first frames, and something to read before the first word lands
+    first = next((w for w in words if str(w.get("text", "")).strip()), None)
+    late = f"{first['start']:.1f}s" if first and float(first["start"]) > 0.6 else None
+    has_title = bool(edl.get("title")) or any(hook(b) for b in broll)
     return {"face_only_over_4_5s": gaps, "zooms_only_over_10s": zoom_only,
             "zooms_per_minute_over_10": round(per_min, 1) if per_min > 10 else None,
             "big_word_cards_over_2": len(pops) if len(pops) > 2 else None,
             "visuals_under_1_2s": too_short, "named_not_shown": names[:20],
-            "broll_moments": None if len(broll) >= want else f"{len(broll)} (hand edits carry about {round(duration / 6)})"}
+            "broll_moments": None if len(broll) >= want else f"{len(broll)} (hand edits carry about {round(duration / 6)})",
+            "first_word_after_0_6s": late, "no_hook_title": None if has_title else "nothing to read in the first second"}

@@ -376,6 +376,10 @@ def main(argv=None):
                             "(brief-production skill)")
     p.add_argument("produce_args", nargs=argparse.REMAINDER)
 
+    p = sub.add_parser("safezone", add_help=False, prefix_chars="+",
+                       help="captions under Reels / TikTok / Shorts UI? measured from captions.ass, plus a zones sheet")
+    p.add_argument("safezone_args", nargs=argparse.REMAINDER)
+
     p = sub.add_parser("overlay", add_help=False, prefix_chars="+",
                        help="designed overlay track: JSON spec -> transparent PNG-in-MOV (Node Playwright); "
                             "also `overlay frame OUT_DIR` / `overlay still SRC OUT` (screens on a rounded backdrop)")
@@ -512,7 +516,14 @@ def cmd_doctor(_):
         print("optional python scipy: editor compose (pip install scipy)")
     from . import effort as _eff
     learned = _eff.load().get("machines", {}).get(_eff.machine(), {})
-    print(f"ok  effort timings: {len(learned)} stage rate(s) learned on {_eff.machine()} (editor effort show)")
+    import math as _m
+    odd = [k for k, v in learned.items() if not isinstance(v, dict) or not isinstance(v.get("rate"), (int, float))
+           or not _m.isfinite(v["rate"]) or not 0 < v["rate"] < 36000]
+    if odd:
+        print(f"!!  effort timings: {', '.join(odd)} look broken (not a real rate): estimates for those stages are "
+              f"off; delete them from {_eff._path()} and they'll be learned again")
+    else:
+        print(f"ok  effort timings: {len(learned)} stage rate(s) learned on {_eff.machine()} (editor effort show)")
     from .captions import STYLES, resolve_font
     print(f"ok  caption font (bold): {resolve_font(STYLES['bold']['fonts'])}")
     from .fonts import installed
@@ -741,9 +752,11 @@ def cmd_version(args):
     from . import versions
     if args.changes is not None:
         print(versions.changes(args.project, args.changes or None))
-    elif args.restore:
+    elif args.restore is not None:
         versions.restore(args.project, args.restore)
     elif args.list:
+        if not Path(args.project).is_dir():
+            raise EditorError(f"no project at {args.project}")
         for v in versions.versions(args.project):
             print(f"v{v['n']}  {v['note'].splitlines()[0] if v['note'] else ''}")
     else:
@@ -994,6 +1007,11 @@ def cmd_inventory(args):
     return inventory_main(args.inventory_args)
 
 
+def cmd_safezone(args):
+    from .safezone import main as safezone_main
+    return safezone_main(args.safezone_args)
+
+
 def cmd_produce(args):
     from .produce import main as produce_main
     return produce_main(args.produce_args)
@@ -1129,6 +1147,14 @@ def cmd_auto(args):
             from .qa import check, sheet, write_report
             write_report(check(out_file, preset=args.preset), out_dir / "qa.json")
             sheet(out_file, out_dir / "contact_sheet.png")
+            if PRESETS[args.preset]["size"][1] > PRESETS[args.preset]["size"][0] and (work / "captions.ass").exists():
+                from .safezone import check as safe_check     # captions under Reels / TikTok / Shorts UI?
+                try:
+                    for h in safe_check(out_file, work, sheets=False)["hits"]:
+                        log(f"safezone: {h['platform']} {h['from']:.1f}-{h['to']:.1f} s: captions under the {h['zone']} "
+                            f"(editor safezone {out_file} for the sheet)")
+                except EditorError as e:
+                    log(f"safezone: not checked ({e})")
             if prof["review"]:
                 from .review import review
                 review(out_file, work, out_dir / "review")

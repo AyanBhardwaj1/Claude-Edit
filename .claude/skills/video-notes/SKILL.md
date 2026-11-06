@@ -67,3 +67,12 @@ the AI editor the words and pictures at that moment; a note can be spoken (the m
 gets the player's time); notes sent while it works wait their turn; every version lists what really changed,
 measured, and each change you can see jumps the player there; Compare (C) plays the version before from the same
 word; Undo this goes back a version; a change the user makes before exporting two videos is offered as a style rule.
+Before a note even arrives, the Reel check's attention map marks where viewers may drift (the same picture for more
+than ~3 s, dead air, slow talking): "Add zooms there" fixes a same-picture spot in one click, "Ask your editor to fix
+these" sends the spots as one timed note. "Show the app's buttons" draws Reels / TikTok / Shorts UI over the preview
+and says when it covers the subtitles.
+
+## A note about the platform UI ("TikTok's buttons cover my caption")
+Run `python3 -m editor safezone <file> --work <work>`: it measures the captions from captions.ass against each
+platform's zones and draws them over real frames. Move the captions (`--position middle`) or the graphic, re-render
+from captions, check again.

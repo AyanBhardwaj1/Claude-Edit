@@ -52,7 +52,9 @@ export function attention(tl: Timeline, e: Pick<Edit, "broll" | "zooms" | "motio
     const counts = { still: 0, quiet: 0, slow: 0 } as Record<Cause, number>;
     for (let k = i; k < j; k++) counts[cause[k]]++;
     const c = (Object.keys(counts) as Cause[]).sort((a, b) => counts[b] - counts[a])[0];
-    const from = i * STEP, to = Math.min(dur, j * STEP), peak = Math.max(...risk.slice(i, j));
+    let from = i * STEP;
+    const to = Math.min(dur, j * STEP), peak = Math.max(...risk.slice(i, j));
+    if (c === "still") from = changes.filter((x) => x <= from).pop() ?? from;   // the stretch starts at the last change
     if (to - from >= 1) spots.push({ from, to, cause: c, risk: peak, ...describe(c, from, to, changes) });
     i = j;
   }
@@ -84,4 +86,15 @@ export function zoomsFor(tl: Timeline, e: Edit, spot: Spot): Edit | null {
     zooms.push({ anchor: { from: first.id, to: last.id }, scale: k++ % 2 ? 1.25 : 1.15 });
   }
   return zooms.length > e.zooms.length ? { ...e, zooms } : null;
+}
+
+const mmss = (t: number) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
+
+/** The weak spots as a note for the AI editor, with times it pins to the words there (lib/moments.ts). */
+export function spotsNote(spots: Spot[]): string {
+  const what = (s: Spot) => s.cause === "still" ? `the same picture for ${Math.floor(s.to - s.from)} seconds`
+    : s.cause === "quiet" ? `nothing said for ${Math.max(1, Math.floor(s.to - s.from))} seconds` : "slow talking";
+  const parts = spots.map((s) => `at ${mmss(s.from)} to ${mmss(s.to)} (${what(s)})`);
+  return `Viewers may drift ${parts.join("; and ")}. Keep them watching there: a picture, a card or a zoom on what I'm ` +
+    "saying, or a tighter cut. Don't cut any of my points.";
 }

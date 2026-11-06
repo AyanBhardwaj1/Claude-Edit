@@ -43,8 +43,11 @@ export function NewVideo({ settings, initial = [], film = false, onFilmOpened, o
   const hasKey = settings.provider === "anthropic" ? !!settings.anthropicKey : !!settings.openaiKey;
   const canListen = settings.transcriber === "browser" || !!settings.openaiKey;
 
+  const [skipped, setSkipped] = useState("");
   function take(files: FileList | File[], fresh = false) {
     const fs = [...files];
+    const bad = fs.filter((f) => !kindOf(f)).map((f) => f.name);   // say so: a silent drop looks broken
+    setSkipped(bad.length ? `${bad.slice(0, 3).join(", ")}${bad.length > 3 ? ` and ${bad.length - 3} more` : ""} ${bad.length === 1 ? "isn't" : "aren't"} a video, a song or a picture, so I left ${bad.length === 1 ? "it" : "them"} out. Takes are video files (MP4, MOV or WebM).` : "");
     const vids = fs.filter((f) => kindOf(f) === "video");
     const rest = fs.filter((f) => kindOf(f) && kindOf(f) !== "video");
     if (fresh || !takes.length) { setTakes(vids); setExtras((x) => [...(fresh ? [] : x), ...rest]); }
@@ -146,7 +149,8 @@ export function NewVideo({ settings, initial = [], film = false, onFilmOpened, o
             <button ref={filmBtn} className="btn" aria-haspopup="dialog" onClick={() => setFilming({ script })}><Icon name="camera" />Film it here</button>
           </div>
           <p className="small faint">Film it here: your camera, with your script scrolling as a teleprompter.</p>
-          <input ref={input} type="file" multiple hidden accept="video/*,audio/*,image/*" onChange={(e) => e.target.files && take(e.target.files)} />
+          <input ref={input} type="file" multiple hidden accept="video/*,audio/*,image/*" onChange={(e) => { if (e.target.files) take(e.target.files); e.target.value = ""; }} />
+          {skipped && <p className="alert err small mt-12" role="alert"><Icon name="alert" /><span>{skipped}</span></p>}
         </div>
 
         <div className="rec-extra">

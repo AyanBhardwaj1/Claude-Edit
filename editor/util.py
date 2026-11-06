@@ -89,7 +89,19 @@ def normalize_fps(fps: float) -> Fraction:
 
 
 def load_json(path: str | Path) -> dict:
-    return json.loads(Path(path).read_text())
+    """A JSON file, or a one-line EditorError that says what's wrong (missing, a folder, not JSON)."""
+    path = Path(path)
+    if not path.exists():
+        hint = " (run the earlier stages first)" if path.name in ("cut_meta.json", "cut_words.json", "edl.json",
+                                                                   "transcript.json", "track.json") else ""
+        raise EditorError(f"{path} doesn't exist{hint}")
+    if path.is_dir():
+        raise EditorError(f"{path} is a folder, not a JSON file")
+    try:
+        return json.loads(path.read_text())
+    except (json.JSONDecodeError, UnicodeDecodeError) as e:
+        raise EditorError(f"{path} isn't valid JSON ({e.msg if hasattr(e, 'msg') else e} at line "
+                          f"{getattr(e, 'lineno', '?')})") from e
 
 
 def save_json(path: str | Path, data) -> Path:
