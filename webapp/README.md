@@ -118,6 +118,9 @@ vertical reel with a cover and a post caption, then change it by typing notes. E
 32. **Bleep**: strong swear words said in the reel show in a Strong language panel (mild ones are left alone); one
     click bleeps them all, a 1 kHz tone with the voice muted and subtitles showing "f***", in the preview and the
     export, or a note like "bleep the swearing" does it (`lib/bleep.ts`).
+33. **Names you say**: apps, brands and products you name but never show (a capitalised name mid-sentence, with no
+    picture on screen as it's said) are listed beside the video; **Show its logo** finds the open-licence logo
+    (Simple Icons, credited) and puts it above your head on those words, as its own version (`lib/names.ts`).
 30. **Raise them**: when the app's caption block covers the subtitles, one click moves them to the lowest spot all three
     platforms leave clear, as its own version (`clearPosition` in `lib/safezones.ts`).
 
