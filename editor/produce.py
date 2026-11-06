@@ -632,6 +632,90 @@ def preview(final: Path) -> Path:
     return out
 
 
+# ---------------------------------------------------------------- review
+
+def review(spec: Spec, final: Path | None = None) -> dict:
+    """What a human checks before sending a draft: length vs target, loudness, captions on every spoken line,
+    graphics ending inside the video, and a frame at every graphic (sheets to Read)."""
+    import subprocess
+    from .qa import sheet
+    final = final or spec.file
+    if not final.exists():
+        raise EditorError(f"{final} doesn't exist yet: produce it first")
+    out = spec.work / "review"
+    out.mkdir(parents=True, exist_ok=True)
+    issues, rep = [], {"file": str(final)}
+    dur = float(probe(final)["duration"])
+    rep["duration"] = round(dur, 2)
+    want = spec.data.get("output", {}).get("duration")
+    if want and abs(dur - float(want)) > 0.1:
+        issues.append(f"length {dur:.2f} s, the target is {want} s")
+    if spec.data.get("output", {}).get("max_duration") and dur > float(spec.data["output"]["max_duration"]):
+        issues.append(f"over the limit: {dur:.2f} s > {spec.data['output']['max_duration']} s")
+    r = subprocess.run(["ffmpeg", "-hide_banner", "-i", str(final), "-af", "ebur128=peak=true", "-f", "null", "-"],
+                       capture_output=True, text=True)
+    i_ = re.findall(r"I:\s+(-?[\d.]+) LUFS", r.stderr)
+    p_ = re.findall(r"Peak:\s+(-?[\d.]+) dBFS", r.stderr)
+    rep["lufs"] = float(i_[-1]) if i_ else None
+    rep["peak"] = float(p_[-1]) if p_ else None
+    target = float(spec.data.get("output", {}).get("lufs", -14))
+    if rep["lufs"] is not None and abs(rep["lufs"] - target) > 1.0:
+        issues.append(f"loudness {rep['lufs']} LUFS, the target is {target}")
+    # captions on every spoken line
+    ov = spec.data.get("overlay") or {}
+    ov = json.loads(spec.p(ov).read_text()) if isinstance(ov, str) else ov
+    els = spec.resolve({**ov, "elements": list(ov.get("elements", [])) + auto_captions(spec)}).get("elements", [])
+    caps = sorted((float(e["t_in"]), float(e["t_out"])) for e in els if e.get("type") == "caption")
+    cover = []
+    for name, v in spec.voices.items():
+        a = spec.t(v.get("at", 0))
+        d = float(v.get("out", a)) - float(v.get("in", 0)) if "out" in v else float(v.get("dur", 0))
+        if d <= 0.5 or v.get("captions") is False:
+            continue
+        hit = sum(max(0.0, min(b_, a + d) - max(a_, a)) for a_, b_ in caps)
+        pct = round(100 * hit / d)
+        cover.append({"voice": name, "covered_pct": pct})
+        if pct < 60:
+            issues.append(f"voice {name} ({a:.1f}-{a + d:.1f} s) has captions on only {pct}% of it")
+    rep["captions"] = cover
+    for (a1, b1), (a2, b2) in zip(caps, caps[1:]):
+        if a2 < b1 - 0.05:
+            issues.append(f"captions overlap at {a2:.2f} s")
+    late = [e for e in els if float(e.get("t_out", e.get("t_in", 0)) or 0) > dur + 0.05]
+    if late:
+        issues.append(f"{len(late)} overlay element(s) end after the video")
+    # frames at every graphic (not captions), deduped to one per second
+    times, seen = [], set()
+    for e in sorted(els, key=lambda x: float(x.get("t_in", 0) or 0)):
+        if e.get("type") in ("caption", "flash"):
+            continue
+        t0 = float(e.get("t_in", 0) or 0)
+        t1 = float(e.get("t_out", t0 + 3.5) or t0 + 3.5)
+        t = min(t0 + 0.9, (t0 + t1) / 2, dur - 0.05)
+        if int(t) not in seen:
+            seen.add(int(t))
+            times.append(t)
+    sheets = []
+    for k in range(0, len(times), 12):
+        chunk = times[k:k + 12]
+        sel = "+".join(f"between(t,{t:.3f},{t + 0.03:.3f})" for t in chunk)
+        path = out / f"graphics_{k // 12 + 1}.jpg"
+        run(["ffmpeg", "-y", "-i", str(final), "-vf", f"select='{sel}',scale=480:-2,tile=4x3", "-frames:v", "1",
+             "-vsync", "0", "-q:v", "4", str(path)])
+        sheets.append(str(path))
+    rep["graphics_sheets"] = sheets
+    rep["contact_sheet"] = str(sheet(final, out / "contact_sheet.png", count=24, cols=6))
+    rep["issues"] = issues
+    (out / "review.json").write_text(json.dumps(rep, indent=1))
+    lines = [f"# Review of {final.name}", "", f"- length {rep['duration']} s, {rep['lufs']} LUFS, peak {rep['peak']} dBFS",
+             *[f"- captions on {c['voice']}: {c['covered_pct']}%" for c in cover], "",
+             "## Issues" if issues else "No automatic issues found.", *[f"- {x}" for x in issues], "",
+             "Read: " + ", ".join(Path(x).name for x in [rep["contact_sheet"], *sheets]),
+             "Still yours to check: every frame of each sheet (overlaps, readability, faces), and say you can't hear it."]
+    (out / "review.md").write_text("\n".join(lines) + "\n")
+    return rep
+
+
 # ---------------------------------------------------------------- driver
 
 def produce(spec_path: str | Path, only: str | None = None, jobs: int = 4, want_preview: bool = False,
@@ -639,7 +723,7 @@ def produce(spec_path: str | Path, only: str | None = None, jobs: int = 4, want_
     from . import effort as eff
     spec = Spec(spec_path)
     spec.work.mkdir(parents=True, exist_ok=True)
-    stages = [only] if only else ["pieces", "overlay", "mix", "composite", "extras"]
+    stages = [only] if only else ["pieces", "overlay", "mix", "composite", "extras", "review"]
     res, timing = {"total": spec.total}, {}
     base, ov, audio = spec.work / "base.mp4", None, spec.work / "mix.wav"
     for st in stages:
@@ -662,8 +746,10 @@ def produce(spec_path: str | Path, only: str | None = None, jobs: int = 4, want_
         elif st == "extras":
             if spec.file.exists():
                 res["extras"] = [str(p) for p in extras(spec, spec.file)]
+        elif st == "review":
+            res["review"] = review(spec)
         else:
-            raise EditorError(f"unknown stage {st!r} (pieces, overlay, mix, composite, extras)")
+            raise EditorError(f"unknown stage {st!r} (pieces, overlay, mix, composite, extras, review)")
         timing[st] = round(time.monotonic() - t0, 1)
         stage = {"pieces": "pieces", "overlay": "overlay", "mix": "mix", "composite": "composite"}.get(st)
         if stage and timing[st] > 2:                        # cached stages teach nothing
@@ -682,7 +768,7 @@ def main(argv=None) -> int:
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("spec")
     ap.add_argument("--plan", action="store_true", help="print the timeline and resolved overlay times; render nothing")
-    ap.add_argument("--only", choices=["pieces", "overlay", "mix", "composite", "extras"])
+    ap.add_argument("--only", choices=["pieces", "overlay", "mix", "composite", "extras", "review"])
     ap.add_argument("-j", "--jobs", type=int, default=4)
     ap.add_argument("--preview", action="store_true", help="also write a 720p preview")
     ap.add_argument("--effort", default="standard", help="for the learned timings (rush, standard, polish)")

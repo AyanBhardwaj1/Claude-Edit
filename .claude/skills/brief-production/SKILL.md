@@ -66,6 +66,9 @@ python3 -m editor produce projects/<name>/produce.json --only mix  # after an au
 - **Extras**: e.g. `{"name": "square", "from": "s3q", "to": "s4a", "size": [1080, 1080]}`.
 
 ## 5. Look, then deliver drafts
+`editor produce` ends with a review (`work/produce/review/review.md`): length vs target, loudness, caption coverage
+of every voice (a voice under 60% is flagged: the Walk-Free draft missed the app's spoken Spanish answer), late
+graphics, a contact sheet and a frame at every graphic. Read all of it, then look further yourself:
 Contact sheet every ~5 s and frames at every graphic; Read them. Fix overlaps, unreadable text, covered faces, wrong
 numbers. Send a 720p preview (`crf 24`) as soon as a complete draft exists, with a short list of what you changed or
 couldn't do (and why), then iterate on notes with the smallest re-render. Final: the named export plus any extra

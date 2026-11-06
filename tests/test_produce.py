@@ -92,6 +92,9 @@ def test_tiny_production_end_to_end(tmp_path):
     info = probe(out)
     assert info["duration"] == pytest.approx(4.5, abs=0.1)
     assert info["video"]["width"] == 320 and info.get("has_audio")
+    rv = res["review"]
+    assert rv["duration"] == pytest.approx(4.5, abs=0.1) and Path(rv["contact_sheet"]).exists()
+    assert any("voice v" in i for i in rv["issues"])        # the voice has no captions: flagged
     sq = probe(Path(res["extras"][0]))
     assert sq["video"]["width"] == 180 and sq["duration"] == pytest.approx(3.5, abs=0.15)
     data = json.loads((tmp_path / "style" / "timings.json").read_text()) if (tmp_path / "style" /
