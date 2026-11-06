@@ -1489,6 +1489,97 @@ def save_version(spec: Spec, note: str, files: list[str]) -> dict:
     return entry
 
 
+def _short(v) -> str:
+    t = json.dumps(v, ensure_ascii=False) if not isinstance(v, str) else repr(v)
+    return t if len(t) <= 48 else t[:45] + "..."
+
+
+def _field_diff(a: dict, b: dict, skip=()) -> list[str]:
+    out = []
+    for k in [*a, *[k for k in b if k not in a]]:
+        if k in skip or a.get(k) == b.get(k):
+            continue
+        out.append(f"{k} added {_short(b[k])}" if k not in a else f"{k} removed" if k not in b
+                   else f"{k} {_short(a[k])} -> {_short(b[k])}")
+    return out
+
+
+def spec_changes(old: dict, new: dict) -> tuple[list[str], list[str]]:
+    """What changed between two specs, in plain lines, and the stages that re-render for it (a note's summary for the
+    user, and a check that the edit touched only what the note asked)."""
+    lines, stages = [], set()
+    for k in ("output", "frame"):
+        if old.get(k) != new.get(k):
+            lines.append(f"{k}: " + "; ".join(_field_diff(old.get(k) or {}, new.get(k) or {})))
+            stages |= {"pieces", "overlay", "mix", "composite"}
+    op = {pc.get("name"): pc for pc in old.get("pieces", [])}
+    np_ = {pc.get("name"): pc for pc in new.get("pieces", [])}
+    for n in np_:
+        if n not in op:
+            lines.append(f"piece {n}: added ({np_[n].get('type', 'video')})")
+            stages |= {"pieces", "composite"}
+        elif op[n] != np_[n]:
+            d = _field_diff(op[n], np_[n])
+            lines.append(f"piece {n}: " + "; ".join(d))
+            if _field_diff(op[n], np_[n], skip=NOT_PICTURE):
+                stages |= {"pieces", "composite"}
+    for n in op:
+        if n not in np_:
+            lines.append(f"piece {n}: removed")
+            stages |= {"pieces", "composite"}
+    if [n for n in [pc.get("name") for pc in old.get("pieces", [])] if n in np_] != \
+            [n for n in [pc.get("name") for pc in new.get("pieces", [])] if n in op]:
+        lines.append("pieces: reordered")
+        stages |= {"pieces", "composite"}
+    oa, na = old.get("audio", {}), new.get("audio", {})
+    for kind in sorted({*oa, *na}):
+        a, b = oa.get(kind), na.get(kind)
+        if a == b:
+            continue
+        stages |= {"mix", "composite"}
+        if not isinstance(a, list) or not isinstance(b, list):
+            lines.append(f"audio {kind}: " + ("; ".join(_field_diff(a or {}, b or {})) if isinstance(a or b, dict)
+                                              else f"{_short(a)} -> {_short(b)}"))
+            continue
+        for i in range(max(len(a), len(b))):
+            x, y = (a[i] if i < len(a) else None), (b[i] if i < len(b) else None)
+            name = (y or x).get("name") or (y or x).get("src") if isinstance(y or x, dict) else i
+            name = name if isinstance(name, str) else f"#{i}"
+            if x is None:
+                lines.append(f"audio {kind} {name}: added")
+            elif y is None:
+                lines.append(f"audio {kind} {name}: removed")
+            elif x != y:
+                lines.append(f"audio {kind} {name}: " + "; ".join(_field_diff(x, y)))
+    if old.get("captions") != new.get("captions"):
+        lines.append("captions: " + "; ".join(_field_diff(old.get("captions") or {}, new.get("captions") or {})))
+        stages |= {"overlay", "composite"}
+    ov0, ov1 = old.get("overlay"), new.get("overlay")
+    if ov0 != ov1:
+        stages |= {"overlay", "composite"}
+        if isinstance(ov0, dict) and isinstance(ov1, dict):
+            e0, e1 = ov0.get("elements", []), ov1.get("elements", [])
+            for i in range(max(len(e0), len(e1))):
+                x, y = (e0[i] if i < len(e0) else None), (e1[i] if i < len(e1) else None)
+                label = f"overlay #{i} {(y or x).get('type')}"
+                if x is None:
+                    lines.append(f"{label}: added {_short(' / '.join(_texts(y)))}")
+                elif y is None:
+                    lines.append(f"{label}: removed {_short(' / '.join(_texts(x)))}")
+                elif x != y:
+                    lines.append(f"{label}: " + "; ".join(_field_diff(x, y)))
+            if {k: v for k, v in ov0.items() if k != "elements"} != {k: v for k, v in ov1.items() if k != "elements"}:
+                lines.append("overlay theme: " + "; ".join(_field_diff(ov0.get("theme") or {}, ov1.get("theme") or {})))
+        else:
+            lines.append(f"overlay: {_short(ov0)} -> {_short(ov1)}")
+    for k, st in (("extras", "extras"), ("post", "post")):
+        if old.get(k) != new.get(k):
+            lines.append(f"{k}: changed")
+            stages.add(st)
+    order = ["pieces", "overlay", "mix", "composite", "extras", "post"]
+    return lines, [s for s in order if s in stages]
+
+
 NUM = re.compile(r"(?<![\w.])[+−-]?\d[\d,]*(?:\.\d+)?%?")
 
 
@@ -1697,6 +1788,8 @@ def main(argv=None) -> int:
                     help="quick 720p look at one stretch after a note (times or references like d7c d7c.end)")
     ap.add_argument("--note", help="save this render as the next version (out/versions/), with the user's note")
     ap.add_argument("--versions", action="store_true", help="list the saved versions")
+    ap.add_argument("--changes", nargs="?", const="", metavar="N",
+                    help="what changed in the spec since the last saved version (or vN), and what re-renders")
     ap.add_argument("--at", nargs="+", metavar="TIME",
                     help="what's on screen and in the mix at these moments (1:23, 83.5 or a reference): turns a note "
                          "with a timestamp into the spec entry to change")
@@ -1746,6 +1839,21 @@ def main(argv=None) -> int:
     if a.at:
         for x in a.at:
             _print_at(what_is_at(spec, x))
+        return 0
+    if a.changes is not None:
+        vdir = spec.file.parent / "versions"
+        hist = json.loads((vdir / "versions.json").read_text()) if (vdir / "versions.json").exists() else []
+        if not hist:
+            print("no saved versions yet (render with --note to save one)")
+            return 0
+        n = int(a.changes) if a.changes else hist[-1]["n"]
+        prev = vdir / f"{spec.path.stem}.v{n}.json"
+        if not prev.exists():
+            raise EditorError(f"no saved spec for v{n} ({prev.name})")
+        lines, stages = spec_changes(json.loads(prev.read_text()), json.loads(spec.path.read_text()))
+        print(f"since v{n}" + (f" ({next((v['note'] for v in hist if v['n'] == n), '')})" if hist else "") + ":")
+        print("\n".join(f"  {x}" for x in lines) or "  nothing")
+        print("re-renders: " + (", ".join(stages) or "nothing"))
         return 0
     if a.versions:
         vlog = spec.file.parent / "versions" / "versions.json"
