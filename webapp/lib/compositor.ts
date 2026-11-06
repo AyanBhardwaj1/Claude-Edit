@@ -10,7 +10,7 @@ import { backdropFor, framedLayout, framedView, type FaceZone, type FramedLayout
 import { clipPlan, type Piece } from "./screenrec";
 import { drawBackground, drawScene, type Anim, type Scene as CardScene } from "./studio";
 import { boxedChars, boxedCues, boxedLines, captionWords, chunk, readTime, type Cue } from "./text";
-import { spanOf, type Timeline } from "./timeline";
+import { spanOf, srcAt, type Timeline } from "./timeline";
 import type { Asset, Broll, Edit, Format, Project } from "./types";
 
 export { FORMATS } from "./formats";
@@ -91,7 +91,7 @@ export function cropFor(p: Project, tl: Timeline, src: number, srcTime: number, 
 function faceOut(p: Project, tl: Timeline, t: number) {
   const seg = tl.segments.find((s) => t >= s.outStart && t < s.outEnd) ?? tl.segments[0];
   if (!seg) return null;
-  const st = seg.start + (t - seg.outStart);
+  const st = srcAt(seg, t);
   const f = faceAt(p.faces, seg.src, st);
   const c = cropFor(p, tl, seg.src, st, 1);
   const fw = f ? (f.w * c.sw / c.w) * W : 0.36 * W;
@@ -111,7 +111,7 @@ function faceZone(p: Project, tl: Timeline, start: number, end: number): FaceZon
   for (const t of [start + 0.02, (start + end) / 2, Math.max(start, end - 0.05)]) {
     const seg = tl.segments.find((s) => t >= s.outStart && t < s.outEnd) ?? tl.segments[0];
     if (!seg) continue;
-    if (tracked && !faceAt(p.faces, seg.src, seg.start + (t - seg.outStart))) continue;
+    if (tracked && !faceAt(p.faces, seg.src, srcAt(seg, t))) continue;
     const f = faceOut(p, tl, t);
     if (!f) continue;
     z = z ? { x0: Math.min(z.x0, f.core.x0), x1: Math.max(z.x1, f.core.x1), y0: Math.min(z.y0, f.core.y0), y1: Math.max(z.y1, f.core.y1) } : { ...f.core };

@@ -41,7 +41,8 @@ python3 -m editor render projects/<n>/work -o projects/<n>/out/<n>_youtube.mp4 -
    zooms a minute, more than 2 big word cards, visuals under 1.2 s, names said but never shown, and too few b-roll
    moments for the length, the first second (speech starting after 0.6 s, a warm-up opener like "so" / "um" / "today", no hook title to read, or one
    up too briefly to read: about 0.4 s + 0.25 s a word, and a later line that grips more than the opening, as a
-   cold-open idea: an editorial call, propose it rather than apply it) and the loop seam
+   cold-open idea: an editorial call, propose it rather than apply it; strong language not bleeped, which is the
+   user's call: offer EDL "bleep": true, never apply it unasked) and the loop seam
    (reels replay on their own: over 0.6 s of nothing after the last word, or a goodbye like "thanks for watching" in
    the last 3 s (a CTA is a choice, not flagged); end the cut on the last real point). `check` also fails black stretches of 0.5 s or more.
 5c. Vertical posts: `python3 -m editor safezone <file> --work projects/<n>/work` measures the captions from

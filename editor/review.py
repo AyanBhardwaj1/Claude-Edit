@@ -250,6 +250,17 @@ def punch_cuts(edl: dict, meta: dict) -> list[float]:
     return [float(s["start"]) for s in meta.get("timeline", [])[1:]]
 
 
+def _strong(words: list[dict], edl: dict) -> str | None:
+    """Strong swear words said and not bleeped: brands and ad rules care; bleep only if the user wants it."""
+    from .bleep import chosen, is_swear, mask
+    bleeped = {w.get("id") for w in chosen(words, edl.get("bleep"))}
+    said = [w for w in words if is_swear(w.get("text", "")) and w.get("id") not in bleeped]
+    if not said:
+        return None
+    first = ", ".join(f"{mask(str(w['text']).strip())} at {float(w['start']):.1f}s" for w in said[:3])
+    return f"{len(said)} strong word(s) ({first}): if the user wants it brand-safe, EDL \"bleep\": true"
+
+
 def named_not_shown(edl: dict, words: list[dict]) -> list[dict]:
     """Names said but never shown: a capitalised word mid-sentence (or a run, "Claude Code") that isn't a common word,
     with no picture on screen as it's said (a text card counts only if it spells the name), at any of its mentions.
@@ -345,4 +356,5 @@ def pacing(edl: dict, words: list[dict], duration: float, cuts: list[float] | No
             "visuals_under_1_2s": too_short, "named_not_shown": names[:20],
             "broll_moments": None if len(broll) >= want else f"{len(broll)} (hand edits carry about {round(duration / 6)})",
             "first_word_after_0_6s": late, "no_hook_title": None if has_title else "nothing to read in the first second",
+            "strong_language": _strong(words, edl),
             "opens_with_warm_up": warm, "stronger_line_for_a_cold_open": stronger_opening(words), "hook_too_quick_to_read": quick, "loop_seam": loop}
