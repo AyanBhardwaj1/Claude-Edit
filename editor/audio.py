@@ -110,10 +110,17 @@ def master(src: str | Path, out: str | Path, preset: str = "phone", target_lufs:
     # pass 2: apply linear normalisation using the measured values
     ln = (f"loudnorm=I={target_lufs}:TP={true_peak}:LRA=11:measured_I={m['input_i']}:"
           f"measured_TP={m['input_tp']}:measured_LRA={m['input_lra']}:measured_thresh={m['input_thresh']}:"
-          f"offset={m['target_offset']}:linear=true")
+          f"offset={m['target_offset']}:linear=true:print_format=json")
     out = Path(out)
-    run(["ffmpeg", "-y", *inputs, "-filter_complex", f"{graph},{ln},aresample=48000[out]",
-         "-map", "[out]", "-t", f"{duration:.3f}", "-c:a", "pcm_s24le", out])
+    applied = run(["ffmpeg", "-y", *inputs, "-filter_complex", f"{graph},{ln},aresample=48000[out]",
+                   "-map", "[out]", "-t", f"{duration:.3f}", "-c:a", "pcm_s24le", out], quiet=False)
+    try:                                       # loudnorm quietly goes dynamic when linear would break the peak limit
+        kind = _loudnorm_json(applied.stderr).get("normalization_type", "linear")
+    except Exception:  # noqa: BLE001 - the report is a check, not part of the master
+        kind = "linear"
+    if kind != "linear":
+        log(f"audio: loudness was reached with dynamic normalisation (the take is quiet with loud peaks): music fades "
+            f"and ducking get flattened a little; a limiter before mastering, or a louder recording, avoids it")
     log(f"mastered audio ({preset}{', +music' if music else ''}{', +room tone' if fill else ''}"
         f"{', +RNNoise' if rnnoise_model else ''}) "
         f"{m['input_i']} LUFS -> {target_lufs} LUFS: {out}")
