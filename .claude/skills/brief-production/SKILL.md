@@ -50,7 +50,7 @@ one number. Captions: what was actually said, one card per line, ≤ 2 lines × 
 
 ## 4. Assemble with one spec: `editor produce`
 Write `projects/<name>/produce.json` (the whole video: pieces, audio, overlay, extras) and run it. A worked,
-complete example is the Walk-Free rebuild: `editor/produce.py` docstring + [example.md](example.md).
+complete example is the Walk-Free rebuild ([example.md](example.md)); every field is in [spec.md](spec.md).
 ```bash
 python3 -m editor produce projects/<name>/produce.json --plan      # timeline table, total vs target, overlay check
 python3 -m editor produce projects/<name>/produce.json --preview   # pieces -> overlay -> mix -> composite -> extras
