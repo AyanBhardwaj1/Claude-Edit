@@ -118,6 +118,9 @@ def resolve(edl: dict, words: list[dict]) -> dict:
             lead = float(e.get("lead", lead_d))
             start = max(0.0, first["start"] - lead)
             end = last["end"] + float(e.get("hold", 0.0))
+            if kind == "broll" and e.get("treatment") == "text-pop" and "min" not in e:
+                # words on screen stay long enough to read: ~0.4 s to notice, then ~4 words a second
+                min_d = max(min_d, 0.4 + 0.25 * len(str(e.get("text", "")).split()))
             end = max(end, start + float(e.get("min", min_d)))
             if kind == "broll":
                 e["start"] = round(start, 3)
