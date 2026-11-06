@@ -22,6 +22,12 @@ function read(base: string): string | null {
 
 export async function putMedia(key: string, blob: Blob) { await set(key, blob, media()); }
 export async function getMedia(key: string): Promise<Blob | undefined> { return get(key, media()); }
+/** Every media key stored in this browser (backups pick the ones this account's videos use). */
+export async function mediaKeys(): Promise<string[]> { return (await keys(media())).map(String); }
+/** Restore: put a project / animation back exactly as backed up (its time kept), for the signed-in account. */
+export async function putProjectRaw(p: Project) { p.owner = owner ?? undefined; await set(p.id, JSON.parse(JSON.stringify(p)), projects()); }
+export async function putAnimRaw(a: Anim) { a.owner = owner ?? undefined; await set(a.id, JSON.parse(JSON.stringify(a)), anims()); }
+export async function getAnim(id: string): Promise<Anim | undefined> { return get(id, anims()); }
 
 export async function saveProject(p: Project) {
   p.updatedAt = new Date().toISOString();
