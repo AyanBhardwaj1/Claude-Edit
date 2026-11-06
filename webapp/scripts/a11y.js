@@ -65,6 +65,9 @@ const AXE = fs.readFileSync(require.resolve("axe-core/axe.min.js"), "utf8");
     await page.getByRole("tab", { name: "Pictures" }).click(); await page.waitForTimeout(800);
     await audit(`pictures, speed through waits (${await page.locator(".waits").count()} clip)`);
   } else console.log("pictures, speed through waits: skipped (no ffmpeg to make a test clip)");
+  // with a finished video in the account: the tiles, badges and "Your reels" only show then
+  await page.goto(BASE + "/app"); await page.waitForTimeout(1200); await audit("home (with a video)");
+  await page.goto(BASE + "/app#videos"); await page.waitForTimeout(1000); await audit("my videos (with a video)");
   fs.writeFileSync(`${OUT}/a11y.json`, JSON.stringify(results, null, 1));
   process.exitCode = results.some((r) => r.violations.length) ? 1 : 0;
   await b.close();

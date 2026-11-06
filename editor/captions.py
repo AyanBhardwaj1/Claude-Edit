@@ -89,7 +89,11 @@ def resolve_font(candidates: list[str]) -> str:
 
 
 def _escape(text: str) -> str:
-    return text.replace("\\", "\\\\").replace("{", "(").replace("}", ")")
+    """User text made safe for an ASS line: libass can't escape a backslash (\\N would still break the line), so
+    it becomes "/"; braces would start override tags; a typed line break becomes ASS's own \\N (a raw newline
+    ends the line and drops the rest)."""
+    text = text.replace("\r\n", "\n").replace("\\", "/").replace("{", "(").replace("}", ")")
+    return text.replace("\n", "\\N")
 
 
 def _groups(words: list[dict], max_words: int, max_chars: int) -> list[list[dict]]:

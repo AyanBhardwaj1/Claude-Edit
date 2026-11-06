@@ -47,3 +47,31 @@ def test_times_that_are_not_times(tmp_path):
             _clock(bad)
     with pytest.raises(EditorError, match="not a time"):
         produce._clock("-3")
+
+
+def test_spoken_numbers_only_combine_the_way_numbers_are_said():
+    from editor.wordfix import digits
+
+    def say(s):
+        return " ".join(w["text"] for w in digits([{"text": t, "start": i, "end": i + 0.5} for i, t in enumerate(s.split())]))
+    assert say("three two one go") == "3 2 one go"
+    assert say("in twenty twenty four") == "in 2024" and say("nineteen ninety five") == "1995"
+    assert say("seven eleven") == "7 11" and say("two, three ideas") == "2, 3 ideas"
+    assert say("two hundred and fifty dollars") == "$250" and say("three thousand five hundred") == "3,500"
+    assert say("one point five million") == "one point five million"
+
+
+def test_tight_max_gap_never_plays_a_moment_twice(tmp_path):
+    from editor.plan import plan
+    w = lambda t, s, e: {"text": t, "start": s, "end": e, "src": 0}  # noqa: E731
+    (tmp_path / "tr.json").write_text(json.dumps({"sources": [{"path": "x.mp4", "duration": 10.0}],
+                                                  "words": [w("hello", 0.5, 0.9), w("there", 1.02, 1.4), w("friend.", 1.52, 2.0)]}))
+    plan(tmp_path / "tr.json", tmp_path / "edl.json", max_gap=0.1)
+    segs = json.loads((tmp_path / "edl.json").read_text())["segments"]
+    assert all(b["start"] >= a["end"] for a, b in zip(segs, segs[1:]))
+
+
+def test_a_two_line_hook_title_keeps_its_second_line():
+    from editor.captions import _escape
+    assert _escape("Stop editing\nlike this") == "Stop editing\\Nlike this"
+    assert _escape("a\\b {x}") == "a/b (x)"

@@ -21,7 +21,7 @@ test("a version's real changes in plain lines: the cut, subtitles, music, pictur
   b.music.automation = [{ anchor: { from: "w0", to: "w2" }, db: -6 }];
   b.broll = [{ id: "x1", anchor: { from: "w10", to: "w11" }, treatment: "text-pop", text: "THE REAL TIP" }];
   const out = changeList(p, a, b);
-  assert.match(out[0], /^Length 0:07 → 0:06 \(−1\.\d s\)$/);
+  assert.match(out[0], /^Length 0:07 → 0:05 \(−1\.4 s\)$/);       // the cut words, all of them
   assert.ok(out.includes("Cut “about my cat”"), out.join(" | "));
   assert.ok(out.includes("Subtitles: bigger"));
   assert.ok(out.some((x) => /^Music: .* → Night Drive$/.test(x)));

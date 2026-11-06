@@ -126,6 +126,7 @@ export class Player {
   }
 
   async play(from = this.t) {
+    if (!this.tl.segments.length) { this.onEnd?.(); return; }      // every word cut: nothing to play
     this.ensureAudio();
     await this.ctx!.resume();
     if (from >= this.tl.duration - 0.05) from = 0;
@@ -273,6 +274,7 @@ export class Player {
 
   /** Record the whole edit in real time. Returns the file and its type. */
   async record(onProgress: (pct: number) => void): Promise<{ blob: Blob; ext: string }> {
+    if (!this.tl.segments.length) throw new Error("Nothing is kept: bring some words back (Edit it myself → Cut) before exporting.");
     this.ensureAudio();
     const types = ['video/mp4;codecs="avc1.640028,mp4a.40.2"', "video/mp4;codecs=avc1,opus", "video/mp4",
       "video/webm;codecs=vp9,opus", "video/webm"];

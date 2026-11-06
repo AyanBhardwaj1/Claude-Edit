@@ -55,11 +55,61 @@ export type AiEdit = {
 };
 
 const clamp = (v: unknown, lo: number, hi: number, d: number) => {
+  if (v === null || v === undefined || v === "" || typeof v === "boolean") return d;   // null is "not given", not 0
   const n = Number(v);
   return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : d;
 };
 
-export function fromAi(p: Project, base: Edit, ai: AiEdit, webAssets: Map<string, Asset> = new Map()): { edit: Edit; problems: string[] } {
+/** The AI's answer in the shape fromAi expects. Tool input isn't strictly validated (and an answer can be JSON from
+ *  plain text), so a list given as an object, a hashtag string, null items or a number where text goes are tidied
+ *  here instead of crashing the editor later. */
+function sane(raw: AiEdit): AiEdit {
+  const ai = { ...(raw && typeof raw === "object" ? raw : {}) } as Record<string, unknown>;
+  const obj = (x: unknown) => !!x && typeof x === "object" && !Array.isArray(x);
+  const list = (k: string) => { if (k in ai) ai[k] = Array.isArray(ai[k]) ? (ai[k] as unknown[]).filter(obj) : undefined; };
+  ["keep", "labels", "broll", "webPictures", "motionCards", "zooms", "corrections"].forEach(list);
+  for (const k of ["captions", "music", "cover", "post", "hook", "motion"]) if (k in ai && !obj(ai[k])) ai[k] = undefined;
+  const text = (o: Record<string, unknown> | undefined, k: string) => {
+    if (o && k in o && o[k] !== undefined && o[k] !== null && typeof o[k] !== "string") o[k] = typeof o[k] === "number" ? String(o[k]) : undefined;
+  };
+  for (const l of (ai.labels as Record<string, unknown>[] | undefined) ?? []) text(l, "text");
+  for (const c of (ai.corrections as Record<string, unknown>[] | undefined) ?? []) { text(c, "from"); text(c, "to"); }
+  if (ai.hook) { ai.hook = { ...(ai.hook as object) }; text(ai.hook as Record<string, unknown>, "text"); }
+  if (ai.cover) { ai.cover = { ...(ai.cover as object) }; text(ai.cover as Record<string, unknown>, "text"); }
+  if (ai.post) {
+    const post = { ...(ai.post as Record<string, unknown>) };
+    text(post, "caption");
+    for (const k of ["hashtags", "keywords"]) {
+      const v = post[k];
+      post[k] = typeof v === "string" ? v.split(/[\s,]+/).filter(Boolean) : Array.isArray(v) ? v.filter((x) => x !== null && x !== undefined).map(String) : undefined;
+    }
+    ai.post = post;
+  }
+  if (ai.music && Array.isArray((ai.music as Record<string, unknown>).automation)) {
+    ai.music = { ...(ai.music as object), automation: ((ai.music as Record<string, unknown>).automation as unknown[]).filter(obj) };
+  } else if (ai.music) ai.music = { ...(ai.music as object), automation: undefined };
+  return ai as AiEdit;
+}
+
+/** Keep ranges in their given (output) order, minus words an earlier range already plays, so nothing is heard twice
+ *  (a range that overlaps an earlier one keeps only its new words; one that splits around them becomes two). */
+function mergeKeep(keep: Range[], ids: Map<string, number>, words: Project["words"]): Range[] {
+  const used = new Set<number>(), out: Range[] = [];
+  for (const r of keep) {
+    let a = -1;
+    const lo = ids.get(r.from)!, hi = ids.get(r.to)!;
+    for (let i = lo; i <= hi + 1; i++) {
+      const free = i <= hi && !used.has(i);
+      if (free && a < 0) a = i;
+      if (!free && a >= 0) { out.push({ from: words[a].id, to: words[i - 1].id }); a = -1; }
+      if (i <= hi) used.add(i);
+    }
+  }
+  return out;
+}
+
+export function fromAi(p: Project, base: Edit, given: AiEdit, webAssets: Map<string, Asset> = new Map()): { edit: Edit; problems: string[] } {
+  const ai = sane(given);
   const ids = indexOf(p.words);
   const lib = new Map([...p.library, ...webAssets.values()].map((a) => [a.key, a]));
   const problems: string[] = [];
@@ -70,7 +120,7 @@ export function fromAi(p: Project, base: Edit, ai: AiEdit, webAssets: Map<string
   const e: Edit = structuredClone(base);
   if (ai.keep) {
     const keep = ai.keep.map((r) => okRange(r, "cut")).filter(Boolean) as Range[];
-    if (keep.length) e.keep = keep; else problems.push("cut: nothing usable, kept the previous cut");
+    if (keep.length) e.keep = mergeKeep(keep, ids, p.words); else problems.push("cut: nothing usable, kept the previous cut");
   }
   if (ai.gapCap !== undefined) e.gapCap = clamp(ai.gapCap, 0.02, 2, e.gapCap);
   if (ai.captions) {

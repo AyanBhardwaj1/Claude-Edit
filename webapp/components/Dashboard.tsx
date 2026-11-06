@@ -6,6 +6,7 @@ import { paletteOf, total, type Anim } from "@/lib/studio";
 import { THEME_KEY, THEMES, type ThemeId } from "@/lib/theme";
 import type { Project, Settings, StyleRule } from "@/lib/types";
 import { kindOf } from "@/lib/workflow";
+import { insights } from "@/lib/insights";
 import { Icon } from "./Icons";
 import { clock, fmtDur, keptSeconds, rawSeconds, VideoTile } from "./Tiles";
 
@@ -50,6 +51,7 @@ export function Dashboard({ user, settings, theme, onNew, onOpen, onGo, onSample
     { what: "Make your first reel", done: ready.length > 0, act: () => onNew(), label: "Start" },
   ];
   const doneCount = steps.filter((s) => s.done).length;
+  const stats = ps ? insights(ps) : null;            // how your reels are doing over time (lib/insights.ts)
   // a nudge to back up: 3+ videos, and never backed up from this browser or not in a week
   const lastBackup = typeof window !== "undefined" ? readLocal("ce.lastBackup") : null;
   const needsBackup = !!ps && ps.filter((x) => !x.sample).length >= 3 &&
@@ -135,6 +137,22 @@ export function Dashboard({ user, settings, theme, onNew, onOpen, onGo, onSample
               <span className="grow">{lastBackup ? "Your last backup is more than a week old." : `You have ${ps!.filter((x) => !x.sample).length} videos and no backup yet.`} They
                 live only in this browser: clearing its data would delete them.</span>
               <button className="btn sm" onClick={() => onGo("settings")}>Back up</button></div>
+          )}
+          {stats && (
+            <section className="panel insights" aria-labelledby="ins-h">
+              <div className="panel-head"><h2 id="ins-h">Your reels</h2><span className="small faint">{stats.videos} videos</span></div>
+              <div className="ins-row">
+                <svg className="spark" viewBox={`0 0 ${Math.max(1, stats.scores.length - 1) * 20} 40`} preserveAspectRatio="none" role="img"
+                  aria-label={`Reel check scores, oldest to newest: ${stats.scores.map((x) => x.score).join(", ")}`}>
+                  <polyline points={stats.scores.map((x, i) => `${i * 20},${40 - (x.score / 100) * 36 - 2}`).join(" ")} />
+                </svg>
+                <div><b className="num big-n">{stats.average}</b><span className="small muted block">average reel check</span>
+                  {stats.change !== null && <span className={`small block ${stats.change >= 0 ? "say-ok" : "say-bad"}`}>
+                    {stats.change >= 0 ? "▲" : "▼"} {Math.abs(stats.change)} from your earlier reels</span>}</div>
+                <div><b className="num big-n">{stats.averageLength}s</b><span className="small muted block">average length</span></div>
+              </div>
+              {stats.top && <p className="small ins-top"><b>Most often missing: {stats.top.title.charAt(0).toLowerCase() + stats.top.title.slice(1)}</b> ({stats.top.count} reels). {stats.top.fix}</p>}
+            </section>
           )}
           {news && !welcome && (
             <section className="panel news" aria-labelledby="news-h">

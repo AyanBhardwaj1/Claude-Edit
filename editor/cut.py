@@ -60,7 +60,9 @@ def cut(edl_path: str | Path, out_dir: str | Path, transcript: str | Path | None
                          "speed": speed, "start": round(t, 4), "end": round(t + out_dur, 4)})
         t += out_dur
 
-    todo = [j for j in jobs if not j[-1].exists()]
+    # one encode per distinct file: a range used twice (a cold open repeating a line) shares its cache file, and two
+    # jobs writing it at once collided on the temp file
+    todo = list({j[-1]: j for j in jobs if not j[-1].exists()}.values())
     log(f"cut: {len(jobs)} segments ({len(jobs) - len(todo)} cached), {t:.2f}s at {fps} fps, {width}x{height}")
     workers = max(1, (os.cpu_count() or 2) // 2)
     with ThreadPoolExecutor(max_workers=workers) as pool:

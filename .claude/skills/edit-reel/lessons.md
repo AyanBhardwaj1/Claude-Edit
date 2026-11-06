@@ -6,6 +6,7 @@ style memory (`editor style note`), timings to `editor effort record`; this file
 
 ## 2026-11-06 Afternoon bug hunt
 - [process] Before committing web code, stage every new file it imports (git status shows them as ??): a commit with Editor.tsx but not the new lib/safezones.ts it imported left the branch unbuildable until the next commit.
+- [process] After a merge call, confirm the PR's commits are in origin/main (git merge-base --is-ancestor) before resetting the branch: a merge that timed out wasn't merged, the reset + force-push emptied the branch and GitHub closed the PR (recovered from the reflog, reopened, merged).
 
 ## 2026-11-06 Walk-Free demo (audit)
 - [process] Link the brief in the spec ("brief": "BRIEF.md", or produce init --brief): without it the numbers-on-screen and caption-line checks silently don't run. The Walk-Free spec shipped without it.

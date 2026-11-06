@@ -50,11 +50,13 @@ export function buildTimeline(words: Word[], edit: Pick<Edit, "keep" | "gapCap">
     pieces.forEach((p, pi) => {
       const first = words[p[0]], last = words[p[p.length - 1]];
       const src = first.src;
-      const dur = durations[src] ?? last.e + 1;
+      const dur = durations[src] > 0 ? durations[src] : last.e + 1;      // 0: a length the browser couldn't read
       const lead = pi === 0 ? HEAD : cap * 0.92;          // most of the kept air leads into the next word
       const tail = pi === pieces.length - 1 ? TAIL : cap * 0.08;
-      const start = Math.max(0, first.s - lead);
-      const end = Math.min(dur, last.e + tail);
+      // the air around a piece never reaches into the words next to it: a word that was cut stays cut
+      const prev = words[p[0] - 1], next = words[p[p.length - 1] + 1];
+      const start = Math.max(0, first.s - lead, prev && prev.src === src && prev.e <= first.s ? prev.e : 0);
+      const end = Math.max(start, Math.min(dur, last.e + tail, next && next.src === src && next.s >= last.e ? next.s : Infinity));
       const seg: Segment = { src, start, end, outStart: t, outEnd: t + (end - start), words: p.map((i) => words[i].id) };
       for (const i of p) {
         const w = words[i];

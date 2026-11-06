@@ -3,13 +3,13 @@
   "linux-x86_64-4cpu": {
    "audio:rush": {
     "last": "2026-11-06",
-    "rate": 12.138,
-    "runs": 10
+    "rate": 12.351,
+    "runs": 15
    },
    "captions:rush": {
     "last": "2026-11-06",
-    "rate": 0.204,
-    "runs": 11
+    "rate": 0.185,
+    "runs": 15
    },
    "capture:standard": {
     "last": "2026-11-06",
@@ -71,10 +71,15 @@
     "rate": 0.667,
     "runs": 1
    },
+   "render:rush": {
+    "last": "2026-11-06",
+    "rate": 129.884,
+    "runs": 1
+   },
    "track:rush": {
     "last": "2026-11-06",
-    "rate": 7.759,
-    "runs": 10
+    "rate": 8.884,
+    "runs": 14
    },
    "transcribe:rush": {
     "last": "2026-11-06",

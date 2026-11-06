@@ -13,7 +13,7 @@ const ONE_AFTER = new Set(["number", "step", "day", "week", "month", "year", "le
 const CURRENCY: Record<string, string> = { dollars: "$", dollar: "$", pounds: "£", euros: "€" };
 
 export const bare = (t: string) => t.toLowerCase().replace(/[^\p{L}\p{N}'%$€£]/gu, "");
-const split = (t: string) => { const m = t.match(/^(\W*)(.*?)(\W*)$/su)!; return [m[1], m[2], m[3]] as const; };
+const split = (t: string) => { const m = t.match(/^([^\p{L}\p{N}]*)(.*?)([^\p{L}\p{N}]*)$/su)!; return [m[1], m[2], m[3]] as const; };   // é is a letter
 
 export type CapWord = { id: string; text: string; os: number; oe: number; seg: number };
 
@@ -35,16 +35,37 @@ export function applyCorrections(words: CapWord[], corrections: { from: string; 
   return out;
 }
 
-function numberRun(tokens: string[]): [number, number] | null {
-  let total = 0, cur = 0, used = 0;
-  for (const t of tokens) {
-    if (t in ONES) cur += ONES[t];
-    else if (t in TENS) cur += TENS[t];
-    else if (t in SCALES && (cur || total)) { cur = Math.max(cur, 1) * SCALES[t]; if (SCALES[t] >= 1000) { total += cur; cur = 0; } }
-    else break;
-    used++;
+/** The number a run of spoken number words says, and how many words it used. Words only combine the way numbers are
+ *  said (twenty + four, three + hundred, two hundred + fifty, ... thousand), so "three two one" stays three numbers
+ *  and "seven eleven" two; "twenty twenty four" and "nineteen ninety five" are years. A run stops at punctuation
+ *  ("two, three ideas"), and a number followed by "point" is left as words ("one point five"). */
+function numberRun(tokens: string[], raws: string[] = []): [number, number, boolean?] | null {
+  type Kind = "ones" | "teen" | "tens" | "scale" | null;
+  const kindOf = (t: string): Kind => t in TENS ? "tens" : t in SCALES ? "scale" : t in ONES ? (ONES[t] >= 10 ? "teen" : "ones") : null;
+  let total = 0, cur = 0, used = 0, last: Kind = null;
+  for (let i = 0; i < tokens.length; i++) {
+    const t = tokens[i], k = kindOf(t);
+    if (!k) break;
+    if (i > 0 && /[,.;:!?]$/.test(raws[i - 1] ?? "")) break;          // "two, three ideas"
+    const ok = last === null ? k !== "scale" || false
+      : k === "ones" ? last === "tens" || last === "scale"
+      : k === "teen" || k === "tens" ? last === "scale"
+      : (cur || total) > 0;                                          // a scale after any number word
+    if (!ok) {
+      // a year said in two halves: nineteen | ninety five, twenty | twenty four (only right after 19 or 20)
+      if (used && total === 0 && (cur === 19 || cur === 20) && (k === "tens" || k === "teen")) {
+        const rest = numberRun(tokens.slice(i), raws.slice(i));
+        const g = rest && rest[0] >= 10 && rest[0] <= 99 && tokens.slice(i, i + rest[1]).every((x) => !(x in SCALES)) ? rest : null;
+        if (g) return tokens[i + g[1]] === "point" ? null : [cur * 100 + g[0], used + g[1], true];   // a year: no comma
+      }
+      break;
+    }
+    if (k === "scale") { cur = Math.max(cur, 1) * SCALES[t]; if (SCALES[t] >= 1000) { total += cur; cur = 0; } }
+    else cur += k === "tens" ? TENS[t] : ONES[t];
+    last = k; used++;
   }
-  return used ? [total + cur, used] : null;
+  if (!used || tokens[used] === "point") return null;              // "one point five": leave as said
+  return [total + cur, used];
 }
 
 const fmt = (n: number) => (n >= 1000 ? n.toLocaleString("en-US") : String(n));
@@ -55,13 +76,15 @@ export function digits(words: CapWord[]): CapWord[] {
   while (i < words.length) {
     const w = words[i];
     const toks = words.slice(i, i + 8).map((x) => bare(x.text));
-    const run = numberRun(toks);
+    const afterPoint = out.length > 0 && bare(out[out.length - 1].text) === "point";   // "one point five": as said
+    const run = afterPoint ? null : numberRun(toks, words.slice(i, i + 8).map((x) => x.text));
     const loneOne = run && toks[0] === "one" && run[1] === 1 && !(out.length && ONE_AFTER.has(bare(out[out.length - 1].text)));
     if (run && !loneOne) {
-      let [value, n] = run;
+      const [value, used, year] = run;
+      let n = used;
       const [lead] = split(w.text);
       let [, , trail] = split(words[i + n - 1].text);
-      let text = fmt(value), oe = words[i + n - 1].oe;
+      let text = year ? String(value) : fmt(value), oe = words[i + n - 1].oe;
       const nxt = i + n < words.length ? bare(words[i + n].text) : "";
       if (nxt === "percent" || nxt === "%") { trail = split(words[i + n].text)[2]; text += "%"; oe = words[i + n].oe; n++; }
       else if (CURRENCY[nxt]) { trail = split(words[i + n].text)[2]; text = CURRENCY[nxt] + text; oe = words[i + n].oe; n++; }

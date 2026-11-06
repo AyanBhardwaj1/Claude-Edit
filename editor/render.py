@@ -261,12 +261,13 @@ def _remux_audio(out: Path, cut_dir, audio, broll, sfx_events) -> None:
     n = labels.count("[")
     parts.append(f"[a0]{labels}amix=inputs={n + 1}:duration=first:normalize=0,alimiter=limit=0.89:level=false[aout]"
                  if n else "[a0]anull[aout]")
+    dur = float(probe(out)["duration"])          # as long as the video, so the remux keeps its last frame too
     sound = out.with_name(out.stem + ".sound.m4a")
-    run(cmd + ["-filter_complex", ";".join(parts), "-map", "[aout]", "-c:a", "aac", "-b:a", "320k", "-ar", "48000",
-               str(sound)])
+    run(cmd + ["-filter_complex", ";".join(parts), "-map", "[aout]", "-t", f"{dur:.3f}", "-c:a", "aac", "-b:a", "320k",
+               "-ar", "48000", str(sound)])
     tmp = out.with_name(out.stem + ".remux" + out.suffix)
     run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", str(out), "-i", str(sound), "-map", "0:v",
-         "-map", "1:a", "-c", "copy", "-shortest", "-movflags", "+faststart", str(tmp)])
+         "-map", "1:a", "-c", "copy", "-movflags", "+faststart", str(tmp)])
     tmp.replace(out)
     sound.unlink(missing_ok=True)
 
@@ -416,7 +417,10 @@ def _encoder_cmd(out, w, h, fps_str, cut_dir, audio, captions, grade, lut, sharp
             "-maxrate", p["maxrate"], "-bufsize", p["bufsize"], "-g", gop, "-bf", "2",
             "-x264-params", "aq-mode=3:deblock=-1,-1", "-pix_fmt", "yuv420p",
             "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709", "-color_range", "tv",
-            "-c:a", "aac", "-b:a", "320k", "-ar", "48000", "-movflags", "+faststart", "-shortest", str(out)]
+            # not -shortest: the voice can be a millisecond shorter than the frames, and -shortest then dropped the
+            # last frame; the picture's own length (+ half a frame) caps the output instead
+            "-c:a", "aac", "-b:a", "320k", "-ar", "48000", "-movflags", "+faststart",
+            "-t", f"{duration + 0.5 / float(Fraction(fps_str)):.4f}", str(out)]
     return cmd, tempfile.TemporaryFile()
 
 

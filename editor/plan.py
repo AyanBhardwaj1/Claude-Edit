@@ -104,6 +104,12 @@ def plan(transcript_path: str | Path, out: str | Path, max_gap: float = 0.30, pa
         end = last["end"] + pad_after
         if nxt is not None:
             end = min(end, max(nxt["start"] - 0.01, last["end"]))
+        if segments and segments[-1]["src"] == first["src"] and segments[-1]["end"] > start:
+            # the last piece's tail air runs into this piece's lead air (a gap shorter than both pads, e.g. a
+            # tight --max-gap): meet in the middle of the gap instead of playing the overlap twice
+            prev_last = prev_end if prev_end else segments[-1]["end"]
+            mid = round(max(prev_last, min(first["start"], (prev_last + first["start"]) / 2)), 3)
+            segments[-1]["end"], start = mid, mid
         segments.append({"src": first["src"], "start": round(start, 3), "end": round(end, 3),
                          "text": " ".join(words[k]["text"] for k in current)})
         current.clear()
