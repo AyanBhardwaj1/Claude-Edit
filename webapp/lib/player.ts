@@ -161,6 +161,7 @@ export class Player {
       await this.music.play().catch(() => undefined);
     }
     this.gainOf(this.cur)!.gain.value = (this.gainOf(this.cur) as GainNode & { norm?: number }).norm ?? 1;
+    this.mixBleep(from);                 // resuming inside a bleep: the gate closes before a sound gets out
     await this.cur.play();
     this.playing = true;
     this.loop();
@@ -327,6 +328,7 @@ export class Player {
   async record(onProgress: (pct: number) => void): Promise<{ blob: Blob; ext: string }> {
     if (!this.tl.segments.length) throw new Error("Nothing is kept: bring some words back (Edit it myself → Cut) before exporting.");
     this.ensureAudio();
+    if (this.playing) this.halt();       // export pressed while the preview plays: stop it quietly, not as a stop of the export
     const types = ['video/mp4;codecs="avc1.640028,mp4a.40.2"', "video/mp4;codecs=avc1,opus", "video/mp4",
       "video/webm;codecs=vp9,opus", "video/webm"];
     const mime = types.find((m) => MediaRecorder.isTypeSupported(m)) ?? "";

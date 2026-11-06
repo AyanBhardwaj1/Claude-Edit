@@ -266,3 +266,18 @@ def test_named_not_shown_runs_cards_and_cli(tmp_path, monkeypatch, capsys):
     assert main(["names", str(work), "--logos", "--apply"]) == 0
     edl = __import__("json").loads((work / "edl.json").read_text())
     assert [b["words"] for b in edl["broll"]] == ["w3-w3", "w5-w6", "w10-w10"] and edl["broll"][0]["treatment"] == "card-above-head"
+
+
+def test_names_curly_apostrophes_and_svg_logos(tmp_path, monkeypatch):
+    from editor import images
+    from editor.cli import main
+    from editor.review import named_not_shown
+    ws = [dict(w, id=f"w{i}") for i, w in enumerate(words("so honestly I’m moving to Notion today"))]
+    assert [n["name"] for n in named_not_shown({"broll": []}, ws)] == ["Notion"]
+    work = tmp_path / "p" / "work"
+    work.mkdir(parents=True)
+    (work / "edl.json").write_text('{"segments": [], "broll": []}')
+    (work / "cut_words.json").write_text(__import__("json").dumps({"words": ws}))
+    monkeypatch.setattr(images, "save_hit", lambda hit, project, name=None: {"path": str(tmp_path / "p" / "broll" / "web" / "notion.svg")})
+    assert main(["names", str(work), "--logos", "--apply"]) == 0
+    assert __import__("json").loads((work / "edl.json").read_text())["broll"] == []     # an SVG would flash for one frame

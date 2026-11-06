@@ -20,3 +20,9 @@ test("names said but not shown: apps and brands, runs of capitals, not sentence 
   assert.equal(namedNotShown(tl, { broll: [label] as never })[0].text, "Notion");
   assert.notEqual(namedNotShown(tl, { broll: [{ ...label, text: "Why I left Notion" }] as never })[0].text, "Notion");
 });
+
+test("curly apostrophes don't make a name", () => {
+  const ws = say("so honestly I’m moving to Notion today");
+  const tl = buildTimeline(ws, { keep: [{ from: "w0", to: `w${ws.length - 1}` }], gapCap: 0.4 }, [30]);
+  assert.deepEqual(namedNotShown(tl, { broll: [] }).map((x) => x.text), ["Notion"]);
+});

@@ -12,7 +12,8 @@ const COMMON = new Set(["i", "i'm", "i've", "i'll", "i'd", "the", "a", "an", "an
 
 export type Name = { text: string; from: string; to: string; at: number };
 
-const core = (w: string) => w.trim().replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "");
+// curly apostrophes (scripts pasted from Notes or Docs) read as straight ones: "I’m" is a common word, not a name
+const core = (w: string) => w.trim().replace(/[‘’ʼ]/g, "'").replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "");
 const capital = (w: string) => /^\p{Lu}/u.test(core(w)) && !COMMON.has(core(w).toLowerCase()) && core(w).length > 1;
 
 export function namedNotShown(tl: Timeline, e: Pick<Edit, "broll">, max = 6): Name[] {

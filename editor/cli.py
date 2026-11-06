@@ -828,6 +828,11 @@ def cmd_names(args):
             try:
                 got = images.save_hit(images.logo(n["name"])[0], work.parent, n["name"])
                 path = str(Path(got["path"]).relative_to(work.parent))
+                if Path(path).suffix.lower() not in (".png", ".jpg", ".jpeg", ".webp"):
+                    # an SVG left as SVG (no Playwright to convert it) would show for one frame in a render
+                    line += f"  (logo saved as {path}: install Playwright to convert it, or use a PNG)"
+                    print(line)
+                    continue
                 entry = {"path": path, "treatment": "card-above-head", "words": n["words"]}
                 entries.append(entry)
                 line += f"  ->  {json.dumps(entry)}"

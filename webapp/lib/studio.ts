@@ -128,7 +128,8 @@ export function planScenes(text: string): Scene[] {
   const units: string[] = [];
   for (const l of lines) {
     if (/^([-*•]|\d+[.)])\s+/.test(l)) units.push(l);
-    else units.push(...(l.match(/[^.!?]+[.!?]*/g) ?? [l]).map((x) => x.trim()).filter(Boolean));
+    // sentences end at . ! ?, but not at a decimal point ("2.25%", "$1,299.99", "version 2.0")
+    else units.push(...(l.match(/(?:[^.!?]|\.(?=\d))+[.!?]*/g) ?? [l]).map((x) => x.trim()).filter(Boolean));
   }
   const out: Scene[] = [];
   let i = 0;
@@ -466,7 +467,7 @@ function fade(g: Ctx, text: string, font: string, colour: string, x: number, y: 
 const fmtNum = (v: number, done: boolean, target: number) => {
   const dec = Math.min(3, (String(target).split(".")[1] ?? "").length);   // 2.25% stays 2.25%, not 2.3%
   const n = done ? target : v;
-  return n >= 1000 ? Math.round(n).toLocaleString("en-US") : n.toFixed(dec);
+  return n >= 1000 ? n.toLocaleString("en-US", { minimumFractionDigits: dec, maximumFractionDigits: dec }) : n.toFixed(dec);
 };
 
 export function drawScene(g: Ctx, a: Anim, s: Scene, local: number, W: number, H: number, index: number, count: number) {

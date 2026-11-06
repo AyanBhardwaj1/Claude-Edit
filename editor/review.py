@@ -265,8 +265,8 @@ def named_not_shown(edl: dict, words: list[dict]) -> list[dict]:
     """Names said but never shown: a capitalised word mid-sentence (or a run, "Claude Code") that isn't a common word,
     with no picture on screen as it's said (a text card counts only if it spells the name), at any of its mentions.
     [{name, start, words: "w12-w13"}] at the first mention; the same rule as Cutmind's lib/names.ts."""
-    def core(t):
-        return str(t).strip().strip(".,!?;:\"'()“”‘’")
+    def core(t):     # curly apostrophes read as straight: "I’m" is a common word, not a name
+        return str(t).strip().replace("’", "'").replace("‘", "'").replace("ʼ", "'").strip(".,!?;:\"'()“”")
 
     def capital(t):
         c = core(t)
