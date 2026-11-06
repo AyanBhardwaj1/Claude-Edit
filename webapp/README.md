@@ -36,7 +36,9 @@ vertical reel with a cover and a post caption, then change it by typing notes. E
 7. **Edit it myself**: click words to cut or restore them, subtitle look, music and level, pictures, cover, caption.
 8. **Export**: MP4 (WebM in browsers that can't record MP4) in four shapes (9:16 reel, 4:5 feed, 1:1 square, 16:9 wide),
    the cover, and the caption text.
-9. **Write a script** before filming: hook, what to say, words on screen.
+9. **Write a script** before filming: hook, what to say, words on screen. **Paste your script** afterwards and the
+   subtitles use its exact words (names, brands, punctuation) on the timing it heard; ad-libs are kept, the cut never
+   moves, and "Use what it heard" undoes it (`lib/retext.ts`).
 10. **Motion**: subtitle animations (pop, karaoke, bounce, word by word, typewriter, fade), highlighted numbers and
     keywords, transitions at every cut (punch-in, whip, flash, dip, glitch), colour looks (warm, cool, cinematic, black and
     white, vivid, film), picture entrances and slow push-ins, a progress bar; seven one-click styles (Punchy, Karaoke, Clean,
