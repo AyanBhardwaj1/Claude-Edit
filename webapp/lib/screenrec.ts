@@ -3,12 +3,14 @@
 //
 // The top half is pure maths (unit-tested in tests/screenrec.test.ts): which recording format the browser can make,
 // names and times, spotting "waits" (stretches where nothing on screen moves) and turning a clip's trim and waits into
-// a time map the player follows. The bottom half is the recorder itself, around getDisplayMedia and MediaRecorder.
+// a time map the player follows. The bottom half runs in the browser: one frame comparer (FrameDiff) shared by the
+// recorder (around getDisplayMedia and MediaRecorder) and by findWaits, which scans a screen recording the user uploads.
 
 import type { Asset } from "./types";
 
 export const MAX_SECONDS = 5 * 60;      // a demo longer than this belongs in its own video
-export const SAMPLE_MS = 250;           // how often a frame is compared with the one before, while recording
+export const SAMPLE_MS = 250;           // how often a frame is compared with the one before (recording and uploads alike)
+export const PROBE_WIDTH = 64;          // frames are compared as 64-px-wide greyscale copies
 export const WAIT_SPEED = 6;            // "Speed through waits": frozen stretches play this many times faster
 export const WAIT = { minLen: 1, threshold: 0.01, pad: 0.15 };   // a wait: >= 1 s with < 1% of the picture changing
 
@@ -80,7 +82,7 @@ export const samplesFrom = (changes: number[], step = SAMPLE_MS / 1000): Sample[
  *  last sample before the run (that frame is the one that stays up) to the run's last sample, pulled in by `pad` at each
  *  end so the viewer sees the screen settle before it speeds up. Timestamps are real, so slow sampling (a background tab
  *  is held to about one sample a second) still finds the waits; it only places their edges less exactly, never outside. */
-export function findWaits(samples: Sample[], o: Partial<typeof WAIT> = {}): [number, number][] {
+export function detectWaits(samples: Sample[], o: Partial<typeof WAIT> = {}): [number, number][] {
   const { minLen, threshold, pad } = { ...WAIT, ...o };
   const out: [number, number][] = [];
   let from = -1;
@@ -148,25 +150,45 @@ export function stepAt(pieces: Piece[], t: number): { rate: number; jump?: numbe
   return { rate: next?.rate ?? pieces[0].rate, jump: next ? next.from : pieces[0].from };
 }
 
-/** The time map for a library clip, or null when it plays straight through (no trim, no waits: nothing to map). */
-export function clipPlan(a: Pick<Asset, "kind" | "duration" | "trim" | "waits"> | undefined): Piece[] | null {
-  if (!a || a.kind !== "video" || (!a.trim && !a.waits?.length) || !a.duration || !Number.isFinite(a.duration)) return null;
-  return clipPieces({ duration: a.duration, trim: a.trim, waits: a.waits });
+type PlanFields = Pick<Asset, "kind" | "duration" | "trim" | "waits" | "speedWaits">;
+
+/** The waits a clip plays faster: its waits, unless "Speed through waits" is off for it (speedWaits false; on by default). */
+export const spedWaits = (a: Pick<Asset, "waits" | "speedWaits">) => (a.speedWaits === false ? [] : a.waits ?? []);
+
+/** The time map for a library clip, or null when it plays straight through (no trim, no waits sped: nothing to map). */
+export function clipPlan(a: PlanFields | undefined): Piece[] | null {
+  if (!a || a.kind !== "video" || !a.duration || !Number.isFinite(a.duration)) return null;
+  const waits = spedWaits(a);
+  if (!a.trim && !waits.length) return null;
+  return clipPieces({ duration: a.duration, trim: a.trim, waits });
 }
 
 /** How long a library clip plays for once trimmed and sped through (its full length otherwise). */
-export function playedLength(a: Pick<Asset, "kind" | "duration" | "trim" | "waits">): number | undefined {
+export function playedLength(a: PlanFields): number | undefined {
   const plan = clipPlan(a);
   return plan ? piecesLength(plan) : a.duration;
 }
 
-/** The asset fields a finished recording adds: always a screen; a trim only when it trims; waits only when sped through. */
-export function recordingMeta(duration: number, trim: { start: number; end: number }, waits: [number, number][] | null): Partial<Asset> {
+/** What "Speed through waits" does for a clip: how many waits fall inside its trim, their length, and the seconds saved. */
+export function waitSavings(a: PlanFields): { count: number; seconds: number; saves: number } {
+  const dur = a.duration && Number.isFinite(a.duration) ? a.duration : 0;
+  if (a.kind !== "video" || !dur || !a.waits?.length) return { count: 0, seconds: 0, saves: 0 };
+  const plain = piecesLength(clipPieces({ duration: dur, trim: a.trim }));
+  const pieces = clipPieces({ duration: dur, trim: a.trim, waits: a.waits });
+  const sped = pieces.filter((x) => x.rate !== 1);
+  const seconds = sped.reduce((t, x) => t + x.to - x.from, 0);
+  return { count: sped.length, seconds: round3(seconds), saves: round3(plain - piecesLength(pieces)) };
+}
+
+/** The asset fields a finished recording adds: always a screen; a trim only when it trims; the waits found inside the
+ *  trim (an empty list when there are none, so they're never looked for again), switched off when not sped through. */
+export function recordingMeta(duration: number, trim: { start: number; end: number }, waits: [number, number][] | null, speed = true): Partial<Asset> {
   const out: Partial<Asset> = { screen: true, duration: round3(duration) };
   const start = Math.max(0, trim.start), end = Math.min(duration, trim.end);
   if (start > 0.05 || end < duration - 0.05) out.trim = { start: round3(start), end: round3(end) };
-  const inside = (waits ?? []).filter(([s, e]) => e > start && s < end);
-  if (inside.length) out.waits = inside.map(([s, e]) => [round3(s), round3(e)]);
+  if (!waits) return out;
+  out.waits = waits.filter(([s, e]) => e > start && s < end).map(([s, e]) => [round3(s), round3(e)]);
+  if (!speed && out.waits.length) out.speedWaits = false;
   return out;
 }
 
@@ -198,6 +220,137 @@ export function canRecordScreen(): boolean {
   return !!navigator.mediaDevices && typeof navigator.mediaDevices.getDisplayMedia === "function" && typeof window.MediaRecorder === "function";
 }
 
+// ------------------------------------------------------------------ comparing frames (browser only)
+
+/** Compares each frame it's given with the one before, as a PROBE_WIDTH-px-wide greyscale copy (frameChange). The
+ *  recorder and the upload scan both use it, so a wait means the same thing whichever way the clip arrived. */
+export class FrameDiff {
+  private c = document.createElement("canvas");
+  private g = this.c.getContext("2d", { willReadFrequently: true });
+  private prev: Uint8Array | null = null;
+
+  /** The share of the picture that changed since the last frame (1 for the first frame, or one of another size); null
+   *  when there's nothing to draw yet. */
+  next(src: CanvasImageSource, srcW: number, srcH: number): number | null {
+    if (!this.g || !srcW || !srcH) return null;
+    const w = PROBE_WIDTH, h = Math.max(8, Math.round((PROBE_WIDTH * srcH) / srcW));
+    if (this.c.width !== w || this.c.height !== h) { this.c.width = w; this.c.height = h; }
+    this.g.drawImage(src, 0, 0, w, h);
+    const grey = toGrey(this.g.getImageData(0, 0, w, h).data);
+    const change = this.prev && this.prev.length === grey.length ? frameChange(this.prev, grey) : 1;
+    this.prev = grey;
+    return change;
+  }
+}
+
+export type ScanOpts = {
+  onProgress?: (fraction: number) => void;     // 0..1 through the clip
+  signal?: AbortSignal;                         // abort to stop: findWaits then rejects with an AbortError
+  mode?: "auto" | "play" | "seek";              // auto: fast muted playback where the browser can, seeking otherwise
+  rate?: number;                                // playback speed for "play" (default 8x, 16x past 90 s; browsers allow 16)
+  step?: number;                                // seconds between samples (default SAMPLE_MS)
+  waits?: Partial<typeof WAIT>;
+  onDone?: (r: { samples: Sample[]; mode: "play" | "seek"; seconds: number }) => void;   // how the scan went (for timing)
+};
+
+const abortError = () => new DOMException("The scan was stopped.", "AbortError");
+
+/** Finds the waits in a video file (a screen recording made with QuickTime, OBS, a phone...): the same detector the
+ *  recorder runs live, fed by a hidden, muted <video>. Fast path: play it at `rate` (8x or 16x) and compare each painted frame
+ *  (requestVideoFrameCallback) at least `step` apart; if the browser can't (no requestVideoFrameCallback, playback
+ *  refused, a hidden tab that stops painting), it carries on by seeking every `step` seconds from where it got to.
+ *  Never re-encodes anything; the file is only read. */
+export async function findWaits(videoUrl: string, duration: number, o: ScanOpts = {}): Promise<[number, number][]> {
+  const t0 = performance.now();
+  const step = o.step ?? SAMPLE_MS / 1000;
+  const v = document.createElement("video");
+  v.muted = true; v.playsInline = true; v.preload = "auto"; v.src = videoUrl;
+  const diff = new FrameDiff();
+  const samples: Sample[] = [];
+  let mode: "play" | "seek" = "seek";
+  const dur = () => (Number.isFinite(v.duration) && v.duration > 0 ? v.duration : duration);
+  const report = (t: number) => o.onProgress?.(Math.min(1, Math.max(0, t / Math.max(0.001, dur()))));
+  const take = (t: number) => {
+    const change = diff.next(v, v.videoWidth, v.videoHeight);
+    if (change !== null) samples.push({ t: round3(t), change });
+    report(t);
+  };
+  const stopped = () => { if (o.signal?.aborted) throw abortError(); };
+  try {
+    stopped();
+    await new Promise<void>((ok, bad) => {
+      if (v.readyState >= 2) return ok();
+      v.onloadeddata = () => ok();
+      v.onerror = () => bad(new Error("This clip can't be played in your browser, so I couldn't look for waits in it."));
+      o.signal?.addEventListener("abort", () => bad(abortError()), { once: true });
+    });
+    const end = dur();
+    let from = 0;
+    const rvfc = typeof (v as HTMLVideoElement & { requestVideoFrameCallback?: unknown }).requestVideoFrameCallback === "function";
+    if ((o.mode ?? "auto") !== "seek" && rvfc) {
+      mode = "play";
+      // 8x keeps painted frames about 0.27 s apart (sharp wait edges); past 90 s, 16x keeps a long demo under ~15 s
+      from = await playScan(v, o.rate ?? (end > 90 ? 16 : 8), step, take, o.signal);
+      if (from < end - 2 * step) mode = "seek";                 // it stalled part way: seek the rest
+      else from = end;
+    }
+    const start = samples.length ? from + step : 0;
+    for (let t = start; t < end; t += step) {
+      stopped();
+      await seekTo(v, t, o.signal);
+      take(t);
+    }
+    stopped();
+    report(end);
+    o.onDone?.({ samples, mode, seconds: (performance.now() - t0) / 1000 });
+    return detectWaits(samples, o.waits);
+  } finally {
+    v.pause();
+    v.removeAttribute("src");
+    v.load();
+  }
+}
+
+/** Plays the clip muted at `rate`, sampling painted frames at least `step` apart. Resolves with the media time it got to
+ *  (the end, or where it stalled: no new frame for 1.5 s). */
+function playScan(v: HTMLVideoElement, rate: number, step: number, take: (t: number) => void, signal?: AbortSignal): Promise<number> {
+  type RVFC = (cb: (now: number, meta: { mediaTime: number }) => void) => number;
+  const req = (v as unknown as { requestVideoFrameCallback: RVFC }).requestVideoFrameCallback.bind(v);
+  return new Promise<number>((ok, bad) => {
+    let last = -Infinity, seen = performance.now(), done = false, at = 0;
+    const finish = (err?: unknown) => {
+      if (done) return;
+      done = true; clearInterval(watch); v.pause(); v.onended = null;
+      if (err) bad(err); else ok(at);
+    };
+    const onFrame = (_: number, meta: { mediaTime: number }) => {
+      if (done) return;
+      seen = performance.now();
+      if (meta.mediaTime - last >= step - 0.02) { take(meta.mediaTime); last = meta.mediaTime; at = meta.mediaTime; }
+      req(onFrame);
+    };
+    const watch = window.setInterval(() => {
+      if (signal?.aborted) return finish(abortError());
+      if (performance.now() - seen > 1500) finish();            // stalled: hand over to seeking from `at`
+    }, 250);
+    v.onended = () => { at = Math.max(at, v.duration || at); finish(); };
+    try { v.playbackRate = rate; } catch { try { v.playbackRate = 8; } catch { /* keep 1x */ } }
+    req(onFrame);
+    v.play().catch(() => finish());                              // playback refused: seek instead
+  });
+}
+
+function seekTo(v: HTMLVideoElement, t: number, signal?: AbortSignal): Promise<void> {
+  return new Promise<void>((ok, bad) => {
+    const done = () => { clearTimeout(slow); v.removeEventListener("seeked", done); signal?.removeEventListener("abort", stop); ok(); };
+    const stop = () => { clearTimeout(slow); v.removeEventListener("seeked", done); bad(abortError()); };
+    const slow = setTimeout(done, 3000);                         // a seek that never lands: compare what's there
+    v.addEventListener("seeked", done);
+    signal?.addEventListener("abort", stop, { once: true });
+    v.currentTime = t;
+  });
+}
+
 // ------------------------------------------------------------------ the recorder (browser only)
 
 export type Recording = {
@@ -226,7 +379,6 @@ export class ScreenRecorder {
   private since = 0;
   private timers: number[] = [];
   private probe?: HTMLVideoElement;
-  private prev: Uint8Array | null = null;
   private samples: Sample[] = [];
   private size = { width: 0, height: 0 };
   private hasAudio = false;
@@ -304,17 +456,11 @@ export class ScreenRecorder {
     v.muted = true; v.playsInline = true; v.srcObject = display;
     void v.play().catch(() => undefined);
     this.probe = v;
-    const c = document.createElement("canvas");
-    const g = c.getContext("2d", { willReadFrequently: true });
-    if (!g) return;
+    const diff = new FrameDiff();
     this.timers.push(window.setInterval(() => {
       if (this.state !== "recording" || v.readyState < 2 || !v.videoWidth) return;
-      const w = 64, h = Math.max(8, Math.round((64 * v.videoHeight) / v.videoWidth));
-      if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
-      g.drawImage(v, 0, 0, w, h);
-      const grey = toGrey(g.getImageData(0, 0, w, h).data);
-      this.samples.push({ t: this.elapsed(), change: this.prev && this.prev.length === grey.length ? frameChange(this.prev, grey) : 1 });
-      this.prev = grey;
+      const change = diff.next(v, v.videoWidth, v.videoHeight);
+      if (change !== null) this.samples.push({ t: this.elapsed(), change });
       if (!this.size.width) this.size = { width: v.videoWidth, height: v.videoHeight };
     }, SAMPLE_MS));
   }

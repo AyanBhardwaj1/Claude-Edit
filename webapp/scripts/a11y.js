@@ -47,6 +47,18 @@ const AXE = fs.readFileSync(require.resolve("axe-core/axe.min.js"), "utf8");
   const rec = page.getByRole("button", { name: "Record my screen" });
   if (await rec.count()) { await rec.first().click(); await page.waitForTimeout(800); await audit("record screen panel"); await page.keyboard.press("Escape"); }
   await page.getByRole("button", { name: "Edit it myself" }).click(); await page.waitForTimeout(1200); await audit("edit it myself");
+  // an uploaded screen recording with a frozen middle: "Speed through waits" in Pictures (needs ffmpeg to make the clip)
+  const clip = `${OUT}/a11y_screen_wait.mp4`;
+  const made = require("child_process").spawnSync("ffmpeg", ["-v", "error", "-y", "-f", "lavfi", "-i", "color=c=0xf4f5f7:s=1280x720:r=30:d=6",
+    "-f", "lavfi", "-i", "color=c=0x10b981:s=220x120:r=30:d=6", "-filter_complex",
+    "[0:v]drawbox=x=0:y=0:w=1280:h=64:color=0x1f2937:t=fill[bg];[bg][1:v]overlay=x='300+300*if(lt(t,2),t,if(lt(t,4),2,t-2))':y=220:shortest=1[v]",
+    "-map", "[v]", "-c:v", "libx264", "-pix_fmt", "yuv420p", clip]);
+  if (made.status === 0) {
+    await page.locator('input[type="file"][accept="audio/*,image/*,video/*"]').setInputFiles(clip);
+    await page.getByText(/I found a wait in a11y_screen_wait/).waitFor({ timeout: 60000 }).catch(() => undefined);
+    await page.getByRole("tab", { name: "Pictures" }).click(); await page.waitForTimeout(800);
+    await audit(`pictures, speed through waits (${await page.locator(".waits").count()} clip)`);
+  } else console.log("pictures, speed through waits: skipped (no ffmpeg to make a test clip)");
   fs.writeFileSync(`${OUT}/a11y.json`, JSON.stringify(results, null, 1));
   process.exitCode = results.some((r) => r.violations.length) ? 1 : 0;
   await b.close();

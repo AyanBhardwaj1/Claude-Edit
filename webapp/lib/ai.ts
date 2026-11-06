@@ -6,7 +6,7 @@ import type { AiEdit } from "./edit";
 import { DEFAULT_MAX_TOKENS, type AiChoice } from "./effort";
 import { APPLY_NOTE, EDIT_SCHEMA, FIRST_EDIT, REVIEW_EDIT, SCRIPT_SCHEMA, SYSTEM, WRITE_SCRIPT } from "./prompts";
 import { reelCheck } from "./score";
-import { playedLength } from "./screenrec";
+import { playedLength, WAIT_SPEED, waitSavings } from "./screenrec";
 import { buildTimeline } from "./timeline";
 import type { Asset, Edit, Project, Settings, StyleRule } from "./types";
 
@@ -112,9 +112,19 @@ export function transcriptText(p: Project): string {
   const lib = p.library.filter((x) => !x.web);
   parts.push("LIBRARY:\n" + (lib.length ? lib.map((x) => `- key "${x.key}": ${libKind(x)} "${x.name}"` +
     (x.width && x.height && x.kind !== "music" ? ` ${x.width}x${x.height}` : "") +
-    (x.kind === "music" ? ` sounds ${x.feel ?? "?"} (energy ${x.energy ?? "?"})${x.origin === "composed" ? ", composed for this video, ends on its last chord" : ""}` : x.duration ? ` ${(playedLength(x) ?? x.duration).toFixed(1)}s` : "")).join("\n")
+    (x.kind === "music" ? ` sounds ${x.feel ?? "?"} (energy ${x.energy ?? "?"})${x.origin === "composed" ? ", composed for this video, ends on its last chord" : ""}` : x.duration ? ` ${clipLength(x)}` : "")).join("\n")
     : "(empty: use webPictures, labels and zooms)"));
   return parts.join("\n\n");
+}
+
+/** A clip's length as it plays in the video: trimmed and with its waits sped through ("Speed through waits"), saying so
+ *  when the waits make it shorter, so the editor gives the shot room for the clip as it plays, not as recorded. */
+export function clipLength(x: Asset): string {
+  const plays = playedLength(x) ?? x.duration ?? 0;
+  const w = waitSavings(x);
+  return w.count && x.speedWaits !== false && w.saves >= 0.05
+    ? `${plays.toFixed(1)}s (waits played ${WAIT_SPEED}x faster; ${(plays + w.saves).toFixed(1)}s at normal speed)`
+    : `${plays.toFixed(1)}s`;
 }
 
 /** How a library item reads to the editor: screenshots and screen recordings are named as such (lib/framed.ts). */

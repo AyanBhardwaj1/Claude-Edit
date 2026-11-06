@@ -24,7 +24,8 @@ export type Asset = {
   // a clip's own in and out points and the frozen stretches that play 6x faster (lib/screenrec.ts clipPlan): metadata
   // only, the file itself is never re-encoded. The player maps a shot's time onto the clip with them.
   trim?: { start: number; end: number };
-  waits?: [number, number][];
+  waits?: [number, number][];     // [] = looked for, none found; missing = not looked for yet (an uploaded screen recording)
+  speedWaits?: boolean;           // "Speed through waits" for this clip (default on; false plays the waits at 1x)
 };
 
 export type Treatment = "card-above-head" | "side-card" | "phone-card" | "full-frame" | "split-top" | "framed" | "text-pop" | "motion";

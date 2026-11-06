@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { clipPieces, clipPlan, clipTimeAt, errorMessage, extFor, findWaits, formatTime, frameChange, MIME_TYPES, pickMimeType,
+import { clipPieces, clipPlan, clipTimeAt, detectWaits, errorMessage, extFor, formatTime, frameChange, MIME_TYPES, pickMimeType,
   piecesLength, playedLength, recordingMeta, recordingName, samplesFrom, sayTime, stepAt, toGrey, WAIT_SPEED } from "../lib/screenrec";
 
 const near = (a: number, b: number, eps = 1e-6) => Math.abs(a - b) <= eps;
@@ -59,23 +59,23 @@ test("screenrec: frame change counts the share of pixels that really moved", () 
 test("screenrec: waits are stretches of >= 1 s with < 1% change, padded in, from the frame that stays up", () => {
   // 0.25 s samples: moving for 1 s, frozen from 1.0 s to 3.0 s, moving, a 0.5 s freeze (too short), moving
   const changes = [1, 0.3, 0.2, 0.25, 0.4, 0, 0, 0.004, 0, 0, 0, 0.009, 0, 0.3, 0.2, 0, 0, 0.5, 0.2];
-  const w = findWaits(samplesFrom(changes), { pad: 0 });
+  const w = detectWaits(samplesFrom(changes), { pad: 0 });
   assert.deepEqual(w, [[1, 3]]);                                     // samples 5..12 still; the frame at sample 4 (1.0 s) stays up
   // with the default padding the edges come in by 0.15 s
-  assert.deepEqual(findWaits(samplesFrom(changes)), [[1.15, 2.85]]);
+  assert.deepEqual(detectWaits(samplesFrom(changes)), [[1.15, 2.85]]);
   // exactly 1 s qualifies; 0.75 s does not
-  assert.deepEqual(findWaits(samplesFrom([1, 1, 0, 0, 0, 0, 1]), { pad: 0 }), [[0.25, 1.25]]);
-  assert.deepEqual(findWaits(samplesFrom([1, 1, 0, 0, 0, 1]), { pad: 0 }), []);
+  assert.deepEqual(detectWaits(samplesFrom([1, 1, 0, 0, 0, 0, 1]), { pad: 0 }), [[0.25, 1.25]]);
+  assert.deepEqual(detectWaits(samplesFrom([1, 1, 0, 0, 0, 1]), { pad: 0 }), []);
   // a freeze running to the end of the recording counts too
-  assert.deepEqual(findWaits(samplesFrom([1, 0.5, 0, 0, 0, 0, 0, 0]), { pad: 0 }), [[0.25, 1.75]]);
+  assert.deepEqual(detectWaits(samplesFrom([1, 0.5, 0, 0, 0, 0, 0, 0]), { pad: 0 }), [[0.25, 1.75]]);
   // 1% change is a change
-  assert.deepEqual(findWaits(samplesFrom([1, 1, 0.01, 0.01, 0.01, 0.01, 0.01]), { pad: 0 }), []);
+  assert.deepEqual(detectWaits(samplesFrom([1, 1, 0.01, 0.01, 0.01, 0.01, 0.01]), { pad: 0 }), []);
   // the very first sample (compared with nothing) never starts a wait
-  assert.deepEqual(findWaits(samplesFrom([0, 0, 0, 0, 0, 0]), { pad: 0 }), [[0, 1.25]]);
+  assert.deepEqual(detectWaits(samplesFrom([0, 0, 0, 0, 0, 0]), { pad: 0 }), [[0, 1.25]]);
   // a background tab samples about once a second: real timestamps still find the wait
   const slow = [{ t: 0, change: 1 }, { t: 1.1, change: 0.4 }, { t: 2.1, change: 0 }, { t: 3.2, change: 0 }, { t: 4.2, change: 0.3 }];
-  assert.deepEqual(findWaits(slow, { pad: 0 }), [[1.1, 3.2]]);
-  assert.deepEqual(findWaits([]), []);
+  assert.deepEqual(detectWaits(slow, { pad: 0 }), [[1.1, 3.2]]);
+  assert.deepEqual(detectWaits([]), []);
 });
 
 test("screenrec: trim + waits -> pieces: waits 6x faster, lengths add up, a cut speed drops them", () => {
