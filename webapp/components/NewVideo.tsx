@@ -144,7 +144,10 @@ export function NewVideo({ settings, initial = [], film = false, onFilmOpened, o
       <div className="page-head"><div><h1>New video</h1><p>Retakes and fumbles are fine: your editor keeps your best take of every line.</p></div></div>
       <div className="stack">
         {!hasKey && <div className="alert info"><Icon name="key" /><span>No AI editor yet, so you&apos;ll get a simple cut with subtitles.{" "}
-          <button className="link" onClick={onSettings}>Add your key</button> for best-take picking, pictures, music choices and your post caption.</span></div>}
+          <button className="link" onClick={onSettings}>Add your key or use your Claude / ChatGPT plan</button> for best-take picking, pictures, music
+          choices and your post caption.</span></div>}
+        {settings.provider === "chat" && <div className="alert info"><Icon name="key" /><span>Your Claude or ChatGPT plan edits this one: once I&apos;ve
+          listened, a window gives you the request to paste into your chat, then you paste its reply back. Keep this tab open meanwhile.</span></div>}
         {!canListen && <div className="alert err" role="alert"><Icon name="alert" /><span>Listening needs an OpenAI key, or switch Listening to
           &ldquo;In my browser&rdquo; in <button className="link" onClick={onSettings}>Settings</button></span></div>}
 
