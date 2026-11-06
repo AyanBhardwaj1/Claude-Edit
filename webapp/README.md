@@ -100,6 +100,9 @@ vertical reel with a cover and a post caption, then change it by typing notes. E
     these** sends the weak spots as one timed note.
 27. **Show the app's buttons**: draws Reels, TikTok or Shorts UI over the 9:16 preview and says when its caption block
     covers your subtitles (`lib/safezones.ts`, the same zones as `editor safezone`).
+28. **Your reels**: on the dashboard once you have two videos, your reel check scores over time (a trend line, the
+    average, the change from your earlier reels, the average length) and what most often holds them back, with where
+    to fix it (`lib/insights.ts`).
 
 ## Privacy and keys
 - Videos never leave the browser: they're processed on the user's computer and kept in IndexedDB.
