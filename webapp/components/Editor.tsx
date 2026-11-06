@@ -28,6 +28,7 @@ import { RecordScreen } from "./ScreenRecorder";
 import { clock } from "./Tiles";
 import { changeItems, type Change } from "@/lib/changes";
 import { attention, spotsNote, zoomsFor, type Attention } from "@/lib/attention";
+import { openWith, strongestLine, type Line } from "@/lib/coldopen";
 import { cutWarmUp, LOOP_HEAD, LOOP_TAIL, loopCheck, SCROLL_SECONDS, scrollTest, type ScrollLine } from "@/lib/scrolltest";
 import { clearPosition, PLATFORM_NAMES, subtitlesCovered, ZONES, type Platform } from "@/lib/safezones";
 import { Shortcuts } from "./Shortcuts";
@@ -68,7 +69,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
   const [appUi, setAppUi] = useState<Platform | null>(null);   // draw Reels / TikTok / Shorts UI over the preview
   // the scroll test (the first 3 seconds, sound off) and the loop test (the end running back into the start), then
   // what a viewer got from them
-  const [scroll, setScroll] = useState<{ lines: ScrollLine[]; passed: number; loop: ScrollLine } | null>(null);
+  const [scroll, setScroll] = useState<{ lines: ScrollLine[]; passed: number; loop: ScrollLine; cold: Line | null } | null>(null);
   const [shownTest, setShownTest] = useState<"scroll" | "loop" | null>(null);
   const run = useRef<null | { kind: "scroll" } | { kind: "loop"; phase: "tail" | "head" }>(null);
   const [running, setRunning] = useState<"scroll" | "loop" | null>(null);
@@ -185,7 +186,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
     canvas.current!.dataset.cuts = pl.scene.cuts.map((c) => c.toFixed(3)).join(",");   // for tests and tools
     setCheck(reelCheck(p, edit, pl.tl));
     setAttn(attention(pl.tl, edit));
-    setScroll({ ...scrollTest(pl.tl, edit), loop: loopCheck(pl.tl) }); setShownTest(null);
+    setScroll({ ...scrollTest(pl.tl, edit), loop: loopCheck(pl.tl), cold: strongestLine(pl.tl) }); setShownTest(null);
     void waveform(p, pl.tl).then((w) => { if (gen === mounts.current) setWave(w); });
     setTrack({ segs: pl.tl.segments.map((x) => [x.outStart, x.outEnd]), zooms: pl.scene.zooms.map((z) => [z.s, z.e]),
       layers: pl.scene.layers.map((L) => ({ s: L.start, e: L.end, text: L.b.treatment === "text-pop", label: L.b.text ?? L.b.card?.text ?? p.library.find((x) => x.key === L.b.asset)?.name ?? "Picture" })) });
@@ -524,6 +525,17 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
                               setMsgs((m) => [...m, { who: "ed", v: p.current, text: `Version ${p.current}: ${f.said}`, changes: changeItems(p, before, f.edit) }]);
                             }}><Icon name="wand" />{f.label}</button>); })()}</span></li>))}
                   </ul>
+                  {scroll.cold && version && (
+                    <div className="cold-open">
+                      <p className="small"><b>Your strongest line</b> is “{scroll.cold.text}” at {clock(scroll.cold.at)}: {scroll.cold.why.join(", ")}.
+                        {" "}Opening on it is the classic fix for a slow start; the rest plays in order after it.</p>
+                      <button type="button" className="btn sm" disabled={recording} onClick={async () => {
+                        const line = scroll.cold!, before = version.edit, fixed = openWith(p.words, before, line);
+                        await saveManual(p, fixed, `open with “${line.text}”`); setP({ ...p });
+                        setMsgs((m) => [...m, { who: "ed", v: p.current, text: `Version ${p.current}: it now opens with “${line.text}”, then plays the rest in order.`,
+                          changes: changeItems(p, before, fixed) }]);
+                      }}><Icon name="wand" />Open with it</button>
+                    </div>)}
                 </div>)}
               {shownTest === "loop" && (
                 <div className="scroll-res" role="status">

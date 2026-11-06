@@ -110,6 +110,9 @@ vertical reel with a cover and a post caption, then change it by typing notes. E
     Findings fix in one click where they can: **Cut “so um”** removes a warm-up opener (moving anything anchored
     there, like the hook title, onto the new first word), **Add a zoom there** moves a still opening, **Turn subtitles
     on**. Keys: T runs the scroll test, L the loop test.
+31. **Cold open**: the scroll test also names your strongest line (a number, a strong word like "never" or
+    "mistake", talking to "you", a question; never one that leans on what came before, like "Step two") and
+    **Open with it** moves it to the front with the hook title, the rest in order after it (`lib/coldopen.ts`).
 30. **Raise them**: when the app's caption block covers the subtitles, one click moves them to the lowest spot all three
     platforms leave clear, as its own version (`clearPosition` in `lib/safezones.ts`).
 
