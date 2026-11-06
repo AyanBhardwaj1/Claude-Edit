@@ -177,7 +177,7 @@ export function Drawer({ project: p, edit, onApply, settings, onMakeMusic, onWor
           )}
           {lines.length > 0 && (
             <div className="field"><span className="label" id="takes-h">Lines you said more than once</span>
-              <span className="hint">I picked the last complete take of each. Pick another one to play it in its place.</span>
+              <span className="hint">The pressed take plays now. Hear each one, then pick another to play it in its place.</span>
               <ul className="takes" aria-labelledby="takes-h">
                 {lines.map((L) => (
                   <li key={L.takes[0].range.from}>
