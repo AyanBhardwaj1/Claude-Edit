@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { attention, zoomsFor } from "../lib/attention";
+import { attention, spotsNote, zoomsFor } from "../lib/attention";
+import { noteTimes } from "../lib/moments";
 import { defaultEdit } from "../lib/edit";
 import { DEFAULT_MOTION } from "../lib/edit";
 import { buildTimeline } from "../lib/timeline";
@@ -48,4 +49,11 @@ test("Add zooms there turns a same-picture spot calm, on the words said there", 
   const after = attention(tl, fixed);
   assert.ok(!after.spots.some((s) => s.cause === "still" && s.from <= spot.from + 1), JSON.stringify(after.spots));
   assert.equal(zoomsFor(tl, e, { ...spot, cause: "quiet" }), null);
+});
+
+test("the weak spots become a timed note the editor can pin to the words", () => {
+  const note = spotsNote([{ from: 5, to: 23.4, cause: "still", risk: 1, text: "23 s of the same picture", fix: "" },
+    { from: 61, to: 63, cause: "quiet", risk: 0.7, text: "2.0 s with nothing said", fix: "" }]);
+  assert.match(note, /^Viewers may drift at 0:05 to 0:23 \(the same picture for 18 seconds\); and at 1:01 to 1:03 \(nothing said for 2 seconds\)\./);
+  assert.deepEqual(noteTimes(note), [5, 23, 61, 63]);
 });
