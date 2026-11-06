@@ -47,3 +47,15 @@ def test_times_that_are_not_times(tmp_path):
             _clock(bad)
     with pytest.raises(EditorError, match="not a time"):
         produce._clock("-3")
+
+
+def test_spoken_numbers_only_combine_the_way_numbers_are_said():
+    from editor.wordfix import digits
+
+    def say(s):
+        return " ".join(w["text"] for w in digits([{"text": t, "start": i, "end": i + 0.5} for i, t in enumerate(s.split())]))
+    assert say("three two one go") == "3 2 one go"
+    assert say("in twenty twenty four") == "in 2024" and say("nineteen ninety five") == "1995"
+    assert say("seven eleven") == "7 11" and say("two, three ideas") == "2, 3 ideas"
+    assert say("two hundred and fifty dollars") == "$250" and say("three thousand five hundred") == "3,500"
+    assert say("one point five million") == "one point five million"
