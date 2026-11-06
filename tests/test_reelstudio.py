@@ -229,6 +229,8 @@ def test_pacing_checks():
     assert "4000" in stronger_opening(words("Hi everyone. I want to share my week. I lost 4000 dollars on one bad habit."))
     assert stronger_opening(words("I lost 4000 dollars on one bad habit. Hi everyone. I want to share my week.")) is None
     assert stronger_opening(words("I plan my week. Step two, I never move the camera. Then I film 5 videos.")) is None
+    cta = words("save this and follow for more")
+    assert pacing(edl, cta, cta[-1]["end"] + 0.2)["loop_seam"] is None          # a CTA is a choice
     bye = words("here is the trick thanks for watching")
     assert "sign-off" in pacing(edl, bye, bye[-1]["end"] + 0.2)["loop_seam"]
 

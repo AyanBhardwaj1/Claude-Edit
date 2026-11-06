@@ -6,6 +6,7 @@ import { motionOf } from "./edit";
 import { MIN_GAP, QUIET_VOICE_RMS, speechGap } from "./mix";
 import type { Timeline } from "./timeline";
 import { spanOf } from "./timeline";
+import { WEAK } from "./scrolltest";
 import type { Edit, Project } from "./types";
 
 export type Check = { id: string; ok: boolean; warn?: boolean; weight: number; title: string; detail: string; fix?: string };
@@ -19,9 +20,10 @@ export function reelCheck(p: Project, e: Edit, tl: Timeline): { score: number; c
   add({ id: "hook", weight: 20, ok: !!hs && hs[0] <= 0.5, title: "A hook on screen from the first word",
     detail: hs ? (hs[0] <= 0.5 ? `"${hook!.text}" appears at ${hs[0].toFixed(1)} s.` : `The hook title only appears at ${hs[0].toFixed(1)} s.`) : "There's no hook title.",
     fix: hs ? undefined : "Use Try 5 hooks, or write a note: “add a hook title”." });
-  const first = tl.words.slice(0, 3).map((w) => w.w.toLowerCase().replace(/[^a-z']/g, ""));
-  const weak = ["so", "um", "uh", "okay", "ok", "hey", "hi", "hello", "today", "alright"].includes(first[0] ?? "");
-  add({ id: "open", weight: 10, ok: !weak, title: "Starts mid-thought", detail: weak ? `It opens with “${tl.words[0]?.w}”: viewers swipe on throat clearing.` : "The first word is the point.",
+  const spoken = tl.words.filter((w) => w.w.trim());     // a pasted script can leave empty words: skip them
+  const first = spoken.slice(0, 3).map((w) => w.w.toLowerCase().replace(/[^a-z']/g, ""));
+  const weak = WEAK.includes(first[0] ?? "");          // the same list as the scroll test, so the two agree
+  add({ id: "open", weight: 10, ok: !weak, title: "Starts mid-thought", detail: weak ? `It opens with “${spoken[0]?.w.trim()}”: viewers swipe on throat clearing.` : "The first word is the point.",
     fix: weak ? "In Edit it myself → Cut, click the first words to cut them." : undefined });
   const wpm = dur > 0 ? (tl.words.length / dur) * 60 : 0;
   add({ id: "pace", weight: 10, ok: wpm >= 140 && wpm <= 210, warn: wpm >= 120 && wpm < 140, title: "Talking pace",

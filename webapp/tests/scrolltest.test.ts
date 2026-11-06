@@ -103,3 +103,9 @@ test("cutting the warm-up moves translated subtitles onto the new first word; a 
   const line = scrollTest(buildTimeline(say("rent is the biggest bill you pay and here is how"), h, [10]), h).lines.find((l) => l.id === "hook")!;
   assert.ok(line.ok, line.text);
 });
+
+test("a call to action at the end is a choice, not a sign-off", async () => {
+  const { loopCheck } = await import("../lib/scrolltest");
+  const e = edit();
+  assert.ok(loopCheck(buildTimeline(say("save this and follow for more tips every single week"), e, [10])).ok);
+});

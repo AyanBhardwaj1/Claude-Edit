@@ -9,7 +9,7 @@ import type { Edit, Range, Word } from "./types";
 export const SCROLL_SECONDS = 3;
 export type ScrollLine = { id: "hook" | "read" | "moves" | "open" | "loop"; ok: boolean; text: string; fix?: string };
 
-const WEAK = ["so", "um", "uh", "okay", "ok", "hey", "hi", "hello", "today", "alright", "well", "like"];
+export const WEAK = ["so", "um", "uh", "okay", "ok", "hey", "hi", "hello", "today", "alright", "well", "like"];
 
 /** About how long a short line takes to read on a phone: a moment to notice it, then ~4 words a second. */
 export const readTime = (text: string) => 0.4 + 0.25 * text.trim().split(/\s+/).filter(Boolean).length;
@@ -67,7 +67,7 @@ export function scrollTest(tl: Timeline, e: Edit): { lines: ScrollLine[]; passed
 /** The loop: a reel replays itself, so the last second runs straight into the first. Dead air or a trailing goodbye at
  *  the end is where people swipe instead of watching it again. */
 export const LOOP_TAIL = 2.5, LOOP_HEAD = 2;
-const GOODBYE = /\b(bye|see you|thanks for watching|that's it|peace|follow for more|subscribe)\b/i;
+const GOODBYE = /\b(bye|see you|thanks for watching|that's it|peace out)\b/i;   // a CTA ("follow for more") is a choice, not a sign-off
 
 export function loopCheck(tl: Timeline): ScrollLine & { id: "loop" } {
   const spoken = tl.words.filter((w) => w.w.trim());
