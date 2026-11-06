@@ -803,6 +803,17 @@ def _tokens(text: str, content: bool = False) -> list[str]:
     return [t for t in toks if t not in STOP and len(t) > 2] if content else toks
 
 
+def _clock_brief(x) -> float | None:
+    m = re.fullmatch(r"(\d{1,2}):(\d{2})", str(x or "").strip())
+    return int(m[1]) * 60 + int(m[2]) if m else None
+
+
+def _dist(span, t) -> float:
+    if span is None or t is None:
+        return 0.0
+    return max(0.0, span[0] - t, t - span[1])
+
+
 def captions_from_brief(spec_path: str | Path, brief: str | Path) -> dict:
     """Give each voice its lines from the brief's caption list: each line goes to the voice whose recognised words
     share the most with it (in order), then `lines` makes one card per line timed on what was heard."""
@@ -822,6 +833,14 @@ def captions_from_brief(spec_path: str | Path, brief: str | Path) -> dict:
                                                           for w in ws if a <= float(w["start"]) < b), content=True)))
     if not heard:
         raise EditorError("captions.voices is empty: map each voice to its words file first (produce init does)")
+    spans = {}
+    for name in heard:                                   # where each voice plays in the video, for tie-breaks
+        v = spec.voices.get(name, {})
+        try:
+            a = spec.t(v.get("at", 0))
+            spans[name] = (a, a + float(v.get("out", a + 1)) - float(v.get("in", 0)))
+        except (EditorError, ValueError, TypeError):
+            pass
     assigned = {n: [] for n in heard}
     lost = []
     for ln in lines:
@@ -829,7 +848,11 @@ def captions_from_brief(spec_path: str | Path, brief: str | Path) -> dict:
         if not toks:
             lost.append(ln)
             continue
-        score, best = max(((sum(t in heard[n][1] for t in toks) / len(toks), n) for n in heard), default=(0, None))
+        # most words in common; a tie (short lines share words like "way home") goes to the voice nearest the
+        # line's time in the brief, never to the name that sorts last
+        at = _clock_brief(ln.get("at"))
+        score, _, best = max(((round(sum(t in heard[n][1] for t in toks) / len(toks), 2),
+                               -_dist(spans.get(n), at), n) for n in heard), default=(0, 0, None))
         if best and score >= 0.5:
             assigned[best].append({k: ln[k] for k in ("text", "sub") if k in ln})
         else:
