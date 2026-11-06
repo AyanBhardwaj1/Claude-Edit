@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { momentsText, noteTimes } from "../lib/moments";
+import { anchorSpoken, momentsText, noteTimes } from "../lib/moments";
 import { buildTimeline } from "../lib/timeline";
 import type { Word } from "../lib/types";
 
@@ -29,4 +29,12 @@ test("what the edited video has at a note's time: the words with ids, pictures a
   assert.doesNotMatch(out, /zoom/);
   assert.equal(momentsText(tl, e, "make it punchier"), "");
   assert.equal(momentsText(tl, e, "at 9:00 cut it"), "");   // past the end: nothing to point at
+});
+
+test("a spoken note about 'here' gets the player's time; one with its own time or no 'here' is left alone", () => {
+  assert.equal(anchorSpoken("Cut this part", 12.4), "At 0:12, cut this part");
+  assert.equal(anchorSpoken("The music is too loud here", 75), "At 1:15, the music is too loud here");
+  assert.equal(anchorSpoken("At 0:30 cut this part", 12), "At 0:30 cut this part");
+  assert.equal(anchorSpoken("Make the captions bigger", 12), "Make the captions bigger");
+  assert.equal(anchorSpoken("Where is the logo", 12), "Where is the logo");                 // "where" isn't "here"
 });
