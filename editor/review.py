@@ -276,7 +276,10 @@ def stillness_zooms(gaps: list[str], words: list[dict], every: float = 6.0) -> l
                 break
             last = [w for w in spoken if float(first["start"]) <= float(w["start"]) and float(w["end"]) <= float(first["start"]) + 1.6]
             last = last[-1] if last else first
-            out.append({"words": f"{first['id']}-{last['id']}", "scale": 1.15 if k % 2 == 0 else 1.25, "ease": 0.3})
+            # a stretch a cold open repeats plays these ids twice: name which play ("#2"), or the zoom lands up front
+            nth = sum(1 for w in spoken[:spoken.index(first) + 1] if w["id"] == first["id"])
+            out.append({"words": f"{first['id']}-{last['id']}" + (f"#{nth}" if nth > 1 else ""),
+                        "scale": 1.15 if k % 2 == 0 else 1.25, "ease": 0.3})
             k += 1
             t = float(first["start"]) + every
     return out

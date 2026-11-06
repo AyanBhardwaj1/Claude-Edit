@@ -16,6 +16,10 @@ Claude makes the editorial calls and checks the result visually.
 - Anchor everything on words (`"on": "twenty bucks"` / `"words": "w44-w49"`, `editor words <work>`), name a
   treatment for face-aware b-roll (card-above-head, side-card, phone-card, split-top, full-frame, text-pop,
   post-wall, icon-wall), draft with `--draft`, check `editor pacing`, save each note as `editor version --note`.
+- Every `auto` check ends with **before you post** (`out/before_post.json`): start there. Safe fixes the CLI makes
+  itself: `editor pacing --fix` (zooms in bare-face stretches), `editor names --logos --apply` (logos for apps and
+  brands said but never shown). The user's calls, offered never applied unasked: a cold open (pacing names the
+  stronger line), bleeps (EDL `"bleep": true`), hook versions for trial reels (`editor variants --hooks ...`).
 - On request: **ai-generate** (realistic AI b-roll video/images, SFX, music, voice via the user's own
   fal / Replicate / Gemini Veo / OpenAI / ElevenLabs keys in `.env`; dry-run and a yes first, AI labelled),
   transitions (`"transitions"` in the EDL, b-roll `"in"`/`"out"`: broll-motion), custom caption fonts

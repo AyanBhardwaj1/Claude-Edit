@@ -199,7 +199,7 @@ export class Player {
     if (!this.playing || !this.cur) return;
     const s = this.tl.segments[this.seg];
     let t = outAt(s, this.cur.currentTime);
-    if (this.cur.currentTime >= s.end - 0.017 || this.cur.ended) {
+    if (this.cur.currentTime >= s.end - 0.017 * s.speed || this.cur.ended) {   // a frame of source at this speed: no leak into a cut word
       const next = this.seg + 1;
       const old = this.cur;
       if (next >= this.tl.segments.length) { this.finish(); return; }
@@ -310,12 +310,13 @@ export class Player {
 
   /** Draw one exact frame (paused): for scrubbing, the cover and still checks. */
   async drawAt(t: number) {
-    const k = Math.max(0, this.tl.segments.findIndex((s) => t >= s.outStart && t < s.outEnd));
+    let k = this.tl.segments.findIndex((s) => t >= s.outStart && t < s.outEnd);
+    if (k < 0) k = t > 0 ? this.tl.segments.length - 1 : 0;          // the very end is the last segment's last frame
     const s = this.tl.segments[k];
     if (!s) { this.g.fillStyle = "#000"; this.g.fillRect(0, 0, W, H); return; }
     if (!this.pairs.length) this.ensureAudio();
     const el = this.elFor(k);
-    const st = srcAt(s, t);
+    const st = srcAt(s, Math.min(t, s.outEnd - 1 / 60));
     await this.seekEl(el, st);
     for (const L of this.scene.layers) if (L.el instanceof HTMLVideoElement && t >= L.start && t < L.end) {
       L.el.currentTime = L.plan ? clipTimeAt(L.plan, t - L.start).t : t - L.start;

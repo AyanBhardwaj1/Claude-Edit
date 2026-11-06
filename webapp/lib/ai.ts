@@ -170,7 +170,7 @@ export async function writeScript(s: Settings, idea: string, rules: StyleRule[])
 export function toAiShape(e: Edit): AiEdit {
   const hook = e.broll.find((b) => b.treatment === "text-pop" && b.style === "label" && b.tilt === 0);
   return {
-    keep: e.keep, gapCap: e.gapCap, captions: e.captions, corrections: e.corrections,
+    keep: e.keep, gapCap: e.gapCap, speed: e.speed ?? 1, captions: e.captions, corrections: e.corrections,   // the AI copies what it can see
     hook: hook ? { text: hook.text ?? "", ...hook.anchor } : null,
     labels: e.broll.filter((b) => b.treatment === "text-pop" && b !== hook).map((b) => ({ text: b.text ?? "", ...b.anchor, style: b.style })),
     broll: e.broll.filter((b) => b.treatment !== "text-pop" && b.treatment !== "motion" && b.asset).map((b) => ({ asset: b.asset!, ...b.anchor,

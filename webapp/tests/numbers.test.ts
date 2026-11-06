@@ -48,3 +48,9 @@ test("spoken years and 'hundred and fifty' come out as people write them", () =>
   assert.equal(say("two hundred and fifty people"), "250 people");
   assert.equal(say("I paid two thousand dollars"), "I paid $2,000");
 });
+
+test("'and' between two numbers keeps them apart", () => {
+  const say = (t: string) => digits(t.split(" ").map((w, i) => ({ id: `w${i}`, text: w, os: i, oe: i + 0.5, seg: 0 }))).map((w) => w.text).join(" ");
+  assert.equal(say("between two hundred and three hundred dollars"), "between 200 and $300");
+  assert.equal(say("from one thousand and two thousand followers"), "from 1,000 and 2,000 followers");
+});

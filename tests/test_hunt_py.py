@@ -63,3 +63,45 @@ def test_share_ranges_names_and_no_spin(tmp_path):
         urllib.request.urlopen(urllib.request.Request(url + "video.mp4", headers={"Range": "bytes=200000-"}))
     assert e.value.code == 416
     t.join(6)
+
+
+def test_old_default_caches_are_still_found(tmp_path, monkeypatch):
+    import json
+    import subprocess
+    from editor import transcribe
+    clip = tmp_path / "clip.mp4"
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "sine=f=300:d=1", "-f", "lavfi", "-i", "color=black:s=64x64:d=1",
+                    "-shortest", str(clip)], check=True)
+    work = tmp_path / "work"
+    (work / "transcripts").mkdir(parents=True)
+    legacy = transcribe._cache_path(work / "transcripts", clip, "faster-whisper")         # a cache from before variants
+    legacy.write_text(json.dumps({"engine": "faster-whisper", "words": [{"text": "cached", "start": 0.1, "end": 0.5}]}))
+    monkeypatch.setattr(transcribe, "_make", lambda *a, **k: (_ for _ in ()).throw(AssertionError("re-transcribed")))
+    transcribe.transcribe([str(clip)], work, engine="faster-whisper", glossary=["Claude Code", "WhisperX"])
+    assert "cached" in (work / "transcript.txt").read_text()
+
+
+def test_and_between_two_numbers_keeps_them_apart():
+    def say(t):
+        return " ".join(w["text"] for w in wordfix.digits([{"text": x, "start": i, "end": i + 0.5} for i, x in enumerate(t.split())]))
+    assert say("between two hundred and three hundred dollars") == "between 200 and $300"
+    assert say("from one thousand and two thousand followers") == "from 1,000 and 2,000 followers"
+    assert say("two hundred and fifty people") == "250 people"
+
+
+def test_retext_replaced_run_across_clips_keeps_each_clip():
+    old = [{"text": "hello", "start": 40.0, "end": 40.4, "src": 0}, {"text": "wisper", "start": 40.5, "end": 41.0, "src": 0},
+           {"text": "ex", "start": 0.5, "end": 0.7, "src": 1}, {"text": "rocks", "start": 0.8, "end": 1.1, "src": 1}]
+    out = {w["text"]: w for w in retext.align(old, "hello Whisper X rocks".split())}
+    assert out["Whisper"]["src"] == 0 and out["X"]["src"] == 1 and out["X"]["start"] == 0.5
+
+
+def test_fix_zooms_name_the_play_of_a_repeated_stretch():
+    from editor.anchors import find
+    from editor.review import stillness_zooms
+    cold = [{"id": f"w{i}", "text": "x", "start": (i - 20) * 0.5, "end": (i - 20) * 0.5 + 0.4} for i in range(20, 23)]
+    body = [{"id": f"w{i}", "text": "x", "start": 12 + (i - 10) * 0.5, "end": 12 + (i - 10) * 0.5 + 0.4} for i in range(10, 35)]
+    ws = cold + body
+    z = stillness_zooms(["12.5-18.5s"], ws)
+    a, _ = find(ws, z[0])
+    assert a["start"] >= 12.5, (z[0], a)
