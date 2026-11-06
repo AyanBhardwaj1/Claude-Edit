@@ -58,24 +58,24 @@ export const smooth = (k: number) => { const x = Math.min(1, Math.max(0, k)); re
 
 /** Ken Burns push (1 -> 1.07, linear over the shot) times the punch-in (eased over 0.35 s from `at`). Pure function of time,
  *  so it is the same at any frame rate and in preview and export. */
-export function framedZoom(local: number, dur: number, punch?: Punch, kenBurns = FRAME.kenBurns): number {
+export function framedZoom(local: number, dur: number, punch?: Punch, kenBurns = FRAME.kenBurns, punchTime = FRAME.punchTime): number {
   const kb = 1 + kenBurns * Math.min(1, Math.max(0, local / Math.max(0.5, dur)));
-  return kb * (punch ? 1 + (punch.zoom - 1) * punchK(local, punch) : 1);
+  return kb * (punch ? 1 + (punch.zoom - 1) * punchK(local, punch, punchTime) : 1);
 }
-export const punchK = (local: number, punch?: Punch) => (punch ? smooth((local - punch.at) / FRAME.punchTime) : 0);
+export const punchK = (local: number, punch?: Punch, punchTime = FRAME.punchTime) => (punch ? smooth((local - punch.at) / punchTime) : 0);
 
 /** The source rectangle (asset pixels) to draw into the screen box: cover-fit, zoomed, anchored on the focus point the way
  *  ffmpeg's zoompan is (x = fx * (iw - iw/zoom)), so it never shows past the picture's edge. Drawing this straight from
  *  the source keeps it at native resolution (one resample, no blurry double scaling). */
 export function framedView(aw: number, ah: number, box: { w: number; h: number }, local: number, dur: number,
-                           focus?: Point, punch?: Punch, kenBurns = FRAME.kenBurns): Box {
+                           focus?: Point, punch?: Punch, kenBurns = FRAME.kenBurns, punchTime = FRAME.punchTime): Box {
   const ba = box.w / box.h, a = aw / ah;
   // cover: crop the picture to the box's shape (a tall page keeps its top unless a focus says otherwise)
   let cw = aw, ch = ah, cx = 0, cy = 0;
   if (a > ba) { cw = ah * ba; cx = (aw - cw) * (focus?.x ?? 0.5); }
   else if (a < ba) { ch = aw / ba; cy = (ah - ch) * (focus?.y ?? (a < 0.8 * ba ? 0 : 0.5)); }
-  const z = framedZoom(local, dur, punch, kenBurns);
-  const k = punchK(local, punch);
+  const z = framedZoom(local, dur, punch, kenBurns, punchTime);
+  const k = punchK(local, punch, punchTime);
   // the push drifts toward the focus; the punch-in arrives on it
   const f = focus ? { x: (focus.x * aw - cx) / cw, y: (focus.y * ah - cy) / ch } : { x: 0.5, y: 0.5 };
   const fx = clamp01(0.5 + (f.x - 0.5) * (punch ? 0.35 + 0.65 * k : 1));

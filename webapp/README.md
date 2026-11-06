@@ -45,7 +45,11 @@ vertical reel with a cover and a post caption, then change it by typing notes. E
 12. **Motion Studio** (Animate): any text, or a link to a page, becomes an animated video: kinetic titles, statements,
     counters, lists, quotes, comparisons, bar charts, picture scenes (your photo or an AI picture) and a call to action, in
     six palettes or your brand's, five type families, calm / normal / hype pace, with music and an AI voiceover (OpenAI).
-    Exports faster than real time with WebCodecs. Any video can also become an **animated recap**.
+    Exports faster than real time with WebCodecs. Any video can also become an **animated recap**. **Product demos**: drop or
+    paste a few screenshots of your app and each becomes a framed app screen (soft backdrop, rounded corners, a slow push,
+    a punch-in on the part being talked about with a callout pointing at it), woven between the text scenes next to the
+    sentence that mentions it (`lib/screenScene.ts`). Click a screenshot to choose the focus; with no pick it zooms in on
+    the busiest part of the screen.
 13. **Clips from long videos**: the AI ranks the moments that stand on their own; each becomes its own edited reel.
 14. **Subtitles in 16 languages** and `.srt` files; **AI pictures** from a description (OpenAI), labelled.
 15. **Hook ideas** (five new hook titles in one click) and a **reel check** (a 0-100 score with fixes), including
@@ -111,6 +115,7 @@ timeouts, a ~4.5 MB request limit), so all media work runs client-side:
 | `lib/demo.ts`, `scripts/make_demo.py` | the sample project (a drawn presenter, a computer voice) |
 | `lib/motion.ts`, `lib/templates.ts` | looks, transitions, entrances; the one-click styles |
 | `lib/studio.ts`, `lib/studioPlay.ts`, `lib/studioAi.ts`, `lib/fastExport.ts` | Motion Studio: scenes, renderer, player, AI planning and voice, WebCodecs export |
+| `lib/screenScene.ts` | Motion Studio app screens: layout, punch-in and callout timing, the busy-region focus finder |
 | `lib/clips.ts`, `lib/translate.ts`, `lib/hooks.ts`, `lib/score.ts`, `lib/brand.ts` | clips, translated subtitles and .srt, hook ideas, the reel check, the brand kit |
 | `lib/livecut.ts` | the landing page's live demo of the first-pass cut |
 | `lib/compose.ts`, `lib/loudness.ts`, `components/MusicMaker.tsx` | Make music: section plan, chords and notes, an OfflineAudioContext renderer, LUFS + peak limiting, WAV |

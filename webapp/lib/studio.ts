@@ -1,19 +1,29 @@
 // Motion Studio: any text becomes an animated video. A plan is a list of scenes (title, statement, number, list, quote,
-// compare, bars, call to action); the renderer draws every frame on a canvas (kinetic type, counters, charts, wipes),
-// so preview and export are the same pixels. With an AI key the AI plans the scenes; without one, planScenes() does.
+// compare, bars, picture, app screen, call to action); the renderer draws every frame on a canvas (kinetic type, counters,
+// charts, wipes, framed app screens), so preview and export are the same pixels. With an AI key the AI plans the scenes;
+// without one, planScenes() does (and demoScenes() weaves the user's screenshots into the plan for a product demo).
 
 import { activeBrand } from "./brand";
+import { backdropFor, type Point } from "./framed";
 import { FORMATS } from "./formats";
 import { clamp01, ease } from "./motion";
+import { busyRegion, calloutK, calloutPlace, hintFocus, pointOnScreen, punchOf, screenEnter, screenLayout, screenView } from "./screenScene";
 import type { Format } from "./types";
 
-export type SceneKind = "title" | "statement" | "number" | "list" | "quote" | "compare" | "bars" | "image" | "cta";
+export type SceneKind = "title" | "statement" | "number" | "list" | "quote" | "compare" | "bars" | "image" | "screen" | "cta";
 export type Scene = {
   id: string; kind: SceneKind; text: string; sub?: string; items?: string[];
   value?: number; prefix?: string; suffix?: string; emphasis?: string[]; duration: number;
   say?: string;                         // what the voiceover reads for this scene (defaults to its words)
   image?: string;                       // picture scenes: media key of the picture
   picture?: string;                     // picture scenes: a description an AI image model can make
+  // app screen scenes (a screenshot, framed): `image` is the screenshot's media key
+  focus?: Point;                        // the part being talked about, 0-1 of the picture (default: the busiest region)
+  focusAuto?: boolean;                  // the focus was picked automatically, not by the user
+  punch?: number;                       // seconds into the scene the punch-in lands (default: a little over a third in)
+  zoom?: number;                        // how far the punch-in goes (default 1.6; 1 = no punch-in)
+  callout?: string;                     // a small pill with a thin line pointing at the focus
+  shot?: number; hint?: string;         // an AI plan only: which screenshot (1-based) and where to look ("top right")
 };
 export type Pace = "calm" | "normal" | "hype";
 export const PACE_NAME: Record<Pace, string> = { calm: "Calm", normal: "Normal", hype: "Hype" };
@@ -25,8 +35,10 @@ export type Anim = {
   music?: string;                       // media key of a song (IndexedDB)
   pace?: Pace;                          // calm (slower, softer), normal, hype (one huge word at a time)
   voice?: { name: string; keys: Record<string, string> };   // scene id -> media key of its voiceover
+  screenLook?: ScreenLook;              // app screens on a soft light backdrop (default) or on the palette's own ground
   owner?: string;
 };
+export type ScreenLook = "soft" | "theme";
 
 export const PALETTES: Record<Exclude<PaletteId, "brand">, { name: string; bg: string; bg2: string; ink: string; muted: string; accent: string; accent2: string; dark: boolean }> = {
   midnight: { name: "Midnight", bg: "#0b1020", bg2: "#18224a", ink: "#f4f6ff", muted: "#9aa6d6", accent: "#6ee7ff", accent2: "#a78bfa", dark: true },
@@ -56,12 +68,37 @@ export function fontOf(id: FontId) {
 }
 
 export const KIND_NAME: Record<SceneKind, string> = { title: "Title", statement: "Statement", number: "Big number", list: "List", quote: "Quote",
-  compare: "Before and after", bars: "Bar chart", image: "Picture", cta: "Call to action" };
+  compare: "Before and after", bars: "Bar chart", image: "Picture", screen: "App screen", cta: "Call to action" };
 
 /** Pictures for picture scenes, by media key (the player loads them). */
 const IMAGES = new Map<string, HTMLImageElement>();
-export const setStudioImage = (key: string, img: HTMLImageElement) => IMAGES.set(key, img);
+const AUTO_FOCUS = new Map<string, Point>();
+export const setStudioImage = (key: string, img: HTMLImageElement) => { IMAGES.set(key, img); AUTO_FOCUS.delete(key); };
 export const studioImage = (key?: string) => (key ? IMAGES.get(key) : undefined);
+
+/** The busiest region of a picture (lib/screenScene.ts busyRegion on a ~160 px copy): where an app screen punches in
+ *  when nobody has picked a spot. Browser only; the middle elsewhere. */
+export function busyFocus(img: HTMLImageElement | HTMLCanvasElement | HTMLVideoElement): Point {
+  const iw = "naturalWidth" in img ? img.naturalWidth : "videoWidth" in img ? img.videoWidth : img.width;
+  const ih = "naturalHeight" in img ? img.naturalHeight : "videoHeight" in img ? img.videoHeight : img.height;
+  if (typeof document === "undefined" || !iw || !ih) return { x: 0.5, y: 0.5 };
+  const w = Math.max(16, Math.min(160, iw)), h = Math.max(8, Math.round((w * ih) / iw));
+  const c = document.createElement("canvas"); c.width = w; c.height = h;
+  const g = c.getContext("2d", { willReadFrequently: true });
+  if (!g) return { x: 0.5, y: 0.5 };
+  g.imageSmoothingQuality = "high"; g.drawImage(img, 0, 0, w, h);
+  const r = busyRegion(g.getImageData(0, 0, w, h).data, w, h);
+  return { x: +r.x.toFixed(3), y: +r.y.toFixed(3) };
+}
+/** The scene's focus: the user's pick, else the picture's busiest region (worked out once per picture). */
+export function focusOf(s: Pick<Scene, "focus" | "image">): Point {
+  if (s.focus) return s.focus;
+  const img = studioImage(s.image);
+  if (!img?.naturalWidth || !s.image) return { x: 0.5, y: 0.5 };
+  let f = AUTO_FOCUS.get(s.image);
+  if (!f) { f = busyFocus(img); AUTO_FOCUS.set(s.image, f); }
+  return f;
+}
 
 const uid = () => Math.random().toString(36).slice(2, 9);
 const STOP = new Set("the a an and or but of to in on at for with from by is are was were be been it this that these those your you our we my i me they them their his her its as so if then than just very really more most into over about what when how why who".split(" "));
@@ -70,6 +107,8 @@ const STOP = new Set("the a an and or but of to in on at for with from by is are
 export function readTime(s: Pick<Scene, "kind" | "text" | "sub" | "items">): number {
   const words = [s.text, s.sub ?? "", ...(s.items ?? [])].join(" ").split(/\s+/).filter(Boolean).length;
   const base = s.kind === "number" ? 2.6 : s.kind === "statement" || s.kind === "quote" ? 1.6 : 2.2;
+  // an app screen needs time to land, punch in and be looked at
+  if (s.kind === "screen") return +Math.min(7, Math.max(4, 2.8 + 0.24 * words)).toFixed(1);
   return +Math.min(s.kind === "title" ? 5 : 7, Math.max(2.4, base + 0.24 * words)).toFixed(1);
 }
 
@@ -166,10 +205,139 @@ export function cleanScenes(raw: unknown): Scene[] {
       suffix: s.suffix ? String(s.suffix).slice(0, 12) : undefined,
       emphasis: Array.isArray(s.emphasis) ? s.emphasis.slice(0, 3).map(String) : undefined, duration: 3,
       say: s.say ? String(s.say).slice(0, 400) : undefined, picture: s.picture ? String(s.picture).slice(0, 400) : undefined };
-    sc.duration = Number.isFinite(Number(s.duration)) ? Math.min(8, Math.max(1.8, Number(s.duration))) : readTime(sc);
+    if (kind === "screen") {
+      const raw = s as Omit<Partial<Scene>, "focus"> & { focus?: unknown };
+      if (Number.isFinite(Number(raw.shot))) sc.shot = Math.round(Number(raw.shot));
+      if (raw.callout) sc.callout = String(raw.callout).slice(0, 40);
+      // the AI's focus is a few words ("top right", "the chart"); a point is kept as it is
+      const f = raw.focus as Partial<Point> | string | undefined;
+      if (typeof f === "string") sc.hint = f.slice(0, 60);
+      else if (f && Number.isFinite(Number(f.x)) && Number.isFinite(Number(f.y))) sc.focus = { x: clamp01(Number(f.x)), y: clamp01(Number(f.y)) };
+      if (raw.hint) sc.hint = String(raw.hint).slice(0, 60);
+    }
+    sc.duration = Number.isFinite(Number(s.duration)) ? Math.min(8, Math.max(kind === "screen" ? 3.2 : 1.8, Number(s.duration))) : readTime(sc);
     return sc;
-  }).filter((s) => s.text || s.items?.length);
+  }).filter((s) => s.text || s.items?.length || s.kind === "screen");
 }
+
+// ------------------------------------------------------------------ product demo: screenshots woven into the plan
+
+/** A screenshot for a product demo: its media key and file name (the name's words find the sentence that mentions it). */
+export type Shot = { key: string; name?: string; focus?: Point };
+
+const SHOT_NOISE = new Set("screenshot screen shot image img copy png jpg jpeg webp gif final untitled capture snap clean new edit frame".split(" "));
+const stem = (w: string) => w.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "").replace(/ies$/, "y").replace(/(?<=[^s])s$/, "");
+/** The words of a file name that mean something ("acme-dashboard_v2.png" -> acme, dashboard). Words in `skip` (the
+ *  product's name, from the title) are left out when anything else is left. */
+export function shotWords(name?: string, skip?: Set<string>): string[] {
+  const ws = (name ?? "").replace(/\.[a-z0-9]{2,5}$/i, "").split(/[^\p{L}]+/u).map((w) => w.toLowerCase())
+    .filter((w) => w.length >= 3 && !SHOT_NOISE.has(w) && !STOP.has(w));
+  const topic = skip ? ws.filter((w) => !skip.has(stem(w))) : ws;
+  return topic.length ? topic : ws;
+}
+/** "acme-dashboard.png" -> "Acme dashboard" ("" when the name says nothing); "Dashboard" when Acme is the product. */
+export function shotLabel(name?: string, skip?: Set<string>): string {
+  const w = shotWords(name, skip).slice(0, 3).join(" ");
+  return w ? w[0].toUpperCase() + w.slice(1) : "";
+}
+const sceneWords = (s: Scene) => new Set([s.text, s.sub ?? "", s.say ?? "", ...(s.items ?? [])].join(" ").split(/\s+/).map(stem).filter(Boolean));
+
+/** A screen scene for a screenshot, its caption the sentence that talks about it. */
+export function screenScene(shot: Shot, caption: string, from: Partial<Scene> = {}): Scene {
+  const label = shotLabel(shot.name);
+  const sc: Scene = { id: uid(), kind: "screen", text: caption, image: shot.key, duration: 4, emphasis: from.emphasis,
+    say: from.say ?? (caption || undefined), callout: from.callout ?? (label && label.toLowerCase() !== caption.toLowerCase() ? label : undefined) };
+  if (shot.focus) { sc.focus = shot.focus; sc.focusAuto = true; }
+  sc.duration = readTime(sc);
+  return sc;
+}
+
+/** Weave screenshots into a plan: each screenshot goes to the sentence that mentions it (by the words of its file name),
+ *  the rest spread evenly through the middle, never two screens in a row when it can be helped. A plain statement
+ *  becomes the screen (its sentence the caption); any other scene (the title, a number, a list) keeps its animation and
+ *  the screen follows it. The title stays first and the call to action last:
+ *  title -> screen -> statement -> screen -> number -> screen -> call to action. */
+export function weaveShots(plan: Scene[], shots: Shot[]): Scene[] {
+  if (!shots.length) return plan;
+  const n = plan.length;
+  const end = n && plan[n - 1].kind === "cta" ? n - 1 : n;                 // anchors come before the call to action
+  const free = (i: number) => plan[i].kind !== "screen";
+  const replaces = (i: number) => i > 0 && plan[i].kind === "statement";  // the screen takes this scene's place
+  const anchor = new Map<number, number>();                               // scene index -> shot index
+  const byName = new Set<number>();
+  const words = plan.map(sceneWords);
+  const product = n && plan[0].kind === "title" ? words[0] : undefined;   // the title's words (usually the product's name)
+  const label = (k: number) => shotLabel(shots[k].name, product);
+  // 1. by name: the sentence that mentions the screenshot
+  shots.forEach((sh, k) => {
+    const want = shotWords(sh.name, product).map(stem);
+    if (!want.length) return;
+    let best = -1, score = 0;
+    for (let i = 0; i < end; i++) {
+      if (!free(i) || anchor.has(i)) continue;
+      const sc = want.filter((w) => words[i].has(w)).length + (replaces(i) ? 0.1 : 0);
+      if (sc >= 1 && sc > score) { best = i; score = sc; }
+    }
+    if (best >= 0) { anchor.set(best, k); byName.add(k); }
+  });
+  // two screens end up side by side when the later anchor is the very next scene and the screen takes its place
+  const touches = (i: number) => [...anchor.keys()].some((j) => (j === i - 1 && replaces(i)) || (j === i + 1 && replaces(j)));
+  // 2. the rest: spread evenly over the middle, statements first, not next to another screen
+  const rest = shots.map((_, k) => k).filter((k) => !byName.has(k));
+  const middle = Array.from({ length: end }, (_, i) => i).filter(free);
+  const extra: number[] = [];
+  rest.forEach((k, j) => {
+    const ideal = middle.length ? middle[Math.min(middle.length - 1, Math.floor(((j + 0.5) * middle.length) / rest.length))] : 0;
+    let best = -1, cost = Infinity;
+    for (const i of middle) {
+      if (anchor.has(i)) continue;
+      const c = Math.abs(i - ideal) + (touches(i) ? 3 : 0) + (replaces(i) ? 0 : 0.5);
+      if (c < cost) { best = i; cost = c; }
+    }
+    if (best >= 0) anchor.set(best, k); else extra.push(k);
+  });
+  const out: Scene[] = [];
+  plan.forEach((s, i) => {
+    const k = anchor.get(i);
+    if (k === undefined) { out.push(s); return; }
+    if (replaces(i)) {
+      const l = label(k);
+      out.push(screenScene(shots[k], s.text, { emphasis: s.emphasis, say: s.say, callout: l && !s.text.toLowerCase().startsWith(l.toLowerCase()) ? l : "" }));
+      return;
+    }
+    out.push(s);
+    // a title, number or list keeps its words; the screen after it says what the picture is (its name), or nothing
+    out.push(screenScene(shots[k], label(k), { say: "", callout: "" }));
+  });
+  const tail = extra.map((k) => screenScene(shots[k], label(k), { say: "", callout: "" }));
+  if (tail.length) out.splice(out.length && out[out.length - 1].kind === "cta" ? out.length - 1 : out.length, 0, ...tail);
+  return out.map((s) => (s.callout === "" ? { ...s, callout: undefined } : s));
+}
+
+/** The product demo with no AI: the text's own plan, the screenshots woven in. */
+export const demoScenes = (text: string, shots: Shot[]) => weaveShots(planScenes(text), shots);
+
+/** An AI plan's screen scenes, resolved: "shot" (1-based) becomes the screenshot's media key, the focus hint a point (or
+ *  the busy-region default), screens with no usable screenshot get the next unused one or become statements, and any
+ *  screenshot the AI left out is woven in the way demoScenes does. */
+export function placeShots(scenes: Scene[], shots: Shot[]): Scene[] {
+  const used = new Set<number>();
+  const out = scenes.map((s): Scene => {
+    if (s.kind !== "screen") return s;
+    const { shot, hint, ...rest } = s;
+    let k = shot && shot >= 1 && shot <= shots.length && !used.has(shot - 1) ? shot - 1 : -1;
+    if (k < 0 && rest.image && !shot) return rest;                        // already has a picture of its own
+    if (k < 0) k = shots.findIndex((_, i) => !used.has(i));
+    if (k < 0) { const st: Scene = { ...rest, kind: "statement", callout: undefined }; st.duration = readTime(st); return st; }
+    used.add(k);
+    const hinted = hintFocus(hint);
+    const focus = rest.focus ?? hinted ?? shots[k].focus;
+    return { ...rest, image: shots[k].key, ...(focus ? { focus, focusAuto: !rest.focus && !hinted } : {}) };
+  });
+  const left = shots.filter((_, i) => !used.has(i));
+  return left.length ? weaveShots(out, left) : out;
+}
+
 
 export const timeline = (a: Anim) => { let t = 0; return a.scenes.map((s) => { const r = { s, start: t, end: t + s.duration }; t += s.duration; return r; }); };
 export const total = (a: Anim) => a.scenes.reduce((n, s) => n + s.duration, 0);
@@ -240,7 +408,7 @@ function hexA(hex: string, a: number) {
 
 /** Words rising out of their own line masks, staggered; emphasised words get an accent sweep behind them. */
 function kinetic(g: Ctx, a: Anim, p: P, text: string, emphasis: string[], box: { x: number; y: number; w: number; h: number }, max: number,
-                 local: number, opts: { align?: "left" | "center"; lh?: number; stagger?: number; colour?: string } = {}) {
+                 local: number, opts: { align?: "left" | "center"; lh?: number; stagger?: number; colour?: string; onAccent?: string } = {}) {
   const F = fontOf(a.font);
   const font = (s: number) => `${F.weight} ${s}px ${F.family}`;
   const lh = opts.lh ?? 1.04;
@@ -272,7 +440,7 @@ function kinetic(g: Ctx, a: Anim, p: P, text: string, emphasis: string[], box: {
       g.save();
       g.beginPath(); g.rect(x - size, base - size * 1.05, ww + 2 * size, size * 1.32); g.clip();
       g.globalAlpha = Math.min(1, k * 1.6);
-      g.fillStyle = em.has(bare(w)) && clamp01((local - 0.45 - idx * stagger) / 0.4) > 0.5 ? (p.dark ? p.bg : "#fff") : (opts.colour ?? p.ink);
+      g.fillStyle = em.has(bare(w)) && clamp01((local - 0.45 - idx * stagger) / 0.4) > 0.5 ? (opts.onAccent ?? (p.dark ? p.bg : "#fff")) : (opts.colour ?? p.ink);
       g.fillText(w, x, base + (1 - e) * size * 1.1);
       g.restore();
       x += ww + g.measureText(" ").width;
@@ -448,6 +616,9 @@ export function drawScene(g: Ctx, a: Anim, s: Scene, local: number, W: number, H
         0.1 * U, local, { align: "left", colour: "#ffffff" });
       break;
     }
+    case "screen":
+      drawScreen(g, a, p, s, local, W, H);
+      return;                                               // the screen has the frame to itself (no scene dots)
     case "cta": {
       const r = kinetic(g, a, p, s.text, s.emphasis ?? [], { ...box, y: box.y + 0.04 * H, h: box.h * 0.7 }, 0.13 * U, local);
       if (s.sub) {
@@ -474,6 +645,123 @@ export function drawScene(g: Ctx, a: Anim, s: Scene, local: number, W: number, H
     }
   }
   dots(g, p, W, H, U, index, count);
+}
+
+// ------------------------------------------------------------------ app screens
+
+/** Relative luminance of a #rrggbb colour (0 black .. 1 white). */
+function lum(hex: string) {
+  const n = parseInt(hex.slice(1), 16);
+  const c = [16, 8, 0].map((sh) => { const v = ((n >> sh) & 255) / 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; });
+  return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+}
+const mixHex = (a: string, b: string, k: number) => {
+  const x = parseInt(a.slice(1), 16), y = parseInt(b.slice(1), 16);
+  return `#${[16, 8, 0].map((sh) => Math.round((1 - k) * ((x >> sh) & 255) + k * ((y >> sh) & 255)).toString(16).padStart(2, "0")).join("")}`;
+};
+
+/** The colours of an app screen scene: the soft look (a light backdrop tinted with the palette's or brand's accent, the
+ *  hackathon-demo look) or the palette's own ground. The accent is deepened when it would be too pale to read on a
+ *  light ground or a white app screen. */
+export function screenColours(a: Pick<Anim, "palette" | "screenLook">) {
+  const p = paletteOf(a.palette);
+  const soft = (a.screenLook ?? "soft") === "soft";
+  const dark = soft ? false : p.dark;
+  const accent = !dark && lum(p.accent) > 0.35 ? mixHex(p.accent, "#1d1b17", 0.4) : p.accent;
+  return { soft, dark, accent, onAccent: lum(accent) > 0.42 ? "#14120f" : "#ffffff",
+    ground: soft ? backdropFor(p.accent) : p.bg, glow: soft ? "#ffffff" : p.bg2, ink: soft ? "#1d1b17" : p.ink, muted: soft ? "#6f665a" : p.muted,
+    shadow: dark ? 0.5 : 0.18 };
+}
+
+/** An app screen: the screenshot framed on a soft backdrop (rounded corners, soft shadow), rising in, pushing in slowly,
+ *  punching in on the focus, a callout pill pointing at it, the caption above or below (lib/screenScene.ts). The picture
+ *  is drawn once, straight from its source rectangle, so it stays as sharp as the screenshot. */
+function drawScreen(g: Ctx, a: Anim, p: P, s: Scene, local: number, W: number, H: number) {
+  const c = screenColours(a);
+  const U = Math.min(W, H);
+  g.fillStyle = c.ground; g.fillRect(0, 0, W, H);
+  const gl = g.createRadialGradient(W / 2, -0.15 * H, 0, W / 2, -0.15 * H, 1.1 * Math.max(W, H));
+  gl.addColorStop(0, hexA(c.glow, c.soft ? 0.6 : 0.85)); gl.addColorStop(1, hexA(c.glow, 0));
+  g.fillStyle = gl; g.fillRect(0, 0, W, H);
+  const img = studioImage(s.image);
+  const has = !!img?.naturalWidth;
+  const aw = has ? img!.naturalWidth : 1600, ah = has ? img!.naturalHeight : 1000;
+  const focus = focusOf(s);
+  const L = screenLayout({ W, H, aw, ah, caption: !!s.text.trim(), focusY: focus.y, focusX: focus.x });
+  const S = L.screen;
+  if (L.caption) kinetic(g, a, { ...p, ink: c.ink, accent: c.accent }, s.text, s.emphasis ?? [], L.caption, L.capSize, local,
+    { stagger: 0.04, lh: 1.1, onAccent: c.onAccent });
+  const punch = has ? punchOf(s) : undefined;
+  const e = screenEnter(local);
+  g.save();
+  g.globalAlpha = clamp01(local / 0.3);
+  const cx = S.x + S.w / 2, cy = S.y + S.h / 2, k = 0.965 + 0.035 * e;
+  g.translate(cx, cy + (1 - e) * 0.035 * U); g.scale(k, k); g.translate(-cx, -cy);
+  g.shadowColor = `rgba(0,0,0,${c.shadow})`; g.shadowBlur = L.shadow.blur; g.shadowOffsetY = L.shadow.dy;
+  g.fillStyle = has ? "#ffffff" : mixHex(c.ground, c.ink, 0.05);
+  g.beginPath(); g.roundRect(S.x, S.y, S.w, S.h, L.radius); g.fill();
+  g.shadowColor = "transparent"; g.shadowBlur = 0; g.shadowOffsetY = 0;
+  if (has) {
+    const v = screenView(aw, ah, S, local, s.duration, focus, punch);
+    g.save(); g.beginPath(); g.roundRect(S.x, S.y, S.w, S.h, L.radius); g.clip();
+    g.imageSmoothingEnabled = true; g.imageSmoothingQuality = "high";
+    g.drawImage(img!, v.x, v.y, v.w, v.h, S.x, S.y, S.w, S.h);
+    g.restore();
+  } else {
+    g.fillStyle = c.muted; g.font = `600 ${0.036 * U}px "Plus Jakarta Sans", "Inter", sans-serif`; g.textAlign = "center"; g.textBaseline = "middle";
+    g.fillText("Add a screenshot of your app", cx, cy); g.textBaseline = "alphabetic"; g.textAlign = "left";
+  }
+  // a hairline edge, so a white app screen still reads against a light backdrop
+  g.strokeStyle = c.dark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.09)"; g.lineWidth = Math.max(1, U / 1080);
+  g.beginPath(); g.roundRect(S.x, S.y, S.w, S.h, L.radius); g.stroke();
+  g.restore();
+  const text = s.callout?.trim();
+  if (has && text) {
+    const ck = calloutK(local, punch);
+    if (ck > 0) {
+      const pt = pointOnScreen(focus, aw, ah, screenView(aw, ah, S, local, s.duration, focus, punch), S);
+      drawCallout(g, c, text, pt, S, W, H, ck, local);
+    }
+  }
+}
+
+/** The callout: a ring on the focus point, a thin line drawn out to a pill with a few words. */
+function drawCallout(g: Ctx, c: ReturnType<typeof screenColours>, text: string, pt: Point, S: { x: number; y: number; w: number; h: number },
+                     W: number, H: number, k: number, local: number) {
+  const U = Math.min(W, H);
+  const fs = (H > 1.2 * W ? 0.036 : 0.03) * U;
+  g.font = `700 ${fs}px "Plus Jakarta Sans", "Inter", sans-serif`;
+  const pillH = 2.1 * fs;
+  const P = calloutPlace({ pt, S, W, H, pillW: Math.min(g.measureText(text).width, 0.8 * S.w) + 1.7 * fs, pillH });
+  // words that don't fit the pill it got are cut with an ellipsis
+  let label = text;
+  while (g.measureText(label).width > P.box.w - 1.7 * fs && label.length > 2) label = `${label.replace(/…$/, "").slice(0, -1).trimEnd()}…`;
+  g.save();
+  // the ring: an open circle around the spot (what it points at stays readable), white under the accent so it shows on
+  // dark and light screens, with a soft pulse
+  const R = 0.026 * U * (0.6 + 0.4 * ease.back(k)), pulse = 0.5 + 0.5 * Math.sin(local * 4);
+  g.globalAlpha = 0.1 * k; g.fillStyle = c.accent;
+  g.beginPath(); g.arc(pt.x, pt.y, R * (1.25 + 0.2 * pulse), 0, Math.PI * 2); g.fill();
+  g.globalAlpha = k;
+  g.strokeStyle = "rgba(255,255,255,0.9)"; g.lineWidth = 0.009 * U; g.beginPath(); g.arc(pt.x, pt.y, R, 0, Math.PI * 2); g.stroke();
+  g.strokeStyle = c.accent; g.lineWidth = 0.0045 * U; g.beginPath(); g.arc(pt.x, pt.y, R, 0, Math.PI * 2); g.stroke();
+  // the line, drawn out from the pill to the ring
+  const dx = pt.x - P.anchor.x, dy = pt.y - P.anchor.y, len = Math.hypot(dx, dy);
+  if (len > R + 0.01 * U) {
+    const reach = (len - R - 0.003 * U) * k;
+    g.lineWidth = Math.max(2, 0.003 * U); g.lineCap = "round";
+    g.beginPath(); g.moveTo(P.anchor.x, P.anchor.y); g.lineTo(P.anchor.x + (dx / len) * reach, P.anchor.y + (dy / len) * reach); g.stroke();
+  }
+  // the pill pops in from where the line starts
+  const sc = 0.85 + 0.15 * ease.back(k);
+  g.translate(P.anchor.x, P.anchor.y); g.scale(sc, sc); g.translate(-P.anchor.x, -P.anchor.y);
+  g.shadowColor = "rgba(0,0,0,0.2)"; g.shadowBlur = 0.025 * U; g.shadowOffsetY = 0.006 * U;
+  g.fillStyle = c.accent; g.beginPath(); g.roundRect(P.box.x, P.box.y, P.box.w, P.box.h, pillH / 2); g.fill();
+  g.shadowColor = "transparent"; g.shadowBlur = 0; g.shadowOffsetY = 0;
+  g.fillStyle = c.onAccent; g.textAlign = "center"; g.textBaseline = "middle";
+  g.fillText(label, P.box.x + P.box.w / 2, P.box.y + P.box.h / 2 + fs * 0.04);
+  g.restore();
+  g.textAlign = "left"; g.textBaseline = "alphabetic";
 }
 
 /** Hype pace: one word at a time, huge, the ground flipping to the accent on the key words, each word punching in. */
