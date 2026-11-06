@@ -23,3 +23,13 @@ test("a correction to an accented name doesn't double its last letter", () => {
   const out = applyCorrections([{ id: "w0", text: "josé,", os: 0, oe: 0.4, seg: 0 }], [{ from: "josé", to: "José" }]);
   assert.equal(out[0].text, "José,");
 });
+
+test("short caption cues on fast speech never run into the next one", async () => {
+  const { chunk } = await import("../lib/text");
+  // sentence ends every word, 0.12 s apart: each cue would be held 0.3 s and overlap the next
+  const cw = ["Go.", "Now.", "Fast.", "Done."].map((t, k) => ({ id: `w${k}`, text: t, os: k * 0.12, oe: k * 0.12 + 0.1, seg: 0 }));
+  const cues = chunk(cw, 3);
+  assert.equal(cues.length, 4);
+  for (let k = 0; k + 1 < cues.length; k++) assert.ok(cues[k].end <= cues[k + 1].start, `cue ${k} ends ${cues[k].end} after ${cues[k + 1].start}`);
+  assert.ok(cues[3].end >= cues[3].start + 0.3);
+});

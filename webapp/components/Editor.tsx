@@ -28,7 +28,8 @@ import { RecordScreen } from "./ScreenRecorder";
 import { clock } from "./Tiles";
 import { changeItems, type Change } from "@/lib/changes";
 import { attention, spotsNote, zoomsFor, type Attention } from "@/lib/attention";
-import { PLATFORM_NAMES, subtitlesCovered, ZONES, type Platform } from "@/lib/safezones";
+import { LOOP_HEAD, LOOP_TAIL, loopCheck, SCROLL_SECONDS, scrollTest, type ScrollLine } from "@/lib/scrolltest";
+import { clearPosition, PLATFORM_NAMES, subtitlesCovered, ZONES, type Platform } from "@/lib/safezones";
 import { Shortcuts } from "./Shortcuts";
 import { VoiceNote } from "./VoiceNote";
 import { anchorSpoken } from "@/lib/moments";
@@ -65,6 +66,31 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
   const [toast, setToast] = useState("");
   const [keys, setKeys] = useState(false);
   const [appUi, setAppUi] = useState<Platform | null>(null);   // draw Reels / TikTok / Shorts UI over the preview
+  // the scroll test (the first 3 seconds, sound off) and the loop test (the end running back into the start), then
+  // what a viewer got from them
+  const [scroll, setScroll] = useState<{ lines: ScrollLine[]; passed: number; loop: ScrollLine } | null>(null);
+  const [shownTest, setShownTest] = useState<"scroll" | "loop" | null>(null);
+  const run = useRef<null | { kind: "scroll" } | { kind: "loop"; phase: "tail" | "head" }>(null);
+  const [running, setRunning] = useState<"scroll" | "loop" | null>(null);
+  const endRun = (pl: Player | null, show: boolean) => {
+    const r = run.current;
+    if (!r) return;
+    run.current = null; setRunning(null);
+    if (pl) { pl.pause(); pl.muted = false; }
+    setPlaying(false);
+    if (show) setShownTest(r.kind);
+  };
+  async function startRun(kind: "scroll" | "loop") {
+    const pl = player.current; if (!pl) return;
+    const was = run.current?.kind;
+    endRun(pl, false);
+    if (was === kind) return;                                   // the button again stops it
+    pl.pause(); setShownTest(null);
+    run.current = kind === "scroll" ? { kind } : { kind, phase: "tail" }; setRunning(kind);
+    pl.muted = kind === "scroll";
+    const from = kind === "scroll" ? 0 : Math.max(0, pl.tl.duration - LOOP_TAIL);
+    await pl.seek(from); setT(from); setPlaying(true); await pl.play(from);
+  }
   const lastBlob = useRef<Blob | null>(null);
   const [clips, setClips] = useState<Clip[] | null>(null);
   const [clipBusy, setClipBusy] = useState("");
@@ -136,14 +162,24 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
     if (!canvas.current || gen !== mounts.current) { urls.forEach((u) => URL.revokeObjectURL(u)); return; }
     player.current?.dispose();
     const pl = new Player(canvas.current, p, edit, urls);
-    pl.onTime = setT;
-    pl.onEnd = () => setPlaying(false);
+    run.current = null; setRunning(null);
+    pl.onTime = (x) => {
+      setT(x);
+      const r = run.current;
+      if (r && (r.kind === "scroll" ? x >= SCROLL_SECONDS : r.phase === "head" && x >= LOOP_HEAD)) endRun(pl, true);
+    };
+    pl.onEnd = () => {
+      const r = run.current;
+      if (r?.kind === "loop" && r.phase === "tail") { r.phase = "head"; void pl.play(0); return; }   // as the app replays it
+      endRun(pl, true); setPlaying(false);
+    };
     player.current = pl;
     await pl.load();
     if (!canvas.current || gen !== mounts.current) return;
     canvas.current!.dataset.cuts = pl.scene.cuts.map((c) => c.toFixed(3)).join(",");   // for tests and tools
     setCheck(reelCheck(p, edit, pl.tl));
     setAttn(attention(pl.tl, edit));
+    setScroll({ ...scrollTest(pl.tl, edit), loop: loopCheck(pl.tl) }); setShownTest(null);
     void waveform(p, pl.tl).then((w) => { if (gen === mounts.current) setWave(w); });
     setTrack({ segs: pl.tl.segments.map((x) => [x.outStart, x.outEnd]), zooms: pl.scene.zooms.map((z) => [z.s, z.e]),
       layers: pl.scene.layers.map((L) => ({ s: L.start, e: L.end, text: L.b.treatment === "text-pop", label: L.b.text ?? L.b.card?.text ?? p.library.find((x) => x.key === L.b.asset)?.name ?? "Picture" })) });
@@ -218,6 +254,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
   async function toggle() {
     const pl = player.current;
     if (!pl) return;
+    if (run.current) { endRun(pl, false); return; }
     if (playing) { pl.pause(); setPlaying(false); } else { setPlaying(true); await pl.play(); }
   }
 
@@ -423,7 +460,44 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
                   <button key={pl ?? "off"} type="button" aria-pressed={appUi === pl} onClick={() => setAppUi(pl)}>{pl ? PLATFORM_NAMES[pl] : "Off"}</button>))}
               </div>
               {version && appUi && subtitlesCovered(version.edit).includes(appUi) && (
-                <p className="say-bad">{PLATFORM_NAMES[appUi]} covers part of your subtitles: raise them (Edit it myself → Subtitles → Position: Higher).</p>)}
+                <p className="say-bad">{PLATFORM_NAMES[appUi]} covers part of your subtitles.{" "}
+                  {clearPosition(version.edit) !== null
+                    ? <button type="button" className="btn sm" onClick={async () => {
+                        const pos = clearPosition(version.edit)!; const before = version.edit;
+                        const fixed = { ...before, captions: { ...before.captions, position: pos } };
+                        await saveManual(p, fixed, "subtitles raised clear of the app buttons"); setP({ ...p });
+                        setMsgs((m) => [...m, { who: "ed", v: p.current, text: `Version ${p.current}: I raised the subtitles so Reels, TikTok and Shorts don't cover them.`,
+                          changes: changeItems(p, before, fixed) }]);
+                      }}><Icon name="wand" />Raise them</button>
+                    : <>Make them smaller (Edit it myself → Subtitles → Size).</>}</p>)}
+            </div>)}
+          {scroll && dur > 0 && (
+            <div className="scroll-test">
+              <div className="row wrap">
+                <button type="button" className="btn ghost sm" disabled={recording || cmp} onClick={() => void startRun("scroll")}>
+                  <Icon name={running === "scroll" ? "pause" : "play"} />{running === "scroll" ? "Stop the scroll test" : `Scroll test: first ${SCROLL_SECONDS} s, sound off`}</button>
+                <button type="button" className="btn ghost sm" disabled={recording || cmp} onClick={() => void startRun("loop")}>
+                  <Icon name={running === "loop" ? "pause" : "play"} />{running === "loop" ? "Stop the loop test" : "Loop test: the end into the start"}</button>
+              </div>
+              {shownTest === "scroll" && (
+                <div className="scroll-res" role="status">
+                  <p><b>{scroll.passed === 4 ? "They'd stop scrolling." : scroll.passed >= 2 ? "Some would stop." : "Most would scroll past."}</b>{" "}
+                    <span className="muted">{scroll.passed} of 4 for the first {SCROLL_SECONDS} seconds with the sound off, the way most people see it.</span></p>
+                  <ul className="checks" aria-label="Scroll test results">
+                    {scroll.lines.filter((l) => !l.ok).concat(scroll.lines.filter((l) => l.ok)).map((l) => (
+                      <li key={l.id} className={l.ok ? "ok" : "bad"}><Icon name={l.ok ? "check" : "alert"} />
+                        <span className="grow">{l.text}{!l.ok && l.fix && <span className="small block fix">{l.fix}</span>}</span></li>))}
+                  </ul>
+                </div>)}
+              {shownTest === "loop" && (
+                <div className="scroll-res" role="status">
+                  <p><b>{scroll.loop.ok ? "A clean loop." : "The loop has a seam."}</b>{" "}
+                    <span className="muted">Reels replay on their own: every second watch counts.</span></p>
+                  <ul className="checks" aria-label="Loop test result">
+                    <li className={scroll.loop.ok ? "ok" : "bad"}><Icon name={scroll.loop.ok ? "check" : "alert"} />
+                      <span className="grow">{scroll.loop.text}{!scroll.loop.ok && scroll.loop.fix && <span className="small block fix">{scroll.loop.fix}</span>}</span></li>
+                  </ul>
+                </div>)}
             </div>)}
           {track && dur > 0 && (
             <div className="track" aria-hidden="true" onPointerDown={(ev) => {

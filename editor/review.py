@@ -13,6 +13,7 @@ Cap: if issues remain after 3 fix-and-rerender passes, report them instead of lo
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import sys
 import tempfile
@@ -189,8 +190,9 @@ STOPWORDS = {"i", "i'm", "i've", "i'll", "i'd", "the", "a", "and", "so", "but", 
 def pacing(edl: dict, words: list[dict], duration: float) -> dict:
     """What a hand edit would fix (from Reel Studio's draft checks): bare face over 4.5 s, over 10 s with zooms
     only, too many zooms, visuals that flash by, big word cards over budget, names said but never shown,
-    and too few b-roll moments for the length (hand edits carry about one per 6 s); and the first second: speech
-    starting after 0.6 s, or no hook title on screen."""
+    and too few b-roll moments for the length (hand edits carry about one per 6 s); the first second: speech
+    starting after 0.6 s, or no hook title on screen; and the loop (reels replay on their own): dead air over 0.6 s
+    after the last word, or a sign-off in the last 3 s."""
     broll = [b for b in edl.get("broll", []) if "start" in b and "dur" in b]
     zooms = [z for z in edl.get("zooms", []) if "start" in z and "end" in z]
     hook = lambda b: b.get("treatment") == "text-pop" and b.get("style") == "label" and float(b["start"]) < 1.0  # noqa: E731
@@ -224,9 +226,16 @@ def pacing(edl: dict, words: list[dict], duration: float) -> dict:
     first = next((w for w in words if str(w.get("text", "")).strip()), None)
     late = f"{first['start']:.1f}s" if first and float(first["start"]) > 0.6 else None
     has_title = bool(edl.get("title")) or any(hook(b) for b in broll)
+    spoken = [w for w in words if str(w.get("text", "")).strip()]
+    air = duration - float(spoken[-1]["end"]) if spoken else 0.0
+    tail = " ".join(str(w["text"]).strip() for w in spoken if float(w["start"]) >= duration - 3)
+    bye = re.search(r"\b(bye|see you|thanks for watching|that's it|peace|follow for more|subscribe)\b", tail, re.I)
+    loop = (f"ends on \"{bye.group(0)}\": a sign-off tells people to swipe instead of watching again" if bye else
+            f"{air:.1f}s of nothing after the last word before it replays" if air > 0.6 else None)
     return {"face_only_over_4_5s": gaps, "zooms_only_over_10s": zoom_only,
             "zooms_per_minute_over_10": round(per_min, 1) if per_min > 10 else None,
             "big_word_cards_over_2": len(pops) if len(pops) > 2 else None,
             "visuals_under_1_2s": too_short, "named_not_shown": names[:20],
             "broll_moments": None if len(broll) >= want else f"{len(broll)} (hand edits carry about {round(duration / 6)})",
-            "first_word_after_0_6s": late, "no_hook_title": None if has_title else "nothing to read in the first second"}
+            "first_word_after_0_6s": late, "no_hook_title": None if has_title else "nothing to read in the first second",
+            "loop_seam": loop}

@@ -103,6 +103,12 @@ vertical reel with a cover and a post caption, then change it by typing notes. E
 28. **Your reels**: on the dashboard once you have two videos, your reel check scores over time (a trend line, the
     average, the change from your earlier reels, the average length) and what most often holds them back, with where
     to fix it (`lib/insights.ts`).
+29. **Scroll test**: plays the first 3 seconds with the sound off, the way most people meet a reel, then says what a
+    scroller got from them: a hook on screen, words to read, the picture moving, an opening that is the point, each
+    with its fix (`lib/scrolltest.ts`). The speakers are muted; an export keeps its sound. **Loop test** plays the last
+    2.5 seconds straight into the first 2, as the apps replay a reel, and flags dead air or a sign-off at the end.
+30. **Raise them**: when the app's caption block covers the subtitles, one click moves them to the lowest spot all three
+    platforms leave clear, as its own version (`clearPosition` in `lib/safezones.ts`).
 
 ## Privacy and keys
 - Videos never leave the browser: they're processed on the user's computer and kept in IndexedDB.

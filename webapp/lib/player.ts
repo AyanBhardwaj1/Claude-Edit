@@ -30,6 +30,8 @@ export class Player {
   private musicGain?: GainNode;
   private raf = 0;
   private recDest?: MediaStreamAudioDestinationNode;
+  private speakers?: GainNode;
+  private silent = false;
   private woosh?: AudioBuffer;
   private fired = new Set<string>();
   private media = new Map<string, HTMLImageElement | HTMLVideoElement>();
@@ -78,7 +80,8 @@ export class Player {
     const limit = ctx.createDynamicsCompressor();
     limit.threshold.value = -2; limit.ratio.value = 20; limit.attack.value = 0.001; limit.release.value = 0.05;
     this.master = ctx.createGain();
-    this.master.connect(comp); comp.connect(limit); limit.connect(ctx.destination);
+    this.speakers = ctx.createGain(); this.speakers.gain.value = this.silent ? 0 : 1;
+    this.master.connect(comp); comp.connect(limit); limit.connect(this.speakers); this.speakers.connect(ctx.destination);
     this.recDest = ctx.createMediaStreamDestination();
     limit.connect(this.recDest);
     const voice = ctx.createBiquadFilter(); voice.type = "highpass"; voice.frequency.value = 80;
@@ -147,6 +150,10 @@ export class Player {
     this.playing = true;
     this.loop();
   }
+
+  /** Mutes the speakers only (an export still records the sound): watching the way most people scroll, sound off. */
+  set muted(m: boolean) { this.silent = m; if (this.speakers) this.speakers.gain.value = m ? 0 : 1; }
+  get muted() { return this.silent; }
 
   pause() {
     this.playing = false;

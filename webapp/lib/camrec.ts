@@ -177,13 +177,11 @@ type Opts = {
 export class Camera {
   stream: MediaStream | null = null;
   private rec?: MediaRecorder;
-  private chunks: Blob[] = [];
   private mime = "";
   private since = 0;
-  private until = 0;
+  private take = { until: 0, discard: false };   // the take in progress (a stopped one still finishing keeps its own)
   private timer = 0;
   private closed = false;
-  private discard = false;
 
   constructor(private o: Opts) {}
 
@@ -226,20 +224,24 @@ export class Camera {
       this.rec = new MediaRecorder(this.stream, { ...(this.mime ? { mimeType: this.mime } : {}), videoBitsPerSecond: 8_000_000, audioBitsPerSecond: 128_000 });
     } catch (e) { this.o.onError(cameraErrorMessage(e)); return false; }
     this.mime = this.rec.mimeType || this.mime;
-    this.chunks = [];
-    this.discard = false;
+    // each take keeps its own pieces: a take stopped and a new one started before the old one's last piece arrives
+    // must not mix the two
+    const chunks: Blob[] = [];
+    const mime = this.mime;
+    const take = { until: 0, discard: false };
+    this.take = take;
     const rec = this.rec;
-    rec.ondataavailable = (ev) => { if (ev.data.size) this.chunks.push(ev.data); };
+    rec.ondataavailable = (ev) => { if (ev.data.size) chunks.push(ev.data); };
     rec.onstop = () => {
-      const duration = ((this.until || performance.now()) - this.since) / 1000;
-      const blob = new Blob(this.chunks, { type: baseType(this.mime) });
-      this.chunks = [];
-      if (!this.discard) this.o.onTake({ blob, mime: baseType(this.mime), duration });
+      const duration = ((take.until || performance.now()) - since) / 1000;
+      const blob = new Blob(chunks, { type: baseType(mime) });
+      chunks.length = 0;
+      if (!take.discard) this.o.onTake({ blob, mime: baseType(mime), duration });
     };
     rec.onerror = (ev) => { this.o.onError(cameraErrorMessage((ev as unknown as { error?: unknown }).error ?? ev)); this.stop(); };
     try { rec.start(1000); } catch (e) { this.o.onError(cameraErrorMessage(e)); this.rec = undefined; return false; }
-    this.since = performance.now();
-    this.until = 0;
+    const since = performance.now();
+    this.since = since;
     const max = this.o.maxSeconds ?? MAX_TAKE_SECONDS;
     this.timer = window.setInterval(() => {
       const t = this.elapsed();
@@ -252,11 +254,11 @@ export class Camera {
   /** End the take and keep it (onTake gets the file's blob). */
   stop() {
     clearInterval(this.timer);
-    if (this.rec && this.rec.state !== "inactive") { this.until = performance.now(); this.rec.stop(); }
+    if (this.rec && this.rec.state !== "inactive") { this.take.until = performance.now(); this.rec.stop(); }
   }
 
   /** End the take without keeping it. */
-  cancel() { this.discard = true; this.stop(); }
+  cancel() { this.take.discard = true; this.stop(); }
 
   /** Stop everything: the take in progress is thrown away and the camera light goes off. */
   close() {
