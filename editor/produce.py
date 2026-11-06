@@ -716,8 +716,8 @@ def captions_from_brief(spec_path: str | Path, brief: str | Path) -> dict:
 
 # ---------------------------------------------------------------- overlay
 
-def overlay(spec: Spec, jobs: int = 3, span: tuple[float, float] | None = None) -> Path | None:
-    """The overlay track (cached by content). With `span` only that stretch is rendered (output t=0 = span start)."""
+def _overlay_plan(spec: Spec, span: tuple[float, float] | None = None) -> tuple[dict, Path] | None:
+    """The resolved overlay spec and the file it renders to (named by its content, so an unchanged one is cached)."""
     ov = spec.data.get("overlay")
     auto = auto_captions(spec)
     if not ov and not auto and not ramp_shimmers(spec):
@@ -733,7 +733,36 @@ def overlay(spec: Spec, jobs: int = 3, span: tuple[float, float] | None = None) 
     th.setdefault("height", spec.h)
     th.setdefault("fps", spec.fps)
     key = _hash(ov, span)
-    out = spec.work / (f"overlay.{key}.mov" if not span else f"range_overlay.{key}.mov")
+    return ov, spec.work / (f"overlay.{key}.mov" if not span else f"range_overlay.{key}.mov")
+
+
+def estimate(spec: Spec, effort: str = "standard") -> dict:
+    """How long a full render will take on this machine, before starting: only uncached pieces and an overlay that
+    changed cost time, at this machine's learned rate per stage (editor effort), plus the mix and the final encode."""
+    from . import effort as eff
+    e = eff.normalise(effort) or "standard"
+    data = eff.load()
+    todo = [pc for pc in spec.pieces if not _piece_path(spec, pc).exists()]
+    todo_media = sum(spec.starts[pc["name"]][1] - spec.starts[pc["name"]][0] for pc in todo)
+    plan = _overlay_plan(spec)
+    ov_media = spec.total if plan and not plan[1].exists() else 0.0
+    stages, learned = {}, 0
+    for st, media in (("pieces", todo_media), ("overlay", ov_media), ("mix", spec.total), ("composite", spec.total)):
+        r, was = eff.rate(st, e, data)
+        stages[st] = round(r * media / 60.0, 1)
+        learned += was
+    if e != "rush":
+        stages["review"] = 60.0                       # contact sheets and checks, about a minute (effort.md)
+    return {"effort": e, "stages": stages, "seconds": round(sum(stages.values()), 1), "learned": learned,
+            "pieces_to_render": [pc["name"] for pc in todo], "overlay_cached": bool(plan) and not ov_media}
+
+
+def overlay(spec: Spec, jobs: int = 3, span: tuple[float, float] | None = None) -> Path | None:
+    """The overlay track (cached by content). With `span` only that stretch is rendered (output t=0 = span start)."""
+    plan = _overlay_plan(spec, span)
+    if plan is None:
+        return None
+    ov, out = plan
     resolved = spec.work / "overlay.resolved.json"
     resolved.write_text(json.dumps(ov, indent=1, ensure_ascii=False))
     if not out.exists():
@@ -1810,6 +1839,9 @@ def main(argv=None) -> int:
                     help="quick 720p look at one stretch after a note (times or references like d7c d7c.end)")
     ap.add_argument("--note", help="save this render as the next version (out/versions/), with the user's note")
     ap.add_argument("--versions", action="store_true", help="list the saved versions")
+    ap.add_argument("--estimate", action="store_true",
+                    help="how long the render will take on this machine (cached pieces and overlay cost nothing); "
+                         "say it before starting when the user is short of time")
     ap.add_argument("--changes", nargs="?", const="", metavar="N",
                     help="what changed in the spec since the last saved version (or vN), and what re-renders")
     ap.add_argument("--at", nargs="+", metavar="TIME",
@@ -1857,6 +1889,17 @@ def main(argv=None) -> int:
             els = spec.resolve({**ov, "elements": list(ov.get("elements", [])) + auto}).get("elements", [])
             late = [e for e in els if float(e.get("t_out", e.get("t_in", 0)) or 0) > spec.total + 0.01]
             print(f"overlay: {len(els)} elements" + (f", {len(late)} end after the video" if late else ""))
+        return 0
+    if a.estimate:
+        from .effort import fmt_secs
+        est = estimate(spec, a.effort)
+        n = len(est["pieces_to_render"])
+        print(f"about {fmt_secs(est['seconds'])} at {est['effort']} on this machine ("
+              + ("timings learned here" if est["learned"] == 4 else
+                 f"{est['learned']} of 4 stages learned here, the rest are first guesses") + ")")
+        for st, sec in est["stages"].items():
+            print(f"  {st:<10} {fmt_secs(sec):>8}" + (f"  {n} of {len(spec.pieces)} pieces to render" if st == "pieces"
+                                                     else "  cached" if st == "overlay" and est["overlay_cached"] else ""))
         return 0
     if a.at:
         for x in a.at:

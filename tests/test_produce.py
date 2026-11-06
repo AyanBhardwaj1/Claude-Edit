@@ -294,6 +294,17 @@ def test_review_lists_brief_caption_lines_nobody_captioned():
     assert produce.missing_brief_lines(brief, els) == ["0:31 ¿Cuál es el camino más fresco?"]
 
 
+def test_estimate_counts_only_what_will_render(tmp_path):
+    s = produce.Spec(write_spec(tmp_path, base_spec()))
+    est = produce.estimate(s, "rush")
+    assert est["pieces_to_render"] == ["a", "b", "c"] and est["stages"]["pieces"] > 0
+    assert est["stages"]["mix"] > 0 and est["stages"]["composite"] > 0 and "review" not in est["stages"]
+    produce._piece_path(s, s.pieces[0]).parent.mkdir(parents=True, exist_ok=True)
+    produce._piece_path(s, s.pieces[0]).write_bytes(b"x")          # a cached piece costs nothing
+    again = produce.estimate(s, "standard")
+    assert again["pieces_to_render"] == ["b", "c"] and again["stages"]["review"] == 60.0
+
+
 def test_a_script_line_nobody_said_in_that_voice_is_reported_not_hidden():
     heard = [("the", 1.0, 1.2), ("shadiest", 1.25, 1.8), ("route", 1.85, 2.2), ("he", 3.0, 3.1), ("asked", 3.15, 3.5),
              ("out", 3.55, 3.7), ("loud", 3.75, 4.1)]

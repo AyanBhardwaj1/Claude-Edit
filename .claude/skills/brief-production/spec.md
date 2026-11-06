@@ -10,6 +10,7 @@ python3 -m editor produce projects/<name>/produce.json --plan                   
 python3 -m editor produce projects/<name>/produce.json --range d7b d7c.end          # quick look at a stretch
 python3 -m editor produce projects/<name>/produce.json --at 1:23 s4+2               # what's on screen / in the mix then
 python3 -m editor produce projects/<name>/produce.json --changes [N]                # what changed since vN, what re-renders
+python3 -m editor produce projects/<name>/produce.json --estimate --effort rush     # render time left, on this machine
 python3 -m editor produce projects/<name>/produce.json --preview --note "<note>"    # render + version
 python3 -m editor produce projects/<name>/produce.json --only mix|overlay|composite|extras|post|review
 ```
