@@ -21,3 +21,8 @@ def test_moment_names_the_segment_words_broll_zoom_and_music_dip(tmp_path):
     assert "b-roll:  text-pop" in out and "on 'twenty bucks'" in out
     assert "-6 dB" in out and "zoom" not in out
     assert "zoom:    1.2x" in moment(tmp_path, 3.6)
+
+
+def test_times_people_write():
+    from editor.anchors import _clock
+    assert [_clock(x) for x in ("1:23", "1m23s", "83s", "83", "2m", "12.5s")] == [83, 83, 83, 83, 120, 12.5]

@@ -141,8 +141,12 @@ def listing(work: str | Path, find_phrase: str | None = None, unsure: float = 0.
 
 
 def _clock(x) -> float:
-    m = re.fullmatch(r"(\d+):(\d{1,2}(?:\.\d+)?)", str(x).strip())
-    return int(m[1]) * 60 + float(m[2]) if m else float(x)
+    """"1:23", "1:23.5", "1m23s", "83s", "83" -> seconds."""
+    t = str(x).strip().lower()
+    m = re.fullmatch(r"(\d+):(\d{1,2}(?:\.\d+)?)", t) or re.fullmatch(r"(?:(\d+)\s*m(?:in)?\s*)?(?:(\d+(?:\.\d+)?)\s*s(?:ec)?)?", t)
+    if m and any(m.groups()):
+        return int(m[1] or 0) * 60 + float(m[2] or 0)
+    return float(t)
 
 
 def moment(work: str | Path, at, around: float = 1.5) -> str:

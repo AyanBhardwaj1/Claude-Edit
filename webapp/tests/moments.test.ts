@@ -12,6 +12,7 @@ test("times in a note: clock, decimals and seconds, no duplicates, no false hits
   assert.deepEqual(noteTimes("cut 1:05.5 and also at 30s, then 30 seconds again"), [65.5, 30]);
   assert.deepEqual(noteTimes("show the 20 bucks label, 3 steps"), []);
   assert.deepEqual(noteTimes("the zoom at 4 sec"), [4]);
+  assert.deepEqual(noteTimes("at 1m23s the logo covers me"), [83]);
 });
 
 test("what the edited video has at a note's time: the words with ids, pictures and zooms on screen", () => {
