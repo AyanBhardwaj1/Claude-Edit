@@ -77,3 +77,17 @@ test("a warm-up that is a whole take keeps the next take; a hook title alone isn
   const moves = scrollTest(buildTimeline(say("rent is the biggest bill you pay and here is how"), e, [10]), e).lines.find((l) => l.id === "moves")!;
   assert.equal(moves.ok, false);
 });
+
+test("a hook title cut short by the next card is too quick to read", () => {
+  const ws = say("rent is the biggest bill you pay and here is how");
+  const long = { ...hook, text: "The one bill you can cut by half this year" };
+  const card = { id: "c", treatment: "text-pop", style: "pop", tilt: 3, text: "50%", anchor: { from: "w2", to: "w3" } };
+  const e = edit({ broll: [long, card] as never, zooms: [{ anchor: { from: "w4", to: "w5" }, scale: 1.2 }] });
+  const r = scrollTest(buildTimeline(ws, e, [10]), e);
+  const h = r.lines.find((l) => l.id === "hook")!;
+  assert.equal(h.ok, false); assert.match(h.text, /is up for 0\.\d s/); assert.match(h.fix!, /cuts it short/);
+  const alone = edit({ broll: [long] as never });
+  assert.ok(scrollTest(buildTimeline(ws, alone, [10]), alone).lines.find((l) => l.id === "hook")!.ok === false);   // 10 words: 2.9 s needed, up 2.0 s
+  const short = edit({ broll: [hook] as never });
+  assert.ok(scrollTest(buildTimeline(ws, short, [10]), short).lines.find((l) => l.id === "hook")!.ok);
+});

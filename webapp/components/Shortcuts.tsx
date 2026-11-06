@@ -11,6 +11,8 @@ export const SHORTCUTS: [string[], string][] = [
   [["N"], "Write a note to your editor"],
   [["M"], "Say a note (M again to stop)"],
   [["C"], "Compare with the version before"],
+  [["T"], "Scroll test: the first 3 seconds, sound off"],
+  [["L"], "Loop test: the end running into the start"],
   [["⌘ or Ctrl", "Z"], "Back to the previous version"],
   [["⌘ or Ctrl", "Shift", "Z"], "Forward to the next version"],
   [["?"], "Show these shortcuts"],

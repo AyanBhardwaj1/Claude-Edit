@@ -81,7 +81,8 @@ python3 -m editor words projects/<name>/work             # the kept words with i
 python3 -m editor words projects/<name>/work --find "twenty bucks"
 ```
 Anchor every b-roll, zoom, chapter, transition and music lift on its words (`"on": "twenty bucks"` or
-`"words": "w44-w49"`), not seconds, so re-cuts never break it. Name a Reel Studio **treatment** and the placement
+`"words": "w44-w49"`), not seconds, so re-cuts never break it. A stretch the cut plays twice (a cold open) anchors
+on its first play; add `#2` (`"on": "twenty bucks#2"`, `"words": "w44-w49#2"`) for the second. Name a Reel Studio **treatment** and the placement
 is face-aware: `card-above-head`, `side-card`, `phone-card`, `full-frame`, `split-top`, `text-pop` (hook title and
 step labels: `"style": "label"`), `post-wall`, `icon-wall` (broll-motion skill).
 - Pictures of named things: `editor images search "<brand>" --logo` / `"<place> photo"`, then `editor images

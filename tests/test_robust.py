@@ -75,3 +75,18 @@ def test_a_two_line_hook_title_keeps_its_second_line():
     from editor.captions import _escape
     assert _escape("Stop editing\nlike this") == "Stop editing\\Nlike this"
     assert _escape("a\\b {x}") == "a/b (x)"
+
+
+def test_word_anchor_picks_the_same_occurrence_as_a_phrase():
+    from editor.anchors import find
+    # a cold open plays w2-w3 first, then the whole take w0-w4: w2/w3 appear twice on the cut
+    words = [{"id": "w2", "text": "twenty", "start": 0.0, "end": 0.3}, {"id": "w3", "text": "bucks", "start": 0.3, "end": 0.6},
+             {"id": "w0", "text": "it", "start": 1.0, "end": 1.2}, {"id": "w1", "text": "costs", "start": 1.2, "end": 1.5},
+             {"id": "w2", "text": "twenty", "start": 1.5, "end": 1.8}, {"id": "w3", "text": "bucks", "start": 1.8, "end": 2.1}]
+    on = find(words, {"on": "twenty bucks"})
+    ids = find(words, {"words": "w2-w3"})
+    assert on[0]["start"] == ids[0]["start"] == 0.0 and ids[1]["end"] == 0.6
+    second = find(words, {"words": "w2-w3#2"})
+    assert second[0]["start"] == 1.5 and second[1]["end"] == 2.1
+    assert find(words, {"words": "w2-w3#3"}) is None
+    assert find(words, {"words": ["w0", "w3"]})[1]["end"] == 2.1              # the end word after the start

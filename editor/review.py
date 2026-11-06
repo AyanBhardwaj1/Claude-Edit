@@ -238,6 +238,13 @@ def pacing(edl: dict, words: list[dict], duration: float, cuts: list[float] | No
     warm = (f"opens with \"{str(first['text']).strip()}\": a warm-up, not the point; drop it from the first segment"
             if opener in weak else None)
     has_title = bool(edl.get("title")) or any(hook(b) for b in broll)
+    # the hook has to be read before it goes: ~0.4 s to notice it, then ~4 words a second
+    need = lambda text: 0.4 + 0.25 * len(str(text).split())  # noqa: E731
+    shown = [(b.get("text", ""), float(b["dur"])) for b in broll if hook(b)]
+    if edl.get("title"):
+        shown.append((edl["title"], float(edl.get("title_dur", 3.0))))
+    quick = next((f"\"{t}\" is up {d:.1f}s; {len(str(t).split())} words need about {need(t):.1f}s"
+                  for t, d in shown if d < need(t)), None)
     spoken = [w for w in words if str(w.get("text", "")).strip()]
     air = duration - float(spoken[-1]["end"]) if spoken else 0.0
     tail = " ".join(str(w["text"]).strip() for w in spoken if float(w["start"]) >= duration - 3)
@@ -250,4 +257,4 @@ def pacing(edl: dict, words: list[dict], duration: float, cuts: list[float] | No
             "visuals_under_1_2s": too_short, "named_not_shown": names[:20],
             "broll_moments": None if len(broll) >= want else f"{len(broll)} (hand edits carry about {round(duration / 6)})",
             "first_word_after_0_6s": late, "no_hook_title": None if has_title else "nothing to read in the first second",
-            "opens_with_warm_up": warm, "loop_seam": loop}
+            "opens_with_warm_up": warm, "hook_too_quick_to_read": quick, "loop_seam": loop}

@@ -36,13 +36,26 @@ def load_words(work: str | Path) -> list[dict]:
 def find(words: list[dict], anchor: dict) -> tuple[dict, dict] | None:
     """(first word, last word) on the cut timeline for an entry's anchor, or None if it isn't there."""
     if anchor.get("words"):
+        # "w44-w49" (or a list); "w44-w49#2" for the second time those words play (a cold open repeats a stretch):
+        # the first time by default, the same as an "on" phrase
         spec = anchor["words"]
-        ids = spec if isinstance(spec, list) else [s.strip() for s in str(spec).split("-")]
+        if isinstance(spec, list):
+            ids, nth = [str(x) for x in spec], ""
+        else:
+            body, _, nth = str(spec).partition("#")
+            ids = [x.strip() for x in body.split("-")]
+        want = int(nth) if nth.strip().isdigit() and int(nth) > 0 else 1
         a, b = ids[0], ids[-1]
-        by_id = {w["id"]: w for w in words if "id" in w}
-        if a not in by_id or b not in by_id:
+        at = [i for i, w in enumerate(words) if w.get("id") == a]
+        if len(at) < want:
             return None
-        first, last = by_id[a], by_id[b]
+        ia = at[want - 1]
+        ib = next((i for i in range(ia, len(words)) if words[i].get("id") == b), None)
+        if ib is None:                                         # given backwards: the end word plays first
+            ib = next((i for i in range(ia, -1, -1) if words[i].get("id") == b), None)
+        if ib is None:
+            return None
+        first, last = words[ia], words[ib]
         return (first, last) if last["end"] >= first["start"] else (last, first)
     phrase, _, nth = str(anchor["on"]).partition("#")
     toks = [_norm(t) for t in re.split(r"\s+", phrase.strip()) if _norm(t)]

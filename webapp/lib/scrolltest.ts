@@ -11,12 +11,32 @@ export type ScrollLine = { id: "hook" | "read" | "moves" | "open" | "loop"; ok: 
 
 const WEAK = ["so", "um", "uh", "okay", "ok", "hey", "hi", "hello", "today", "alright", "well", "like"];
 
+/** About how long a short line takes to read on a phone: a moment to notice it, then ~4 words a second. */
+export const readTime = (text: string) => 0.4 + 0.25 * text.trim().split(/\s+/).filter(Boolean).length;
+
+/** How long the hook title is on screen, as the compositor shows it: its words plus a short hold, at least 2 s,
+ *  unless the next picture or card starts sooner. */
+function hookShown(tl: Timeline, e: Edit, hook: Edit["broll"][number]): number {
+  const sp = spanOf(tl, hook.anchor, 0.13);
+  if (!sp) return 0;
+  let end = Math.max(sp[1] + 0.15, sp[0] + 2.0);
+  const next = e.broll.filter((b) => b !== hook).map((b) => spanOf(tl, b.anchor, 0.13)?.[0])
+    .filter((x): x is number => x !== undefined && x > sp[0] + 0.3).sort((a, b) => a - b)[0];
+  if (next !== undefined && next < end) end = next;
+  return Math.min(end, tl.duration) - sp[0];
+}
+
 export function scrollTest(tl: Timeline, e: Edit): { lines: ScrollLine[]; passed: number } {
   const lines: ScrollLine[] = [];
   const hookText = hookOf(e);
   const hook = e.broll.find((b) => b.treatment === "text-pop" && b.style === "label" && b.tilt === 0);
   const hs = hook ? spanOf(tl, hook.anchor) : null;
-  lines.push(hs && hs[0] <= 0.5
+  const up = hook && hs ? hookShown(tl, e, hook) : 0;
+  const need = readTime(hookText);
+  lines.push(hs && hs[0] <= 0.5 && up < need
+    ? { id: "hook", ok: false, text: `“${hookText}” is up for ${up.toFixed(1)} s: ${hookText.split(/\s+/).length} words need about ${need.toFixed(1)} s to read.`,
+        fix: up < 2 ? "The next picture or card cuts it short: start that one a little later." : "Shorten the hook (Try 5 hooks), or anchor it over more words." }
+    : hs && hs[0] <= 0.5
     ? { id: "hook", ok: true, text: `They read “${hookText}” before the first word lands.` }
     : { id: "hook", ok: false, text: hs ? `The hook title only shows at ${hs[0].toFixed(1)} s: by then most have scrolled.` : "Nothing tells them why to stay: there's no hook title.",
         fix: "Try 5 hooks, or write a note: “add a hook title”." });
