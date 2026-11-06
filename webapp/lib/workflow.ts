@@ -234,7 +234,7 @@ export async function makeFirstEdit(p: Project, s: Settings, rules: StyleRule[],
         if (again.summary) summary = again.summary;
       } catch (e) { console.warn("review pass failed, keeping the first edit", e); }
     }
-    if (!p.parent) record("edit", effortOf(s), since(t0), footage(p));
+    if (!p.parent && s.provider !== "chat") record("edit", effortOf(s), since(t0), footage(p));   // not your copy-and-paste time
   }
   // lines said more than once: say which take plays and where to pick another (the user's call, not a guess)
   const twice = takeLines(p, edit.keep).length;

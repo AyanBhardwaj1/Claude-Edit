@@ -39,3 +39,8 @@ test("curly quotes inside a caption survive; bent JSON from a chat app is still 
   assert.deepEqual(parseRelayAnswer('{"caption": "He said “hi” to me"}'), { caption: "He said “hi” to me" });
   assert.deepEqual(parseRelayAnswer('{“hooks”: [“a”, “b”],}'), { hooks: ["a", "b"] });
 });
+
+test("a trailing comma with curly quotes in a string, and a JSON box after another code box, are read", () => {
+  assert.deepEqual(parseRelayAnswer('{"summary": "I cut the “um” parts", "keep": ["w1"],}'), { summary: "I cut the “um” parts", keep: ["w1"] });
+  assert.deepEqual(parseRelayAnswer('Here:\n```\nnot json\n```\n```json\n{"a":1}\n```'), { a: 1 });
+});

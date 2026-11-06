@@ -32,15 +32,20 @@ export function relayPrompt(ask: RelayAsk): string {
 /** The JSON object in a pasted answer: inside a ```json fence or not, with text around it or not. Null when there's
  *  none to read. */
 export function parseRelayAnswer(text: string): Json | null {
-  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  const body = (fenced ? fenced[1] : text).trim();
-  const tries = [body];
-  const a = body.indexOf("{"), b = body.lastIndexOf("}");
-  if (a >= 0 && b > a) tries.push(body.slice(a, b + 1));
-  // as pasted first (curly quotes inside a caption stay as they are); then with the chat's "smart" quotes straightened
-  // and trailing commas dropped, the two ways chat apps most often bend JSON
-  const bent = (t: string) => t.replace(/[“”]/g, '"').replace(/,\s*([}\]])/g, "$1");
-  for (const t of [...tries, ...tries.map(bent)]) {
+  // every code box (```json ones first), then the whole reply: a chat may show other code before the answer
+  const fences = [...text.matchAll(/```([a-z]*)\s*([\s\S]*?)```/gi)].sort((x, y) => Number(y[1].toLowerCase() === "json") - Number(x[1].toLowerCase() === "json"));
+  const bodies = [...fences.map((m) => m[2].trim()), text.trim()];
+  const tries: string[] = [];
+  for (const body of bodies) {
+    tries.push(body);
+    const a = body.indexOf("{"), b = body.lastIndexOf("}");
+    if (a >= 0 && b > a) tries.push(body.slice(a, b + 1));
+  }
+  // as pasted first (curly quotes inside a caption stay as they are); then without trailing commas; then with the
+  // chat's "smart" quotes straightened too: the ways chat apps most often bend JSON
+  const commas = (t: string) => t.replace(/,\s*([}\]])/g, "$1");
+  const quotes = (t: string) => commas(t).replace(/[“”]/g, '"');
+  for (const t of [...tries, ...tries.map(commas), ...tries.map(quotes)]) {
     try {
       const v = JSON.parse(t);
       if (v && typeof v === "object" && !Array.isArray(v)) return v as Json;
