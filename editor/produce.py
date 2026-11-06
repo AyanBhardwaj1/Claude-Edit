@@ -1216,6 +1216,41 @@ def _sharpest(video: Path, t: float, window: float = 1.0) -> float:
     return round(a + int(np.argmax(sharp)) / 10, 2)
 
 
+def _description(spec: Spec, post: dict, chapters_path: str | None) -> str:
+    """A YouTube/upload description: title, summary, chapters, links from the end card, credits."""
+    ov = spec.data.get("overlay") or {}
+    ov = json.loads(spec.p(ov).read_text()) if isinstance(ov, str) else ov
+    lines = [ln for e in ov.get("elements", []) if e.get("type") == "end_card" for ln in e.get("lines", [])]
+    links = []
+    for ln in lines:
+        for m in re.finditer(r"\b((?:https?://)?[\w-]+(?:\.[\w-]+)+(?:/[\w./-]*)?)", str(ln)):
+            u = m.group(1)
+            if "." in u and not re.fullmatch(r"[\d.]+", u):
+                links.append(u if u.startswith("http") else f"https://{u}")
+    title = post.get("title") or (post.get("cover") or {}).get("title") or spec.file.stem.replace("-", " ")
+    parts = [title, ""]
+    if post.get("summary"):
+        parts += [post["summary"], ""]
+    if chapters_path and Path(chapters_path).exists():
+        parts += ["Chapters", Path(chapters_path).read_text().strip(), ""]
+    if links:
+        parts += ["Links", *dict.fromkeys(links), ""]
+    credits = []
+    for m in spec.data.get("audio", {}).get("music", []):
+        if isinstance(m.get("src"), dict) and ("compose" in m["src"] or "lofi" in m["src"]):
+            credits.append("Music: original, composed for this video (royalty-free).")
+            break
+    if post.get("credits"):
+        credits += list(post["credits"])
+    if post.get("ai_label"):
+        credits.append(post["ai_label"])
+    if credits:
+        parts += ["Credits", *credits, ""]
+    if post.get("hashtags"):
+        parts.append(" ".join("#" + h.lstrip("#") for h in post["hashtags"]))
+    return "\n".join(parts).strip() + "\n"
+
+
 def post_kit(spec: Spec, final: Path) -> dict:
     """<name>.srt (from every caption card), <name>_chapters.txt (YouTube chapters from pieces with a "chapter"
     or post.chapters), and <name>_cover.jpg (a clean frame from the base picture, with a title) when asked."""
@@ -1245,6 +1280,11 @@ def post_kit(spec: Spec, final: Path) -> dict:
         txt = final.with_name(final.stem + "_chapters.txt")
         txt.write_text("".join(f"{int(t // 60)}:{int(t % 60):02d} {title}\n" for t, title in chapters))
         out["chapters"] = str(txt)
+    desc = _description(spec, post, out.get("chapters"))
+    if desc:
+        dpath = final.with_name(final.stem + "_description.txt")
+        dpath.write_text(desc)
+        out["description"] = str(dpath)
     cov = post.get("cover")
     if cov:
         from .cover import cover

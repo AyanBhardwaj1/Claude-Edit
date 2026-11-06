@@ -97,6 +97,8 @@ def test_tiny_production_end_to_end(tmp_path):
     assert "00:00:00,200 --> 00:00:01,400\nHello there" in Path(kit["srt"]).read_text()
     assert Path(kit["chapters"]).read_text() == "0:00 Intro\n" and any("3 chapters" in i for i in kit["issues"])
     assert Path(kit["cover"]).exists()
+    desc = Path(kit["description"]).read_text()
+    assert desc.startswith("Tiny\n") and "0:00 Intro" in desc
     out = Path(res["file"])
     info = probe(out)
     assert info["duration"] == pytest.approx(4.5, abs=0.1)

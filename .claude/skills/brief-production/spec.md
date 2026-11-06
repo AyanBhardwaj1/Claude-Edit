@@ -25,7 +25,7 @@ errors stop the render before anything is drawn; `--plan` lists them.
 | `captions` | generated caption cards (below) |
 | `overlay` | the overlay spec inline or a path (`editor/overlay/README.md`: 23 element types, theme) |
 | `extras` | extra cuts (below) |
-| `post` | `srt` (true), `chapters` [[time, title]…], `cover` {`at`, `title`, `window`, `accent`} |
+| `post` | `srt` (true), `chapters` [[time, title]…], `cover` {`at`, `title`, `window`, `accent`}, and for `<name>_description.txt`: `title`, `summary`, `credits` [...], `ai_label`, `hashtags` (links come from the end card) |
 | `brief` | path to the brief: numbers on screen must appear in it… |
 | `numbers_from_screen` | …or be listed here (numbers read off the app's screen) |
 | `todo` | notes for yourself (ignored) |
