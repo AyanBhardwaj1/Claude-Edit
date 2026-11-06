@@ -131,6 +131,8 @@ export function Dashboard({ user, settings, theme, onNew, onOpen, onGo, onSample
               <div className="panel-head"><h2 id="news-h">New in Cutmind</h2>
                 <button className="btn ghost icon sm" aria-label="Hide what's new" onClick={hideNews}>&times;</button></div>
               <ul className="setup news-list">
+                <li><span className="what grow"><b>Film it here</b>: record takes in Cutmind with your script on a teleprompter.</span>
+                  <button className="btn sm" onClick={() => onNew()}>Try it</button></li>
                 <li><span className="what grow"><b>Make music</b>: an original song for your video, made in your browser, free to post.</span></li>
                 <li><span className="what grow"><b>Record my screen</b>: show your app, and the loading waits play six times faster.</span>
                   <button className="btn sm" onClick={() => onNew()}>Try it</button></li>

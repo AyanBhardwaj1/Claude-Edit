@@ -72,6 +72,10 @@ vertical reel with a cover and a post caption, then change it by typing notes. E
     Best adds a second pass where the AI reviews its own edit like a senior editor, starting from what the reel check
     measured (missing hook, long stretches without a change, music too close to the voice). Time estimates are learned from the
     videos made on each device (`lib/effort.ts`, `lib/timings.ts`).
+21. **Film it here**: record takes with the camera right in Cutmind, the script on a teleprompter at the top of the
+    picture (speed, size, mirror, pause with Space or a tap, a still script for reduced motion). The takes and the script
+    go straight into the edit, so the subtitles are spelled like the script (`lib/camrec.ts`, `components/FilmRecorder.tsx`).
+    Settings shows what Cutmind has learned about timings on this device, with a reset.
 
 ## Privacy and keys
 - Videos never leave the browser: they're processed on the user's computer and kept in IndexedDB.
