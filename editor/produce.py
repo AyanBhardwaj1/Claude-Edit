@@ -621,7 +621,7 @@ def mix(spec: Spec) -> Path:
          "-c:a", "pcm_s24le", str(pre), *stems])
     o = spec.data.get("output", {})
     out = spec.work / "mix.wav"
-    _loudnorm(pre, out, float(o.get("lufs", -14)), float(o.get("tp", -1.5)))
+    _loudnorm(pre, out, float(o.get("lufs", -14)), float(o.get("tp", -1.5)), total)
     return out
 
 
@@ -637,19 +637,21 @@ def _ramp_expr(pts: list[tuple[float, float]]) -> str:
     return f"if(lt(t,{pts[0][0]}),{10 ** (pts[0][1] / 20):.5f},{expr})"
 
 
-def _loudnorm(src: Path, out: Path, lufs: float, tp: float) -> None:
+def _loudnorm(src: Path, out: Path, lufs: float, tp: float, total: float | None = None) -> None:
     import subprocess
     r = subprocess.run(["ffmpeg", "-hide_banner", "-i", str(src), "-af",
                         f"loudnorm=I={lufs}:TP={tp}:LRA=11:print_format=json", "-f", "null", "-"],
                        capture_output=True, text=True)
     m = re.search(r"\{[^{}]*\"input_i\"[^{}]*\}", r.stderr, re.S)
     if not m:
-        run(["ffmpeg", "-y", "-i", str(src), "-af", f"loudnorm=I={lufs}:TP={tp}:LRA=11", "-ar", "48000", str(out)])
+        pad = f",apad=whole_dur={total},atrim=0:{total}" if total else ""
+        run(["ffmpeg", "-y", "-i", str(src), "-af", f"loudnorm=I={lufs}:TP={tp}:LRA=11{pad}", "-ar", "48000", str(out)])
         return
     j = json.loads(m.group(0))
     run(["ffmpeg", "-y", "-i", str(src), "-af",
          f"loudnorm=I={lufs}:TP={tp}:LRA=11:measured_I={j['input_i']}:measured_TP={j['input_tp']}:"
-         f"measured_LRA={j['input_lra']}:measured_thresh={j['input_thresh']}:offset={j['target_offset']}:linear=true",
+         f"measured_LRA={j['input_lra']}:measured_thresh={j['input_thresh']}:offset={j['target_offset']}:linear=true"
+         + (f",apad=whole_dur={total},atrim=0:{total}" if total else ""),     # loudnorm can drop the tail of short mixes
          "-ar", "48000", str(out)])
 
 
@@ -1189,7 +1191,7 @@ def preview_range(spec_path: str | Path, a_ref, b_ref, jobs: int = 4) -> Path:
     ins += ["-ss", f"{a}", "-to", f"{b}", "-i", str(audio)]
     vf = "[0:v][1:v]overlay=0:0:format=auto,scale=-2:720,format=yuv420p[v]" if ov else "[0:v]scale=-2:720[v]"
     run(["ffmpeg", "-y", *ins, "-filter_complex", vf, "-map", "[v]", "-map", f"{2 if ov else 1}:a",
-         "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-c:a", "aac", "-b:a", "160k", "-shortest",
+         "-t", f"{b - a}", "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-c:a", "aac", "-b:a", "160k",
          "-movflags", "+faststart", str(out)])
     log(f"produce: range {a:.2f}-{b:.2f} s -> {out}")
     return out
