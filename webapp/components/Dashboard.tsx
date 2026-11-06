@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import type { User } from "@/lib/auth";
-import { listAnims, listProjects, loadRules } from "@/lib/store";
+import { listAnims, listProjects, loadRules, readLocal } from "@/lib/store";
 import { paletteOf, total, type Anim } from "@/lib/studio";
 import { THEME_KEY, THEMES, type ThemeId } from "@/lib/theme";
 import type { Project, Settings, StyleRule } from "@/lib/types";
@@ -50,6 +50,10 @@ export function Dashboard({ user, settings, theme, onNew, onOpen, onGo, onSample
     { what: "Make your first reel", done: ready.length > 0, act: () => onNew(), label: "Start" },
   ];
   const doneCount = steps.filter((s) => s.done).length;
+  // a nudge to back up: 3+ videos, and never backed up from this browser or not in a week
+  const lastBackup = typeof window !== "undefined" ? readLocal("ce.lastBackup") : null;
+  const needsBackup = !!ps && ps.filter((x) => !x.sample).length >= 3 &&
+    (!lastBackup || Date.now() - Date.parse(lastBackup) > 7 * 864e5);
   const drop = (files: FileList | null) => {
     const fs = [...(files ?? [])].filter((f) => kindOf(f));
     if (fs.length) onNew(fs);
@@ -126,6 +130,12 @@ export function Dashboard({ user, settings, theme, onNew, onOpen, onGo, onSample
         </div>
 
         <div className="stack">
+          {needsBackup && (
+            <div className="alert info backup-nudge" role="note"><Icon name="alert" />
+              <span className="grow">{lastBackup ? "Your last backup is more than a week old." : `You have ${ps!.length} videos and no backup yet.`} They
+                live only in this browser: clearing its data would delete them.</span>
+              <button className="btn sm" onClick={() => onGo("settings")}>Back up</button></div>
+          )}
           {news && !welcome && (
             <section className="panel news" aria-labelledby="news-h">
               <div className="panel-head"><h2 id="news-h">New in Cutmind</h2>
