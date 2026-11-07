@@ -119,7 +119,10 @@ export function Relay() {
           <li><span className="row"><label htmlFor="relay-ans"><b>Paste its whole reply here</b></label>
             <button type="button" className="btn ghost sm" onClick={() => void pasteReply()}><Icon name="paperclip" />Paste the reply</button></span>
             <textarea id="relay-ans" className="textarea mono" rows={5} placeholder='{ "keep": [ … ] … }' value={answer}
-              onChange={(e) => { setAnswer(e.target.value); setErr(""); }} /></li>
+              onChange={(e) => { setAnswer(e.target.value); setErr(""); }}
+              onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && answer.trim()) { e.preventDefault(); use(); } }}
+              aria-describedby="relay-ans-hint" />
+            <span id="relay-ans-hint" className="hint">Ctrl or ⌘ + Enter uses it.</span></li>
         </ol>
         {err && <div className="alert err" role="alert"><Icon name="alert" /><span>{err}</span></div>}
         <div className="row relay-actions">
