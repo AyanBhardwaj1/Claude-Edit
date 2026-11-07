@@ -74,6 +74,14 @@ export function Relay() {
     await copy();
     if (!tab) setErr("Your browser blocked the new tab: open the chat yourself, the request is copied.");
   }
+  // the reply from the clipboard in one click (the browser may ask first); if it won't, the box takes Cmd/Ctrl+V
+  async function pasteReply() {
+    try {
+      const t = await navigator.clipboard.readText();
+      if (t.trim()) { setAnswer(t); setErr(""); return; }
+    } catch { /* not allowed here */ }
+    document.getElementById("relay-ans")?.focus();
+  }
   function download() {
     if (!cur) return;
     const url = URL.createObjectURL(new Blob([cur.text], { type: "text/plain" }));
@@ -100,7 +108,8 @@ export function Relay() {
             </div></li>
           <li><span><b>Paste it into a new chat</b> on your plan and send it (claude.ai, chatgpt.com or any chat AI).
             {words > 3000 && " A long request pastes as an attachment, or attach the .txt file: either works."}</span></li>
-          <li><label htmlFor="relay-ans"><b>Paste its whole reply here</b></label>
+          <li><span className="row"><label htmlFor="relay-ans"><b>Paste its whole reply here</b></label>
+            <button type="button" className="btn ghost sm" onClick={() => void pasteReply()}><Icon name="paperclip" />Paste the reply</button></span>
             <textarea id="relay-ans" className="textarea mono" rows={5} placeholder='{ "keep": [ … ] … }' value={answer}
               onChange={(e) => { setAnswer(e.target.value); setErr(""); }} /></li>
         </ol>
