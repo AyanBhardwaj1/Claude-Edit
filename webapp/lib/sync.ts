@@ -2,6 +2,7 @@
 // and the look. Pulled once when the app opens, pushed a moment after any change. Videos stay in each browser.
 
 import { accountMode } from "./auth";
+import { onlyKeys, withoutKeys } from "./keys";
 import { loadRules, loadSettings, saveRules, saveSettings } from "./store";
 import { getTheme, setTheme, THEMES, type ThemeId } from "./theme";
 import type { Settings, StyleRule } from "./types";
@@ -19,7 +20,7 @@ export async function startSync(): Promise<boolean> {
       live = false;                                         // applying the server copy must not echo straight back
       if (d.settings && Object.keys(d.settings).length) {
         const local = loadSettings();
-        saveSettings({ ...local, ...d.settings, anthropicKey: local.anthropicKey, openaiKey: local.openaiKey });
+        saveSettings({ ...local, ...withoutKeys(d.settings), ...onlyKeys(local) });   // keys never come from the server
       }
       if (d.style?.length) {
         const mine = loadRules();
@@ -44,8 +45,7 @@ function schedule() {
 }
 
 async function push() {
-  const { anthropicKey: _a, openaiKey: _o, ...settings } = loadSettings();
-  void _a; void _o;
+  const settings = withoutKeys(loadSettings());       // never any provider's key (lib/keys.ts)
   await fetch("/api/account/data", { method: "PUT", credentials: "same-origin", headers: { "content-type": "application/json" },
     body: JSON.stringify({ settings, style: loadRules(), theme: getTheme() }) }).catch(() => undefined);
 }

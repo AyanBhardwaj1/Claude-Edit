@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
-import { aiReady, listModels, type KeyProvider } from "@/lib/ai";
+import { aiReady, listModels } from "@/lib/ai";
+import { isKeyProvider, KEY_HINT, KEY_PAGE, keyField as keyFieldOf, keyOf, modelField, modelOf, PROVIDER_NAME, type KeyProvider } from "@/lib/keys";
 import { accountMode, AuthError, changePassword, rename, type Mode, type User } from "@/lib/auth";
 import { makeBackup, restoreBackup } from "@/lib/backup";
 import { brandOf } from "@/lib/brand";
@@ -19,11 +20,11 @@ type Note = { ok: boolean; text: string } | null;
 export function Settings({ settings, user, theme, onTheme, onUser, onSignOut, onSave }: { settings: S; user: User; theme: ThemeId;
   onTheme: (t: ThemeId) => void; onUser: (u: User) => void; onSignOut: () => void; onSave: (s: S) => void }) {
   const [s, setS] = useState<S>(settings);
-  const [models, setModels] = useState<{ anthropic: string[]; openai: string[] }>({ anthropic: [], openai: [] });
+  const [models, setModels] = useState<Record<KeyProvider, string[]>>({ anthropic: [], openai: [], openrouter: [], gemini: [] });
   const [checking, setChecking] = useState<KeyProvider | null>(null);
   const [msg, setMsg] = useState<Note>(null);
   const [saved, setSaved] = useState<Note>(null);
-  const [show, setShow] = useState({ anthropic: false, openai: false });
+  const [show, setShow] = useState<Record<KeyProvider, boolean>>({ anthropic: false, openai: false, openrouter: false, gemini: false });
   const [name, setName] = useState(user.name);
   const [acct, setAcct] = useState<Note>(null);
   const [pw, setPw] = useState({ cur: "", next: "" });
@@ -45,14 +46,14 @@ export function Settings({ settings, user, theme, onTheme, onUser, onSignOut, on
 
   async function check(provider: KeyProvider) {
     setMsg(null);
-    const key = provider === "anthropic" ? s.anthropicKey : s.openaiKey;
+    const key = keyOf(s, provider);
     if (!key) return setMsg({ ok: false, text: "Paste a key first, then check it." });
     setChecking(provider);
     try {
       const r = await listModels(provider, key);
       setModels((m) => ({ ...m, [provider]: r.models }));
-      const cur = provider === "anthropic" ? s.anthropicModel : s.openaiModel;
-      if (r.suggested && (!cur || !r.models.includes(cur))) set(provider === "anthropic" ? { anthropicModel: r.suggested } : { openaiModel: r.suggested });
+      const cur = modelOf(s, provider);
+      if (r.suggested && (!cur || !r.models.includes(cur))) set({ [modelField(provider)]: r.suggested });
       setMsg({ ok: true, text: `Key works. ${r.models.length} models available. Save settings to use it.` });
     } catch (e) {
       setMsg({ ok: false, text: (e as { userMessage?: string }).userMessage ?? String(e) });
@@ -60,33 +61,35 @@ export function Settings({ settings, user, theme, onTheme, onUser, onSignOut, on
     setChecking(null);
   }
 
-  const keyField = (p: KeyProvider) => {
-    const label = p === "anthropic" ? "Anthropic" : "OpenAI";
-    const val = p === "anthropic" ? s.anthropicKey : s.openaiKey;
+  const keyField = (p: KeyProvider, secondary = false) => {     // secondary: only for listening, voices, pictures (no model)
+    const label = PROVIDER_NAME[p];
+    const val = keyOf(s, p);
     const list = models[p];
-    const model = p === "anthropic" ? s.anthropicModel : s.openaiModel;
+    const model = modelOf(s, p);
     return (
       <div className="stack tight">
         <div className="field">
-          <label htmlFor={`${p}-key`}>{label} API key {s.provider === p && <span className="badge good">Your editor</span>}</label>
+          <label htmlFor={`${p}-key`}>{label} API key {s.provider === p ? <span className="badge good">Your editor</span>
+            : p === "openai" && <span className="muted small">for OpenAI listening, voice-overs and AI pictures</span>}</label>
           <div className="key-row">
             <input id={`${p}-key`} name={`${p}-key`} className="input" type={show[p] ? "text" : "password"} autoComplete="off" spellCheck={false}
-              placeholder={p === "anthropic" ? "sk-ant-…" : "sk-…"} value={val}
-              onChange={(e) => set(p === "anthropic" ? { anthropicKey: e.target.value.trim() } : { openaiKey: e.target.value.trim() })} />
+              placeholder={KEY_HINT[p]} value={val} onChange={(e) => set({ [keyFieldOf(p)]: e.target.value.trim() })} />
             <button className="btn icon" aria-label={show[p] ? `Hide ${label} key` : `Show ${label} key`} onClick={() => setShow({ ...show, [p]: !show[p] })}>
               <Icon name={show[p] ? "eyeOff" : "eye"} /></button>
             <button className="btn" onClick={() => check(p)} disabled={checking === p}>{checking === p ? <><span className="spin" />Checking…</> : "Check key"}</button>
           </div>
         </div>
-        <div className="field">
+        {!secondary && <div className="field">
           <label htmlFor={`${p}-model`}>{label} model</label>
           {list.length ? (
-            <select id={`${p}-model`} className="select" value={model} onChange={(e) => set(p === "anthropic" ? { anthropicModel: e.target.value } : { openaiModel: e.target.value })}>
+            <select id={`${p}-model`} className="select" value={model} onChange={(e) => set({ [modelField(p)]: e.target.value })}>
               {list.map((m) => <option key={m}>{m}</option>)}
             </select>
           ) : <input id={`${p}-model`} className="input" spellCheck={false} autoComplete="off" placeholder="Press Check key to pick from your models…" value={model}
-              onChange={(e) => set(p === "anthropic" ? { anthropicModel: e.target.value } : { openaiModel: e.target.value })} />}
-        </div>
+              onChange={(e) => set({ [modelField(p)]: e.target.value })} />}
+        </div>}
+        <span className="hint">No key yet? <a href={KEY_PAGE[p]} target="_blank" rel="noreferrer">Get {/^[AEIOU]/.test(label) ? "an" : "a"} {label} key</a>.{p === "openrouter"
+          ? " One OpenRouter key reaches Claude, GPT, Gemini, Llama, DeepSeek and more: pick the model above." : ""}</span>
       </div>
     );
   };
@@ -149,16 +152,16 @@ export function Settings({ settings, user, theme, onTheme, onUser, onSignOut, on
         </section>
 
         <section className="set-sec" aria-labelledby="ai-h">
-          <div><h2 id="ai-h">AI editor</h2><p>Keys go straight from this browser to Anthropic or OpenAI. Cutmind&apos;s server never sees them, and your videos never
-            leave your computer.</p></div>
+          <div><h2 id="ai-h">AI editor</h2><p>Keys go straight from this browser to Anthropic, OpenAI, OpenRouter or Google. Cutmind&apos;s server never sees
+            them, and your videos never leave your computer.</p></div>
           <div className="stack">
             <div className="field"><span className="label">Who edits your videos</span>
               <div className="seg" role="group" aria-label="Who edits your videos">
-                {(["anthropic", "openai", "chat"] as const).map((p) => (
+                {(["anthropic", "openai", "openrouter", "gemini", "chat"] as const).map((p) => (
                   <button key={p} aria-pressed={s.provider === p}
                     // a plan has no key to listen with: without an OpenAI key, listening moves into the browser too
                     onClick={() => set(p === "chat" && !s.openaiKey && s.transcriber === "openai" ? { provider: p, transcriber: "browser" } : { provider: p })}>
-                    {p === "anthropic" ? "Anthropic key" : p === "openai" ? "OpenAI key" : "Your Claude or ChatGPT plan"}</button>))}
+                    {p === "chat" ? "Your Claude or ChatGPT plan" : `${p === "gemini" ? "Gemini" : PROVIDER_NAME[p]} key`}</button>))}
               </div>
             </div>
             {s.provider === "chat" && (
@@ -171,8 +174,9 @@ export function Settings({ settings, user, theme, onTheme, onUser, onSignOut, on
                 Cutmind sends nothing anywhere itself. Long videos make long requests: use a model with a big context.
                 {!s.openaiKey && " Without an OpenAI key, Cutmind listens to your videos in this browser (free, a little slower)."}</span></div>
             )}
-            {keyField("anthropic")}
-            {keyField("openai")}
+            {/* the chosen provider's key, and the OpenAI key (it also listens, speaks and draws) */}
+            {isKeyProvider(s.provider) && keyField(s.provider)}
+            {s.provider !== "openai" && keyField("openai", true)}
             {msg && <div className={`alert ${msg.ok ? "ok" : "err"}`} role="status"><Icon name={msg.ok ? "check" : "alert"} /><span>{msg.text}</span></div>}
           </div>
         </section>

@@ -130,9 +130,10 @@ export type Brand = { name: string; handle: string; accent: string; accent2: str
 
 export type Settings = {
   brand?: Brand;
-  provider: "anthropic" | "openai" | "chat";   // chat: your Claude or ChatGPT plan, by copy and paste (lib/relay.ts)
-  anthropicKey: string; openaiKey: string;
-  anthropicModel: string; openaiModel: string;
+  // chat: your Claude or ChatGPT plan, by copy and paste (lib/relay.ts); the others take an API key (lib/keys.ts)
+  provider: "anthropic" | "openai" | "openrouter" | "gemini" | "chat";
+  anthropicKey: string; openaiKey: string; openrouterKey?: string; geminiKey?: string;   // the last two: missing on old settings
+  anthropicModel: string; openaiModel: string; openrouterModel?: string; geminiModel?: string;
   transcriber: "openai" | "browser";
   rememberKeys: boolean;
   effort: "fast" | "balanced" | "best";   // speed vs quality (lib/effort.ts); missing on old saved settings: balanced
