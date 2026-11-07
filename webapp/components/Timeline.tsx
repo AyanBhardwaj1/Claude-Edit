@@ -12,8 +12,9 @@ type Sel = { kind: "clip"; k: number } | { kind: LayerKind; i: number } | null;
 const GUT = 76;                         // px before 0:00, for the track names
 const clock = (t: number) => `${Math.floor(t / 60)}:${(t % 60).toFixed(1).padStart(4, "0")}`;
 
-export function Timeline({ project: p, edit, t, onSeek, onPreview, onSave, onClose }: { project: Project; edit: Edit; t: number;
-  onSeek: (t: number) => void; onPreview: (e: Edit | null) => void; onSave: (e: Edit, what: string) => void; onClose: () => void }) {
+export function Timeline({ project: p, edit, t, onSeek, onPreview, onSave, onClose, onThumbs }: { project: Project; edit: Edit; t: number;
+  onSeek: (t: number) => void; onPreview: (e: Edit | null) => void; onSave: (e: Edit, what: string) => void; onClose: () => void;
+  onThumbs?: (times: number[]) => Promise<string[] | null> }) {
   // onPreview(draft) also tells the editor there are unsaved changes (null: none), so export and compare wait for a save
   const [draft, setDraft] = useState<Edit>(() => structuredClone(edit));
   const [past, setPast] = useState<Edit[]>([]);
@@ -27,6 +28,22 @@ export function Timeline({ project: p, edit, t, onSeek, onPreview, onSave, onClo
   if (base !== edit) { setBase(edit); setDraft(structuredClone(edit)); setPast([]); setFuture([]); setSel(null); }   // a new version from outside
   const tl = useMemo(() => buildTimeline(p.words, draft, p.sources.map((s) => s.duration)), [p.words, p.sources, draft]);
   const clips = useMemo(() => clipsOf(p, draft, tl), [p, draft, tl]);
+  // a frame from each clip, drawn on it: by what the clip shows (its words), so moving a clip keeps its picture
+  const [thumbs, setThumbs] = useState<Record<string, string>>({});
+  const thumbKey = (c: { from: string; to: string }) => `${c.from}-${c.to}`;
+  useEffect(() => {
+    if (!onThumbs || drag) return;
+    const want = clips.filter((c) => !thumbs[thumbKey(c)]).slice(0, 12);
+    if (!want.length) return;
+    let live = true;
+    const id = setTimeout(async () => {                 // after the preview has the new cut (it remounts on each change)
+      try {
+        const urls = await onThumbs(want.map((c) => (c.start + c.end) / 2));
+        if (live && urls) setThumbs((m) => ({ ...m, ...Object.fromEntries(want.map((c, i) => [thumbKey(c), urls[i]])) }));
+      } catch { /* the player was busy (playing, exporting): no pictures this time */ }
+    }, 900);
+    return () => { live = false; clearTimeout(id); };
+  }, [clips, drag]); // eslint-disable-line react-hooks/exhaustive-deps
   const changed = JSON.stringify(draft) !== JSON.stringify(edit);
   const width = Math.max(600, Math.ceil(tl.duration * pps) + GUT + 24);
   const box = useRef<HTMLDivElement>(null);
@@ -159,7 +176,7 @@ export function Timeline({ project: p, edit, t, onSeek, onPreview, onSave, onClo
           <div className="tl-ruler" onPointerDown={(e) => seekAt(e.clientX)}>
             {ticks.map((x) => <span key={x} style={{ left: GUT + x * pps }}>{clock(x).replace(/\.0$/, "")}</span>)}
           </div>
-          <div className="tl-track" aria-label="Video">
+          <div className="tl-track video" aria-label="Video">
             <span className="tl-name">Video</span>
             {clips.map((c) => {
               const moving = drag?.k === c.k ? drag : null;
@@ -167,7 +184,8 @@ export function Timeline({ project: p, edit, t, onSeek, onPreview, onSave, onClo
               const w = Math.max(6, (c.end - c.start) * pps + (moving?.kind === "to" ? moving.dx : moving?.kind === "from" ? -moving.dx : 0));
               const on = sel?.kind === "clip" && sel.k === c.k;
               return (
-                <div key={`${c.k}-${c.from}`} className={`tl-clip${on ? " on" : ""}${moving ? " drag" : ""}`} style={{ left, width: w }}
+                <div key={`${c.k}-${c.from}`} className={`tl-clip${on ? " on" : ""}${moving ? " drag" : ""}${thumbs[thumbKey(c)] ? " pic" : ""}`}
+                  style={{ left, width: w, ...(thumbs[thumbKey(c)] ? { backgroundImage: `url(${thumbs[thumbKey(c)]})` } : {}) }}
                   role="button" aria-pressed={on} aria-label={`Clip ${c.k + 1}: ${c.text.slice(0, 60)}`} title={c.text}
                   onPointerDown={(e) => startDrag(e, "move", c.k)}>
                   <i className="tl-edge l" onPointerDown={(e) => startDrag(e, "from", c.k)} aria-hidden="true" />
