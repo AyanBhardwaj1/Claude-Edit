@@ -171,6 +171,8 @@ vertical reel with a cover and a post caption, then change it by typing notes. E
 46. **Words I wasn't sure I heard**: Edit it myself → Subtitles lists the words the recogniser was least sure of in what
     the cut plays (names and jargon, where subtitles go wrong), each with the words around it and its time. Type the
     right word and Fix: it becomes a correction everywhere it's said; or Looks right (`lib/unsure.ts`).
+47. **Search what you said**: My videos' search finds a video by its title or by anything said in it ("the one where I
+    talked about Notion"), and the tile shows the words around the first place and how many more (`lib/search.ts`).
 
 ## Privacy and keys
 - Videos never leave the browser: they're processed on the user's computer and kept in IndexedDB.
