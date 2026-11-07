@@ -16,7 +16,7 @@ export class AiError extends Error {
 }
 
 type Json = Record<string, unknown>;
-import { askByRelay, parseRelayAnswer } from "./relay";
+import { askByRelay, fitAnswer, parseRelayAnswer } from "./relay";
 import { keyOf, modelOf, PROVIDER_NAME, type KeyProvider } from "./keys";
 export type { KeyProvider } from "./keys";
 
@@ -136,7 +136,7 @@ async function callOther(s: Settings, provider: "openrouter" | "gemini", system:
     const text = provider === "openrouter" ? data.choices?.[0]?.message?.content
       : data.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("");
     const v = text ? parseRelayAnswer(text) : null;
-    if (v) return v;
+    if (v) return fitAnswer(schema, v);
     const cut = provider === "openrouter" ? data.choices?.[0]?.finish_reason === "length" : data.candidates?.[0]?.finishReason === "MAX_TOKENS";
     if (cut) {                                           // ran out of room mid-answer: once more with more room, then say so
       if (maxTokens < 32000) { maxTokens = Math.max(DEFAULT_MAX_TOKENS, maxTokens * 2); continue; }

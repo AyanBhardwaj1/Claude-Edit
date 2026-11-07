@@ -3,7 +3,7 @@
 // chatgpt.com, any chat AI), and takes the answer pasted back. One request at a time; a second waits its turn.
 import { useEffect, useRef, useState } from "react";
 import { AiError } from "@/lib/ai";
-import { parseRelayAnswer, relayPrompt, setRelay, type RelayAsk } from "@/lib/relay";
+import { fitAnswer, missingParts, offShape, parseRelayAnswer, relayPrompt, relayReminder, setRelay, type RelayAsk } from "@/lib/relay";
 import { Icon } from "./Icons";
 
 type Json = Record<string, unknown>;
@@ -21,6 +21,9 @@ export function Relay() {
   const [answer, setAnswer] = useState("");
   const [err, setErr] = useState("");
   const [copied, setCopied] = useState(false);
+  const [missing, setMissing] = useState<string[]>([]);   // parts the pasted reply lacked
+  const [remCopied, setRemCopied] = useState(false);
+  useEffect(() => setRemCopied(false), [missing]);
   const [fav, setFav] = useState<"claude" | "chatgpt">("claude");      // the chat you used last goes first
   useEffect(() => { try { if (localStorage.getItem(CHAT_KEY) === "chatgpt") setFav("chatgpt"); } catch { /* storage blocked */ } }, []);
 
@@ -42,7 +45,7 @@ export function Relay() {
     if (!d) return;
     if (cur && !d.open) d.showModal();
     if (!cur && d.open) d.close();
-    setAnswer(""); setErr(""); setCopied(false);
+    setAnswer(""); setErr(""); setCopied(false); setMissing([]);
   }, [cur]);
 
   function next() {
@@ -57,8 +60,15 @@ export function Relay() {
   function use() {
     if (!cur) return;
     const v = parseRelayAnswer(answer);
-    if (!v) { setErr("I couldn't find the answer's JSON in that. Copy the whole reply (the chat's copy button under it works best) and paste it again."); return; }
-    cur.done(v);
+    if (!v) { setErr("I couldn't find the answer's JSON in that. Copy the whole reply (the chat's copy button under it works best) and paste it again."); setMissing([]); return; }
+    const fit = fitAnswer(cur.ask.schema, v);
+    const gone = missingParts(cur.ask.schema, fit);
+    if (offShape(cur.ask.schema, fit)) {   // the chat answered in its own shape: say what's missing, offer a message back
+      setMissing(gone);
+      setErr(`That reply isn't in the asked-for shape (no ${gone.map((k) => `“${k}”`).join(", ") || "asked-for fields"}). Copy the reminder, send it in the same chat, then paste its new reply here.`);
+      return;
+    }
+    cur.done(fit);
     next();
   }
   async function copy(): Promise<boolean> {
@@ -69,6 +79,11 @@ export function Relay() {
       t?.closest("details")?.setAttribute("open", ""); t?.focus(); t?.select();
       return false;
     }
+  }
+  async function copyReminder() {
+    if (!cur || !missing.length) return;
+    try { await navigator.clipboard.writeText(relayReminder(cur.ask, missing)); setRemCopied(true); }
+    catch { setErr(`Tell the chat: “Your answer is missing ${missing.join(", ")}: reply again with one JSON object in the shape I asked for.”`); }
   }
   // copy, then open the chat in a new tab: the request is on the clipboard, ready to paste
   async function copyAndOpen(url: string) {
@@ -84,7 +99,7 @@ export function Relay() {
   async function pasteReply() {
     try {
       const t = await navigator.clipboard.readText();
-      if (t.trim()) { setAnswer(t); setErr(""); return; }
+      if (t.trim()) { setAnswer(t); setErr(""); setMissing([]); return; }
     } catch { /* not allowed here */ }
     document.getElementById("relay-ans")?.focus();
   }
@@ -119,12 +134,13 @@ export function Relay() {
           <li><span className="row"><label htmlFor="relay-ans"><b>Paste its whole reply here</b></label>
             <button type="button" className="btn ghost sm" onClick={() => void pasteReply()}><Icon name="paperclip" />Paste the reply</button></span>
             <textarea id="relay-ans" className="textarea mono" rows={5} placeholder='{ "keep": [ … ] … }' value={answer}
-              onChange={(e) => { setAnswer(e.target.value); setErr(""); }}
+              onChange={(e) => { setAnswer(e.target.value); setErr(""); setMissing([]); }}
               onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && answer.trim()) { e.preventDefault(); use(); } }}
               aria-describedby="relay-ans-hint" />
             <span id="relay-ans-hint" className="hint">Ctrl or ⌘ + Enter uses it.</span></li>
         </ol>
-        {err && <div className="alert err" role="alert"><Icon name="alert" /><span>{err}</span></div>}
+        {err && <div className="alert err" role="alert"><Icon name="alert" /><span>{err}</span>
+          {missing.length > 0 && <button type="button" className="btn sm" onClick={() => void copyReminder()}><Icon name="copy" />{remCopied ? "Reminder copied" : "Copy the reminder"}</button>}</div>}
         <div className="row relay-actions">
           <button type="button" className="btn ghost" onClick={cancel}>Stop</button>
           <button type="button" className="btn primary" disabled={!answer.trim()} onClick={use}>Use this answer</button>
