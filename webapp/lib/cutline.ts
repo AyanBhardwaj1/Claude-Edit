@@ -168,3 +168,15 @@ export function addZoom(p: Project, e: Edit, tl: Timeline, t: number, scale = 1.
   const k = Math.min(tl.words.length - 1, j + Math.max(0, words - 1));
   return { ...e, zooms: [...e.zooms, { anchor: { from: tl.words[j].id, to: tl.words[k].id }, scale: Math.max(1.03, Math.min(1.4, scale)) }] };
 }
+
+/** One of your pictures or clips at the playhead, for about 2 seconds of talk (a screen recording framed, as the
+ *  drawer places it). */
+export function addPicture(p: Project, e: Edit, tl: Timeline, t: number, asset: string): Edit | null {
+  const a = p.library.find((x) => x.key === asset && x.kind !== "music");
+  const j = tl.words.findIndex((x) => x.w.trim() && x.oe > t);
+  if (!a || j < 0) return null;
+  const w = tl.words[j];
+  const end = tl.words.slice(j).find((x) => x.w.trim() && x.oe - w.os >= 2.0) ?? tl.words[tl.words.length - 1];
+  const id = `m${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`;
+  return { ...e, broll: [...e.broll, { id, anchor: { from: w.id, to: end.id }, asset, treatment: a.screen ? "framed" : "card-above-head" }] };
+}

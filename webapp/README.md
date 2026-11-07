@@ -201,7 +201,7 @@ vertical reel with a cover and a post caption, then change it by typing notes. E
 54. **Timeline**: the Timeline button in the editor shows the edit as tracks (video clips, pictures and text, zooms,
     music) with a playhead. Split at the playhead (S), delete (Delete), duplicate, reorder clips by dragging or with
     ← →, trim a clip's ends by dragging its edges or one word at a time, add a text card at the playhead (and edit
-    its words), add a zoom at the playhead, talking speed, nudge pictures and zooms, subtitles on/off, the music
+    its words), add one of your pictures or clips or a zoom at the playhead, talking speed, nudge pictures and zooms, subtitles on/off, the music
     level, undo / redo (Ctrl/⌘+Z,
     Ctrl/⌘+Shift+Z), zoom the timeline. Everything snaps to whole words, so subtitles and pictures stay on their words;
     changes preview live and "Save as a new version" keeps them. Each clip shows a frame from its moment; Space plays,
