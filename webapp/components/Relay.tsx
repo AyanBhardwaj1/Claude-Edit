@@ -72,11 +72,13 @@ export function Relay() {
   }
   // copy, then open the chat in a new tab: the request is on the clipboard, ready to paste
   async function copyAndOpen(url: string) {
-    const tab = window.open(url, "_blank");                 // opened inside the click, so pop-up blockers allow it
-    try { localStorage.setItem(CHAT_KEY, url.includes("chatgpt") ? "chatgpt" : "claude"); setFav(url.includes("chatgpt") ? "chatgpt" : "claude"); } catch { /* storage blocked */ }
+    const copying = copy();                                 // started while this tab still has focus
+    const tab = window.open(url, "_blank");                 // inside the click, so pop-up blockers allow it
     if (tab) tab.opener = null;                             // the chat tab can't reach back into Cutmind
-    await copy();
-    if (!tab) setErr("Your browser blocked the new tab: open the chat yourself, the request is copied.");
+    try { localStorage.setItem(CHAT_KEY, url.includes("chatgpt") ? "chatgpt" : "claude"); setFav(url.includes("chatgpt") ? "chatgpt" : "claude"); } catch { /* storage blocked */ }
+    const ok = await copying;
+    if (!ok) setErr("The request didn't copy: select it under “Show it” and copy it by hand, then paste it in the chat.");
+    else if (!tab) setErr("Your browser blocked the new tab: open the chat yourself, the request is copied.");
   }
   // the reply from the clipboard in one click (the browser may ask first); if it won't, the box takes Cmd/Ctrl+V
   async function pasteReply() {
