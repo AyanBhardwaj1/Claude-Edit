@@ -94,6 +94,8 @@ export function Timeline({ project: p, edit, t, onSeek, onPreview, onSave, onClo
     if (mod && ev.key.toLowerCase() === "z") { ev.preventDefault(); ev.stopPropagation(); if (ev.shiftKey) redo(); else undo(); return; }
     if (mod) return;
     if (ev.key === "s" || ev.key === "S") { ev.preventDefault(); ev.stopPropagation(); split(); }
+    else if (ev.key === "t" || ev.key === "T") { ev.preventDefault(); ev.stopPropagation(); setTyping(""); }
+    else if (ev.key === "z" || ev.key === "Z") { ev.preventDefault(); ev.stopPropagation(); apply(addZoom(p, draft, tl, t), "add a zoom at the playhead"); }
     else if ((ev.key === "Delete" || ev.key === "Backspace") && sel) { ev.preventDefault(); ev.stopPropagation(); remove(); }
     else if ((ev.key === "ArrowLeft" || ev.key === "ArrowRight") && sel) { ev.preventDefault(); ev.stopPropagation(); move(ev.key === "ArrowLeft" ? -1 : 1); }
     else if (ev.key === "Escape") { setSel(null); }
@@ -148,7 +150,7 @@ export function Timeline({ project: p, edit, t, onSeek, onPreview, onSave, onClo
         <button type="button" className="btn sm" onClick={() => move(-1)} disabled={!sel} aria-label={sel?.kind === "clip" ? "Move the clip earlier" : "Nudge earlier"} title="Earlier (←)">←</button>
         <button type="button" className="btn sm" onClick={() => move(1)} disabled={!sel} aria-label={sel?.kind === "clip" ? "Move the clip later" : "Nudge later"} title="Later (→)">→</button>
         {selClip && <button type="button" className="btn sm" onClick={() => { apply(duplicateClip(draft, selClip.k), "duplicate the clip"); setSel({ kind: "clip", k: selClip.k + 1 }); }} title="Play this clip twice">Duplicate</button>}
-        <button type="button" className="btn sm" aria-expanded={typing !== null} onClick={() => setTyping(typing === null ? "" : null)} title="A text card at the playhead"><Icon name="pen" />Text</button>
+        <button type="button" className="btn sm" aria-expanded={typing !== null} onClick={() => setTyping(typing === null ? "" : null)} title="A text card at the playhead (T)"><Icon name="pen" />Text</button>
         {p.library.some((a) => a.kind !== "music") && (
           <select className="tl-level" aria-label="Add a picture or clip at the playhead" value=""
             onChange={(ev) => { if (ev.target.value) apply(addPicture(p, draft, tl, t, ev.target.value), "add a picture at the playhead"); }}>
@@ -156,7 +158,7 @@ export function Timeline({ project: p, edit, t, onSeek, onPreview, onSave, onClo
             {p.library.filter((a) => a.kind !== "music").map((a) => <option key={a.key} value={a.key}>{a.name.slice(0, 40)}</option>)}
           </select>
         )}
-        <button type="button" className="btn sm" onClick={() => apply(addZoom(p, draft, tl, t), "add a zoom at the playhead")} title="A punch-in zoom at the playhead">Zoom</button>
+        <button type="button" className="btn sm" onClick={() => apply(addZoom(p, draft, tl, t), "add a zoom at the playhead")} title="A punch-in zoom at the playhead (Z)">Zoom</button>
         <select className="tl-level" aria-label="Talking speed" value={String(draft.speed ?? 1)}
           onChange={(ev) => { const v = Number(ev.target.value); apply({ ...draft, speed: v === 1 ? undefined : v }, v === 1 ? "play it as filmed" : `speed it up to ${v}×`); }}>
           <option value="1">Speed: as filmed</option><option value="1.1">Speed 1.1×</option><option value="1.2">Speed 1.2×</option><option value="1.3">Speed 1.3×</option>

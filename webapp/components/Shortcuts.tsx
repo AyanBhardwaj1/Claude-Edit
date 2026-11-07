@@ -12,6 +12,7 @@ export const SHORTCUTS: [string[], string][] = [
   [["N"], "Write a note to your editor"],
   [["/"], "Find a word in what you said"],
   [["S"], "Timeline: split the clip at the playhead"],
+  [["T", "Z"], "Timeline: text or a zoom at the playhead"],
   [["Delete"], "Timeline: delete the selected clip, picture or zoom"],
   [["← / →"], "Timeline: move the selection (or the playhead)"],
   [["Ctrl/⌘", "Z"], "Timeline: undo (add Shift to redo)"],
