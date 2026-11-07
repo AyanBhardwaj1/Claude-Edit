@@ -34,7 +34,9 @@ export function relayPrompt(ask: RelayAsk): string {
 export function parseRelayAnswer(text: string): Json | null {
   // every code box (```json ones first), then the whole reply: a chat may show other code before the answer
   const fences = [...text.matchAll(/```([a-z]*)\s*([\s\S]*?)```/gi)].sort((x, y) => Number(y[1].toLowerCase() === "json") - Number(x[1].toLowerCase() === "json"));
-  const bodies = [...fences.map((m) => m[2].trim()), text.trim()];
+  // also the widest ```json box: a caption with ``` inside it cuts the lazy match short
+  const greedy = text.match(/```json\s*([\s\S]*)```/i);
+  const bodies = [...fences.map((m) => m[2].trim()), ...(greedy ? [greedy[1].trim()] : []), text.trim()];
   const tries: string[] = [];
   for (const body of bodies) {
     tries.push(body);

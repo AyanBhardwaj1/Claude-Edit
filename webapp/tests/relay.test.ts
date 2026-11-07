@@ -44,3 +44,7 @@ test("a trailing comma with curly quotes in a string, and a JSON box after anoth
   assert.deepEqual(parseRelayAnswer('{"summary": "I cut the “um” parts", "keep": ["w1"],}'), { summary: "I cut the “um” parts", keep: ["w1"] });
   assert.deepEqual(parseRelayAnswer('Here:\n```\nnot json\n```\n```json\n{"a":1}\n```'), { a: 1 });
 });
+
+test("a caption with ``` inside it, and braces in the prose around the box, still parse", () => {
+  assert.deepEqual(parseRelayAnswer('Sure {ok}\n```json\n{"c":"a ``` b"}\n```\nbye {x}'), { c: "a ``` b" });
+});
