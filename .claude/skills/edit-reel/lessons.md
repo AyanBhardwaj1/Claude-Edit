@@ -4,6 +4,9 @@ Read this before planning any non-trivial edit. After every video, append 1-5 le
 broke, what the user loved or rejected), newest first, one line each, under a dated heading. Preferences go to
 style memory (`editor style note`), timings to `editor effort record`; this file is for craft and process.
 
+## 2026-11-07 Footage checks
+- [footage] Run editor inventory before planning: it names clips whose sound track is silent (a muted mic); plan now stops on all-silent takes, and a landscape take in an upright video fills the frame (sides cropped) - check its framing on the contact sheet
+
 ## 2026-11-06 Notes
 - [process] Insert CSS after a whole rule found by its text, never at a line number: a sed line insert landed inside a two-line rule and silently dropped a button style.
 - [process] An editorial heuristic (strongest line, hook pick) has to be tried on a real transcript before it ships: the first cold-open pick was "Step two, ...", which makes no sense said first.
