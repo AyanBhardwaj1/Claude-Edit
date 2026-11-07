@@ -176,6 +176,9 @@ vertical reel with a cover and a post caption, then change it by typing notes. E
 48. **Notes pinned to the moment**: a typed note that points at what's on screen ("cut this", "logo here", "too loud now")
     without a time gets the playhead's time, shown in the chat ("cut this (at 0:12.3)"), so the editor changes that moment
     (`pinToPlayhead` in `lib/moments.ts`).
+49. **Fits each app**: the Post tab checks the caption and hashtags against Instagram (2,200 characters, 30 hashtags),
+    TikTok (4,000) and a YouTube Shorts title (the first line, 100), and shows what Instagram shows before "…more"
+    (`lib/postfit.ts`).
 
 ## Privacy and keys
 - Videos never leave the browser: they're processed on the user's computer and kept in IndexedDB.

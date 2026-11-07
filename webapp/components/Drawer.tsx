@@ -15,6 +15,7 @@ import { pickTake, takeLines, type Take } from "@/lib/takes";
 import { crutches, cutWords, findWords, restoreWords } from "@/lib/crutch";
 import { applyFit, FIT_TARGETS, planFit, repeats } from "@/lib/fit";
 import { unsureWords } from "@/lib/unsure";
+import { postFit } from "@/lib/postfit";
 import type { Asset, Broll, BrollIn, CaptionAnim, CaptionPreset, Edit, Look, Motion, Project, Range, Settings, Transition } from "@/lib/types";
 
 const ANIM_NAME: Record<CaptionAnim, string> = { pop: "Pop", karaoke: "Karaoke", bounce: "Bounce", words: "Word by word", typewriter: "Typewriter",
@@ -486,6 +487,19 @@ export function Drawer({ project: p, edit, onApply, settings, onMakeMusic, onWor
             }} onBlur={() => setTagsText(null)} />
             <span className="hint num">{e.post.hashtags.length} of 5</span>
           </div>
+          {(() => {
+            const f = postFit(e.post.caption, e.post.hashtags);
+            return (
+              <div className="field"><span className="label" id="fit-apps-h">Fits each app</span>
+                <ul className="fit-apps" aria-labelledby="fit-apps-h">
+                  {f.fits.map((x) => <li key={x.app} className={x.ok ? "ok" : "bad"}><Icon name={x.ok ? "check" : "alert"} /><b>{x.app}</b>{" "}
+                    <span className="muted small num">{x.text}</span></li>)}
+                </ul>
+                {f.shown && <p className="small"><span className="muted">Seen before &ldquo;…more&rdquo; on Instagram:</span> &ldquo;{f.shown}{f.cut ? "…" : ""}&rdquo;
+                  {f.cut && <span className="hint block">Put the hook in those first words: the rest is hidden until someone taps.</span>}</p>}
+              </div>
+            );
+          })()}
         </>)}
       </div>
 

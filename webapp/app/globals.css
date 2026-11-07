@@ -146,6 +146,11 @@ p { margin: 0; text-wrap: pretty; }
   font-size: 13px; cursor: pointer; transition: background-color .15s ease, color .15s ease; }
 .takes { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 10px; }
 .take-text { margin: 4px 2px 0; overflow-wrap: anywhere; }
+.fit-apps { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 4px; }
+.fit-apps li { display: flex; align-items: center; gap: 6px; font-size: 14px; }
+.fit-apps li svg { width: 15px; height: 15px; flex: none; }
+.fit-apps li.ok svg { color: var(--good, #2e9d5b); }
+.fit-apps li.bad svg { color: var(--bad); }
 .said { display: block; margin-top: 2px; overflow-wrap: anywhere; }
 .said mark { background: var(--accent-soft); color: inherit; border-radius: 3px; padding: 0 2px; }
 .doubt { text-decoration: underline wavy var(--warn, #e0a100); text-underline-offset: 3px; }
