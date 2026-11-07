@@ -80,3 +80,12 @@ test("a line played twice (cold open, duplicate): each clip is its own occurrenc
   assert.equal(nudgeLayer(P, c, "broll", 0, 1), null);                          // already the last word: it stays (was: jumped to "one")
   assert.deepEqual(nudgeLayer(P, c, "broll", 0, -1)!.broll[0].anchor, { from: "w8", to: "w8" });
 });
+
+test("a zoom at the playhead, on the word said there", async () => {
+  const { addZoom } = await import("../lib/cutline");
+  const e = base();
+  const tl = tlOf(e);
+  const z = addZoom(P, e, tl, tl.byId.get("w2")!.os + 0.05)!;
+  assert.deepEqual(z.zooms[z.zooms.length - 1], { anchor: { from: "w2", to: "w4" }, scale: 1.15 });
+  assert.equal(addZoom(P, e, tl, tl.duration + 1), null);
+});
