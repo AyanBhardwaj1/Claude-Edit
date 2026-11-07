@@ -2,6 +2,9 @@
 // adapts both its advice and the AI editor's style to it, tells you in plain words what's happening while a video is
 // being made, and answers questions with your own AI (a key, or your Claude / ChatGPT plan by copy and paste).
 import { callJson } from "./ai";
+import { crutches } from "./crutch";
+import { repeats } from "./fit";
+import { buildTimeline } from "./timeline";
 import { readLocal, writeLocal } from "./store";
 import type { Project, Settings, StyleRule } from "./types";
 
@@ -144,6 +147,8 @@ export function coachContext(c: Creator | null, projects: Project[], rules: Styl
   if (current) {
     const said = current.words.map((w) => w.w).filter(Boolean).join(" ");
     lines.push(`Open now: "${current.title}". It starts: "${said.slice(0, 700)}${said.length > 700 ? "…" : ""}"`);
+    const facts = videoFacts(current);
+    if (facts) lines.push(`This version, measured: ${facts}`);
   }
   return lines.join("\n");
 }
@@ -172,3 +177,30 @@ export function loadChat(): Chat[] {
   try { const v = JSON.parse(readLocal(CHAT) ?? "[]"); return Array.isArray(v) ? v.slice(-40) : []; } catch { return []; }
 }
 export function saveChat(c: Chat[]) { writeLocal(CHAT, JSON.stringify(c.slice(-40))); }
+
+/** The open video's current version in numbers, so advice about it is specific: length, pace, cuts, what's on screen,
+ *  words said out of habit, lines said twice. */
+export function videoFacts(p: Project): string {
+  const v = p.versions.find((x) => x.n === p.current) ?? p.versions[p.versions.length - 1];
+  if (!v || !p.words.length) return "";
+  try {
+    const e = v.edit;
+    const tl = buildTimeline(p.words, e, p.sources.map((s) => s.duration));
+    const spoken = tl.words.filter((w) => w.w.trim()).length;
+    const wpm = tl.duration > 5 ? Math.round(spoken / (tl.duration / 60)) : 0;
+    const habits = crutches(p, e.keep).reduce((n, c) => n + c.hits.length, 0);
+    const twice = repeats(p, e).length;
+    const first = tl.words.find((w) => w.w.trim());
+    return [
+      `${tl.duration.toFixed(1)} s long (${p.format ?? "9:16"})`,
+      wpm ? `${wpm} words a minute` : "",
+      `${tl.segments.length} cuts`,
+      `first word at ${first ? first.os.toFixed(1) : "?"} s`,
+      `${e.broll.length} picture${e.broll.length === 1 ? "" : "s"} or text cards, ${e.zooms.length} zoom${e.zooms.length === 1 ? "" : "s"}`,
+      `subtitles ${e.captions.enabled ? "on" : "off"}`,
+      `music ${e.music?.asset ? "on" : "none"}`,
+      habits ? `${habits} word${habits === 1 ? "" : "s"} said out of habit` : "",
+      twice ? `${twice} line${twice === 1 ? "" : "s"} said twice` : "",
+    ].filter(Boolean).join(", ");
+  } catch { return ""; }
+}

@@ -43,3 +43,18 @@ test("the coach asks your AI with what it knows, and the editor's prompt carries
   assert.match(asked, /Creator asks: Plan my demo/);
   setRelay(null);
 });
+
+test("advice about the open video gets its numbers", async () => {
+  const { coachContext, videoFacts } = await import("../lib/assistant");
+  const words = "So basically this app saves you an hour a day. Here is how it works.".split(" ")
+    .map((w, i) => ({ id: `w${i}`, src: 0, s: 0.5 + i * 0.4, e: 0.5 + i * 0.4 + 0.3, w }));
+  const edit = { keep: [{ from: "w0", to: `w${words.length - 1}` }], gapCap: 0.4, broll: [], zooms: [],
+    captions: { enabled: true }, music: { asset: null } };
+  const p = { id: "p", title: "Demo", words, sources: [{ id: 0, duration: 8 }], versions: [{ n: 1, edit }], current: 1, library: [] } as never;
+  const f = videoFacts(p);
+  assert.match(f, /s long \(9:16\)/);
+  assert.match(f, /words a minute/);
+  assert.match(f, /1 word said out of habit/);
+  assert.match(f, /subtitles on, music none/);
+  assert.match(coachContext(null, [], [], "Editor", p), /This version, measured: /);
+});
