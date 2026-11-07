@@ -456,3 +456,25 @@ def test_post_fit_names_each_app_limit():
     long = post_fit("x" * 2300 + "\n\n" + " ".join(f"#t{i}" for i in range(31)))
     assert any("Instagram takes 2,200" in w for w in long) and any("31 hashtags" in w for w in long)
     assert any("YouTube Shorts title" in w for w in long) and not any("TikTok" in w for w in long)
+
+
+def test_correct_adds_replaces_lists_and_removes(tmp_path, capsys):
+    import json
+    from editor.cli import main
+    from editor.wordfix import apply_corrections
+    work = tmp_path / "w"
+    work.mkdir()
+    (work / "edl.json").write_text(json.dumps({"segments": []}))
+    assert main(["correct", str(work), "Clawed", "Claude"]) == 0
+    assert main(["correct", str(work), "clawed,", "Claude!"]) == 0                 # the same word: replaced, not doubled
+    assert main(["correct", str(work), "pay pal", "PayPal"]) == 0
+    fixes = json.loads((work / "edl.json").read_text())["captions"]["corrections"]
+    assert fixes == [{"from": "clawed,", "to": "Claude!"}, {"from": "pay pal", "to": "PayPal"}]
+    words = [{"text": t, "start": i, "end": i + 0.5} for i, t in enumerate(["I", "use", "Clawed", "and", "pay", "pal."])]
+    assert [w["text"] for w in apply_corrections(words, fixes)][2:] == ["Claude!", "and", "PayPal."]
+    assert main(["correct", str(work), "--remove", "Pay Pal"]) == 0
+    capsys.readouterr()
+    assert main(["correct", str(work), "--list"]) == 0
+    out = capsys.readouterr().out
+    assert "pay pal" not in out and "Claude!" in out
+    assert main(["correct", str(work), "--remove", "nothing"]) != 0

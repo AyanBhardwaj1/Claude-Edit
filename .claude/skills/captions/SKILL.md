@@ -32,7 +32,9 @@ Text fixes (EDL `"captions"`, applied to the timed words, captions and SRT alike
              "digits": true}                                        // "twenty five percent" -> 25% (default on)
 ```
 Proofread before rendering: `python3 -m editor words projects/<n>/work --unsure 0.6` marks unsure words (?). Fix a
-sound-alike only when the topic makes it certain; slang, filler and names you don't recognise stay as said.
+sound-alike only when the topic makes it certain; slang, filler and names you don't recognise stay as said. Fix with
+`python3 -m editor correct projects/<n>/work "Clawed" "Claude"` (`--list`, `--remove`), then re-run from `captions`;
+`editor pacing` lists unsure words still uncorrected (`unsure_words`, also in before you post).
 
 ## Step pills (chapters)
 For numbered videos ("5 steps", "3 tools") add black rounded title pills at the top of frame:
