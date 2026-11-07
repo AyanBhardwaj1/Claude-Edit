@@ -10,6 +10,7 @@ import { activeRms, decodeMono, looksLikeScreenAt, musicFeel, probeImage, probeV
 import { getMedia, putMedia, saveProject } from "./store";
 import { applyScript, type ScriptResult } from "./retext";
 import { takeLines } from "./takes";
+import { withLook } from "./look";
 import { findWaits } from "./screenrec";
 import { record } from "./timings";
 import { transcribe } from "./transcribe";
@@ -236,6 +237,8 @@ export async function makeFirstEdit(p: Project, s: Settings, rules: StyleRule[],
     }
     if (!p.parent && s.provider !== "chat") record("edit", effortOf(s), since(t0), footage(p));   // not your copy-and-paste time
   }
+  // "My look" (lib/look.ts): the saved subtitle style, motion and pace win over the draft's, on every new video
+  if (s.look) { edit = withLook(edit, s.look); summary += " It wears your look."; }
   // lines said more than once: say which take plays and where to pick another (the user's call, not a guess)
   const twice = takeLines(p, edit.keep).length;
   if (twice) summary += ` You said ${twice === 1 ? "one line" : `${twice} lines`} more than once: to use a different take, open` +
@@ -266,11 +269,11 @@ export async function makeReel(takes: File[], extras: File[], script: string, s:
 export const REVIEWING = "Reviewing the edit like a senior editor";
 
 /** Notes are one pass at every effort, with the effort's model and answer budget (the saved default effort). */
-export async function applyUserNote(p: Project, s: Settings, rules: StyleRule[], note: string, onProgress: Progress):
+export async function applyUserNote(p: Project, s: Settings, rules: StyleRule[], note: string, onProgress: Progress, where?: string):
   Promise<{ summary: string; styleRule: string | null }> {
   const cur = p.versions.find((v) => v.n === p.current) ?? p.versions[p.versions.length - 1];
   onProgress("Working on your note", 30);
-  const ai = await applyNote(s, p, cur.edit, note, rules, await choiceFor(s));
+  const ai = await applyNote(s, p, cur.edit, note, rules, await choiceFor(s), where);
   const web = await webPictures(p, ai, onProgress, EFFORT[effortOf(s)].pictures);
   const { edit } = fromAi(p, cur.edit, ai, web);
   const n = Math.max(...p.versions.map((v) => v.n)) + 1;

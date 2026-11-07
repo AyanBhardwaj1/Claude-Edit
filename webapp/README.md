@@ -173,6 +173,18 @@ vertical reel with a cover and a post caption, then change it by typing notes. E
     right word and Fix: it becomes a correction everywhere it's said; or Looks right (`lib/unsure.ts`).
 47. **Search what you said**: My videos' search finds a video by its title or by anything said in it ("the one where I
     talked about Notion"), and the tile shows the words around the first place and how many more (`lib/search.ts`).
+48. **Notes pinned to the moment**: a typed note that points at what's on screen ("cut this", "logo here", "too loud now")
+    without a time gets the playhead's time, shown in the chat ("cut this (at 0:12.3)"), so the editor changes that moment
+    (`pinToPlayhead` in `lib/moments.ts`).
+49. **Fits each app**: the Post tab checks the caption and hashtags against Instagram (2,200 characters, 30 hashtags),
+    TikTok (4,000) and a YouTube Shorts title (the first line, 100), and shows what Instagram shows before "…more"
+    (`lib/postfit.ts`).
+50. **Words at a time**: Subtitles → 1, 2, 3 or 4 words on screen at once (one word at a time hits hardest on short
+    reels).
+51. **My look**: Edit it myself → Save as my look keeps this video's subtitles, motion (animations, transitions, colour
+    look) and pace (pauses, talking speed, music level). Every new video starts with it, and Use my look puts it on any
+    older one; what's said, cut and shown stays each video's own. It's part of Settings, so it follows the account
+    (`lib/look.ts`).
 
 ## Privacy and keys
 - Videos never leave the browser: they're processed on the user's computer and kept in IndexedDB.

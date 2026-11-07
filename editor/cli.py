@@ -1534,6 +1534,11 @@ def _before_post(work: Path, out_dir: Path, qa_report: dict, safe_hits: list | N
                 items.append({"what": k.replace("4_5s", "4.5 s").replace("10s", "10 s").replace("_", " "), "ok": False, "detail": v})
     except EditorError as e:
         items.append({"what": "pacing", "ok": False, "detail": f"not checked: {e}"})
+    post = out_dir / "post.txt"
+    if post.exists():                                  # the post kit against each app's limits
+        from .versions import post_fit
+        for warn in post_fit(post.read_text()):
+            items.append({"what": "post", "ok": False, "detail": warn})
     if safe_hits:
         items.append({"what": "captions under app UI", "ok": False,
                       "detail": "; ".join(f"{h['platform']} {h['from']:.1f}-{h['to']:.1f}s ({h['zone']})" for h in safe_hits[:4])})

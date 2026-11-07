@@ -152,6 +152,27 @@ def write_post(project: str | Path, caption: str, hashtags: list[str], keywords:
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(text)
     log(f"post caption -> {out}")
+    for warn in post_fit(text):
+        log(f"post: {warn}")
+    return out
+
+
+def post_fit(text: str) -> list[str]:
+    """What won't fit each app (the apps' published limits, as Cutmind's lib/postfit.ts): Instagram 2,200 characters and
+    30 hashtags (about 125 shown before "more"), TikTok 4,000, a YouTube Shorts title (the first line) 100."""
+    n, first = len(text.rstrip("\n")), text.strip().split("\n")[0]
+    tags = len(re.findall(r"(?<!\w)#\w+", text))
+    out = []
+    if n > 2200:
+        out.append(f"{n} characters: Instagram takes 2,200")
+    if tags > 30:
+        out.append(f"{tags} hashtags: Instagram takes 30")
+    if n > 4000:
+        out.append(f"{n} characters: TikTok takes 4,000")
+    if len(first) > 100:
+        out.append(f"the first line is {len(first)} characters: a YouTube Shorts title takes 100 (write a shorter title when posting)")
+    if len(first) > 125:
+        out.append("Instagram shows about 125 characters before 'more': put the hook in the first words")
     return out
 
 

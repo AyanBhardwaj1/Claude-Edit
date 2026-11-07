@@ -137,6 +137,7 @@ export type Settings = {
   transcriber: "openai" | "browser";
   rememberKeys: boolean;
   effort: "fast" | "balanced" | "best";   // speed vs quality (lib/effort.ts); missing on old saved settings: balanced
+  look?: import("./look").Look;            // "My look": used on every new video (lib/look.ts)
 };
 
 export type StyleRule = { id: string; text: string; at: string };

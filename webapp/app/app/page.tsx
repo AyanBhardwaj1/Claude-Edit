@@ -196,7 +196,8 @@ export default function App() {
           onSaveSettings={(s) => { saveSettings(s); setSettings(s); }} onDone={(p, s) => { setPending([]); open(p, s); }} />}
         {screen === "editor" && project && (project.versions.length
           ? <Editor key={project.id} project={project} settings={settings} firstSummary={summary} onBack={() => go("videos")}
-            onOpenProject={(p, s) => open(p, s)} onOpenAnim={(id) => { location.hash = `animate/${encodeURIComponent(id)}`; }} />
+            onOpenProject={(p, s) => open(p, s)} onOpenAnim={(id) => { location.hash = `animate/${encodeURIComponent(id)}`; }}
+            onSaveLook={(look) => { const s = { ...settings, look }; saveSettings(s); setSettings(s); }} />
           : <div className="page narrow"><div className="empty"><h2>This video didn&apos;t finish</h2>
               <p>Something stopped it before the first edit. Delete it from My videos and make it again from New video.</p>
               <button className="btn" onClick={() => go("videos")}><Icon name="arrowLeft" />My videos</button></div></div>)}

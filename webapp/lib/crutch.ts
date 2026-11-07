@@ -51,10 +51,14 @@ function withBlanks(p: Project, at: (number | undefined)[]): Set<number> {
 
 /** Every place the words of `query` are said, in order (its last word may be the start of one: "sub" finds
  *  "subscribe"), as word ids. Case and punctuation don't matter. */
-export function findWords(p: Project, query: string): string[][] {
+export type Spoken = { i: number; b: string }[];
+/** A transcript's spoken words, bared: computed by the caller once when it searches the same words many times. */
+export const spokenOf = (words: Project["words"]): Spoken => words.map((w, i) => ({ i, b: bare(w.w) })).filter((x) => x.b);
+
+export function findWords(p: Project, query: string, spokenIn?: Spoken): string[][] {
   const q = query.split(/\s+/).map(bare).filter(Boolean);
   if (!q.length) return [];
-  const spoken = p.words.map((w, i) => ({ i, b: bare(w.w) })).filter((x) => x.b);
+  const spoken = spokenIn ?? spokenOf(p.words);
   const out: string[][] = [];
   for (let k = 0; k + q.length <= spoken.length; k++) {
     let ok = true;

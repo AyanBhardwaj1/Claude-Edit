@@ -1,4 +1,5 @@
 "use client";
+import type { Look } from "@/lib/look";
 import { aiReady } from "@/lib/ai";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { postText } from "@/lib/edit";
@@ -54,13 +55,13 @@ import { cutWarmUp, LOOP_HEAD, LOOP_TAIL, loopCheck, SCROLL_SECONDS, scrollTest,
 import { clearPosition, PLATFORM_NAMES, subtitlesCovered, ZONES, type Platform } from "@/lib/safezones";
 import { Shortcuts } from "./Shortcuts";
 import { VoiceNote } from "./VoiceNote";
-import { anchorSpoken } from "@/lib/moments";
+import { anchorSpoken, momentsText, noteTimes, pinToPlayhead } from "@/lib/moments";
 import { declineLearned, learnFromExport } from "@/lib/learn";
 
 type Msg = { who: "you" | "ed"; text: string; rule?: string; changes?: Change[]; learned?: boolean; v?: number };
 
-export function Editor({ project, settings, firstSummary, onBack, onOpenProject, onOpenAnim }: { project: Project; settings: Settings; firstSummary?: string;
-  onBack: () => void; onOpenProject?: (p: Project, summary: string) => void; onOpenAnim?: (id: string) => void }) {
+export function Editor({ project, settings, firstSummary, onBack, onOpenProject, onOpenAnim, onSaveLook }: { project: Project; settings: Settings; firstSummary?: string;
+  onBack: () => void; onOpenProject?: (p: Project, summary: string) => void; onOpenAnim?: (id: string) => void; onSaveLook?: (l: Look) => void }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const player = useRef<Player | null>(null);
   const mounts = useRef(0);
@@ -332,24 +333,28 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
   }
 
   // Notes sent while the editor is still working wait their turn and are applied in order, each its own version.
-  const queue = useRef<string[]>([]);
+  const queue = useRef<{ text: string; where?: string }[]>([]);
   const working = useRef(false);
   const [waiting, setWaiting] = useState(0);
   async function send(given?: string) {
-    const text = (given ?? note).trim();
-    if (!text) return;
+    const typed = (given ?? note).trim();
+    if (!typed) return;
+    // a typed "cut this" / "logo here" means what's on screen: the playhead's time goes with it (chips are sent as they are)
+    const text = given === undefined && player.current ? pinToPlayhead(typed, player.current.t, dur) : typed;
     if ((exp && exp.pct < 100) || exportingRef.current) { setToast("Wait for the export to finish: a new version now would stop it"); return; }
     const hasKey = aiReady(settings);
     setMsgs((m) => [...m, { who: "you", text }]);
     if (given === undefined) setNote("");
     if (!hasKey) { setMsgs((m) => [...m, { who: "ed", text: "I can't change the video from a note without an AI editor. Add your key in Settings, or use \"Edit it myself\"." }]); return; }
-    queue.current.push(text);
+    // the words its times point at, found now on the version being watched: an earlier queued note may move them
+    const pl0 = player.current, v0 = latest.current.versions.find((v) => v.n === latest.current.current);
+    queue.current.push({ text, where: pl0 && v0 && noteTimes(text).length ? momentsText(pl0.tl, v0.edit, text) : undefined });
     if (working.current) { setWaiting(queue.current.length); setToast("Got it: I'll do that right after this note"); return; }
     working.current = true; setErr("");
     while (queue.current.length) {
       const next = queue.current.shift()!;
       setWaiting(queue.current.length);
-      const ok = await applyOne(next);
+      const ok = await applyOne(next.text, next.where);
       if (!ok && queue.current.length) {
         setMsgs((m) => [...m, { who: "ed", text: `I stopped there, so ${queue.current.length === 1 ? "your next note wasn't" : `your next ${queue.current.length} notes weren't`} applied. Send ${queue.current.length === 1 ? "it" : "them"} again when you're ready.` }]);
         queue.current = [];
@@ -358,12 +363,12 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
     setWaiting(0); working.current = false; setBusy("");
   }
 
-  async function applyOne(text: string): Promise<boolean> {
+  async function applyOne(text: string, where?: string): Promise<boolean> {
     setBusy("Working on your note…");
     const p = latest.current;               // not the render this queue started in: renames, chips, version picks since
     try {
       const before = (p.versions.find((v) => v.n === p.current) ?? p.versions[p.versions.length - 1]).edit;
-      const r = await applyUserNote(p, settings, loadRules(), text, (m) => setBusy(m));
+      const r = await applyUserNote(p, settings, loadRules(), text, (m) => setBusy(m), where);
       const after = p.versions.find((v) => v.n === p.current)!.edit;
       setP({ ...p });
       const always = /\b(always|from now on|every (video|time)|remember|next time|never again)\b/i.test(text);
@@ -1032,7 +1037,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
             <section className="panel" aria-label="Edit it myself">
               <Drawer project={p} edit={version.edit} settings={settings} onMakeMusic={() => setMaker(true)} onWords={() => setP({ ...p })}
                 scan={scan} onFindWaits={findWaitsFor} onStopScan={stopScan}
-                onClip={() => { setP({ ...p }); void saveProject(p); }} onApply={async (edit, what) => { await saveManual(p, edit, what); setP({ ...p }); setMsgs((m) => [...m, { who: "ed", text: `Version ${p.current}: ${what}` }]); }} />
+                onClip={() => { setP({ ...p }); void saveProject(p); }} onSaveLook={onSaveLook && ((l) => { onSaveLook(l); setToast("Saved as your look: new videos start with it"); })} onApply={async (edit, what) => { await saveManual(p, edit, what); setP({ ...p }); setMsgs((m) => [...m, { who: "ed", text: `Version ${p.current}: ${what}` }]); }} />
             </section>
           )}
 

@@ -314,7 +314,8 @@ def _unsure(words: list[dict], edl: dict, below: float = 0.6) -> str | None:
     each and not already corrected in the EDL's captions. The same check as Cutmind's lib/unsure.ts."""
     from .plan import FILLERS, norm
     look = edl.get("captions") if isinstance(edl.get("captions"), dict) else {}
-    fixed = {norm(t) for c in (look.get("corrections") or []) for t in str(c.get("from", "")).split()}
+    # a correction fixes a word only when it is that word ("Clawed Code" fixes the phrase, not every "Clawed"): as Cutmind
+    fixed = {norm(str(c.get("from", ""))) for c in (look.get("corrections") or [])}
     seen, out = set(), []
     for w in words:
         b = norm(str(w.get("text", "")))

@@ -57,3 +57,16 @@ export function anchorSpoken(text: string, playerAt: number): string {
   const at = `${Math.floor(playerAt / 60)}:${String(Math.floor(playerAt % 60)).padStart(2, "0")}`;
   return `At ${at}, ${text.charAt(0).toLowerCase()}${text.slice(1)}`;
 }
+
+/** "Cut this", "logo here", "music too loud now": a note that points at what's on screen but gives no time gets the
+ *  playhead's time, so the editor changes that moment (shown in the chat as typed, plus "(at 0:12.3)"). */
+export function pinToPlayhead(note: string, t: number, duration: number): string {
+  // a moment on screen ("cut this", "logo here", "this part", "too loud right now"), not the whole video ("this video is
+  // great", "make this whole thing faster", "now make the music quieter overall")
+  if (noteTimes(note).length || /\b(whole|overall|entire|everywhere|everything|throughout|all of it|this (video|reel|edit|version|one|thing))\b/i.test(note)) return note;
+  const POINTS = /\b(here(?!['’]s\b|\s+(is|are)\b)|right (now|there)|just now|at this point|(this|that) (part|bit|moment|spot|line|word|shot|picture|zoom|logo|caption|subtitle|pause|take|sentence)|(cut|remove|delete|drop|bleep|blur|zoom( in)?( on)?|speed up|slow down|mute|fix) (this|that)\b|(this|that)$|\bnow$)/i;
+  if (!POINTS.test(note.trim().replace(/[.!?]+$/, ""))) return note;
+  if (!(t > 0.05) || t > duration - 0.05) return note;      // at the very start or end: no moment to point at
+  const s = Math.floor(t * 10) / 10;
+  return `${note} (at ${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, "0")})`;
+}

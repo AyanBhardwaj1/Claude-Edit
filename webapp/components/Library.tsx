@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { copyProject, deleteProject, listProjects } from "@/lib/store";
 import type { Project } from "@/lib/types";
 import { Icon } from "./Icons";
@@ -13,10 +13,11 @@ export function Library({ onOpen, onNew, onSample }: { onOpen: (p: Project) => v
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   useEffect(() => { void listProjects().then(setPs); }, []);
-  // a title match, or anything said in the video (its transcript)
+  // a title match, or anything said in the video (its transcript); typing stays smooth while long transcripts are searched
+  const dq = useDeferredValue(q);
   const shown = useMemo(() => (ps ?? []).filter((p) => filter === "all" || (filter === "ready") === (p.status === "edited"))
-    .map((p) => ({ p, said: p.title.toLowerCase().includes(q.trim().toLowerCase()) ? null : saidIn(p, q) }))
-    .filter(({ p, said }) => !q.trim() || said || p.title.toLowerCase().includes(q.trim().toLowerCase())), [ps, q, filter]);
+    .map((p) => ({ p, said: p.title.toLowerCase().includes(dq.trim().toLowerCase()) ? null : saidIn(p, dq) }))
+    .filter(({ p, said }) => !dq.trim() || said || p.title.toLowerCase().includes(dq.trim().toLowerCase())), [ps, dq, filter]);
 
   return (
     <div className="page">

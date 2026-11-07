@@ -18,7 +18,7 @@ AGGRESSIVE_FILLERS = FILLERS | {"like", "basically", "actually", "literally", "s
 
 
 def norm(text: str) -> str:
-    return re.sub(r"[^\w']", "", text.lower())
+    return re.sub(r"[^\w']", "", text.lower().replace("’", "'").replace("‘", "'").replace("ʼ", "'"))
 
 
 def _phrases(words: list[dict], gap: float) -> list[list[int]]:
