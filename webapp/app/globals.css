@@ -146,6 +146,7 @@ p { margin: 0; text-wrap: pretty; }
   font-size: 13px; cursor: pointer; transition: background-color .15s ease, color .15s ease; }
 .takes { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 10px; }
 .take-text { margin: 4px 2px 0; overflow-wrap: anywhere; }
+.doubt { text-decoration: underline wavy var(--warn, #e0a100); text-underline-offset: 3px; }
 .hear { display: inline-flex; align-items: center; gap: 2px; margin-left: 8px; vertical-align: middle; }
 .hear .btn svg { width: 14px; height: 14px; }
 .fit-plan { display: grid; gap: 8px; justify-items: start; margin-top: 8px; }

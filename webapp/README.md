@@ -168,6 +168,9 @@ vertical reel with a cover and a post caption, then change it by typing notes. E
     Llama, DeepSeek and more; pick the model in Settings) or a **Google Gemini** key. Check key verifies it and picks a
     good model; the answer's shape goes in the prompt and the reply is read the forgiving way, so any capable model works
     (`lib/keys.ts`: every provider's key is stored, kept for the tab, and stripped from sync in one place).
+46. **Words I wasn't sure I heard**: Edit it myself → Subtitles lists the words the recogniser was least sure of in what
+    the cut plays (names and jargon, where subtitles go wrong), each with the words around it and its time. Type the
+    right word and Fix: it becomes a correction everywhere it's said; or Looks right (`lib/unsure.ts`).
 
 ## Privacy and keys
 - Videos never leave the browser: they're processed on the user's computer and kept in IndexedDB.
