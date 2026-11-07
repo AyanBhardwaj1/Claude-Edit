@@ -190,6 +190,9 @@ vertical reel with a cover and a post caption, then change it by typing notes. E
 
 ## Privacy and keys
 - Videos never leave the browser: they're processed on the user's computer and kept in IndexedDB.
+- **Delete my account** (Settings, Account) asks for the password again, then deletes the account (with server accounts,
+  its synced preferences too) and, from this browser, its videos, animations, settings, style and keys. Signing out
+  removes the account's API keys from the browser.
 - API keys go **straight from the browser to Anthropic, OpenAI, OpenRouter or Google**. This app's server never receives them.
   They're kept for the tab only, unless the user ticks "Remember my keys".
 - With "Your Claude or ChatGPT plan" there is no key and no AI call at all: the user copies each request into their own

@@ -109,6 +109,20 @@ export function saveSettings(s: Settings) {
   changed();
 }
 
+/** An account deleted: its videos and animations (files shared with someone else's stay), and everything this browser
+ *  keeps for it (settings, keys, style, timings, flags: every storage entry named for it). */
+export async function deleteAccountData(id: string) {
+  const prev = owner;
+  owner = id;
+  try {
+    for (const p of (await listProjects()).filter((x) => x.owner === id)) await deleteProject(p);
+    for (const a of (await listAnims()).filter((x) => x.owner === id)) await deleteAnim(a);
+  } finally { owner = prev; }
+  for (const st of [localStorage, sessionStorage]) {
+    for (const key of Object.keys(st)) if (key.endsWith(`.${id}`)) st.removeItem(key);
+  }
+}
+
 /** Signing out on a shared computer: this account's API keys leave the browser (the tab's copy and a remembered one);
  *  the rest of its settings stay for next time. */
 export function forgetKeys() {

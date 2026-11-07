@@ -12,6 +12,8 @@ style memory (`editor style note`), timings to `editor effort record`; this file
 - [process] Check a test run's exit code, not a tail of its output: a piped 'pytest | tail -1' printed '1 failed' and the commit went ahead.
 - [craft] A cut where nothing is cut still shows: two touching pieces of one take got a fade, a punch-in change and a transition at the seam. Anything that splits segments must leave them merged (editor cut now merges them).
 - [process] Have an independent reviewer read each new feature within the hour: the last three rounds today found 12 real bugs the tests missed (anchors lost on a take swap, a bleep that stopped bleeping, words reordered).
+- [process] Anything that stores, syncs or strips secrets reads one list of key fields (webapp lib/keys.ts): adding a provider then can't leak a key by being forgotten in one place.
+- [process] Compare stored objects by value with keys in a fixed order: Postgres jsonb reorders keys, so JSON.stringify equality broke 'this video wears your look' after a sync.
 
 ## 2026-11-06 Afternoon bug hunt
 - [process] Before committing web code, stage every new file it imports (git status shows them as ??): a commit with Editor.tsx but not the new lib/safezones.ts it imported left the branch unbuildable until the next commit.

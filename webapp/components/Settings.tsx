@@ -2,12 +2,13 @@
 import { useEffect, useState } from "react";
 import { aiReady, listModels } from "@/lib/ai";
 import { isKeyProvider, KEY_HINT, KEY_PAGE, keyField as keyFieldOf, keyOf, modelField, modelOf, PROVIDER_NAME, type KeyProvider } from "@/lib/keys";
-import { accountMode, AuthError, changePassword, rename, type Mode, type User } from "@/lib/auth";
+import { accountMode, AuthError, changePassword, deleteAccount, rename, type Mode, type User } from "@/lib/auth";
+import { stopSync } from "@/lib/sync";
 import { makeBackup, restoreBackup } from "@/lib/backup";
 import { brandOf } from "@/lib/brand";
 import { effortOf } from "@/lib/effort";
 import { uid } from "@/lib/media";
-import { getMedia, putMedia, readLocal, writeLocal } from "@/lib/store";
+import { deleteAccountData, getMedia, putMedia, readLocal, writeLocal } from "@/lib/store";
 import { THEMES, type ThemeId } from "@/lib/theme";
 import { estimate, estimateText, learnedSummary, resetLearned } from "@/lib/timings";
 import type { Brand, Settings as S } from "@/lib/types";
@@ -257,6 +258,7 @@ export function Settings({ settings, user, theme, onTheme, onUser, onSignOut, on
                 {pwMsg && <span className={`small ${pwMsg.ok ? "say-ok" : "say-bad"}`} role="status">{pwMsg.text}</span>}</div>
             </form>
             <div><button className="btn danger" onClick={onSignOut}><Icon name="out" />Sign out</button></div>
+            <DeleteAccount user={user} where={where} />
           </div>
         </section>
       </div>
@@ -348,5 +350,39 @@ function Storage() {
           <button className="btn sm ghost" onClick={keep}>Ask to keep my videos</button></p>)}
       {note && <p className="say-bad" role="status">{note}</p>}
     </div>
+  );
+}
+
+/** Deleting the account for good: its password again, then the account, its videos and animations in this browser,
+ *  and everything kept for it here (settings, keys, style). With server accounts, its synced preferences go too. */
+function DeleteAccount({ user, where }: { user: User; where: Mode | null }) {
+  const [open, setOpen] = useState(false);
+  const [pw, setPw] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+  if (!open) return <div><button type="button" className="btn ghost sm" onClick={() => setOpen(true)}>Delete my account…</button></div>;
+  return (
+    <form className="stack danger-zone" aria-labelledby="del-h" onSubmit={async (e) => {
+      e.preventDefault(); setBusy(true); setMsg("");
+      try { await deleteAccount(user.id, pw); }           // a wrong password changes nothing, syncing included
+      catch (err) { setMsg(err instanceof AuthError ? err.message : String((err as Error).message ?? err)); setBusy(false); return; }
+      stopSync();
+      // the account is gone: clear this browser's copy, and leave even if some of it can't be cleared
+      try { await deleteAccountData(user.id); } catch (err) { console.warn("clearing the deleted account's data", err); }
+      location.href = "/";
+    }}>
+      <h3 id="del-h" className="small">Delete my account</h3>
+      <p className="small">This deletes your account{where === "server" ? " and the preferences it syncs" : ""}, and from this browser every video and
+        animation you made, your settings, style and keys. It can&apos;t be undone: <b>make a backup first</b> (Your videos, above) if you might want them.
+        Videos in other browsers stay there until you delete them there.</p>
+      <input type="email" name="email" autoComplete="username" value={user.email} readOnly hidden />
+      <div className="field"><label htmlFor="del-pw">Your password, to confirm</label>
+        <input id="del-pw" className="input" type="password" autoComplete="current-password" value={pw} onChange={(e) => setPw(e.target.value)} /></div>
+      <div className="row">
+        <button className="btn danger" disabled={!pw || busy}>{busy ? <><span className="spin" />Deleting…</> : "Delete my account and its videos"}</button>
+        <button type="button" className="btn ghost" onClick={() => { setOpen(false); setPw(""); setMsg(""); }}>Keep my account</button>
+        {msg && <span className="small say-bad" role="alert">{msg}</span>}
+      </div>
+    </form>
   );
 }
