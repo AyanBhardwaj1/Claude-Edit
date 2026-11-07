@@ -1,7 +1,7 @@
 // Accounts on the server, when a database is connected. Without one, GET says so and the app keeps accounts in the browser.
 import { NextResponse, type NextRequest } from "next/server";
 import { normEmail, passwordProblem, validEmail } from "@/lib/auth";
-import { changePassword, createUser, endSession, newSession, renameUser, serverAccounts, sessionUser, verifyUser } from "@/lib/server/db";
+import { changePassword, createUser, deleteUser, endSession, newSession, renameUser, serverAccounts, sessionUser, verifyUser } from "@/lib/server/db";
 import { bad, clearSession, COOKIE, limited, sameOrigin, setSession } from "@/lib/server/http";
 
 export const runtime = "nodejs";
@@ -67,6 +67,13 @@ export async function POST(req: NextRequest) {
       if (problem) return bad(problem, 400, "password");
       const ok = await changePassword(me.id, String(b.current ?? ""), String(b.next), token!);
       return ok ? NextResponse.json({ ok: true }) : bad("Your current password isn't right.", 400, "password");
+    }
+    if (b.action === "delete") {
+      if (limited(req, "password", 5)) return bad("Too many tries. Wait a minute and try again.", 429);
+      if (!(await deleteUser(me.id, String(b.password ?? "")))) return bad("That password isn't right.", 400, "password");
+      const res = NextResponse.json({ ok: true });
+      clearSession(res);
+      return res;
     }
     return bad("Unknown action.");
   } catch (e) {

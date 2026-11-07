@@ -110,6 +110,16 @@ export async function changePassword(id: string, current: string, next: string, 
   return true;
 }
 
+/** Deletes the account for good (its sessions and synced preferences go with it: on delete cascade). The password is
+ *  asked again, so a session left open on a shared computer can't do it. */
+export async function deleteUser(id: string, password: string): Promise<boolean> {
+  const db = await ready();
+  const rows = await db`select pass from cm_users where id = ${id}`;
+  if (!rows.length || !(await checkPassword(password, rows[0].pass as string))) return false;
+  await db`delete from cm_users where id = ${id}`;
+  return true;
+}
+
 export async function getData(id: string): Promise<Record<string, unknown>> {
   const db = await ready();
   const rows = await db`select data from cm_data where user_id = ${id}`;

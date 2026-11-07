@@ -159,6 +159,21 @@ export async function signOut() {
   if ((await accountMode()) === "server") { await call({ action: "signout" }).catch(() => undefined); serverUser = null; }
 }
 
+/** Deletes the account for good, after asking for its password again. The caller then removes its videos, settings and
+ *  keys from this browser (lib/store.ts deleteAccountData). */
+export async function deleteAccount(id: string, password: string) {
+  if ((await accountMode()) === "local") {
+    const all = accounts();
+    const a = all.find((x) => x.id === id);
+    if (!a || (await derive(password, unhex(a.salt))) !== a.hash) throw new AuthError("That password isn't right.", "password");
+    saveAccounts(all.filter((x) => x.id !== id));
+    localSignOut();
+    return;
+  }
+  await call({ action: "delete", password });
+  localSignOut(); serverUser = null;
+}
+
 export async function rename(id: string, name: string): Promise<User> {
   if ((await accountMode()) === "local") return localRename(id, name);
   return (serverUser = (await call({ action: "rename", name })).user!);
