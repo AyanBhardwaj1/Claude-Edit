@@ -25,12 +25,12 @@ export function Timeline({ project: p, edit, t, onSeek, onPreview, onSave, onClo
   const [typing, setTyping] = useState<string | null>(null);   // the "Add text" box, open with what's typed
   const [drag, setDrag] = useState<{ kind: "move" | "from" | "to"; k: number; x0: number; dx: number } | null>(null);
   const [base, setBase] = useState(edit);
-  if (base !== edit) { setBase(edit); setDraft(structuredClone(edit)); setPast([]); setFuture([]); setSel(null); }   // a new version from outside
+  const [thumbs, setThumbs] = useState<Record<string, string>>({});
+  if (base !== edit) { setBase(edit); setDraft(structuredClone(edit)); setPast([]); setFuture([]); setSel(null); setThumbs({}); }   // a new version from outside
   const tl = useMemo(() => buildTimeline(p.words, draft, p.sources.map((s) => s.duration)), [p.words, p.sources, draft]);
   const clips = useMemo(() => clipsOf(p, draft, tl), [p, draft, tl]);
   // a frame from each clip, drawn on it: by what the clip shows (its words), so moving a clip keeps its picture
-  const [thumbs, setThumbs] = useState<Record<string, string>>({});
-  const thumbKey = (c: { from: string; to: string }) => `${c.from}-${c.to}`;
+  const thumbKey = (c: { from: string; to: string }) => `${p.format ?? "9:16"}:${c.from}-${c.to}`;   // a new shape draws them again
   useEffect(() => {
     if (!onThumbs || drag) return;
     const want = clips.filter((c) => !thumbs[thumbKey(c)]).slice(0, 12);
@@ -39,7 +39,10 @@ export function Timeline({ project: p, edit, t, onSeek, onPreview, onSave, onClo
     const id = setTimeout(async () => {                 // after the preview has the new cut (it remounts on each change)
       try {
         const urls = await onThumbs(want.map((c) => (c.start + c.end) / 2));
-        if (live && urls) setThumbs((m) => ({ ...m, ...Object.fromEntries(want.map((c, i) => [thumbKey(c), urls[i]])) }));
+        if (live && urls) setThumbs((m) => {
+          const now = new Set(clips.map(thumbKey));                 // only the clips there are now: trims and splits leave old ones
+          return Object.fromEntries([...Object.entries(m).filter(([k]) => now.has(k)), ...want.map((c, i) => [thumbKey(c), urls[i]])]);
+        });
       } catch { /* the player was busy (playing, exporting): no pictures this time */ }
     }, 900);
     return () => { live = false; clearTimeout(id); };
@@ -176,7 +179,7 @@ export function Timeline({ project: p, edit, t, onSeek, onPreview, onSave, onClo
       {sel && sel.kind === "broll" && draft.broll[sel.i]?.treatment === "text-pop" && (
         <div className="row tl-text">
           <label htmlFor="tl-text-edit" className="small">Selected text</label>
-          <input id="tl-text-edit" key={`${sel.i}-${draft.broll[sel.i].id}`} className="input" maxLength={80} defaultValue={draft.broll[sel.i].text ?? ""}
+          <input id="tl-text-edit" key={`${sel.i}-${draft.broll[sel.i].id}-${draft.broll[sel.i].text}`} className="input" maxLength={80} defaultValue={draft.broll[sel.i].text ?? ""}
             onKeyDown={(ev) => { if (ev.key === "Enter") { ev.preventDefault(); apply(setText(draft, sel.i, (ev.target as HTMLInputElement).value), "change the text"); } }}
             onBlur={(ev) => { const n = setText(draft, sel.i, ev.target.value); if (n) apply(n, "change the text"); }} />
         </div>
