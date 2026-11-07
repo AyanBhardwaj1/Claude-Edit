@@ -7,6 +7,7 @@ import { parseRelayAnswer, relayPrompt, setRelay, type RelayAsk } from "@/lib/re
 import { Icon } from "./Icons";
 
 type Json = Record<string, unknown>;
+const CHAT_KEY = "cutmind.relay.chat";
 type Pending = { ask: RelayAsk; text: string; done: (v: Json) => void; fail: (e: Error) => void };
 
 const WHAT: Record<string, string> = { submit_edit: "the edit", submit_script: "your script", submit_hooks: "hook ideas",
@@ -20,6 +21,8 @@ export function Relay() {
   const [answer, setAnswer] = useState("");
   const [err, setErr] = useState("");
   const [copied, setCopied] = useState(false);
+  const [fav, setFav] = useState<"claude" | "chatgpt">("claude");      // the chat you used last goes first
+  useEffect(() => { try { if (localStorage.getItem(CHAT_KEY) === "chatgpt") setFav("chatgpt"); } catch { /* storage blocked */ } }, []);
 
   useEffect(() => {
     setRelay((ask) => new Promise<Json>((done, fail) => {
@@ -70,6 +73,7 @@ export function Relay() {
   // copy, then open the chat in a new tab: the request is on the clipboard, ready to paste
   async function copyAndOpen(url: string) {
     const tab = window.open(url, "_blank");                 // opened inside the click, so pop-up blockers allow it
+    try { localStorage.setItem(CHAT_KEY, url.includes("chatgpt") ? "chatgpt" : "claude"); setFav(url.includes("chatgpt") ? "chatgpt" : "claude"); } catch { /* storage blocked */ }
     if (tab) tab.opener = null;                             // the chat tab can't reach back into Cutmind
     await copy();
     if (!tab) setErr("Your browser blocked the new tab: open the chat yourself, the request is copied.");
@@ -99,8 +103,10 @@ export function Relay() {
         <ol className="relay-steps">
           <li><span><b>Copy the request</b> <span className="muted small">(about {words.toLocaleString()} words)</span></span>
             <div className="row">
-              <button type="button" className="btn primary sm" onClick={() => void copyAndOpen("https://claude.ai/new")}><Icon name="copy" />Copy &amp; open Claude</button>
-              <button type="button" className="btn sm" onClick={() => void copyAndOpen("https://chatgpt.com/")}><Icon name="copy" />Copy &amp; open ChatGPT</button>
+              {(fav === "claude" ? ["claude", "chatgpt"] : ["chatgpt", "claude"]).map((c, i) => (
+                <button key={c} type="button" className={`btn sm${i === 0 ? " primary" : ""}`}
+                  onClick={() => void copyAndOpen(c === "claude" ? "https://claude.ai/new" : "https://chatgpt.com/")}>
+                  <Icon name="copy" />Copy &amp; open {c === "claude" ? "Claude" : "ChatGPT"}</button>))}
               <button type="button" className="btn ghost sm" onClick={() => void copy()}>{copied ? "Copied" : "Just copy"}</button>
               {words > 3000 && <button type="button" className="btn ghost sm" onClick={download}><Icon name="download" />As a .txt file</button>}
               <details className="relay-show"><summary className="small">Show it</summary>
