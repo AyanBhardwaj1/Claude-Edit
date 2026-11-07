@@ -118,7 +118,7 @@ export function Timeline({ project: p, edit, t, onSeek, onPreview, onSave, onClo
   // dragging a clip: its body reorders, its edges trim (to whole words)
   function startDrag(ev: React.PointerEvent, kind: "move" | "from" | "to", k: number) {
     ev.stopPropagation(); (ev.target as Element).setPointerCapture?.(ev.pointerId);
-    setSel({ kind: "clip", k }); setDrag({ kind, k, x0: ev.clientX, dx: 0 }); box.current?.focus({ preventScroll: true });
+    setSel({ kind: "clip", k }); setSay(""); setDrag({ kind, k, x0: ev.clientX, dx: 0 }); box.current?.focus({ preventScroll: true });
   }
   function onMove(ev: React.PointerEvent) { if (drag) setDrag({ ...drag, dx: ev.clientX - drag.x0 }); }
   function endDrag() {
@@ -253,7 +253,7 @@ export function Timeline({ project: p, edit, t, onSeek, onPreview, onSave, onClo
         </div>
       </div>
       <div className="row tl-foot">
-        <span className="small muted" role="status">{say || `${clips.length} clip${clips.length === 1 ? "" : "s"}, ${clock(tl.duration)} long. Click a clip, then S to split at the playhead, Delete, or ← →. Drag a clip's edges to trim.`}</span>
+        <span className="small muted" role="status">{say || (selClip ? `Clip ${clips.indexOf(selClip) + 1} of ${clips.length}: ${(selClip.end - selClip.start).toFixed(1)} s, “${selClip.text.length > 70 ? `${selClip.text.slice(0, 70)}…` : selClip.text}”` : "") || `${clips.length} clip${clips.length === 1 ? "" : "s"}, ${clock(tl.duration)} long. Click a clip, then S to split at the playhead, Delete, or ← →. Drag a clip's edges to trim.`}</span>
         <span className="grow" />
         <button type="button" className="btn ghost" disabled={!changed} onClick={() => { setPast((h) => [...h, draft]); setDraft(structuredClone(edit)); setSel(null); setSay("Back to the saved version."); }}>Discard</button>
         <button type="button" className="btn primary" disabled={!changed} onClick={() => onSave(draft, "my changes on the timeline")} title="Ctrl/⌘+S">Save as a new version</button>
