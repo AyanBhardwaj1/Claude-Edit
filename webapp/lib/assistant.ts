@@ -77,6 +77,9 @@ export function friendly(msg: string, pct: number): string {
     [/playing it through/, "Playing the new music through, instrument by instrument."],
     [/mixing/, "Mixing the music so it sits under your voice."],
     [/mastering/, "Mastering the music to streaming loudness."],
+    [/exported/, "Your video is exported. Have a look before you post!"],
+    [/stopped|failed/, "That stopped before the end. Your editor says what happened."],
+    [/note done/, "Your note is in: a new version is ready to watch."],
     [/export|record/, "Rendering your video frame by frame. Keep this tab in front."],
     [/note/, "Working on your note: finding the moment and making the smallest change."],
     [/sample/, "Fetching the sample video."],
@@ -84,7 +87,7 @@ export function friendly(msg: string, pct: number): string {
   ];
   const hit = rules.find(([re]) => re.test(m));
   const base = hit ? hit[1] : `${msg}…`;
-  return pct > 0 && pct < 100 && !/done!$/.test(base) ? `${base} (${Math.round(pct)}%)` : base;
+  return pct > 0 && pct < 100 ? `${base} (${Math.round(pct)}%)` : base;
 }
 
 let lastSent = { msg: "", pct: -10 };
@@ -93,7 +96,7 @@ export function announce(msg: string, pct: number) {
   if (typeof window === "undefined") return;
   // the same step only every 10%: a progress bar ticks many times a second
   if (msg === lastSent.msg && Math.abs(pct - lastSent.pct) < 10 && pct < 100) return;
-  lastSent = { msg, pct };
+  lastSent = pct >= 100 ? { msg: "", pct: -10 } : { msg, pct };   // a finished step: the next one is news again
   const a: Activity = { msg, pct, friendly: friendly(msg, pct), at: Date.now() };
   window.dispatchEvent(new CustomEvent<Activity>("cutmind:activity", { detail: a }));
 }
@@ -141,9 +144,9 @@ export async function askCoach(s: Settings, question: string, context: string, h
 }
 
 /** Starter questions, for what you make. */
-export function starters(c: Creator | null): string[] {
+export function starters(c: Creator | null, open = false): string[] {
   const k = c?.kinds ?? [];
-  const out = ["Give me 3 ideas for my next video", "How can my edits get better?"];
+  const out = open ? ["What would make this video better?", "Give me 3 ideas for my next video"] : ["Give me 3 ideas for my next video", "How can my edits get better?"];
   if (k.includes("demo")) out.push("Help me plan a product demo");
   else if (k.includes("youtube")) out.push("How do I keep people watching a long video?");
   else if (k.includes("explainer")) out.push("How should I show numbers on screen?");

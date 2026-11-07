@@ -8,17 +8,28 @@ import type { Edit, Project, Range } from "./types";
 
 export type Clip = { k: number; from: string; to: string; start: number; end: number; src: number; text: string };
 
+/** Where each kept range's words sit in the timeline's word list: the timeline plays the ranges in order, each word of a
+ *  range once, so range k is its own slice even when a word plays twice (a cold open, a duplicated clip). */
+function slices(p: Project, e: Edit, tl: Timeline): { k: number; a: number; b: number; at: number }[] {
+  const idx = indexOf(p.words);
+  const out: { k: number; a: number; b: number; at: number }[] = [];
+  let at = 0;
+  e.keep.forEach((r, k) => {
+    const x = idx.get(r.from), y = idx.get(r.to);
+    if (x == null || y == null) return;
+    const [a, b] = x <= y ? [x, y] : [y, x];
+    out.push({ k, a, b, at });
+    at += b - a + 1;
+  });
+  return at === tl.words.length ? out : [];                    // the timeline is from another cut: nothing to show
+}
+
 /** Each kept range as a clip, where it plays in the edited video. */
 export function clipsOf(p: Project, e: Edit, tl: Timeline): Clip[] {
-  const idx = indexOf(p.words);
-  return e.keep.flatMap((r, k) => {
-    const a = idx.get(r.from), b = idx.get(r.to);
-    if (a == null || b == null) return [];
-    // the clip's own words as they play (a word kept twice, by a cold open, is the clip's own occurrence: closest in order)
-    const ws = tl.words.filter((w) => { const i = idx.get(w.id)!; return i >= a && i <= b; });
-    if (!ws.length) return [];
+  return slices(p, e, tl).map(({ k, a, b, at }) => {
+    const ws = tl.words.slice(at, at + b - a + 1);
     const text = p.words.slice(a, b + 1).map((w) => w.w).filter(Boolean).join(" ");
-    return [{ k, from: r.from, to: r.to, start: ws[0].os, end: ws[ws.length - 1].oe, src: p.words[a].src, text }];
+    return { k, from: e.keep[k].from, to: e.keep[k].to, start: ws[0].os, end: ws[ws.length - 1].oe, src: p.words[a].src, text };
   });
 }
 
@@ -26,14 +37,14 @@ const withKeep = (p: Project, e: Edit, keep: Range[]): Edit => keepAnchors(p, { 
 
 /** Split the clip under the playhead at the word being said there (or the next one). Null when there's nothing to split. */
 export function splitAt(p: Project, e: Edit, tl: Timeline, t: number): Edit | null {
-  const idx = indexOf(p.words);
-  const w = tl.words.find((x) => x.w.trim() && x.oe > t);
-  if (!w) return null;
-  const at = idx.get(w.id)!;
-  const k = e.keep.findIndex((r) => { const a = idx.get(r.from)!, b = idx.get(r.to)!; return at > a && at <= b; });
-  if (k < 0) return null;                                             // at a clip's first word: it's split there already
-  const r = e.keep[k];
-  const keep = [...e.keep.slice(0, k), { from: r.from, to: p.words[at - 1].id }, { from: w.id, to: r.to }, ...e.keep.slice(k + 1)];
+  const j = tl.words.findIndex((x) => x.w.trim() && x.oe > t);    // the word being said at the playhead (or the next one)
+  if (j < 0) return null;
+  const s = slices(p, e, tl).find((x) => j >= x.at && j <= x.at + x.b - x.a);
+  if (!s) return null;
+  const at = s.a + (j - s.at);
+  if (at === s.a) return null;                                     // at a clip's first word: it's split there already
+  const r = e.keep[s.k];
+  const keep = [...e.keep.slice(0, s.k), { from: r.from, to: p.words[at - 1].id }, { from: p.words[at].id, to: r.to }, ...e.keep.slice(s.k + 1)];
   return { ...e, keep };
 }
 
@@ -105,7 +116,7 @@ export function nudgeLayer(p: Project, e: Edit, kind: LayerKind, i: number, word
   const seq = played(p, e.keep, idx);
   const r = kind === "broll" ? e.broll[i]?.anchor : e.zooms[i]?.anchor;
   if (!r) return null;
-  const pa = seq.indexOf(idx.get(r.from)!), pb = seq.indexOf(idx.get(r.to)!);
+  const pa = seq.lastIndexOf(idx.get(r.from)!), pb = seq.lastIndexOf(idx.get(r.to)!);   // the one drawn: timeline.byId keeps the last
   if (pa < 0 || pb < 0) return null;
   const d = Math.max(-pa, Math.min(seq.length - 1 - pb, words));
   if (!d) return null;
@@ -127,7 +138,7 @@ export function addText(p: Project, e: Edit, tl: Timeline, t: number, text: stri
   const seq = played(p, e.keep, idx);
   const w = tl.words.find((x) => x.w.trim() && x.oe > t) ?? tl.words[tl.words.length - 1];
   if (!w) return null;
-  const a = seq.indexOf(idx.get(w.id)!);
+  const a = tl.words.indexOf(w);                                 // the playhead's own occurrence
   if (a < 0) return null;
   const b = Math.min(seq.length - 1, a + Math.max(0, words - 1));
   const id = `text-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`;

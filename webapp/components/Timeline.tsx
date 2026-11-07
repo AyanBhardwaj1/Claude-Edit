@@ -14,6 +14,7 @@ const clock = (t: number) => `${Math.floor(t / 60)}:${(t % 60).toFixed(1).padSta
 
 export function Timeline({ project: p, edit, t, onSeek, onPreview, onSave, onClose }: { project: Project; edit: Edit; t: number;
   onSeek: (t: number) => void; onPreview: (e: Edit | null) => void; onSave: (e: Edit, what: string) => void; onClose: () => void }) {
+  // onPreview(draft) also tells the editor there are unsaved changes (null: none), so export and compare wait for a save
   const [draft, setDraft] = useState<Edit>(() => structuredClone(edit));
   const [past, setPast] = useState<Edit[]>([]);
   const [future, setFuture] = useState<Edit[]>([]);
@@ -60,6 +61,7 @@ export function Timeline({ project: p, edit, t, onSeek, onPreview, onSave, onClo
   const trim = (end: "from" | "to", d: number) => sel?.kind === "clip" && apply(trimClip(p, draft, sel.k, end, d), d * (end === "from" ? -1 : 1) > 0 ? "lengthen the clip" : "shorten the clip");
 
   function onKey(ev: React.KeyboardEvent) {
+    if ((ev.target as HTMLElement).closest("input, textarea, select")) return;      // typing a text card
     const mod = ev.metaKey || ev.ctrlKey;
     if (mod && ev.key.toLowerCase() === "z") { ev.preventDefault(); ev.stopPropagation(); if (ev.shiftKey) redo(); else undo(); return; }
     if (mod) return;
@@ -104,7 +106,7 @@ export function Timeline({ project: p, edit, t, onSeek, onPreview, onSave, onClo
   const ticks = Array.from({ length: Math.floor(tl.duration / (pps >= 60 ? 1 : pps >= 25 ? 2 : 5)) + 1 }, (_, i) => i * (pps >= 60 ? 1 : pps >= 25 ? 2 : 5));
 
   return (
-    <section className="panel tl-panel" aria-labelledby="tl-h">
+    <section className="panel tl-panel" aria-labelledby="tl-h" onKeyDown={onKey}>
       <div className="panel-head"><h2 id="tl-h">Timeline</h2>
         <button type="button" className="btn ghost icon sm" aria-label="Close the timeline" onClick={onClose}>&times;</button></div>
       <div className="tl-tools" role="toolbar" aria-label="Timeline tools">
@@ -151,7 +153,7 @@ export function Timeline({ project: p, edit, t, onSeek, onPreview, onSave, onClo
             onBlur={(ev) => { const n = setText(draft, sel.i, ev.target.value); if (n) apply(n, "change the text"); }} />
         </div>
       )}
-      <div className="tl-scroll" ref={box} tabIndex={0} onKeyDown={onKey} aria-label="Timeline tracks: S splits, Delete deletes, arrows move the selection"
+      <div className="tl-scroll" ref={box} tabIndex={0} aria-label="Timeline tracks: S splits, Delete deletes, arrows move the selection"
         onPointerMove={onMove} onPointerUp={endDrag} onPointerCancel={() => setDrag(null)}>
         <div className="tl-inner" style={{ width }}>
           <div className="tl-ruler" onPointerDown={(e) => seekAt(e.clientX)}>

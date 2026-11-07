@@ -37,7 +37,8 @@ export function Assistant({ settings, screen, project, onSettings }: { settings:
   }, []);
   // the bubble steps back a while after the last update; the status line clears a little after "All done!"
   useEffect(() => { if (!bubble) return; const t = setTimeout(() => setBubble(null), bubble.pct >= 100 ? 4000 : 7000); return () => clearTimeout(t); }, [bubble]);
-  useEffect(() => { if (!now || now.pct < 100) return; const t = setTimeout(() => setNow(null), 6000); return () => clearTimeout(t); }, [now]);
+  // done: cleared after a moment; no news for 2 minutes (a step that never said it finished): cleared too
+  useEffect(() => { if (!now) return; const t = setTimeout(() => setNow(null), now.pct >= 100 ? 6000 : 120000); return () => clearTimeout(t); }, [now]);
   useEffect(() => { log.current?.scrollTo({ top: log.current.scrollHeight }); }, [chat, open, busy]);
   useEffect(() => {
     if (!open) return;
@@ -141,7 +142,7 @@ export function Assistant({ settings, screen, project, onSettings }: { settings:
           </div>
           {!ready && <div className="alert"><Icon name="alert" /><span>Connect an AI to chat: a key, or your Claude or ChatGPT plan.</span>
             <button type="button" className="btn sm" onClick={() => { setOpen(false); onSettings(); }}>Settings</button></div>}
-          {!chat.length && <div className="chips">{starters(creator).map((q) => <button key={q} type="button" className="chip" onClick={() => void ask(q)}>{q}</button>)}</div>}
+          {!chat.length && <div className="chips">{starters(creator, !!project).map((q) => <button key={q} type="button" className="chip" onClick={() => void ask(q)}>{q}</button>)}</div>}
           <form className="coach-ask" onSubmit={(e) => { e.preventDefault(); void ask(text); }}>
             <label htmlFor="coach-q" className="sr-only">Ask your assistant</label>
             <textarea id="coach-q" className="textarea" rows={2} value={text} placeholder="Ask for ideas, feedback, a plan…"

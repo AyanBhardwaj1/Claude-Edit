@@ -258,6 +258,13 @@ export async function makeReel(takes: File[], extras: File[], script: string, s:
   Promise<{ project: Project; summary: string }> {
   const told = onProgress;
   onProgress = (m, pct) => { told(m, pct); announce(m, pct ?? 0); };     // the assistant says what's happening, in plain words
+  try { return await makeReelSteps(takes, extras, script, s, rules, onProgress, steps, again); }
+  catch (e) { announce("Stopped", 100); throw e; }
+}
+
+async function makeReelSteps(takes: File[], extras: File[], script: string, s: Settings, rules: StyleRule[], onProgress: Progress,
+  steps: { createProject: typeof createProject; listen: typeof listen; makeFirstEdit: typeof makeFirstEdit },
+  again?: { made: Project | null; onMade: (p: Project) => void }): Promise<{ project: Project; summary: string }> {
   // "Try again" carries on with the video already made (its takes are copied in), instead of copying them again
   const p = again?.made ?? await steps.createProject(takes, extras, onProgress, script);
   if (!again?.made && !p.format && creatorFormat()) p.format = creatorFormat()!;   // a YouTube creator starts in 16:9
@@ -275,8 +282,14 @@ export const REVIEWING = "Reviewing the edit like a senior editor";
 /** Notes are one pass at every effort, with the effort's model and answer budget (the saved default effort). */
 export async function applyUserNote(p: Project, s: Settings, rules: StyleRule[], note: string, onProgress: Progress, where?: string):
   Promise<{ summary: string; styleRule: string | null }> {
-  const cur = p.versions.find((v) => v.n === p.current) ?? p.versions[p.versions.length - 1];
   announce("Working on your note", 30);
+  try { const r = await applyUserNoteSteps(p, s, rules, note, onProgress, where); announce("Note done", 100); return r; }
+  catch (e) { announce("Stopped", 100); throw e; }
+}
+
+async function applyUserNoteSteps(p: Project, s: Settings, rules: StyleRule[], note: string, onProgress: Progress, where?: string):
+  Promise<{ summary: string; styleRule: string | null }> {
+  const cur = p.versions.find((v) => v.n === p.current) ?? p.versions[p.versions.length - 1];
   onProgress("Working on your note", 30);
   const ai = await applyNote(s, p, cur.edit, note, rules, await choiceFor(s), where);
   const web = await webPictures(p, ai, onProgress, EFFORT[effortOf(s)].pictures);

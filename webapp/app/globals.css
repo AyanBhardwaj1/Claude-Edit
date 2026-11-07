@@ -773,7 +773,7 @@ button.attach { background: none; border: 0; font: inherit; font-size: 13px; tex
 .film-confirm { display: grid; gap: 12px; width: min(420px, 100%); padding: 22px; border-radius: var(--r-lg); background: var(--surface); box-shadow: var(--pop); }
 .film-confirm h3 { font-size: 1.1rem; }
 [data-theme="terminal"] .film-recbtn, [data-theme="terminal"] .film-paused { border-radius: 0; }
-@media (max-width: 860px) {
+@media (max-width: 900px) {
   /* phones: full screen, portrait. The camera fills most of the screen; the script, teleprompter settings and takes scroll below */
   .film-body { display: block; overflow-y: auto; }
   .film-stage { height: calc(100dvh - 128px); min-height: 420px; }
@@ -908,7 +908,7 @@ label.btn:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; 
 .coach-msg .chips { margin-top: 8px; }
 .coach-ask { display: flex; gap: 8px; align-items: flex-end; }
 .coach-ask .textarea { flex: 1; resize: none; }
-@media (max-width: 640px) { .coach-fab.on { display: none; } .coach-fab { right: 16px; bottom: 16px; } .coach-bubble { right: 16px; bottom: 68px; } }
+@media (max-width: 640px) { .coach-fab.on { display: none; } .coach-bubble { right: 16px; bottom: 68px; } }
 
 /* ---- the timeline editor (components/Timeline.tsx) ---- */
 .tl-panel { margin-bottom: 16px; }
@@ -949,3 +949,11 @@ label.btn:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; 
 .tl-text .input { flex: 1; min-width: 160px; }
 .tl-level { height: 32px; padding: 0 6px; border: 1px solid var(--line-strong); border-radius: var(--r-sm);
   background: var(--surface); color: var(--ink); font-size: 12px; }
+
+/* with the app's bottom tab bar (narrow screens): the assistant sits just above it, as a round button */
+@media (max-width: 900px) {
+  .coach-fab { right: 14px; bottom: calc(74px + env(safe-area-inset-bottom)); width: 48px; padding: 0; justify-content: center; }
+  .coach-fab > span:not(.spin) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .coach-bubble { right: 14px; bottom: calc(130px + env(safe-area-inset-bottom)); }
+  .coach-fab.on { display: none; }
+}

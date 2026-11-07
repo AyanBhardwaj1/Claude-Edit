@@ -65,3 +65,18 @@ test("add text at the playhead, change its words; duplicate a clip", async () =>
   const d = duplicateClip({ ...e, keep: [{ from: "w0", to: "w1" }, { from: "w2", to: "w9" }] }, 0)!;
   assert.equal(said(d).split(" ").slice(0, 4).join(" "), "one two one two");
 });
+
+test("a line played twice (cold open, duplicate): each clip is its own occurrence", async () => {
+  const e = { ...base(), keep: [{ from: "w7", to: "w9" }, { from: "w0", to: "w9" }] };
+  const tl = tlOf(e);
+  const cs = clipsOf(P, e, tl);
+  assert.equal(cs.length, 2);
+  assert.ok(cs[0].end <= cs[1].start + 1e-9, JSON.stringify(cs));          // one after the other, not on top of each other
+  // the playhead on the second "nine" splits the second clip, not the cold open
+  const nine2 = tl.words.filter((w) => w.w === "nine")[1];
+  assert.deepEqual(splitAt(P, e, tl, nine2.os + 0.01)!.keep, [{ from: "w7", to: "w9" }, { from: "w0", to: "w7" }, { from: "w8", to: "w9" }]);
+  // a card on the last "ten" (drawn at its last occurrence) nudged later stays at the end, not back at the start
+  const c = { ...e, broll: [{ id: "x", anchor: { from: "w9", to: "w9" }, treatment: "text-pop", text: "x" }] } as unknown as Edit;
+  assert.equal(nudgeLayer(P, c, "broll", 0, 1), null);                          // already the last word: it stays (was: jumped to "one")
+  assert.deepEqual(nudgeLayer(P, c, "broll", 0, -1)!.broll[0].anchor, { from: "w8", to: "w8" });
+});
