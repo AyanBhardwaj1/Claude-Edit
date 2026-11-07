@@ -22,13 +22,18 @@ export function withLook(e: Edit, look: Look): Edit {
 /** Whether an edit already wears this look (the button then says so instead of offering it again). */
 export function wears(e: Edit, look: Look): boolean {
   const a = lookOf(e), b = look;
-  return JSON.stringify([a.captions, a.gapCap, a.motion, a.musicLevel, a.speed ?? 1]) ===
-    JSON.stringify([b.captions, b.gapCap, b.motion, b.musicLevel, b.speed ?? 1]);
+  // keys in a fixed order: a look that came back from the server (jsonb reorders object keys) must still match
+  return stable([a.captions, a.gapCap, a.motion, a.musicLevel, a.speed ?? 1]) === stable([b.captions, b.gapCap, b.motion, b.musicLevel, b.speed ?? 1]);
+}
+
+function stable(v: unknown): string {
+  return JSON.stringify(v, (_, x) => (x && typeof x === "object" && !Array.isArray(x)
+    ? Object.fromEntries(Object.keys(x).sort().map((k) => [k, (x as Record<string, unknown>)[k]])) : x));
 }
 
 export function lookSummary(l: Look): string {
   const c = l.captions;
   return [c.enabled ? `${c.preset} subtitles, ${c.textCase === "upper" ? "upper case" : c.textCase === "lower" ? "lower case" : "as said"}, ` +
-    `${c.maxWords} word${c.maxWords === 1 ? "" : "s"} at a time` : "no subtitles", `${l.motion.look} colour`,
+    (c.preset === "boxed" ? "a phrase at a time" : `${c.maxWords} word${c.maxWords === 1 ? "" : "s"} at a time`) : "no subtitles", `${l.motion.look} colour`,
     l.speed && l.speed !== 1 ? `${l.speed}× talking` : "", `music ${l.musicLevel.replace("-", " ")}`].filter(Boolean).join(" · ");
 }

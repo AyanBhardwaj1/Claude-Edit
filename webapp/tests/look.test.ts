@@ -21,3 +21,12 @@ test("a look carries subtitles, motion and pace, never the cut, pictures or post
   assert.match(lookSummary(look), /bold subtitles, lower case, 1 word at a time/);
   worn.captions.size = 1; assert.equal(look.captions.size, mine.captions.size);         // the saved look isn't shared by reference
 });
+
+test("a look still matches after the server reorders its keys", () => {
+  const e = defaultEdit(p);
+  const look = lookOf(e);
+  const reorder = (o: Record<string, unknown>) => Object.fromEntries(Object.keys(o).sort((a, b) => a.length - b.length || a.localeCompare(b)).map((k) => [k, o[k]]));
+  const back = { ...look, captions: reorder(look.captions) as never, motion: reorder(look.motion) as never };
+  assert.ok(wears(e, back));
+  assert.match(lookSummary({ ...look, captions: { ...look.captions, preset: "boxed" } }), /a phrase at a time/);
+});

@@ -1,4 +1,5 @@
 "use client";
+import { loadFont } from "@/lib/webfont";
 import { aiReady } from "@/lib/ai";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { indexOf } from "@/lib/timeline";
@@ -300,7 +301,7 @@ export function Drawer({ project: p, edit, onApply, settings, onMakeMusic, onWor
           <div className="field">
             <label htmlFor="font">Font (any Google Font name)</label>
             <input id="font" className="input" value={e.captions.font} autoComplete="off" spellCheck={false} onChange={(ev) => cap({ font: ev.target.value })}
-              onBlur={(ev) => loadFont(ev.target.value)} />
+              onBlur={(ev) => void loadFont(ev.target.value)} />
           </div>
           {onWords && <ScriptFix project={p} onChange={onWords} />}
           {doubts.some((d) => !okWords.has(d.id)) && (
@@ -564,10 +565,3 @@ function WaitsRow({ a, scan, onFind, onStop, onChange }: { a: Asset; scan: Scan;
   );
 }
 
-function loadFont(name: string) {
-  if (!name || document.querySelector(`link[data-font="${name}"]`)) return;
-  const l = document.createElement("link");
-  l.rel = "stylesheet"; l.dataset.font = name;
-  l.href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(name)}:wght@500;600;700;800;900&display=swap`;
-  document.head.appendChild(l);
-}

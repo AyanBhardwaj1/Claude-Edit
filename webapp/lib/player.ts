@@ -3,6 +3,7 @@
 // segment, so cuts land without a seek stall. Audio runs through Web Audio: a light voice clean-up, the song
 // set a measured gap under the voice, dipping under words and lifting in pauses, and a whoosh on picture entrances.
 
+import { loadFont } from "./webfont";
 import { buildScene, drawFrame, H, setFormat, W, type Scene } from "./compositor";
 import { LEVEL_GAP } from "./mix";
 import { clipTimeAt } from "./screenrec";
@@ -54,6 +55,7 @@ export class Player {
 
   async load() {
     await document.fonts.load(`900 100px Montserrat`).catch(() => undefined);
+    await loadFont(this.edit.captions.font);           // a look's or note's Google Font, on any device, before the first frame
     await document.fonts.load(`600 100px "${this.edit.captions.font}"`).catch(() => undefined);
     for (const a of this.project.library) {
       const url = this.urls.get(a.key);
