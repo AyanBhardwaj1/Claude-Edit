@@ -48,6 +48,15 @@ Optional: `ELEVENLABS_API_KEY=...` in `.env` (hosted Scribe: speakers, laughs, v
 music and voice), `FAL_KEY` / `REPLICATE_API_TOKEN` / `GEMINI_API_KEY` / `OPENAI_API_KEY` (AI video and images),
 Node 22+ (HyperFrames graphics), macOS + Xcode (iPhone Simulator capture).
 
+## Which AI account do I need?
+- **This repo (the editor CLI driven by Claude):** Claude Code, signed in with your Claude **Pro or Max** plan or an
+  Anthropic API key. Claude Code accepts both, so a plan you already pay for runs every edit here.
+- **Cutmind (the web app in `webapp/`):** pick in Settings → AI editor. Either an Anthropic or OpenAI **API key** (calls
+  go straight from your browser), or **Your Claude or ChatGPT plan**: Cutmind shows each request to copy into
+  claude.ai / chatgpt.com (Copy & open in one click) and you paste the reply back. Those consumer plans offer other apps
+  no sign-in, so Cutmind never asks for your account. An OpenAI key is still needed for OpenAI transcription,
+  voice-overs and AI pictures (or choose in-browser listening).
+
 ## Use it
 Open this folder in the Claude desktop app (or run `claude` here) and say:
 > edit https://www.instagram.com/reel/XXXX/ into a reel
