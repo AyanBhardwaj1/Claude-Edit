@@ -3,7 +3,7 @@
 // Split at the playhead, delete, reorder (drag or arrows), trim a clip's ends (drag its edges: they snap to whole
 // words), nudge pictures and zooms, undo / redo. Changes preview live in the player; "Save as a new version" keeps them.
 import { useEffect, useMemo, useRef, useState } from "react";
-import { addText, clipsOf, deleteClip, deleteLayer, duplicateClip, moveClip, nudgeLayer, setText, splitAt, trimClip, trimToTime, type LayerKind } from "@/lib/cutline";
+import { addText, addZoom, clipsOf, deleteClip, deleteLayer, duplicateClip, moveClip, nudgeLayer, setText, splitAt, trimClip, trimToTime, type LayerKind } from "@/lib/cutline";
 import { buildTimeline, spanOf } from "@/lib/timeline";
 import type { Edit, Project } from "@/lib/types";
 import { Icon } from "./Icons";
@@ -25,6 +25,7 @@ export function Timeline({ project: p, edit, t, onSeek, onPreview, onSave, onClo
   const [typing, setTyping] = useState<string | null>(null);   // the "Add text" box, open with what's typed
   const [drag, setDrag] = useState<{ kind: "move" | "from" | "to"; k: number; x0: number; dx: number } | null>(null);
   const [base, setBase] = useState(edit);
+  const [retry, setRetry] = useState(0);             // thumbnails asked again after a busy player said no
   const [thumbs, setThumbs] = useState<Record<string, string>>({});
   if (base !== edit) { setBase(edit); setDraft(structuredClone(edit)); setPast([]); setFuture([]); setSel(null); setThumbs({}); }   // a new version from outside
   const tl = useMemo(() => buildTimeline(p.words, draft, p.sources.map((s) => s.duration)), [p.words, p.sources, draft]);
@@ -39,14 +40,15 @@ export function Timeline({ project: p, edit, t, onSeek, onPreview, onSave, onClo
     const id = setTimeout(async () => {                 // after the preview has the new cut (it remounts on each change)
       try {
         const urls = await onThumbs(want.map((c) => (c.start + c.end) / 2));
+        if (live && !urls) setRetry((n) => n + 1);            // busy (playing, exporting): try again in a moment
         if (live && urls) setThumbs((m) => {
           const now = new Set(clips.map(thumbKey));                 // only the clips there are now: trims and splits leave old ones
           return Object.fromEntries([...Object.entries(m).filter(([k]) => now.has(k)), ...want.map((c, i) => [thumbKey(c), urls[i]])]);
         });
       } catch { /* the player was busy (playing, exporting): no pictures this time */ }
-    }, 900);
+    }, retry ? 2000 : 900);
     return () => { live = false; clearTimeout(id); };
-  }, [clips, drag]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [clips, drag, retry]); // eslint-disable-line react-hooks/exhaustive-deps
   const changed = JSON.stringify(draft) !== JSON.stringify(edit);
   const width = Math.max(600, Math.ceil(tl.duration * pps) + GUT + 24);
   const box = useRef<HTMLDivElement>(null);
@@ -147,6 +149,11 @@ export function Timeline({ project: p, edit, t, onSeek, onPreview, onSave, onClo
         <button type="button" className="btn sm" onClick={() => move(1)} disabled={!sel} aria-label={sel?.kind === "clip" ? "Move the clip later" : "Nudge later"} title="Later (→)">→</button>
         {selClip && <button type="button" className="btn sm" onClick={() => { apply(duplicateClip(draft, selClip.k), "duplicate the clip"); setSel({ kind: "clip", k: selClip.k + 1 }); }} title="Play this clip twice">Duplicate</button>}
         <button type="button" className="btn sm" aria-expanded={typing !== null} onClick={() => setTyping(typing === null ? "" : null)} title="A text card at the playhead"><Icon name="pen" />Text</button>
+        <button type="button" className="btn sm" onClick={() => apply(addZoom(p, draft, tl, t), "add a zoom at the playhead")} title="A punch-in zoom at the playhead">Zoom</button>
+        <select className="tl-level" aria-label="Talking speed" value={String(draft.speed ?? 1)}
+          onChange={(ev) => { const v = Number(ev.target.value); apply({ ...draft, speed: v === 1 ? undefined : v }, v === 1 ? "play it as filmed" : `speed it up to ${v}×`); }}>
+          <option value="1">Speed: as filmed</option><option value="1.1">Speed 1.1×</option><option value="1.2">Speed 1.2×</option><option value="1.3">Speed 1.3×</option>
+        </select>
         <button type="button" className="btn sm" aria-pressed={draft.captions.enabled} onClick={() => apply({ ...draft, captions: { ...draft.captions, enabled: !draft.captions.enabled } }, draft.captions.enabled ? "turn subtitles off" : "turn subtitles on")}>Subtitles</button>
         {selClip && (<span className="tl-trim" role="group" aria-label="Trim the selected clip">
           <span className="small muted">Start</span>

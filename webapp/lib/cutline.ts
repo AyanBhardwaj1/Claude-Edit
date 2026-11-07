@@ -160,3 +160,11 @@ export function duplicateClip(e: Edit, k: number): Edit | null {
   if (!r) return null;
   return { ...e, keep: [...e.keep.slice(0, k + 1), { ...r }, ...e.keep.slice(k + 1)] };
 }
+
+/** A punch-in zoom at the playhead, on the word being said there and the next few. */
+export function addZoom(p: Project, e: Edit, tl: Timeline, t: number, scale = 1.15, words = 3): Edit | null {
+  const j = tl.words.findIndex((x) => x.w.trim() && x.oe > t);
+  if (j < 0) return null;
+  const k = Math.min(tl.words.length - 1, j + Math.max(0, words - 1));
+  return { ...e, zooms: [...e.zooms, { anchor: { from: tl.words[j].id, to: tl.words[k].id }, scale: Math.max(1.03, Math.min(1.4, scale)) }] };
+}
