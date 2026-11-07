@@ -512,3 +512,14 @@ def test_cut_fills_an_upright_video_with_a_sideways_take(tmp_path):
                           "-pix_fmt", "gray", "-"], capture_output=True, check=True).stdout
     frame = np.frombuffer(raw, np.uint8).reshape(320, 180)
     assert frame[:20].mean() > 100 and frame[-20:].mean() > 100      # the top and bottom are picture, not black bars
+
+
+def test_plan_stops_clearly_when_nothing_was_said(tmp_path):
+    import json
+    import pytest
+    from editor.plan import plan
+    from editor.util import EditorError
+    (tmp_path / "transcript.json").write_text(json.dumps({"sources": [{"path": "/x/take.mp4", "duration": 4.0}], "words": []}))
+    with pytest.raises(EditorError, match="no speech was heard in take.mp4"):
+        plan(tmp_path / "transcript.json", tmp_path / "edl.json")
+    assert not (tmp_path / "edl.json").exists()
