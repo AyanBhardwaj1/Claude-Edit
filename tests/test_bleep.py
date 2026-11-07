@@ -44,3 +44,11 @@ def test_pacing_mentions_unbleeped_strong_language():
              {"id": "w2", "text": "rocks.", "start": 0.9, "end": 1.2}]
     assert "f****** at 0.4s" in pacing({"broll": []}, words, 1.5)["strong_language"]
     assert pacing({"broll": [], "bleep": True}, words, 1.5)["strong_language"] is None
+
+
+def test_master_survives_a_silent_cut(tmp_path):
+    src = tmp_path / "silent.wav"   # a take with an audio track and no sound measures -inf LUFS
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo", "-t", "2", src], check=True)
+    out = audio.master(src, tmp_path / "o.wav", preset="clean")
+    with wave.open(str(out)) as w:
+        assert abs(w.getnframes() / w.getframerate() - 2.0) < 0.05

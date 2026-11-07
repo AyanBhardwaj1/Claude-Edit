@@ -478,3 +478,37 @@ def test_correct_adds_replaces_lists_and_removes(tmp_path, capsys):
     out = capsys.readouterr().out
     assert "pay pal" not in out and "Claude!" in out
     assert main(["correct", str(work), "--remove", "nothing"]) != 0
+
+
+def test_habits_apply_never_empties_the_cut(tmp_path):
+    import json
+    from editor.cli import main
+    tr = [{"src": 0, "start": round(i * 0.4, 3), "end": round(i * 0.4 + 0.3, 3), "text": t}
+          for i, t in enumerate("basically, you know, basically,".split())]
+    work = tmp_path / "w"
+    work.mkdir()
+    (work / "transcript.json").write_text(json.dumps({"words": tr}))
+    edl = {"segments": [{"src": 0, "start": 0.0, "end": 1.6}]}
+    (work / "edl.json").write_text(json.dumps(edl))
+    assert main(["habits", str(work), "--apply"]) == 1                    # refused: nothing would be left
+    assert json.loads((work / "edl.json").read_text()) == edl              # and the EDL is untouched
+
+
+def test_cut_fills_an_upright_video_with_a_sideways_take(tmp_path):
+    import json
+    import subprocess
+    import numpy as np
+    from editor.cut import cut
+    up, side = tmp_path / "up.mp4", tmp_path / "side.mp4"
+    for path, size in ((up, "180x320"), (side, "320x180")):   # bright all over: any black is a bar
+        subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", f"color=c=0xc0c0c0:s={size}:r=30:d=2", "-f", "lavfi",
+                        "-i", "sine=f=300:d=2", "-shortest", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", str(path)],
+                       check=True)
+    edl = {"sources": [{"path": str(up), "duration": 2.0}, {"path": str(side), "duration": 2.0}], "speed": 1.0,
+           "segments": [{"src": 0, "start": 0.0, "end": 1.0}, {"src": 1, "start": 0.0, "end": 1.0}]}
+    (tmp_path / "edl.json").write_text(json.dumps(edl))
+    out = cut(tmp_path / "edl.json", tmp_path)
+    raw = subprocess.run(["ffmpeg", "-v", "error", "-ss", "1.5", "-i", str(out), "-frames:v", "1", "-f", "rawvideo",
+                          "-pix_fmt", "gray", "-"], capture_output=True, check=True).stdout
+    frame = np.frombuffer(raw, np.uint8).reshape(320, 180)
+    assert frame[:20].mean() > 100 and frame[-20:].mean() > 100      # the top and bottom are picture, not black bars

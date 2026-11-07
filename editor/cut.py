@@ -46,6 +46,12 @@ def cut(edl_path: str | Path, out_dir: str | Path, transcript: str | Path | None
     fps = normalize_fps(v0["fps"])
     width, height = v0["width"] - v0["width"] % 2, v0["height"] - v0["height"] % 2
     global_speed = float(edl.get("speed", 1.0))
+    for s in sources[1:]:
+        if _fills(s["video"], width, height):
+            log(f"cut: {Path(s['path']).name} was filmed sideways to the first clip: it fills the upright frame "
+                f"(its sides are cropped, not shown small between black bars)")
+        elif abs(s["video"]["width"] / s["video"]["height"] - width / height) > 0.1 * width / height:
+            log(f"cut: {Path(s['path']).name} has a different shape from the first clip: it is shown whole, with bars")
 
     # pieces of one take that touch (end == next start) play as one: cut apart they'd get a fade at the seam (a dip in
     # the voice), a punch-in change and a transition, a hard cut where nothing was cut. The plan's "meet in the
@@ -77,7 +83,8 @@ def cut(edl_path: str | Path, out_dir: str | Path, transcript: str | Path | None
         out_dur = frames / float(fps)
         src = sources[seg["src"]]
         key = json.dumps([src["path"], os.path.getmtime(src["path"]), seg["start"], seg["end"], speed,
-                          str(fps), width, height, src["mirror"]], sort_keys=True)
+                          str(fps), width, height, src["mirror"]] + (["fill"] if _fills(src["video"], width, height) else []),
+                         sort_keys=True)
         seg_file = seg_dir / f"seg_{hashlib.sha1(key.encode()).hexdigest()[:16]}.mkv"
         jobs.append((src, seg, speed, frames, out_dur, seg_file))
         timeline.append({"index": k, "edl": edl_of[k], "src": seg["src"], "src_start": seg["start"], "src_end": seg["end"],
@@ -112,13 +119,22 @@ def cut(edl_path: str | Path, out_dir: str | Path, transcript: str | Path | None
     return cut_path
 
 
+def _fills(v: dict, width: int, height: int) -> bool:
+    """A clip much wider than an upright (portrait) canvas: shown whole it would be a strip between black bars."""
+    return height > width and v["width"] / v["height"] > 1.1 * width / height
+
+
 def _encode_segment(src, seg, speed, frames, out_dur, seg_file, *, fps, width, height):
     v = src["video"]
     vf = [TONEMAP] if v.get("hdr") else []
     if src.get("mirror"):
         vf.append("hflip")
-    vf += [f"scale={width}:{height}:force_original_aspect_ratio=decrease:flags=lanczos",
-           f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2", "setsar=1",
+    if _fills(v, width, height):   # a landscape take in an upright video: fill the frame, as a phone would show it
+        vf += [f"scale={width}:{height}:force_original_aspect_ratio=increase:flags=lanczos", f"crop={width}:{height}"]
+    else:
+        vf += [f"scale={width}:{height}:force_original_aspect_ratio=decrease:flags=lanczos",
+               f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2"]
+    vf += ["setsar=1",
            f"setpts=(PTS-STARTPTS)/{speed}", f"fps={fps.numerator}/{fps.denominator}",
            "tpad=stop_mode=clone:stop_duration=1", "format=yuv420p"]
     af = ["aresample=48000", "aformat=sample_fmts=fltp:channel_layouts=stereo"]
