@@ -11,7 +11,8 @@ test("progress steps read like a person talking", async () => {
   assert.match(friendly("Writing the parts", 10), /Composing new music/);
   assert.match(friendly("Listening to your video", 40), /Listening to every word.*\(40%\)/);
   assert.match(friendly("Finding your face", 50), /face/);
-  assert.equal(friendly("Ready", 100), "All done!");
+  assert.equal(friendly("Done", 100), "All done!");
+  assert.match(friendly("Ready", 100), /^Your video is ready! /);
   assert.match(friendly("Something new", 20), /Something new…/);
 });
 

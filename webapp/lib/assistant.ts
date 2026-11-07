@@ -86,8 +86,21 @@ export function friendly(msg: string, pct: number): string {
     [/ready|done/, "All done!"],
   ];
   const hit = rules.find(([re]) => re.test(m));
-  const base = hit ? hit[1] : `${msg}…`;
+  let base = hit ? hit[1] : `${msg}…`;
+  if (/^ready$/.test(m)) base = `Your video is ready! ${tipFor(loadCreator())}`;
   return pct > 0 && pct < 100 ? `${base} (${Math.round(pct)}%)` : base;
+}
+
+/** A quick tip when a video is ready, for what you make (no AI call: instant and free). */
+export function tipFor(c: Creator | null): string {
+  const k = c?.kinds ?? [];
+  if (k.includes("reels")) return "Watch the first 2 seconds twice: that's where people decide to stay.";
+  if (k.includes("demo")) return "Check the product is on screen whenever you talk about it.";
+  if (k.includes("youtube")) return "Add chapters in the Post tab: they help people find their way back.";
+  if (k.includes("explainer")) return "Make sure every number you say is also on screen.";
+  if (k.includes("podcast")) return "Pick the one line someone would quote, and open on it.";
+  if (k.includes("course")) return "Label each step so people can follow along.";
+  return "Ask me what would make it better.";
 }
 
 let lastSent = { msg: "", pct: -10 };
