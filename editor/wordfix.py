@@ -26,7 +26,7 @@ CURRENCY = {"dollars": "$", "dollar": "$", "bucks": None, "pounds": "£", "euros
 
 
 def _bare(t: str) -> str:
-    return re.sub(r"[^\w'%$€£]", "", t.lower())
+    return re.sub(r"[^\w'%$€£]", "", t.lower().replace("’", "'").replace("‘", "'").replace("ʼ", "'"))   # "don’t" is "don't"
 
 
 def _split_punct(t: str) -> tuple[str, str, str]:

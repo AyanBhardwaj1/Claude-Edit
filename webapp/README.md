@@ -173,6 +173,9 @@ vertical reel with a cover and a post caption, then change it by typing notes. E
     right word and Fix: it becomes a correction everywhere it's said; or Looks right (`lib/unsure.ts`).
 47. **Search what you said**: My videos' search finds a video by its title or by anything said in it ("the one where I
     talked about Notion"), and the tile shows the words around the first place and how many more (`lib/search.ts`).
+48. **Notes pinned to the moment**: a typed note that points at what's on screen ("cut this", "logo here", "too loud now")
+    without a time gets the playhead's time, shown in the chat ("cut this (at 0:12.3)"), so the editor changes that moment
+    (`pinToPlayhead` in `lib/moments.ts`).
 
 ## Privacy and keys
 - Videos never leave the browser: they're processed on the user's computer and kept in IndexedDB.

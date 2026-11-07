@@ -54,7 +54,7 @@ import { cutWarmUp, LOOP_HEAD, LOOP_TAIL, loopCheck, SCROLL_SECONDS, scrollTest,
 import { clearPosition, PLATFORM_NAMES, subtitlesCovered, ZONES, type Platform } from "@/lib/safezones";
 import { Shortcuts } from "./Shortcuts";
 import { VoiceNote } from "./VoiceNote";
-import { anchorSpoken } from "@/lib/moments";
+import { anchorSpoken, pinToPlayhead } from "@/lib/moments";
 import { declineLearned, learnFromExport } from "@/lib/learn";
 
 type Msg = { who: "you" | "ed"; text: string; rule?: string; changes?: Change[]; learned?: boolean; v?: number };
@@ -336,8 +336,10 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
   const working = useRef(false);
   const [waiting, setWaiting] = useState(0);
   async function send(given?: string) {
-    const text = (given ?? note).trim();
-    if (!text) return;
+    const typed = (given ?? note).trim();
+    if (!typed) return;
+    // a typed "cut this" / "logo here" means what's on screen: the playhead's time goes with it (chips are sent as they are)
+    const text = given === undefined && player.current ? pinToPlayhead(typed, player.current.t, dur) : typed;
     if ((exp && exp.pct < 100) || exportingRef.current) { setToast("Wait for the export to finish: a new version now would stop it"); return; }
     const hasKey = aiReady(settings);
     setMsgs((m) => [...m, { who: "you", text }]);

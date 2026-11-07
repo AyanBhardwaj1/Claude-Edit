@@ -435,3 +435,16 @@ def test_pacing_lists_words_the_recogniser_was_unsure_of():
              for i, (t, p) in enumerate([("I", 0.99), ("use", 0.98), ("Clawed", 0.31), ("um", 0.2), ("Clawed", 0.4), ("daily.", 0.95)])]
     assert _unsure(words, {}) == '"Clawed" at 0.8s: check the captions (editor words <work> --unsure); fix with EDL captions.corrections'
     assert _unsure(words, {"captions": {"corrections": [{"from": "Clawed", "to": "Claude"}]}}) is None
+
+
+def test_unsure_phrase_correction_and_curly_apostrophes():
+    from editor.plan import norm
+    from editor.review import _unsure
+    from editor.wordfix import apply_corrections
+    words = [{"id": f"w{i}", "text": t, "start": i * 0.4, "end": i * 0.4 + 0.3, "prob": p}
+             for i, (t, p) in enumerate([("Clawed", 0.3), ("Code", 0.99), ("rocks", 0.99), ("and", 0.99), ("Clawed", 0.3), ("wins.", 0.99)])]
+    # a phrase correction fixes the phrase, not every "Clawed": still listed, as Cutmind lists it
+    assert _unsure(words, {"captions": {"corrections": [{"from": "Clawed Code", "to": "Claude Code"}]}}).startswith('"Clawed"')
+    assert norm("don’t") == norm("don't") == "don't"
+    fixed = apply_corrections([{"text": "I", "start": 0, "end": 0.3}, {"text": "don’t", "start": 0.4, "end": 0.7}], [{"from": "don't", "to": "do not"}])
+    assert [w["text"] for w in fixed] == ["I", "do not"]
