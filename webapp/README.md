@@ -260,6 +260,7 @@ Everything is anchored to transcript word ids, so a re-cut never breaks a pictur
 npm test                                         # unit tests: timeline, analysis, caption text, AI-answer validation, live cut, passwords, composer, loudness
 npm run build && npx next start -p 3200 &
 python3 tests/e2e.py <take.mp4> <transcript.json> <out_dir>   # sign up, the whole workflow, every shape, the sample (APIs mocked)
+python3 tests/e2e_plan.py <take.mp4> <transcript.json> <out_dir>   # a new video edited by copy and paste (your plan), no AI API called
 npm run a11y -- 3370 <out_dir>    # accessibility audit (axe-core, WCAG 2.1 AA) of every screen, light and dark; app running on :3370
 DATABASE_URL=postgres://... npx next start -p 3200 & python3 tests/accounts.py   # server accounts across two browsers
 python3 tests/studio.py http://localhost:3200 <out> "Product launch" [Hype]   # Motion Studio end to end, incl. every shape
