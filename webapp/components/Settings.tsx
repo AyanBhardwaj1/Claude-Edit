@@ -364,12 +364,12 @@ function DeleteAccount({ user, where }: { user: User; where: Mode | null }) {
   return (
     <form className="stack danger-zone" aria-labelledby="del-h" onSubmit={async (e) => {
       e.preventDefault(); setBusy(true); setMsg("");
-      try {
-        stopSync();
-        await deleteAccount(user.id, pw);
-        await deleteAccountData(user.id);
-        location.href = "/";
-      } catch (err) { setMsg(err instanceof AuthError ? err.message : String((err as Error).message ?? err)); setBusy(false); }
+      try { await deleteAccount(user.id, pw); }           // a wrong password changes nothing, syncing included
+      catch (err) { setMsg(err instanceof AuthError ? err.message : String((err as Error).message ?? err)); setBusy(false); return; }
+      stopSync();
+      // the account is gone: clear this browser's copy, and leave even if some of it can't be cleared
+      try { await deleteAccountData(user.id); } catch (err) { console.warn("clearing the deleted account's data", err); }
+      location.href = "/";
     }}>
       <h3 id="del-h" className="small">Delete my account</h3>
       <p className="small">This deletes your account{where === "server" ? " and the preferences it syncs" : ""}, and from this browser every video and
