@@ -106,6 +106,13 @@ with sync_playwright() as pw:
     page.get_by_label("Password", exact=True).fill("cutmind-e2e-1")
     page.get_by_role("button", name="Create my account").click()
     page.wait_for_url("**/app**")
+    # keys belong to the signed-in account (the shared pre-accounts copy never gives an account its keys)
+    page.evaluate("""(s) => { const v = JSON.parse(sessionStorage.getItem('cutmind.session') || localStorage.getItem('cutmind.session') || 'null');
+      localStorage.setItem('ce.settings' + (v && v.id ? '.' + v.id : ''), JSON.stringify(s)); }""",
+      {"provider": "anthropic", "anthropicKey": "sk-ant-test", "openaiKey": "sk-openai-test", "anthropicModel": "claude-sonnet-5-5",
+       "transcriber": "openai", "rememberKeys": True})
+    page.reload()
+    page.wait_for_url("**/app**")
     page.get_by_role("button", name="New video").first.click()
     page.locator("input[type=file]").set_input_files([str(take), str(song), str(out / "pic.png")])
     page.get_by_role("button", name="Make my reel").click()
