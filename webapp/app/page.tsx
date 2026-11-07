@@ -31,9 +31,10 @@ const FAQ: [string, string][] = [
   ["Can I make a video without filming?", "Yes. In Animate, type or paste anything and Motion Studio turns it into an animated video: kinetic type, counters, lists, charts and a closing card in your colours, with music and an AI voice if you want them. Add screenshots of your app and it becomes a product demo: each screen framed, pushed in and pointed at what you're talking about."],
   ["Can it turn a podcast into clips?", "Yes. Drop in the long video and press Find the best clips: your AI editor ranks the moments that stand on their own, and each becomes its own edited reel."],
   ["Does my video get uploaded?", "No. Cutmind runs in your browser and keeps your videos in its storage on your computer. With OpenAI listening, only the sound goes to OpenAI to be transcribed; with in-browser listening, nothing leaves at all."],
-  ["Do I need an API key?", "No. Without one you still get the cut and the subtitles. An Anthropic or OpenAI key adds the AI editor: best takes, hook title, pictures, music, notes and your caption."],
+  ["Do I need an API key?", "No. Without one you still get the cut and the subtitles. For the AI editor (best takes, hook title, pictures, music, notes and your caption) use an Anthropic, OpenAI, OpenRouter or Google Gemini key, or the Claude or ChatGPT plan you already pay for: Cutmind shows each request to paste into your chat, and you paste the answer back."],
+  ["Can I sign in with my Claude or ChatGPT account?", "Those plans don’t offer apps like Cutmind a way to sign in, so it never asks for your account or password. Instead, pick “Your Claude or ChatGPT plan” in Settings: one click copies each request and opens claude.ai or chatgpt.com, and you paste the reply back."],
   ["What does it cost?", "Cutmind is free. Your provider bills your key for what you use: transcription with OpenAI is about $0.006 a minute, and an edit is a few cents."],
-  ["Is my key safe?", "It goes straight from your browser to Anthropic or OpenAI, never to Cutmind’s server. It is forgotten when you close the tab unless you tick “Remember my keys”."],
+  ["Is my key safe?", "It goes straight from your browser to your provider (Anthropic, OpenAI, OpenRouter or Google), never to Cutmind’s server. It is forgotten when you close the tab unless you tick “Remember my keys”, and signing out removes it."],
   ["Does my account work on other devices?", "Yes: sign in anywhere and your settings, style rules and look come with you. Your videos and API keys stay in the browser you made them in; to move them, back them up in Settings and restore the file in the other browser. On a copy of Cutmind with no database, accounts live in one browser instead."],
   ["What if I clear my browser?", "Your videos live in this browser, so clearing its site data deletes them. Settings, Your videos makes one backup file with every video, its pictures and music, your animations and your style (never your API keys). Restore it any time, in any browser."],
   ["Which browsers work?", "Chrome, Edge and Safari export MP4. Firefox works too and exports WebM. Export plays the reel once in real time, so a 60-second reel takes about a minute."],
@@ -198,7 +199,7 @@ export default function Landing() {
         <section className="names" aria-labelledby="names-h">
           <h2 id="names-h" data-reveal>Works with</h2>
           <div className="cols" data-reveal style={d(1)}>
-            <ul><li>Your editor</li><li>Anthropic</li><li>OpenAI</li></ul>
+            <ul><li>Your editor</li><li>Anthropic</li><li>OpenAI</li><li>OpenRouter</li><li>Google Gemini</li><li>Your Claude or ChatGPT plan</li></ul>
             <ul><li>Listening</li><li>OpenAI transcription</li><li>Whisper in your browser</li></ul>
             <ul><li>Pictures from</li><li>Your own files</li><li>Openverse</li><li>Wikimedia Commons</li><li>Simple Icons</li></ul>
             <ul><li>Made for</li><li>Instagram Reels</li><li>TikTok</li><li>YouTube Shorts</li><li>Facebook Reels</li></ul>
@@ -238,7 +239,8 @@ export default function Landing() {
             ))}
           </div>
           <p className="note">Have both keys? Choose who edits in Settings and let OpenAI do the listening. Your provider bills your key directly; Cutmind never
-            sees the bill or the key.</p>
+            sees the bill or the key. An <b>OpenRouter</b> or <b>Gemini</b> key works as the editor too, and with no key at all you can use{" "}
+            <b>your Claude or ChatGPT plan</b> by copy and paste.</p>
         </section>
 
         <section className="faq" aria-labelledby="faq-h">
