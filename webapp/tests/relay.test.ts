@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { aiReady, callJson } from "../lib/ai";
-import { parseRelayAnswer, relayPrompt, setRelay } from "../lib/relay";
+import { fitAnswer, missingParts, offShape, parseRelayAnswer, relayPrompt, relayReminder, setRelay } from "../lib/relay";
 import type { Settings } from "../lib/types";
 
 test("the request has the instructions, the material and the exact answer shape", () => {
@@ -47,4 +47,21 @@ test("a trailing comma with curly quotes in a string, and a JSON box after anoth
 
 test("a caption with ``` inside it, and braces in the prose around the box, still parse", () => {
   assert.deepEqual(parseRelayAnswer('Sure {ok}\n```json\n{"c":"a ``` b"}\n```\nbye {x}'), { c: "a ``` b" });
+});
+
+test("an answer wrapped by the chat is unwrapped; missing parts are named", () => {
+  const schema = { type: "object", properties: { summary: { type: "string" }, keep: { type: "array" } }, required: ["summary", "keep"] };
+  const inner = { summary: "tight", keep: [{ from: "w1", to: "w9" }] };
+  assert.deepEqual(fitAnswer(schema, { submit_edit: inner }), inner);
+  assert.deepEqual(fitAnswer(schema, inner), inner);
+  assert.deepEqual(missingParts(schema, { summary: "tight" }), ["keep"]);
+  assert.deepEqual(missingParts(schema, fitAnswer(schema, { a: { summary: "x" }, b: { keep: [] } })), ["summary", "keep"]);
+  assert.deepEqual(missingParts({ type: "object" }, {}), []);
+  // a note's answer with only some fields is fine as it is (the cut stays as it was); one with none is off shape
+  assert.equal(offShape(schema, { summary: "bigger subtitles" }), false);
+  assert.equal(offShape(schema, { response: "I made the subtitles bigger" }), true);
+  assert.deepEqual(fitAnswer(schema, { answer: { summary: "bigger" } }), { summary: "bigger" });
+  const msg = relayReminder({ name: "submit_edit", system: "", user: "", schema }, ["keep"]);
+  assert.match(msg, /missing "keep"/);
+  assert.ok(msg.includes(JSON.stringify(schema)));
 });

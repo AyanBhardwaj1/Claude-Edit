@@ -55,3 +55,43 @@ export function parseRelayAnswer(text: string): Json | null {
   }
   return null;
 }
+
+/** The parts the request asked for (its schema's top-level "required") that an answer lacks. */
+export function missingParts(schema: Json, v: Json): string[] {
+  const req = Array.isArray(schema.required) ? (schema.required as unknown[]).filter((k): k is string => typeof k === "string") : [];
+  return req.filter((k) => v[k] === undefined || v[k] === null);
+}
+
+/** How many of the asked-for fields (the schema's top-level properties) an answer has. */
+export function knownParts(schema: Json, v: Json): number {
+  const props = schema.properties && typeof schema.properties === "object" ? Object.keys(schema.properties) : [];
+  return props.filter((k) => v[k] !== undefined && v[k] !== null).length;
+}
+
+/** An answer in some other shape altogether: none of the fields asked for (a chat that ignored the format). A reply
+ *  with some fields and not others is fine: each step keeps what the answer leaves out, as with an API answer. */
+export function offShape(schema: Json, v: Json): boolean {
+  const props = schema.properties && typeof schema.properties === "object" ? Object.keys(schema.properties) : [];
+  return props.length > 0 && knownParts(schema, v) === 0;
+}
+
+/** Chats often wrap the answer: {"submit_edit": {…}} or {"answer": {…}}. When the answer itself lacks what was asked
+ *  and exactly one object inside it has it (all the required parts, or else any asked-for field), that's the answer. */
+export function fitAnswer(schema: Json, v: Json): Json {
+  if (!missingParts(schema, v).length) return v;
+  const inner = Object.values(v).filter((x): x is Json => !!x && typeof x === "object" && !Array.isArray(x));
+  const whole = inner.filter((x) => !missingParts(schema, x).length);
+  if (whole.length === 1) return whole[0];
+  if (offShape(schema, v)) {
+    const some = inner.filter((x) => !offShape(schema, x));
+    if (some.length === 1) return some[0];
+  }
+  return v;
+}
+
+/** A short message for the chat when its answer lacked parts: what's missing, and the shape again. */
+export function relayReminder(ask: RelayAsk, missing: string[]): string {
+  return [`Your answer is missing ${missing.map((k) => `"${k}"`).join(", ")}. Reply again with ONE JSON object and nothing`,
+    `else, matching this JSON Schema ("${ask.name}") exactly, with every required field filled in:`,
+    "```json", JSON.stringify(ask.schema), "```"].join("\n");
+}
