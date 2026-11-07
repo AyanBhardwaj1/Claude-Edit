@@ -94,6 +94,7 @@ export function Timeline({ project: p, edit, t, onSeek, onPreview, onSave, onClo
   function onKey(ev: React.KeyboardEvent) {
     if ((ev.target as HTMLElement).closest("input, textarea, select")) return;      // typing a text card
     const mod = ev.metaKey || ev.ctrlKey;
+    if (mod && ev.key.toLowerCase() === "s") { ev.preventDefault(); ev.stopPropagation(); if (changed) onSave(draft, "my changes on the timeline"); return; }
     if (mod && ev.key.toLowerCase() === "z") { ev.preventDefault(); ev.stopPropagation(); if (ev.shiftKey) redo(); else undo(); return; }
     if (mod) return;
     if (ev.key === "s" || ev.key === "S") { ev.preventDefault(); ev.stopPropagation(); split(); }
@@ -146,7 +147,8 @@ export function Timeline({ project: p, edit, t, onSeek, onPreview, onSave, onClo
   return (
     <section className="panel tl-panel" aria-labelledby="tl-h" onKeyDown={onKey}>
       <div className="panel-head"><h2 id="tl-h">Timeline</h2>
-        <button type="button" className="btn ghost icon sm" aria-label="Close the timeline" onClick={onClose}>&times;</button></div>
+        <button type="button" className="btn ghost icon sm" aria-label="Close the timeline"
+          onClick={() => { if (!changed || window.confirm("Close the timeline and drop your unsaved changes? (Save as a new version keeps them.)")) onClose(); }}>&times;</button></div>
       <div className="tl-tools" role="toolbar" aria-label="Timeline tools">
         <button type="button" className="btn sm" onClick={split} title="Split the clip at the playhead (S)"><Icon name="scissors" />Split</button>
         <button type="button" className="btn sm" onClick={remove} disabled={!sel} title="Delete what's selected (Delete)">Delete</button>
@@ -254,7 +256,7 @@ export function Timeline({ project: p, edit, t, onSeek, onPreview, onSave, onClo
         <span className="small muted" role="status">{say || `${clips.length} clip${clips.length === 1 ? "" : "s"}, ${clock(tl.duration)} long. Click a clip, then S to split at the playhead, Delete, or ← →. Drag a clip's edges to trim.`}</span>
         <span className="grow" />
         <button type="button" className="btn ghost" disabled={!changed} onClick={() => { setPast((h) => [...h, draft]); setDraft(structuredClone(edit)); setSel(null); setSay("Back to the saved version."); }}>Discard</button>
-        <button type="button" className="btn primary" disabled={!changed} onClick={() => onSave(draft, "my changes on the timeline")}>Save as a new version</button>
+        <button type="button" className="btn primary" disabled={!changed} onClick={() => onSave(draft, "my changes on the timeline")} title="Ctrl/⌘+S">Save as a new version</button>
       </div>
     </section>
   );
