@@ -163,7 +163,10 @@ vertical reel with a cover and a post caption, then change it by typing notes. E
     request: copy it into a chat on claude.ai, chatgpt.com or any chat AI, paste the reply back, and Cutmind checks and
     applies it. Claude Pro/Max and ChatGPT Plus/Pro don't offer third-party apps a sign-in, so Cutmind never asks for
     the account; it sends nothing anywhere itself (`lib/relay.ts`, `components/Relay.tsx`). Voice-overs, OpenAI
-    transcription and AI pictures still need an OpenAI key.
+    transcription and AI pictures still need an OpenAI key. "Copy & open Claude / ChatGPT" copies the request and opens
+    a new chat; "Paste the reply" reads it back (Ctrl/⌘ + Enter uses it). A reply wrapped in an extra object is
+    unwrapped; one in some other shape, or the request pasted back by mistake, is caught before it applies, with a
+    "Copy the reminder" message to send the chat.
 45. **Any AI account with a key**: besides Anthropic and OpenAI, an **OpenRouter** key (one key for Claude, GPT, Gemini,
     Llama, DeepSeek and more; pick the model in Settings) or a **Google Gemini** key. Check key verifies it and picks a
     good model; the answer's shape goes in the prompt and the reply is read the forgiving way, so any capable model works
