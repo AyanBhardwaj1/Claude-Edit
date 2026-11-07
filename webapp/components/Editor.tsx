@@ -1037,7 +1037,11 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
             <section className="panel" aria-label="Edit it myself">
               <Drawer project={p} edit={version.edit} settings={settings} onMakeMusic={() => setMaker(true)} onWords={() => setP({ ...p })}
                 scan={scan} onFindWaits={findWaitsFor} onStopScan={stopScan}
-                onClip={() => { setP({ ...p }); void saveProject(p); }} onSaveLook={onSaveLook && ((l) => { onSaveLook(l); setToast("Saved as your look: new videos start with it"); })} onApply={async (edit, what) => { await saveManual(p, edit, what); setP({ ...p }); setMsgs((m) => [...m, { who: "ed", text: `Version ${p.current}: ${what}` }]); }} />
+                onClip={() => { setP({ ...p }); void saveProject(p); }} onSaveLook={onSaveLook && ((l) => { onSaveLook(l); setToast("Saved as your look: new videos start with it"); })}
+                onFrames={async (_e, ids) => {
+                  const pl = player.current; if (!pl || recording) return [];
+                  return pl.frames(ids.map((id) => { const w = pl.tl.byId.get(id); return w ? (w.os + w.oe) / 2 : 0; }));
+                }} onApply={async (edit, what) => { await saveManual(p, edit, what); setP({ ...p }); setMsgs((m) => [...m, { who: "ed", text: `Version ${p.current}: ${what}` }]); }} />
             </section>
           )}
 

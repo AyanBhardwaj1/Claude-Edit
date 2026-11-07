@@ -39,9 +39,10 @@ const PRESETS: [CaptionPreset, string][] = [["studio", "Studio"], ["bold", "Bold
 
 type Scan = { key: string; name: string; pct: number } | null;
 
-export function Drawer({ project: p, edit, onApply, settings, onMakeMusic, onWords, scan = null, onFindWaits, onStopScan, onClip, onSaveLook }: { project: Project; edit: Edit;
+export function Drawer({ project: p, edit, onApply, settings, onMakeMusic, onWords, scan = null, onFindWaits, onStopScan, onClip, onSaveLook, onFrames }: { project: Project; edit: Edit;
   onApply: (e: Edit, what: string) => void; settings?: Settings; onMakeMusic?: () => void; onWords?: () => void;
-  scan?: Scan; onFindWaits?: (key: string) => void; onStopScan?: () => void; onClip?: () => void; onSaveLook?: (l: MyLook) => void }) {
+  scan?: Scan; onFindWaits?: (key: string) => void; onStopScan?: () => void; onClip?: () => void; onSaveLook?: (l: MyLook) => void;
+  onFrames?: (e: Edit, wordIds: string[]) => Promise<string[]> }) {
   const [tab, setTab] = useState<(typeof TABS)[number]>("Cut");
   const [e, setE] = useState<Edit>(() => structuredClone(edit));
   const [tagsText, setTagsText] = useState<string | null>(null);   // hashtags as typed, until the field is left
@@ -101,7 +102,9 @@ export function Drawer({ project: p, edit, onApply, settings, onMakeMusic, onWor
   const cutTl = useMemo(() => buildTimeline(p.words, e, p.sources.map((x) => x.duration)), [p.words, p.sources, e]);
   const length = cutTl.duration;
   const doubts = useMemo(() => unsureWords(cutTl, e.corrections), [cutTl, e.corrections]);
-  const [okWords, setOkWords] = useState<Set<string>>(new Set());          // "looks right": hidden for this session
+  const [okWords, setOkWords] = useState<Set<string>>(new Set());
+  const [covers, setCovers] = useState<{ id: string; url: string }[] | null>(null);
+  const [coverBusy, setCoverBusy] = useState(false);          // "looks right": hidden for this session
   // words a minute as it plays (talking speed included), from the cut's spoken words over its length
   const wpm = useMemo(() => {
     const n = cutTl.words.filter((w) => w.w.trim()).length;
@@ -466,6 +469,30 @@ export function Drawer({ project: p, edit, onApply, settings, onMakeMusic, onWor
         </>)}
 
         {tab === "Cover" && (<>
+          {onFrames && (
+            <div className="field"><span className="label" id="cover-pick-h">Pick a frame</span>
+              {!covers ? <button type="button" className="btn sm" disabled={coverBusy} onClick={async () => {
+                setCoverBusy(true);
+                try {
+                  // six moments across the cut, each on a word (the cover is chosen by word): skip the very first second
+                  const ws = cutTl.words.filter((w) => w.w.trim() && w.os > 0.8);
+                  const ids = Array.from({ length: Math.min(6, ws.length) }, (_, k) => ws[Math.floor((k + 0.5) * ws.length / Math.min(6, ws.length))].id);
+                  const urls = await onFrames(e, ids);
+                  setCovers(ids.map((id, k) => ({ id, url: urls[k] })));
+                } finally { setCoverBusy(false); }
+              }}>{coverBusy ? <><span className="spin" />Drawing frames…</> : "Show frames to pick from"}</button>
+                : <div className="cover-strip" role="group" aria-labelledby="cover-pick-h">
+                  {covers.map((c) => {
+                    const w = cutTl.byId.get(c.id);
+                    return (
+                      <button key={c.id} type="button" aria-pressed={e.cover.word === c.id} onClick={() => setE({ ...e, cover: { ...e.cover, word: c.id } })}
+                        aria-label={`Cover at ${formatTime(w?.os ?? 0)}, on “${w?.w ?? ""}”`}>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={c.url} alt="" /><span className="small num">{formatTime(w?.os ?? 0)}</span></button>);
+                  })}
+                </div>}
+            </div>
+          )}
           <div className="field">
             <label htmlFor="cover-word">The moment for your cover (pick a word)</label>
             <select id="cover-word" className="select" value={e.cover.word ?? ""} onChange={(ev) => setE({ ...e, cover: { ...e.cover, word: ev.target.value || null } })}>

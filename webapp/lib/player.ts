@@ -363,6 +363,29 @@ export class Player {
     return { blob: new Blob(chunks, { type: mime.split(";")[0] || "video/webm" }), ext: mime.includes("mp4") ? "mp4" : "webm" };
   }
 
+  /** Small clean frames (no subtitles or pictures, as the cover is drawn) at these output times, as image URLs: the
+   *  cover picker's choices. The frame on screen is put back after. */
+  async frames(times: number[], width = 180): Promise<string[]> {
+    if (this.playing) this.pause();
+    const saved = this.scene, at = this.t;
+    const small = document.createElement("canvas");
+    small.width = width; small.height = Math.round(width * H / W);
+    const sg = small.getContext("2d")!;
+    const out: string[] = [];
+    try {
+      this.scene = { ...saved, cues: [], layers: [] };
+      for (const t of times) {
+        await this.drawAt(t);
+        sg.drawImage(this.canvas, 0, 0, small.width, small.height);
+        out.push(small.toDataURL("image/jpeg", 0.8));
+      }
+    } finally {
+      this.scene = saved;
+      await this.drawAt(at);
+    }
+    return out;
+  }
+
   /** The cover: a frame at the chosen word with 1-3 big words on it. */
   async cover(): Promise<Blob> {
     const e = this.edit;

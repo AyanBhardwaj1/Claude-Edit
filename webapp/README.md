@@ -185,6 +185,8 @@ vertical reel with a cover and a post caption, then change it by typing notes. E
     look) and pace (pauses, talking speed, music level). Every new video starts with it, and Use my look puts it on any
     older one; what's said, cut and shown stays each video's own. It's part of Settings, so it follows the account
     (`lib/look.ts`).
+52. **Pick a cover by sight**: Edit it myself → Cover → Show frames to pick from draws six clean frames across the cut
+    (no subtitles or pictures, as the cover is made); click one to use it (`Player.frames`).
 
 ## Privacy and keys
 - Videos never leave the browser: they're processed on the user's computer and kept in IndexedDB.
