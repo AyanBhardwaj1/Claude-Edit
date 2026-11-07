@@ -6,7 +6,7 @@
 import { FILLERS } from "./analyze";
 import { bare } from "./text";
 import { grip, sentences } from "./coldopen";
-import { cutWords } from "./crutch";
+import { cutWords, keepAnchors } from "./crutch";
 import { buildTimeline } from "./timeline";
 import type { Edit, Project } from "./types";
 
@@ -75,14 +75,29 @@ export function planFit(p: Project, e: Edit, target: number): FitPlan {
 
 /** The edit with the plan applied: tighter pauses, the listed sentences cut. */
 export function applyFit(p: Project, e: Edit, plan: FitPlan): Edit {
-  return { ...e, gapCap: plan.gapCap, keep: cutWords(p, e.keep, plan.drop.flatMap((d) => d.ids)) };
+  return keepAnchors(p, { ...e, gapCap: plan.gapCap, keep: cutWords(p, e.keep, plan.drop.flatMap((d) => d.ids)) });
 }
 
 export type Repeat = { first: FitLine; again: FitLine };
 
 /** Lines the cut plays twice (the same line said again later, not a retake the cut dropped): the later one is
  *  usually the one to go. */
+// the same cut asked again (every render of the editor, every slider step in the drawer): an hour-long video takes
+// seconds to compare, so the last answers for each transcript are kept
+const repeatCache = new WeakMap<Project["words"], Map<string, Repeat[]>>();
 export function repeats(p: Project, e: Pick<Edit, "keep" | "gapCap" | "speed">): Repeat[] {
+  const key = JSON.stringify([e.keep, e.gapCap, e.speed ?? 1]);
+  const seen = repeatCache.get(p.words) ?? new Map<string, Repeat[]>();
+  repeatCache.set(p.words, seen);
+  const hit = seen.get(key);
+  if (hit) return hit;
+  const out = repeatsOf(p, e);
+  if (seen.size > 8) seen.delete(seen.keys().next().value!);
+  seen.set(key, out);
+  return out;
+}
+
+function repeatsOf(p: Project, e: Pick<Edit, "keep" | "gapCap" | "speed">): Repeat[] {
   const tl = buildTimeline(p.words, e, p.sources.map((s) => s.duration));
   const all = sentences(tl);
   const at = new Map(tl.words.map((w) => [w.id, w]));

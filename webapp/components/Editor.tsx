@@ -143,7 +143,12 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
   // true for a whole export, Export all's version reloads between formats included: nothing may start playback then
   const [exporting, setExporting] = useState(false);
   const exportingRef = useRef(false);
-  const busyExport = (on: boolean) => { exportingRef.current = on; setExporting(on); };
+  // a change that reloads the preview (a finished wait scan) waits for the export: reloading mid-export would stop it
+  const afterExport = useRef(false);
+  const busyExport = (on: boolean) => {
+    exportingRef.current = on; setExporting(on);
+    if (!on && afterExport.current) { afterExport.current = false; setP({ ...latest.current }); }
+  };
   // export files are whole videos in memory: free the ones no longer shown
   const shownUrls = useRef<string[]>([]);
   useEffect(() => {
@@ -187,7 +192,8 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
         if (w.count) setMsgs((m) => [...m, { who: "ed", text: `I found ${w.count === 1 ? "a wait" : `${w.count} waits`} in ${a.name} where nothing on screen ` +
           `moves (${Math.round(w.seconds)} s). ${w.count === 1 ? "It plays" : "They play"} ${WAIT_SPEED}× faster, which saves ${Math.round(w.saves)} s. ` +
           `Switch it off in Edit it myself, Pictures.` }]);
-        setP({ ...cur });                       // the preview follows the new plan
+        if (exportingRef.current) afterExport.current = true;   // the preview follows the new plan once the export is done
+        else setP({ ...cur });                  // the preview follows the new plan
       })
       .finally(() => { if (scanCtl.current === ctl) scanCtl.current = null; setScan(null); setScanTick((n) => n + 1); });
   }, [p, scanTick]);
@@ -1018,13 +1024,14 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
             <div className="attach-row">
               <label className="attach">
                 <Icon name="paperclip" />Add a song, picture or clip your editor can use
-                <input type="file" multiple accept="audio/*,image/*,video/*"
+                <input type="file" multiple accept="audio/*,image/*,video/*" disabled={recording}
                   onChange={async (ev) => { if (!ev.target.files?.length) return; const n = await addToLibrary(p, [...ev.target.files]); await saveProject(p); setP({ ...p });
                     ev.target.value = "";
                     setMsgs((m) => [...m, { who: "ed", text: `Added ${n.join(", ")}. Tell me where to use ${n.length > 1 ? "them" : "it"}.` }]); }} />
               </label>
               <button className="attach-btn" aria-expanded={maker} aria-controls="make-music" disabled={!version || !dur} onClick={() => setMaker(true)}><Icon name="music" />No song? Make music</button>
-              <RecordScreen onAdd={async (f) => { const n = await addToLibrary(p, [f]); await saveProject(p); setP({ ...p });
+              <RecordScreen onAdd={async (f) => { const n = await addToLibrary(p, [f]); await saveProject(p);
+                if (exportingRef.current) afterExport.current = true; else setP({ ...p });   // mid-export: shown once it's done
                 setMsgs((m) => [...m, { who: "ed", text: `Added ${n.join(", ")} as a screen recording. Tell me where to show it, for example "show my screen recording when I talk about the app", or place it yourself in Edit it myself, Pictures.` }]); }} />
             </div>
             {scan && <p className="small faint wait-scan"><span className="spin" aria-hidden="true" />Looking for waits in {scan.name.slice(0, 40)}

@@ -2,7 +2,7 @@
 // first and last word ids, so it follows every re-cut like everything else.
 
 import { callJson } from "./ai";
-import type { Timeline } from "./timeline";
+import type { OutWord, Timeline } from "./timeline";
 import { captionWords, chunk } from "./text";
 import type { Edit, Project, Settings, Translation, Word } from "./types";
 
@@ -57,14 +57,32 @@ export function srt(p: Project, e: Edit, tl: Timeline): string {
  *  be cut, and come back, without the line going); a line none of whose words are kept is not shown. */
 export function translatedCues(words: Word[], tr: Translation, tl: Timeline): { start: number; end: number; from: string; text: string }[] {
   const idx = new Map(words.map((w, i) => [w.id, i]));
-  return tr.lines.flatMap((l) => {
+  const covered = new Set<number>();
+  const cues = tr.lines.flatMap((l) => {
     const a = idx.get(l.from), b = idx.get(l.to);
     if (a === undefined || b === undefined) return [];
     const [lo, hi] = a <= b ? [a, b] : [b, a];
+    for (let i = lo; i <= hi; i++) covered.add(i);
     let f = lo; while (f <= hi && !tl.byId.has(words[f].id)) f++;
     let t = hi; while (t >= lo && !tl.byId.has(words[t].id)) t--;
     if (f > t) return [];
     const x = tl.byId.get(words[f].id)!, y = tl.byId.get(words[t].id)!;
     return [{ start: Math.min(x.os, y.os), end: Math.max(x.oe, y.oe), from: x.id, text: l.text }];
   });
+  // words that play but no translated line covers (brought back, or another take picked, after translating): their
+  // own words, a few at a time, rather than no subtitles at all
+  let run: OutWord[] = [];
+  const flush = () => {
+    if (run.length) cues.push({ start: run[0].os, end: run[run.length - 1].oe, from: run[0].id, text: run.map((w) => w.w.trim()).join(" ") });
+    run = [];
+  };
+  for (const w of tl.words) {
+    const i = idx.get(w.id);
+    if (i === undefined || covered.has(i) || !w.w.trim()) { flush(); continue; }
+    const last = run[run.length - 1];
+    if (last && (w.os - last.oe > 0.6 || run.length >= 6)) flush();
+    run.push(w);
+  }
+  flush();
+  return cues.sort((a, b) => a.start - b.start);
 }

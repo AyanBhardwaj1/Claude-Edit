@@ -13,7 +13,8 @@ const COMMON = new Set(["i", "i'm", "i've", "i'll", "i'd", "the", "a", "an", "an
 export type Name = { text: string; from: string; to: string; at: number };
 
 // curly apostrophes (scripts pasted from Notes or Docs) read as straight ones: "I’m" is a common word, not a name
-const core = (w: string) => w.trim().replace(/[‘’ʼ]/g, "'").replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "");
+// "Notion's" is Notion: a possessive is the same name (and the same logo search)
+const core = (w: string) => w.trim().replace(/[‘’ʼ]/g, "'").replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "").replace(/'s$/i, "");
 const capital = (w: string) => /^\p{Lu}/u.test(core(w)) && !COMMON.has(core(w).toLowerCase()) && core(w).length > 1;
 
 const OPENERS = new Set(["the", "a", "an", "i", "so", "and", "but", "my", "our", "your", "this", "that", "then", "now", "when", "if",

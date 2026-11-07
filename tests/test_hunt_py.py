@@ -532,3 +532,20 @@ def test_transcript_names_a_take_where_nothing_was_heard(tmp_path, capsys):
     write_transcript(tmp_path, sources, words)
     err = capsys.readouterr()
     assert "no speech heard in b-roll.mp4" in err.out + err.err and "a.mp4," not in err.out + err.err
+
+
+def test_habits_you_know_ending_a_sentence_only_when_set_off():
+    from editor.habits import find
+    def names(text):
+        tr = [{"src": 0, "start": round(i * 0.4, 3), "end": round(i * 0.4 + 0.3, 3), "text": t} for i, t in enumerate(text.split())]
+        return [f["name"] for f in find(tr, [{"src": 0, "start": 0.0, "end": 60.0}])]
+    assert names("And now you know.") == [] and names("I bet you know. Trust me.") == [] and names("If you know, you know.") == []
+    assert names("It's tough, you know. Anyway.") == ["you know"] and names("You know, it works.") == ["you know"]
+
+
+def test_names_a_possessive_is_the_same_name():
+    from editor.review import named_not_shown
+    text = "I switched to Notion last week. And Notion's editor is fast."
+    words = [{"id": f"w{i}", "text": t, "start": i * 0.4, "end": i * 0.4 + 0.3} for i, t in enumerate(text.split())]
+    found = named_not_shown({"broll": []}, words)
+    assert [f["name"] for f in found] == ["Notion"], found

@@ -423,7 +423,7 @@ function drawBoxed(g: CanvasRenderingContext2D, e: Edit, text: string, alpha: nu
   const bw = Math.max(...lines.map((l) => g.measureText(l).width)) + 2 * padX, bh = lines.length * lh + 2 * padY;
   // wide: bottom centre; a reel with a split view: under the face; square and feed splits: on the bottom edge
   const low = split && H / W < 1.5;
-  const cy = W > H ? 0.88 * H : (split ? 0.82 : e.captions.position) * H;
+  const cy = W > H ? 0.88 * H : (split ? Math.min(0.82, e.captions.position) : e.captions.position) * H;
   const top = low ? H - 0.03 * U - bh : Math.min(cy - bh / 2, H - 0.03 * H - bh);
   g.save(); g.globalAlpha = alpha;
   g.fillStyle = BOXED.fill; rounded(g, W / 2 - bw / 2, top, bw, bh, BOXED.radius * (U / 1080)); g.fill();
@@ -445,7 +445,7 @@ function drawTranslated(g: CanvasRenderingContext2D, e: Edit, text: string, alph
     if (lines.length <= 2 && lines.every((l) => g.measureText(l).width <= W * 0.9)) break;
     size *= 0.9;
   }
-  const y0 = (split ? 0.8 : e.captions.position) * H - ((lines.length - 1) * size * 1.15) / 2;
+  const y0 = (split ? Math.min(0.8, e.captions.position) : e.captions.position) * H - ((lines.length - 1) * size * 1.15) / 2;
   g.save(); g.globalAlpha = alpha; g.textAlign = "center"; g.textBaseline = "middle"; g.lineJoin = "round";
   lines.forEach((l, i) => {
     const y = y0 + i * size * 1.15;
@@ -500,7 +500,8 @@ function drawCaptions(g: CanvasRenderingContext2D, e: Edit, scene: Scene, t: num
   const full = words.join(" ");
   const gaps = Math.max(0, words.length - 1);
   while (g.measureText(full).width * 1.1 + 0.06 * size * gaps > W * 0.87 && size > 0.62 * base) { size *= 0.94; g.font = font(size); }
-  const y = (split ? 0.8 : e.captions.position) * H;
+  // in a split, never lower than asked: a raised position keeps clear of the apps' caption block (lib/safezones.ts)
+  const y = (split ? Math.min(0.8, e.captions.position) : e.captions.position) * H;
   // the spoken word grows (up to ~8%) and has an outline: a plain space between words would vanish next to it
   // the gap after each word allows for both neighbours growing (~5% of their width each side when spoken) and the
   // outline: a long word like "CAPTIONING" grows by more than a fixed gap

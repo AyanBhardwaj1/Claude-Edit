@@ -16,6 +16,8 @@ const db = (x: number) => Math.pow(10, x / 20);
 type Pair = { a: HTMLVideoElement; b: HTMLVideoElement; gainA: GainNode; gainB: GainNode };
 
 const STOPPED = "The export stopped before the end (playback was paused or the video changed). Export again.";
+// a hidden tab stops drawing frames while the sound plays on: the file would have a frozen picture and cut words audible
+const HIDDEN = "The export stopped because this tab went to the background (the browser stops drawing it there). Export again and keep this tab in front.";
 
 export class Player {
   tl!: Timeline;
@@ -233,6 +235,8 @@ export class Player {
   };
 
   private syncLayers(t: number) {
+    // a clip used twice shares one <video>: the layer that isn't showing must not pause the one that is
+    const showing = new Set(this.scene.layers.filter((L) => t >= L.start && t < L.end).map((L) => L.el));
     for (const L of this.scene.layers) {
       const on = t >= L.start && t < L.end;
       if (L.el instanceof HTMLVideoElement) {
@@ -246,7 +250,7 @@ export class Player {
           // past the out-point, over a cut, or drifted: put it back where the map says (sped-up runs may drift a little more)
           if (!L.el.seeking && Math.abs(L.el.currentTime - want.t) > 0.25 * Math.max(1, want.rate)) L.el.currentTime = want.t;
         }
-        if (!on && !L.el.paused) L.el.pause();
+        if (!on && !L.el.paused && !showing.has(L.el)) L.el.pause();
       }
       if (on && !this.fired.has(L.b.id)) {
         this.fired.add(L.b.id);
@@ -345,7 +349,11 @@ export class Player {
     const prevTime = this.onTime, prevEnd = this.onEnd;
     this.onTime = (t) => { onProgress(Math.round((100 * t) / this.tl.duration)); prevTime?.(t); };
     // a pause or a dispose (another version loading) mid-export would leave this waiting for an end that never comes
-    const ended = new Promise<void>((ok, no) => { this.onEnd = () => ok(); this.stopRec = () => no(new Error(STOPPED)); });
+    let fail: (e: Error) => void = () => undefined;
+    const ended = new Promise<void>((ok, no) => { this.onEnd = () => ok(); fail = no; this.stopRec = () => no(new Error(STOPPED)); });
+    ended.catch(() => undefined);                // handled below (awaited); no unhandled-rejection noise if it fails early
+    const onHide = () => { if (document.hidden) { this.halt(); fail(new Error(HIDDEN)); } };
+    document.addEventListener("visibilitychange", onHide);
     let stopped = false;
     try {
       await this.seek(0);
@@ -355,6 +363,7 @@ export class Player {
       await new Promise((ok) => setTimeout(ok, 250));
     } catch (e) { stopped = true; throw e; }
     finally {
+      document.removeEventListener("visibilitychange", onHide);
       this.stopRec = undefined;
       if (rec.state !== "inactive") rec.stop();
       if (!stopped) await done;

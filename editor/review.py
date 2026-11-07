@@ -391,7 +391,8 @@ def named_not_shown(edl: dict, words: list[dict]) -> list[dict]:
     with no picture on screen as it's said (a text card counts only if it spells the name), at any of its mentions.
     [{name, start, words: "w12-w13"}] at the first mention; the same rule as Cutmind's lib/names.ts."""
     def core(t):     # curly apostrophes read as straight: "I’m" is a common word, not a name
-        return str(t).strip().replace("’", "'").replace("‘", "'").replace("ʼ", "'").strip(".,!?;:\"'()“”")
+        c = str(t).strip().replace("’", "'").replace("‘", "'").replace("ʼ", "'").strip(".,!?;:\"'()“”")
+        return c[:-2] if c.lower().endswith("'s") else c          # "Notion's" is Notion
 
     def capital(t):
         c = core(t)
