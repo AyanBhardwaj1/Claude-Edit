@@ -448,3 +448,11 @@ def test_unsure_phrase_correction_and_curly_apostrophes():
     assert norm("don’t") == norm("don't") == "don't"
     fixed = apply_corrections([{"text": "I", "start": 0, "end": 0.3}, {"text": "don’t", "start": 0.4, "end": 0.7}], [{"from": "don't", "to": "do not"}])
     assert [w["text"] for w in fixed] == ["I", "do not"]
+
+
+def test_post_fit_names_each_app_limit():
+    from editor.versions import post_fit
+    assert post_fit("One habit doubled my posting.\n\nMore here.\n\n#a #b #c #d #e\n") == []
+    long = post_fit("x" * 2300 + "\n\n" + " ".join(f"#t{i}" for i in range(31)))
+    assert any("Instagram takes 2,200" in w for w in long) and any("31 hashtags" in w for w in long)
+    assert any("YouTube Shorts title" in w for w in long) and not any("TikTok" in w for w in long)
