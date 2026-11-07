@@ -584,7 +584,12 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
           onSeek={(v) => { setT(v); void player.current?.seek(v); }}
           onPreview={(draft) => { tlDraft.current = draft; if (!exportingRef.current) void mount(draft ?? version.edit, { t: player.current?.t ?? t }); }}
           onSave={async (edit, what) => { await saveManual(p, edit, what); setP({ ...p }); setMsgs((m) => [...m, { who: "ed", text: `Version ${p.current}: ${what}` }]); }}
-          onClose={() => { tlDraft.current = null; setTimeline(false); }} />
+          onClose={() => { tlDraft.current = null; setTimeline(false); }}
+          onThumbs={async (times) => {
+            const pl = player.current;
+            if (!pl || playing || recording || exportingRef.current) return null;      // never stop playback or an export for these
+            return pl.frames(times, 120);
+          }} />
       )}
       <div className={`ed-grid ${shape.w > shape.h ? "wide" : ""}`}>
         <div className="preview">

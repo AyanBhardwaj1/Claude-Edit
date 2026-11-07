@@ -3,7 +3,7 @@
 // demos...) with your own AI, and tells you in plain words what's happening while a video, music or an export is made.
 import { useEffect, useRef, useState } from "react";
 import { aiReady, AiError } from "@/lib/ai";
-import { askCoach, coachContext, KINDS, loadChat, loadCreator, saveChat, saveCreator, starters, type Activity, type Chat,
+import { askCoach, coachContext, creatorFormat, creatorRules, KINDS, loadChat, loadCreator, saveChat, saveCreator, starters, type Activity, type Chat,
   type Creator, type Kind } from "@/lib/assistant";
 import { listProjects, loadRules } from "@/lib/store";
 import type { Project, Settings } from "@/lib/types";
@@ -127,6 +127,12 @@ export function Assistant({ settings, screen, project, onSettings }: { settings:
             For {KINDS.filter((k) => creator!.kinds.includes(k.id)).map((k) => k.label).join(", ")}
             {creator!.goal && <>, aiming for {creator!.goal}</>}. <button type="button" className="linkish" onClick={() => setEditing(true)}>Change</button>
           </p>
+          <details className="coach-style">
+            <summary className="small">How your edits adapt to this</summary>
+            <ul className="small">{creatorRules(creator).map((r) => <li key={r.id}>{r.text}</li>)}
+              {creatorFormat(creator) && <li>New videos start in 16:9.</li>}</ul>
+            <p className="small muted">The AI editor follows these in every edit, with your own rules in My style.</p>
+          </details>
           <div className="coach-log" ref={log}>
             {!chat.length && <p className="small muted">Ask me anything about editing or making videos: ideas, hooks, pacing, demos, growing an audience.
               {plan && " With your plan, each answer goes through the copy-and-paste window."}</p>}

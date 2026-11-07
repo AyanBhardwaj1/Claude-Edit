@@ -957,3 +957,10 @@ label.btn:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; 
   .coach-bubble { right: 14px; bottom: calc(130px + env(safe-area-inset-bottom)); }
   .coach-fab.on { display: none; }
 }
+.tl-clip.pic { background-size: auto 100%; background-repeat: repeat-x; background-position: left center; }
+.tl-clip.pic span { align-self: stretch; display: flex; align-items: flex-end; padding-bottom: 2px; color: #fff; text-shadow: 0 1px 2px #000c;
+  background: linear-gradient(transparent 30%, #000a); }
+.tl-track.video .tl-clip { top: 6px; height: 38px; }
+.coach-style { padding: 8px 12px; border-radius: var(--r-md); background: var(--surface-2); }
+.coach-style summary { cursor: pointer; color: var(--ink-2); }
+.coach-style ul { margin: 8px 0 6px; padding-left: 18px; display: grid; gap: 6px; line-height: 1.45; color: var(--ink); }
