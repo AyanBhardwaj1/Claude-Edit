@@ -1119,8 +1119,12 @@ def cmd_habits(args):
     from .fit import _duration
     speed = float(edl.get("speed", 1.0) or 1.0)
     before = _duration(edl.get("segments", []), speed)
-    edl["segments"] = cut(edl.get("segments", []), words, [h for f in found for h in f["hits"]])
-    after = _duration(edl["segments"], speed)
+    segs = cut(edl.get("segments", []), words, [h for f in found for h in f["hits"]])
+    after = _duration(segs, speed)
+    if not segs or after < 0.5:   # a take that is nothing but "you know, like": cutting it leaves no video
+        raise EditorError("habits: cutting those would leave almost nothing of the video, so the EDL is unchanged: "
+                          "use --only to pick the words to cut")
+    edl["segments"] = segs
     save_json(edl_path, edl)
     log(f"habits: cut {sum(len(f['hits']) for f in found)} ({before - after:.1f} s) from {edl_path}: re-run from cut")
     return 0

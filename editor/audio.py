@@ -15,6 +15,7 @@ Realism:
 from __future__ import annotations
 
 import json
+import math
 import re
 import subprocess
 import wave
@@ -113,10 +114,15 @@ def master(src: str | Path, out: str | Path, preset: str = "phone", target_lufs:
                    f"{graph},loudnorm=I={target_lufs}:TP={true_peak}:LRA=11:print_format=json[out]",
                    "-map", "[out]", "-f", "null", "-"], quiet=False)
     m = _loudnorm_json(measure.stderr)
-    # pass 2: apply linear normalisation using the measured values
-    ln = (f"loudnorm=I={target_lufs}:TP={true_peak}:LRA=11:measured_I={m['input_i']}:"
-          f"measured_TP={m['input_tp']}:measured_LRA={m['input_lra']}:measured_thresh={m['input_thresh']}:"
-          f"offset={m['target_offset']}:linear=true:print_format=json")
+    # pass 2: apply linear normalisation using the measured values; a silent take measures -inf, which loudnorm
+    # refuses as an input, so it gets the one-pass filter (nothing to raise anyway)
+    if all(_finite(m.get(f)) for f in ("input_i", "input_tp", "input_lra", "input_thresh", "target_offset")):
+        ln = (f"loudnorm=I={target_lufs}:TP={true_peak}:LRA=11:measured_I={m['input_i']}:"
+              f"measured_TP={m['input_tp']}:measured_LRA={m['input_lra']}:measured_thresh={m['input_thresh']}:"
+              f"offset={m['target_offset']}:linear=true:print_format=json")
+    else:
+        log("audio: the cut is silent (no voice to measure): loudness left as is; check the take has sound")
+        ln = f"loudnorm=I={target_lufs}:TP={true_peak}:LRA=11:print_format=json"
     out = Path(out)
     applied = run(["ffmpeg", "-y", *inputs, "-filter_complex", f"{graph},{ln},aresample=48000[out]",
                    "-map", "[out]", "-t", f"{duration:.3f}", "-c:a", "pcm_s24le", out], quiet=False)
@@ -216,6 +222,13 @@ def measure_loudness(path: str | Path) -> dict:
     proc = run(["ffmpeg", "-i", str(path), "-map", "0:a:0", "-af", "loudnorm=print_format=json",
                 "-f", "null", "-"], quiet=False)
     return _loudnorm_json(proc.stderr)
+
+
+def _finite(v) -> bool:
+    try:
+        return math.isfinite(float(v))
+    except (TypeError, ValueError):
+        return False
 
 
 def _loudnorm_json(stderr: str) -> dict:
