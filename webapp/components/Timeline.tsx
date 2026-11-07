@@ -12,9 +12,9 @@ type Sel = { kind: "clip"; k: number } | { kind: LayerKind; i: number } | null;
 const GUT = 76;                         // px before 0:00, for the track names
 const clock = (t: number) => `${Math.floor(t / 60)}:${(t % 60).toFixed(1).padStart(4, "0")}`;
 
-export function Timeline({ project: p, edit, t, onSeek, onPreview, onSave, onClose, onThumbs }: { project: Project; edit: Edit; t: number;
+export function Timeline({ project: p, edit, t, onSeek, onPreview, onSave, onClose, onThumbs, onPlay }: { project: Project; edit: Edit; t: number;
   onSeek: (t: number) => void; onPreview: (e: Edit | null) => void; onSave: (e: Edit, what: string) => void; onClose: () => void;
-  onThumbs?: (times: number[]) => Promise<string[] | null> }) {
+  onThumbs?: (times: number[]) => Promise<string[] | null>; onPlay?: () => void }) {
   // onPreview(draft) also tells the editor there are unsaved changes (null: none), so export and compare wait for a save
   const [draft, setDraft] = useState<Edit>(() => structuredClone(edit));
   const [past, setPast] = useState<Edit[]>([]);
@@ -25,12 +25,12 @@ export function Timeline({ project: p, edit, t, onSeek, onPreview, onSave, onClo
   const [typing, setTyping] = useState<string | null>(null);   // the "Add text" box, open with what's typed
   const [drag, setDrag] = useState<{ kind: "move" | "from" | "to"; k: number; x0: number; dx: number } | null>(null);
   const [base, setBase] = useState(edit);
-  if (base !== edit) { setBase(edit); setDraft(structuredClone(edit)); setPast([]); setFuture([]); setSel(null); }   // a new version from outside
+  const [thumbs, setThumbs] = useState<Record<string, string>>({});
+  if (base !== edit) { setBase(edit); setDraft(structuredClone(edit)); setPast([]); setFuture([]); setSel(null); setThumbs({}); }   // a new version from outside
   const tl = useMemo(() => buildTimeline(p.words, draft, p.sources.map((s) => s.duration)), [p.words, p.sources, draft]);
   const clips = useMemo(() => clipsOf(p, draft, tl), [p, draft, tl]);
   // a frame from each clip, drawn on it: by what the clip shows (its words), so moving a clip keeps its picture
-  const [thumbs, setThumbs] = useState<Record<string, string>>({});
-  const thumbKey = (c: { from: string; to: string }) => `${c.from}-${c.to}`;
+  const thumbKey = (c: { from: string; to: string }) => `${p.format ?? "9:16"}:${c.from}-${c.to}`;   // a new shape draws them again
   useEffect(() => {
     if (!onThumbs || drag) return;
     const want = clips.filter((c) => !thumbs[thumbKey(c)]).slice(0, 12);
@@ -39,7 +39,10 @@ export function Timeline({ project: p, edit, t, onSeek, onPreview, onSave, onClo
     const id = setTimeout(async () => {                 // after the preview has the new cut (it remounts on each change)
       try {
         const urls = await onThumbs(want.map((c) => (c.start + c.end) / 2));
-        if (live && urls) setThumbs((m) => ({ ...m, ...Object.fromEntries(want.map((c, i) => [thumbKey(c), urls[i]])) }));
+        if (live && urls) setThumbs((m) => {
+          const now = new Set(clips.map(thumbKey));                 // only the clips there are now: trims and splits leave old ones
+          return Object.fromEntries([...Object.entries(m).filter(([k]) => now.has(k)), ...want.map((c, i) => [thumbKey(c), urls[i]])]);
+        });
       } catch { /* the player was busy (playing, exporting): no pictures this time */ }
     }, 900);
     return () => { live = false; clearTimeout(id); };
@@ -47,6 +50,12 @@ export function Timeline({ project: p, edit, t, onSeek, onPreview, onSave, onClo
   const changed = JSON.stringify(draft) !== JSON.stringify(edit);
   const width = Math.max(600, Math.ceil(tl.duration * pps) + GUT + 24);
   const box = useRef<HTMLDivElement>(null);
+  // the playhead stays in view as the video plays (or when it's moved off screen)
+  useEffect(() => {
+    const el = box.current; if (!el || drag) return;
+    const x = GUT + t * pps;
+    if (x < el.scrollLeft + GUT || x > el.scrollLeft + el.clientWidth - 40) el.scrollLeft = Math.max(0, x - el.clientWidth / 3);
+  }, [t, pps, drag]);
 
   // the player previews the draft; leaving the timeline puts the saved version back
   const preview = useRef(onPreview);
@@ -86,6 +95,11 @@ export function Timeline({ project: p, edit, t, onSeek, onPreview, onSave, onClo
     else if ((ev.key === "Delete" || ev.key === "Backspace") && sel) { ev.preventDefault(); ev.stopPropagation(); remove(); }
     else if ((ev.key === "ArrowLeft" || ev.key === "ArrowRight") && sel) { ev.preventDefault(); ev.stopPropagation(); move(ev.key === "ArrowLeft" ? -1 : 1); }
     else if (ev.key === "Escape") { setSel(null); }
+    else if (ev.key === " " && !(ev.target as HTMLElement).closest("button, select")) { ev.preventDefault(); ev.stopPropagation(); onPlay?.(); }
+    else if ((ev.key === "ArrowLeft" || ev.key === "ArrowRight") && !sel) {      // nothing selected: the arrows move the playhead
+      ev.preventDefault(); ev.stopPropagation();
+      onSeek(Math.max(0, Math.min(tl.duration, t + (ev.key === "ArrowLeft" ? -1 : 1) * (ev.shiftKey ? 5 : 1))));
+    }
   }
 
   const seekAt = (clientX: number) => {
@@ -165,14 +179,17 @@ export function Timeline({ project: p, edit, t, onSeek, onPreview, onSave, onClo
       {sel && sel.kind === "broll" && draft.broll[sel.i]?.treatment === "text-pop" && (
         <div className="row tl-text">
           <label htmlFor="tl-text-edit" className="small">Selected text</label>
-          <input id="tl-text-edit" key={`${sel.i}-${draft.broll[sel.i].id}`} className="input" maxLength={80} defaultValue={draft.broll[sel.i].text ?? ""}
+          <input id="tl-text-edit" key={`${sel.i}-${draft.broll[sel.i].id}-${draft.broll[sel.i].text}`} className="input" maxLength={80} defaultValue={draft.broll[sel.i].text ?? ""}
             onKeyDown={(ev) => { if (ev.key === "Enter") { ev.preventDefault(); apply(setText(draft, sel.i, (ev.target as HTMLInputElement).value), "change the text"); } }}
             onBlur={(ev) => { const n = setText(draft, sel.i, ev.target.value); if (n) apply(n, "change the text"); }} />
         </div>
       )}
       <div className="tl-scroll" ref={box} tabIndex={0} aria-label="Timeline tracks: S splits, Delete deletes, arrows move the selection"
         onPointerMove={onMove} onPointerUp={endDrag} onPointerCancel={() => setDrag(null)}>
-        <div className="tl-inner" style={{ width }}>
+        <div className="tl-inner" style={{ width }} onPointerDown={(e) => {   // a click on an empty bit of a track moves the playhead
+          const el = e.target as HTMLElement;
+          if (el.classList.contains("tl-track") || el.classList.contains("tl-inner")) { seekAt(e.clientX); setSel(null); box.current?.focus({ preventScroll: true }); }
+        }}>
           <div className="tl-ruler" onPointerDown={(e) => seekAt(e.clientX)}>
             {ticks.map((x) => <span key={x} style={{ left: GUT + x * pps }}>{clock(x).replace(/\.0$/, "")}</span>)}
           </div>

@@ -203,7 +203,9 @@ vertical reel with a cover and a post caption, then change it by typing notes. E
     ← →, trim a clip's ends by dragging its edges or one word at a time, add a text card at the playhead (and edit
     its words), nudge pictures and zooms, subtitles on/off, the music level, undo / redo (Ctrl/⌘+Z,
     Ctrl/⌘+Shift+Z), zoom the timeline. Everything snaps to whole words, so subtitles and pictures stay on their words;
-    changes preview live and "Save as a new version" keeps them (`lib/cutline.ts`, `components/Timeline.tsx`).
+    changes preview live and "Save as a new version" keeps them. Each clip shows a frame from its moment; Space plays,
+    ← / → move the playhead when nothing is selected, a click on a track seeks, and the view follows playback
+    (`lib/cutline.ts`, `components/Timeline.tsx`).
 
 ## Privacy and keys
 - Videos never leave the browser: they're processed on the user's computer and kept in IndexedDB.

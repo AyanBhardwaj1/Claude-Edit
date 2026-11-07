@@ -24,6 +24,8 @@ export class Player {
   scene!: Scene;
   t = 0;
   playing = false;
+  private disposed = false;                     // replaced by a new player: it must not draw on the shared canvas
+  private grab: Promise<unknown> | null = null;  // frames() in progress: play() waits for it
   onTime?: (t: number) => void;
   onEnd?: () => void;
   private g: CanvasRenderingContext2D;
@@ -149,6 +151,7 @@ export class Player {
   }
 
   async play(from = this.t) {
+    if (this.grab) await this.grab.catch(() => undefined);           // thumbnails being drawn: let them finish first
     if (!this.tl.segments.length) { this.onEnd?.(); return; }      // every word cut: nothing to play
     this.ensureAudio();
     await this.ctx!.resume();
@@ -318,6 +321,7 @@ export class Player {
 
   /** Draw one exact frame (paused): for scrubbing, the cover and still checks. */
   async drawAt(t: number) {
+    if (this.disposed) return;
     let k = this.tl.segments.findIndex((s) => t >= s.outStart && t < s.outEnd);
     if (k < 0) k = t > 0 ? this.tl.segments.length - 1 : 0;          // the very end is the last segment's last frame
     const s = this.tl.segments[k];
@@ -375,6 +379,13 @@ export class Player {
   /** Small clean frames (no subtitles or pictures, as the cover is drawn) at these output times, as image URLs: the
    *  cover picker's choices. The frame on screen is put back after. */
   async frames(times: number[], width = 180): Promise<string[]> {
+    if (this.disposed) return [];
+    const run = this.framesNow(times, width);
+    this.grab = run;
+    try { return await run; } finally { if (this.grab === run) this.grab = null; }
+  }
+
+  private async framesNow(times: number[], width: number): Promise<string[]> {
     if (this.playing) this.pause();
     const saved = this.scene, at = this.t;
     const small = document.createElement("canvas");
@@ -421,6 +432,7 @@ export class Player {
   }
 
   dispose() {
+    this.disposed = true;
     this.pause();
     const ctx = this.ctx;
     this.ctx = undefined;

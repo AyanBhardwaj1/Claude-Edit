@@ -585,10 +585,12 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
           onPreview={(draft) => { tlDraft.current = draft; if (!exportingRef.current) void mount(draft ?? version.edit, { t: player.current?.t ?? t }); }}
           onSave={async (edit, what) => { await saveManual(p, edit, what); setP({ ...p }); setMsgs((m) => [...m, { who: "ed", text: `Version ${p.current}: ${what}` }]); }}
           onClose={() => { tlDraft.current = null; setTimeline(false); }}
+          onPlay={() => void toggle()}
           onThumbs={async (times) => {
             const pl = player.current;
-            if (!pl || playing || recording || exportingRef.current) return null;      // never stop playback or an export for these
-            return pl.frames(times, 120);
+            if (!pl || pl.playing || exportingRef.current) return null;      // the live state: never stop playback or an export
+            const urls = await pl.frames(times, 120);
+            return player.current === pl && urls.length === times.length ? urls : null;   // replaced meanwhile: those were the old cut
           }} />
       )}
       <div className={`ed-grid ${shape.w > shape.h ? "wide" : ""}`}>
