@@ -259,6 +259,13 @@ def main(argv=None):
     p.add_argument("--clips", action="store_true", help="write each take as a short clip to work/takes/ to watch them")
     p.add_argument("--apply", action="store_true", help="write the segments to edl.json; re-run from cut")
 
+    p = sub.add_parser("correct", help="fix a misheard word or phrase in the captions everywhere it's said (EDL captions.corrections)")
+    p.add_argument("work_dir")
+    p.add_argument("wrong", nargs="?", help='what the captions show, e.g. "Clawed" or "pay pal"')
+    p.add_argument("right", nargs="?", help='what was said, e.g. "Claude" or "PayPal"')
+    p.add_argument("--list", action="store_true", help="show the corrections")
+    p.add_argument("--remove", metavar="WRONG", help="drop the correction for this")
+
     p = sub.add_parser("habits", help="words said out of habit (basically, literally, 'you know,'): count them, cut them")
     p.add_argument("work_dir")
     p.add_argument("--only", help="cut only these, comma-separated (e.g. basically,you know)")
@@ -1056,6 +1063,36 @@ def cmd_takes(args):
         edl["segments"] = segs
         save_json(edl_path, edl)
         log(f"takes: {edl_path} updated: re-run from cut; check anything placed by seconds")
+    return 0
+
+
+def cmd_correct(args):
+    """Caption corrections (applied at the captions stage, longest phrase first; see editor/wordfix.py)."""
+    from .wordfix import _bare
+    work = Path(args.work_dir)
+    edl_path = work / "edl.json"
+    edl = load_json(edl_path)
+    look = edl.setdefault("captions", {}) if isinstance(edl.get("captions", {}), dict) else {}
+    fixes = look.setdefault("corrections", [])
+    key = lambda t: " ".join(_bare(x) for x in str(t).split() if _bare(x))  # noqa: E731
+    if args.remove:
+        before = len(fixes)
+        fixes[:] = [c for c in fixes if key(c.get("from", "")) != key(args.remove)]
+        if len(fixes) == before:
+            raise EditorError(f"no correction for {args.remove!r} (editor correct {work} --list)")
+    elif args.wrong and args.right:
+        if not key(args.wrong):
+            raise EditorError("give the wrong word or phrase as the captions show it")
+        fixes[:] = [c for c in fixes if key(c.get("from", "")) != key(args.wrong)] + [{"from": args.wrong.strip(), "to": args.right.strip()}]
+    elif not args.list:
+        raise EditorError('give WRONG and RIGHT ("Clawed" "Claude"), or --list, or --remove WRONG')
+    if not args.list:
+        save_json(edl_path, edl)
+        log(f"correct: {len(fixes)} correction(s) in {edl_path}: re-run from captions")
+    for c in fixes:
+        print(f"  {c['from']!r} -> {c['to']!r}")
+    if not fixes:
+        print("no corrections")
     return 0
 
 
