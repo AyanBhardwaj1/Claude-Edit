@@ -10,8 +10,10 @@ export function postText(caption: string, hashtags: string[]): string {
   return [caption.trim(), hashtags.join(" ")].filter(Boolean).join("\n\n");
 }
 
-export function postFit(caption: string, hashtags: string[]): { fits: Fit[]; shown: string; cut: boolean } {
-  const all = postText(caption, hashtags);
+/** `full` is the text that is copied and shared (lib/edit.ts postText: caption, photo credits, hashtags); without it,
+ *  the caption and hashtags alone. */
+export function postFit(caption: string, hashtags: string[], full?: string): { fits: Fit[]; shown: string; cut: boolean } {
+  const all = full ?? postText(caption, hashtags);
   const n = [...all].length;                                        // characters as people count them (emoji are one)
   const first = caption.trim().split("\n")[0] ?? "";
   const titleLen = [...first].length;

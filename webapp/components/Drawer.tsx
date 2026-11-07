@@ -16,6 +16,8 @@ import { crutches, cutWords, findWords, restoreWords } from "@/lib/crutch";
 import { applyFit, FIT_TARGETS, planFit, repeats } from "@/lib/fit";
 import { unsureWords } from "@/lib/unsure";
 import { postFit } from "@/lib/postfit";
+import { postText as sharedText } from "@/lib/edit";
+import { lookOf, lookSummary, wears, withLook, type Look as MyLook } from "@/lib/look";
 import type { Asset, Broll, BrollIn, CaptionAnim, CaptionPreset, Edit, Look, Motion, Project, Range, Settings, Transition } from "@/lib/types";
 
 const ANIM_NAME: Record<CaptionAnim, string> = { pop: "Pop", karaoke: "Karaoke", bounce: "Bounce", words: "Word by word", typewriter: "Typewriter",
@@ -36,9 +38,9 @@ const PRESETS: [CaptionPreset, string][] = [["studio", "Studio"], ["bold", "Bold
 
 type Scan = { key: string; name: string; pct: number } | null;
 
-export function Drawer({ project: p, edit, onApply, settings, onMakeMusic, onWords, scan = null, onFindWaits, onStopScan, onClip }: { project: Project; edit: Edit;
+export function Drawer({ project: p, edit, onApply, settings, onMakeMusic, onWords, scan = null, onFindWaits, onStopScan, onClip, onSaveLook }: { project: Project; edit: Edit;
   onApply: (e: Edit, what: string) => void; settings?: Settings; onMakeMusic?: () => void; onWords?: () => void;
-  scan?: Scan; onFindWaits?: (key: string) => void; onStopScan?: () => void; onClip?: () => void }) {
+  scan?: Scan; onFindWaits?: (key: string) => void; onStopScan?: () => void; onClip?: () => void; onSaveLook?: (l: MyLook) => void }) {
   const [tab, setTab] = useState<(typeof TABS)[number]>("Cut");
   const [e, setE] = useState<Edit>(() => structuredClone(edit));
   const [tagsText, setTagsText] = useState<string | null>(null);   // hashtags as typed, until the field is left
@@ -263,7 +265,7 @@ export function Drawer({ project: p, edit, onApply, settings, onMakeMusic, onWor
           <div className="field"><span className="label">Style</span>{opt(e.captions.preset, PRESETS, (v) => cap(v === "boxed" && e.captions.preset !== "boxed" ? { preset: v, ...BOXED_DEFAULTS } : { preset: v }), "Subtitle style")}</div>
           <div className="field"><span className="label">Size</span>{opt(e.captions.size, [[84, "Small"], [105, "Medium"], [126, "Big"]], (v) => cap({ size: v }), "Size")}</div>
           <div className="field"><span className="label">Position</span>{opt(e.captions.position, [[0.66, "Higher"], [0.75, "Lower"]], (v) => cap({ position: v }), "Position")}</div>
-          {e.captions.preset !== "boxed" && <div className="field"><span className="label">Words at a time</span>
+          {e.captions.preset !== "boxed" && !e.translation && <div className="field"><span className="label">Words at a time</span>
             {opt(e.captions.maxWords, [[1, "1"], [2, "2"], [3, "3"], [4, "4"]], (v) => cap({ maxWords: v }), "Words at a time")}
             <span className="hint">One word at a time hits hardest on short reels; three or four read calmer on longer ones.</span></div>}
           <div className="field">
@@ -491,7 +493,7 @@ export function Drawer({ project: p, edit, onApply, settings, onMakeMusic, onWor
             <span className="hint num">{e.post.hashtags.length} of 5</span>
           </div>
           {(() => {
-            const f = postFit(e.post.caption, e.post.hashtags);
+            const f = postFit(e.post.caption, e.post.hashtags, sharedText(p, e));        // exactly what Copy caption copies
             return (
               <div className="field"><span className="label" id="fit-apps-h">Fits each app</span>
                 <ul className="fit-apps" aria-labelledby="fit-apps-h">
@@ -506,6 +508,16 @@ export function Drawer({ project: p, edit, onApply, settings, onMakeMusic, onWor
         </>)}
       </div>
 
+      {onSaveLook && (
+        <div className="look-row" role="group" aria-label="My look">
+          <span className="small grow"><b>My look</b>{" "}
+            <span className="muted">{settings?.look ? (wears(e, settings.look) ? "This video wears it." : lookSummary(settings.look))
+              : "Save this video's subtitles, motion and pace, and every new video starts with them."}</span></span>
+          {settings?.look && !wears(e, settings.look) && <button type="button" className="btn sm" onClick={() => setE(withLook(e, settings.look!))}>Use my look</button>}
+          {!(settings?.look && wears(e, settings.look)) && <button type="button" className="btn ghost sm" onClick={() => onSaveLook(lookOf(e))}>
+            {settings?.look ? "Save this as my look" : "Save as my look"}</button>}
+        </div>
+      )}
       <div className="drawer-foot">
         <span className="small faint grow">{changed ? "You changed something." : "Nothing changed yet."}</span>
         <button className="btn ghost" disabled={!changed} onClick={() => setE(structuredClone(edit))}>Undo</button>

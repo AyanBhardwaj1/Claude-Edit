@@ -11,3 +11,10 @@ test("a note pointing at what's on screen gets the playhead's time; others stay 
   assert.equal(pinToPlayhead("cut this", 0, 30), "cut this");                                       // at the start
   assert.equal(pinToPlayhead("Is this better?", 30, 30), "Is this better?");                        // at the end
 });
+
+test("notes about the whole video aren't pinned to a moment", () => {
+  for (const n of ["this video is great", "make this whole thing faster", "now make the music quieter overall", "I love how this turned out", "here's my idea for the hook"])
+    assert.equal(pinToPlayhead(n, 30, 90), n, n);
+  for (const n of ["cut this", "logo here", "this part drags", "zoom in on this", "too loud right now", "bleep that"])
+    assert.notEqual(pinToPlayhead(n, 30, 90), n, n);
+});

@@ -181,6 +181,10 @@ vertical reel with a cover and a post caption, then change it by typing notes. E
     (`lib/postfit.ts`).
 50. **Words at a time**: Subtitles → 1, 2, 3 or 4 words on screen at once (one word at a time hits hardest on short
     reels).
+51. **My look**: Edit it myself → Save as my look keeps this video's subtitles, motion (animations, transitions, colour
+    look) and pace (pauses, talking speed, music level). Every new video starts with it, and Use my look puts it on any
+    older one; what's said, cut and shown stays each video's own. It's part of Settings, so it follows the account
+    (`lib/look.ts`).
 
 ## Privacy and keys
 - Videos never leave the browser: they're processed on the user's computer and kept in IndexedDB.

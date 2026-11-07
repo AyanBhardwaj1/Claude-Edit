@@ -18,3 +18,8 @@ test("too long, too many hashtags, a long first line: each says which app and wh
   assert.equal(r.cut, true);
   assert.equal(postFit("🎬".repeat(10), []).fits[0].text, "10 of 2,200 characters");   // an emoji counts as one
 });
+
+test("the count is of the text that's shared, credits included", () => {
+  const r = postFit("x".repeat(2150), ["#a"], "x".repeat(2150) + "\n\nPhoto credits: " + "y".repeat(80) + "\n\n#a");
+  assert.equal(r.fits[0].ok, false);
+});

@@ -246,9 +246,11 @@ export async function firstEdit(s: Settings, p: Project, rules: StyleRule[], cho
   return (await callJson(s, SYSTEM.replace("{{rules}}", rulesText(rules)), user, EDIT_SCHEMA as unknown as Json, "submit_edit", choice)) as AiEdit;
 }
 
-export async function applyNote(s: Settings, p: Project, current: Edit, note: string, rules: StyleRule[], choice?: AiChoice): Promise<AiEdit> {
+export async function applyNote(s: Settings, p: Project, current: Edit, note: string, rules: StyleRule[], choice?: AiChoice,
+  whereSent?: string): Promise<AiEdit> {
   const cur = toAiShape(current);
-  const where = momentsText(buildTimeline(p.words, current, p.sources.map((x) => x.duration)), current, note);
+  // the moments as they were when the note was sent (a queued note's times belong to the version the user watched)
+  const where = whereSent ?? momentsText(buildTimeline(p.words, current, p.sources.map((x) => x.duration)), current, note);
   const user = `${APPLY_NOTE(note)}${where ? `\n\nWHERE THE NOTE POINTS (times are in the edited video as the user watched it):\n${where}` : ""}` +
     `\n\nCURRENT EDIT:\n${JSON.stringify(cur)}\n\n${transcriptText(p)}`;
   return (await callJson(s, SYSTEM.replace("{{rules}}", rulesText(rules)), user, EDIT_SCHEMA as unknown as Json, "submit_edit", choice)) as AiEdit;
