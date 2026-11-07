@@ -179,6 +179,8 @@ vertical reel with a cover and a post caption, then change it by typing notes. E
 49. **Fits each app**: the Post tab checks the caption and hashtags against Instagram (2,200 characters, 30 hashtags),
     TikTok (4,000) and a YouTube Shorts title (the first line, 100), and shows what Instagram shows before "…more"
     (`lib/postfit.ts`).
+50. **Words at a time**: Subtitles → 1, 2, 3 or 4 words on screen at once (one word at a time hits hardest on short
+    reels).
 
 ## Privacy and keys
 - Videos never leave the browser: they're processed on the user's computer and kept in IndexedDB.

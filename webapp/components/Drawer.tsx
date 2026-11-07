@@ -263,6 +263,9 @@ export function Drawer({ project: p, edit, onApply, settings, onMakeMusic, onWor
           <div className="field"><span className="label">Style</span>{opt(e.captions.preset, PRESETS, (v) => cap(v === "boxed" && e.captions.preset !== "boxed" ? { preset: v, ...BOXED_DEFAULTS } : { preset: v }), "Subtitle style")}</div>
           <div className="field"><span className="label">Size</span>{opt(e.captions.size, [[84, "Small"], [105, "Medium"], [126, "Big"]], (v) => cap({ size: v }), "Size")}</div>
           <div className="field"><span className="label">Position</span>{opt(e.captions.position, [[0.66, "Higher"], [0.75, "Lower"]], (v) => cap({ position: v }), "Position")}</div>
+          {e.captions.preset !== "boxed" && <div className="field"><span className="label">Words at a time</span>
+            {opt(e.captions.maxWords, [[1, "1"], [2, "2"], [3, "3"], [4, "4"]], (v) => cap({ maxWords: v }), "Words at a time")}
+            <span className="hint">One word at a time hits hardest on short reels; three or four read calmer on longer ones.</span></div>}
           <div className="field">
             <label htmlFor="case">Case</label>
             <select id="case" className="select" value={e.captions.textCase} onChange={(ev) => cap({ textCase: ev.target.value as Edit["captions"]["textCase"] })}>
