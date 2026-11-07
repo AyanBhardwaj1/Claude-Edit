@@ -273,18 +273,22 @@ function StudioEditor({ anim, settings, onBack, onVoice }: { anim: Anim; setting
   const [exp, setExp] = useState<{ pct: number; url?: string; ext?: string; still?: string; fast?: boolean; label?: string } | null>(null);
   const [fast, setFast] = useState<number | null>(null);
   const [shapes, setShapes] = useState<{ f: Format; url: string }[] | null>(null);
+  const shapesRef = useRef<{ f: Format; url: string }[]>([]);
+  useEffect(() => () => shapesRef.current.forEach((x) => URL.revokeObjectURL(x.url)), []);
   async function exportShapes() {
     setErr(""); setShapes(null);
     const urls = await urlsFor(a);
     const out: { f: Format; url: string }[] = [];
+    shapesRef.current.forEach((x) => URL.revokeObjectURL(x.url));            // the last set of shapes is replaced
     try {
       for (const [i, f] of (Object.keys(FORMATS) as Format[]).entries()) {
         setExp({ pct: 0, fast: true, label: `${FORMATS[f].name} (${i + 1} of 4)` });
         const blob = await exportAnimFast({ ...a, format: f }, urls, (pct) => setExp((x) => ({ ...x!, pct })));
         out.push({ f, url: URL.createObjectURL(blob) });
       }
-      setShapes(out);
+      setShapes(out); shapesRef.current = out;
     } catch (e) { setErr((e as Error).message || "Exporting every shape didn't work in this browser."); }
+    finally { urls.forEach((u) => URL.revokeObjectURL(u)); }
     setExp(null);
   }
   const [busy, setBusy] = useState("");
@@ -344,8 +348,10 @@ function StudioEditor({ anim, settings, onBack, onVoice }: { anim: Anim; setting
       if (canFastExport()) {
         pl.pause();
         const t0 = performance.now();
-        try { out = { blob: await exportAnimFast(a, await urlsFor(a), (pct) => setExp((x) => ({ ...x!, pct, fast: true }))), ext: "mp4" }; }
+        const tmp = await urlsFor(a);
+        try { out = { blob: await exportAnimFast(a, tmp, (pct) => setExp((x) => ({ ...x!, pct, fast: true }))), ext: "mp4" }; }
         catch (e) { console.warn("fast export fell back to recording", e); }
+        finally { tmp.forEach((u) => URL.revokeObjectURL(u)); }
         if (out) setFast(+((dur * 1000) / (performance.now() - t0)).toFixed(1));
       }
       const { blob, ext } = out ?? await pl.record((pct) => setExp((x) => ({ ...x!, pct })));
@@ -376,6 +382,7 @@ function StudioEditor({ anim, settings, onBack, onVoice }: { anim: Anim; setting
   }
   /** Show the moment an app screen change matters: just after its punch-in lands (or a second in). */
   function peek(i: number, s: Scene) {
+    if (exp && exp.pct < 100) return;                       // a seek mid-recording jumps (or stalls) the export
     const start = a.scenes.slice(0, i).reduce((n, x) => n + x.duration, 0);
     const p = punchOf(s);
     player.current?.seek(start + Math.min(s.duration - 0.3, (p ? p.at + SCREEN.punchTime : 0.6) + 0.6));
@@ -410,7 +417,7 @@ function StudioEditor({ anim, settings, onBack, onVoice }: { anim: Anim; setting
             <span className="time">{clock(t)} / {clock(dur)}</span>
           </div>
           <div className="scene-strip" role="group" aria-label="Scenes">
-            {a.scenes.map((s, i) => <button key={s.id} className="chip" onClick={() => jump(i)} title={s.text}>{i + 1}. {KIND_NAME[s.kind]}</button>)}
+            {a.scenes.map((s, i) => <button key={s.id} className="chip" onClick={() => jump(i)} title={s.text} disabled={recording}>{i + 1}. {KIND_NAME[s.kind]}</button>)}
           </div>
         </div>
         <div className="ed-col">

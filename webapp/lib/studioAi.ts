@@ -90,8 +90,9 @@ export async function speak(key: string, text: string, voice: string): Promise<{
   return { blob, seconds: buf.duration };
 }
 
-/** Scene length with a voiceover: the voice plus a beat, never shorter than reading time. */
-export const voicedDuration = (s: Scene, seconds: number) => +Math.min(12, Math.max(readTime(s), seconds + 0.6)).toFixed(1);
+/** Scene length with a voiceover: the voice plus a beat (all of it, however long: a cut-off voice would run over the
+ *  next scene's), never shorter than reading time (up to 12 s). */
+export const voicedDuration = (s: Scene, seconds: number) => +Math.max(Math.min(12, readTime(s)), seconds + 0.6).toFixed(1);
 export { narration };
 
 /** A recap animation of a video: the AI (or the offline planner) turns what was said into scenes. */

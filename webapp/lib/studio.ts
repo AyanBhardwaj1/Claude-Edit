@@ -123,13 +123,46 @@ const NUM = /([$£€])?\s?(\d[\d,]*(?:\.\d+)?)\s?(%|hours?\b|hrs?\b|minutes?\b|
 const numPhrase = (u: string) => { const n = u.match(NUM); return n ? `${n[1] ?? ""}${n[2]}${n[3] ? (n[3] === "%" ? "%" : ` ${n[3]}`) : ""}` : null; };
 
 /** The no-AI planner: reads the text's shape (a short first line, bullet lists, numbers, "before / after", quotes). */
+const ABBR = new Set(["e.g.", "i.e.", "vs.", "mr.", "mrs.", "ms.", "dr.", "st.", "no.", "approx.", "fig.", "inc.", "ltd.", "co."]);
+
+/** One line's sentences: a break after . ! ? (and any closing quote) only before a space, and not after an abbreviation. */
+export function sentencesOf(line: string): string[] {
+  const out: string[] = [];
+  let cur: string[] = [];
+  for (const tok of line.split(/\s+/).filter(Boolean)) {
+    cur.push(tok);
+    if (/[.!?]["')\]”’]*$/.test(tok) && !ABBR.has(tok.toLowerCase().replace(/["')\]”’]+$/, ""))) { out.push(cur.join(" ")); cur = []; }
+  }
+  if (cur.length) out.push(cur.join(" "));
+  return out;
+}
+
+/** A sentence too long to read as one card (over 22 words) becomes cards of about 14 words, broken at a comma, a
+ *  semicolon or a dash where there is one. */
+export function chunkLong(sentence: string): string[] {
+  const words = sentence.split(/\s+/).filter(Boolean);
+  if (words.length <= 22) return [sentence];
+  const out: string[] = [];
+  let cur: string[] = [];
+  for (const w of words) {
+    cur.push(w);
+    const soft = /[,;:—–]$/.test(w) || w === "-";
+    if ((cur.length >= 10 && soft) || cur.length >= 16) { out.push(cur.join(" ")); cur = []; }
+  }
+  if (cur.length) {
+    if (cur.length < 4 && out.length) out[out.length - 1] += " " + cur.join(" ");   // no stray two-word card at the end
+    else out.push(cur.join(" "));
+  }
+  return out;
+}
+
 export function planScenes(text: string): Scene[] {
   const lines = text.replace(/\r/g, "").split(/\n+/).map((l) => l.trim()).filter(Boolean);
   const units: string[] = [];
   for (const l of lines) {
     if (/^([-*•]|\d+[.)])\s+/.test(l)) units.push(l);
-    // sentences end at . ! ?, but not at a decimal point ("2.25%", "$1,299.99", "version 2.0")
-    else units.push(...(l.match(/(?:[^.!?]|\.(?=\d))+[.!?]*/g) ?? [l]).map((x) => x.trim()).filter(Boolean));
+    // sentences end at . ! ? followed by a space: not inside "2.25%", "example.com" or "v2.0", nor after "e.g." or "Dr."
+    else units.push(...sentencesOf(l).flatMap(chunkLong));
   }
   const out: Scene[] = [];
   let i = 0;
