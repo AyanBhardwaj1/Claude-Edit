@@ -52,6 +52,9 @@ export function Timeline({ project: p, edit, t, onSeek, onPreview, onSave, onClo
   const changed = JSON.stringify(draft) !== JSON.stringify(edit);
   const width = Math.max(600, Math.ceil(tl.duration * pps) + GUT + 24);
   const box = useRef<HTMLDivElement>(null);
+  // Fit: the whole video in view (also how the timeline opens)
+  const fit = () => { const el = box.current; if (el && tl.duration > 0) setPps(Math.max(10, Math.min(160, Math.floor((el.clientWidth - GUT - 24) / tl.duration)))); };
+  useEffect(fit, []); // eslint-disable-line react-hooks/exhaustive-deps
   // the playhead stays in view as the video plays (or when it's moved off screen)
   useEffect(() => {
     const el = box.current; if (!el || drag) return;
@@ -181,6 +184,7 @@ export function Timeline({ project: p, edit, t, onSeek, onPreview, onSave, onClo
         <span className="grow" />
         <button type="button" className="btn ghost sm" onClick={undo} disabled={!past.length} aria-label="Undo" title="Undo (Ctrl/⌘+Z)"><Icon name="undo" /></button>
         <button type="button" className="btn ghost sm" onClick={redo} disabled={!future.length} aria-label="Redo" title="Redo (Ctrl/⌘+Shift+Z)"><span className="flip"><Icon name="undo" /></span></button>
+        <button type="button" className="btn ghost sm" onClick={fit} title="Show the whole video">Fit</button>
         <label className="tl-zoom small"><span className="sr-only">Zoom</span>
           <input type="range" min={10} max={160} step={5} value={pps} onChange={(e) => setPps(Number(e.target.value))} aria-label="Timeline zoom" /></label>
       </div>
