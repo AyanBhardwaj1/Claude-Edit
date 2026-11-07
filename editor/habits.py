@@ -45,7 +45,10 @@ def find(words: list[dict], segments: list[dict]) -> list[dict]:
         elif same_next and ((b == "you" and _bare(ws[i + 1]["text"]) == "know") or (b == "i" and _bare(ws[i + 1]["text"]) == "mean")):
             nxt = ws[i + 1]
             pause = i + 2 < len(ws) and ws[i + 2].get("src", 0) == nxt.get("src", 0) and ws[i + 2]["start"] - nxt["end"] > 0.25
-            if (_comma(nxt["text"]) or _end(nxt["text"]) or pause) and not (prev_on and _bare(ws[i - 1]["text"]) in _ASKS):
+            # ending a sentence counts only when it starts a clause of its own ("It's tough, you know."), not when it
+            # ends one ("And now you know.", "If you know, you know.")
+            own = not prev_on or (re.search(r"[,;.!?—–][\"')]*$", str(ws[i - 1]["text"]).strip()) and _bare(ws[i - 1]["text"]) != "know")
+            if (_comma(nxt["text"]) or pause or (_end(nxt["text"]) and own)) and not (prev_on and _bare(ws[i - 1]["text"]) in _ASKS):
                 found.setdefault("I mean" if b == "i" else "you know", []).append([i, i + 1])
     return [{"name": k, "hits": v} for k, v in sorted(found.items(), key=lambda kv: -len(kv[1]))]
 
