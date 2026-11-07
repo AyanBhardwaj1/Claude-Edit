@@ -28,7 +28,7 @@ export function Dashboard({ user, settings, theme, onNew, onOpen, onGo, onSample
   const [welcome, setWelcome] = useState(false);
   useEffect(() => { try { setWelcome(!localStorage.getItem(`cutmind.welcomed.${user.id}`)); } catch { /* storage blocked */ } }, [user.id]);
   const dismiss = () => { setWelcome(false); try { localStorage.setItem(`cutmind.welcomed.${user.id}`, "1"); } catch { /* storage blocked */ } };
-  const NEWS = `cutmind.news.2026-11f.${user.id}`;      // a new key: the panel shows again for what's new
+  const NEWS = `cutmind.news.2026-11g.${user.id}`;      // a new key: the panel shows again for what's new
   const [news, setNews] = useState(false);
   useEffect(() => { try { setNews(!localStorage.getItem(NEWS)); } catch { /* storage blocked */ } }, [NEWS]);
   const hideNews = () => { setNews(false); try { localStorage.setItem(NEWS, "1"); } catch { /* storage blocked */ } };
@@ -163,18 +163,17 @@ export function Dashboard({ user, settings, theme, onNew, onOpen, onGo, onSample
               <div className="panel-head"><h2 id="news-h">New in Cutmind</h2>
                 <button className="btn ghost icon sm" aria-label="Hide what's new" onClick={hideNews}>&times;</button></div>
               <ul className="setup news-list">
-                <li><span className="what grow"><b>Scroll test</b> (T): the first 3 seconds with the sound off, then what a scroller got, with
-                  one-click fixes and your strongest line to open with. <b>Loop test</b> (L) plays the end into the start.</span></li>
-                <li><span className="what grow"><b>Before you post</b>: every check in one line at export, with <b>Fix what I can</b> and the
-                  export&apos;s measured loudness (<b>Match loudness</b> brings it to about -14 LUFS).</span></li>
-                <li><span className="what grow"><b>Bleep</b> strong language, <b>show the logos</b> of apps you name, play the talk at{" "}
-                  <b>1.1-1.3×</b> with the pitch kept, and <b>test other hooks</b> as trial reels.</span></li>
-                <li><span className="what grow"><b>Pick a take</b>: said a line twice? <b>Hear</b> each take, then play the other one in its place,
-                  with its title and pictures. <b>Lines you say twice</b> in the cut are listed too. <b>Words you say out of habit</b> (&ldquo;basically&rdquo;, &ldquo;you know&rdquo;) cut in one click, <b>Find</b> any word,
-                  and <b>Fit to a length</b>: under 30, 45, 60 or 90 seconds, keeping your hook and ending.</span></li>
-                <li><span className="what grow"><b>YouTube chapters</b> for long wide videos: in the description and, if you like, on screen.</span></li>
-                <li><span className="what grow"><b>Make a copy</b> of a video to try something different without touching it.</span>
+                <li><span className="what grow"><b>Any AI account</b>: an Anthropic, OpenAI, <b>OpenRouter</b> (one key for Claude, GPT, Gemini, Llama…)
+                  or <b>Gemini</b> key, or <b>your Claude or ChatGPT plan</b> by copy and paste, no key at all.</span>
+                  <button className="btn sm" onClick={() => onGo("settings")}>Settings</button></li>
+                <li><span className="what grow"><b>My look</b>: save a video&apos;s subtitles, motion and pace once; every new video starts with them.</span></li>
+                <li><span className="what grow"><b>Notes that point</b>: &ldquo;cut this&rdquo; or &ldquo;logo here&rdquo; means the moment you&apos;re watching. And
+                  <b> words I wasn&apos;t sure I heard</b> to check and fix in the Subtitles tab.</span></li>
+                <li><span className="what grow"><b>Search what you said</b> across all your videos, <b>fits each app</b> in the Post tab, and subtitles
+                  <b> one word at a time</b>.</span>
                   <button className="btn sm" onClick={() => onGo("videos")}>My videos</button></li>
+                <li><span className="what grow"><b>Pick a take</b>, <b>words you say out of habit</b>, <b>lines you say twice</b> and <b>Fit to a
+                  length</b> in Edit it myself → Cut.</span></li>
               </ul>
             </section>
           )}

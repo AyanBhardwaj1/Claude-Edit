@@ -146,6 +146,11 @@ p { margin: 0; text-wrap: pretty; }
   font-size: 13px; cursor: pointer; transition: background-color .15s ease, color .15s ease; }
 .takes { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 10px; }
 .take-text { margin: 4px 2px 0; overflow-wrap: anywhere; }
+.cover-strip { display: grid; grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); gap: 8px; }
+.cover-strip button { display: grid; gap: 4px; justify-items: center; padding: 4px; border: 2px solid transparent; border-radius: var(--r-md);
+  background: var(--surface-2); color: var(--ink-2); cursor: pointer; }
+.cover-strip button[aria-pressed="true"] { border-color: var(--accent); color: var(--ink); }
+.cover-strip img { width: 100%; border-radius: calc(var(--r-md) - 4px); display: block; }
 .look-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 0; border-top: 1px solid var(--line); margin-top: 8px; }
 .fit-apps { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 4px; }
 .fit-apps li { display: flex; align-items: center; gap: 6px; font-size: 14px; }

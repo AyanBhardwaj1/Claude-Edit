@@ -1,6 +1,7 @@
 "use client";
+import { loadFont } from "@/lib/webfont";
 import { aiReady } from "@/lib/ai";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { indexOf } from "@/lib/timeline";
 import { parseTags } from "@/lib/text";
 import { BOXED_DEFAULTS, BROLL_INS, CAPTION_ANIMS, LOOKS, motionOf, TRANSITIONS } from "@/lib/edit";
@@ -38,9 +39,10 @@ const PRESETS: [CaptionPreset, string][] = [["studio", "Studio"], ["bold", "Bold
 
 type Scan = { key: string; name: string; pct: number } | null;
 
-export function Drawer({ project: p, edit, onApply, settings, onMakeMusic, onWords, scan = null, onFindWaits, onStopScan, onClip, onSaveLook }: { project: Project; edit: Edit;
+export function Drawer({ project: p, edit, onApply, settings, onMakeMusic, onWords, scan = null, onFindWaits, onStopScan, onClip, onSaveLook, onFrames }: { project: Project; edit: Edit;
   onApply: (e: Edit, what: string) => void; settings?: Settings; onMakeMusic?: () => void; onWords?: () => void;
-  scan?: Scan; onFindWaits?: (key: string) => void; onStopScan?: () => void; onClip?: () => void; onSaveLook?: (l: MyLook) => void }) {
+  scan?: Scan; onFindWaits?: (key: string) => void; onStopScan?: () => void; onClip?: () => void; onSaveLook?: (l: MyLook) => void;
+  onFrames?: () => Promise<{ id: string; url: string; at: number; word: string }[] | null> }) {
   const [tab, setTab] = useState<(typeof TABS)[number]>("Cut");
   const [e, setE] = useState<Edit>(() => structuredClone(edit));
   const [tagsText, setTagsText] = useState<string | null>(null);   // hashtags as typed, until the field is left
@@ -100,7 +102,12 @@ export function Drawer({ project: p, edit, onApply, settings, onMakeMusic, onWor
   const cutTl = useMemo(() => buildTimeline(p.words, e, p.sources.map((x) => x.duration)), [p.words, p.sources, e]);
   const length = cutTl.duration;
   const doubts = useMemo(() => unsureWords(cutTl, e.corrections), [cutTl, e.corrections]);
-  const [okWords, setOkWords] = useState<Set<string>>(new Set());          // "looks right": hidden for this session
+  const [okWords, setOkWords] = useState<Set<string>>(new Set());
+  const [covers, setCovers] = useState<{ id: string; url: string; at: number; word: string }[] | null>(null);
+  const [coverBusy, setCoverBusy] = useState(false);
+  const [coverMsg, setCoverMsg] = useState("");
+  const cutKey = JSON.stringify([e.keep, e.gapCap, e.speed]);
+  useEffect(() => { setCovers(null); }, [cutKey]);               // a changed cut moves the moments: draw them again          // "looks right": hidden for this session
   // words a minute as it plays (talking speed included), from the cut's spoken words over its length
   const wpm = useMemo(() => {
     const n = cutTl.words.filter((w) => w.w.trim()).length;
@@ -115,6 +122,11 @@ export function Drawer({ project: p, edit, onApply, settings, onMakeMusic, onWor
   const cap = (k: Partial<Edit["captions"]>) => setE({ ...e, captions: { ...e.captions, ...k } });
   const mo = motionOf(e);
   const mov = (k: Partial<Motion>) => setE({ ...e, motion: { ...mo, ...k } });
+
+  // one stable handler, so a click re-renders only the word it changed (a long video has thousands of word buttons)
+  const toggleRef = useRef<(id: string) => void>(() => undefined);
+  toggleRef.current = (id) => toggleWord(id);
+  const onToggleWord = useCallback((id: string) => toggleRef.current(id), []);
 
   function toggleWord(id: string) {
     const next = new Set(kept);
@@ -251,10 +263,8 @@ export function Drawer({ project: p, edit, onApply, settings, onMakeMusic, onWor
           </div>
           <div className="words" aria-label="Transcript">
             {p.words.map((w, i) => !w.w.trim() ? null : (
-              <span key={w.id}>
-                {i > 0 && (p.words[i - 1].src !== w.src || w.s - p.words[i - 1].e > 1) && <br />}
-                <button className={`w ${kept.has(w.id) ? "" : "cut"}${hit.has(w.id) ? " hit" : ""}`} aria-pressed={!kept.has(w.id)} onClick={() => toggleWord(w.id)}>{w.w}</button>{" "}
-              </span>
+              <WordButton key={w.id} id={w.id} text={w.w} cut={!kept.has(w.id)} hit={hit.has(w.id)} onToggle={onToggleWord}
+                br={i > 0 && (p.words[i - 1].src !== w.src || w.s - p.words[i - 1].e > 1)} />
             ))}
           </div>
         </>)}
@@ -300,7 +310,7 @@ export function Drawer({ project: p, edit, onApply, settings, onMakeMusic, onWor
           <div className="field">
             <label htmlFor="font">Font (any Google Font name)</label>
             <input id="font" className="input" value={e.captions.font} autoComplete="off" spellCheck={false} onChange={(ev) => cap({ font: ev.target.value })}
-              onBlur={(ev) => loadFont(ev.target.value)} />
+              onBlur={(ev) => void loadFont(ev.target.value)} />
           </div>
           {onWords && <ScriptFix project={p} onChange={onWords} />}
           {doubts.some((d) => !okWords.has(d.id)) && (
@@ -465,6 +475,30 @@ export function Drawer({ project: p, edit, onApply, settings, onMakeMusic, onWor
         </>)}
 
         {tab === "Cover" && (<>
+          {onFrames && (
+            <div className="field"><span className="label" id="cover-pick-h">Pick a frame</span>
+              {!covers?.length ? <>
+                <button type="button" className="btn sm" disabled={coverBusy} onClick={async () => {
+                  setCoverBusy(true); setCoverMsg("");
+                  try {
+                    const got = await onFrames();
+                    if (!got) setCoverMsg("Wait for the export to finish, then try again.");
+                    else if (!got.length) setCoverMsg("There's nothing said after the first second to pick from.");
+                    else setCovers(got);
+                  } finally { setCoverBusy(false); }
+                }}>{coverBusy ? <><span className="spin" />Drawing frames…</> : "Show frames to pick from"}</button>
+                {coverMsg && <span className="hint" role="status">{coverMsg}</span>}
+                {changed && <span className="hint">Frames are from the version playing: make a new version first to pick from these changes.</span>}
+              </>
+                : <div className="cover-strip" role="group" aria-labelledby="cover-pick-h">
+                  {covers.map((c) => (
+                    <button key={c.id} type="button" aria-pressed={e.cover.word === c.id} onClick={() => setE({ ...e, cover: { ...e.cover, word: c.id } })}
+                      aria-label={`Cover at ${formatTime(c.at)}, on “${c.word}”`}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={c.url} alt="" /><span className="small num">{formatTime(c.at)}</span></button>))}
+                </div>}
+            </div>
+          )}
           <div className="field">
             <label htmlFor="cover-word">The moment for your cover (pick a word)</label>
             <select id="cover-word" className="select" value={e.cover.word ?? ""} onChange={(ev) => setE({ ...e, cover: { ...e.cover, word: ev.target.value || null } })}>
@@ -564,10 +598,12 @@ function WaitsRow({ a, scan, onFind, onStop, onChange }: { a: Asset; scan: Scan;
   );
 }
 
-function loadFont(name: string) {
-  if (!name || document.querySelector(`link[data-font="${name}"]`)) return;
-  const l = document.createElement("link");
-  l.rel = "stylesheet"; l.dataset.font = name;
-  l.href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(name)}:wght@500;600;700;800;900&display=swap`;
-  document.head.appendChild(l);
-}
+const WordButton = memo(function WordButton({ id, text, cut, hit, br, onToggle }: { id: string; text: string; cut: boolean; hit: boolean; br: boolean;
+  onToggle: (id: string) => void }) {
+  return (
+    <span>
+      {br && <br />}
+      <button className={`w ${cut ? "cut" : ""}${hit ? " hit" : ""}`} aria-pressed={cut} onClick={() => onToggle(id)}>{text}</button>{" "}
+    </span>
+  );
+});

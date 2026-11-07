@@ -1037,7 +1037,17 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
             <section className="panel" aria-label="Edit it myself">
               <Drawer project={p} edit={version.edit} settings={settings} onMakeMusic={() => setMaker(true)} onWords={() => setP({ ...p })}
                 scan={scan} onFindWaits={findWaitsFor} onStopScan={stopScan}
-                onClip={() => { setP({ ...p }); void saveProject(p); }} onSaveLook={onSaveLook && ((l) => { onSaveLook(l); setToast("Saved as your look: new videos start with it"); })} onApply={async (edit, what) => { await saveManual(p, edit, what); setP({ ...p }); setMsgs((m) => [...m, { who: "ed", text: `Version ${p.current}: ${what}` }]); }} />
+                onClip={() => { setP({ ...p }); void saveProject(p); }} onSaveLook={onSaveLook && ((l) => { onSaveLook(l); setToast("Saved as your look: new videos start with it"); })}
+                onFrames={async () => {
+                  // the moments come from the version the player shows, so each frame is the word it's labelled with
+                  const pl = player.current; if (!pl || recording || exportingRef.current || (exp && exp.pct < 100)) return null;
+                  endRun(pl, false); setPlaying(false);           // drawing frames stops playback and any scroll or loop test
+                  const ws = pl.tl.words.filter((w) => w.w.trim() && w.os > 0.8);
+                  const n = Math.min(6, ws.length);
+                  const pick = Array.from({ length: n }, (_, k) => ws[Math.floor((k + 0.5) * ws.length / n)]);
+                  const urls = await pl.frames(pick.map((w) => (w.os + w.oe) / 2));
+                  return pick.map((w, k) => ({ id: w.id, url: urls[k], at: w.os, word: w.w }));
+                }} onApply={async (edit, what) => { await saveManual(p, edit, what); setP({ ...p }); setMsgs((m) => [...m, { who: "ed", text: `Version ${p.current}: ${what}` }]); }} />
             </section>
           )}
 

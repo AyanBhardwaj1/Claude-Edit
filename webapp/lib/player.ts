@@ -3,6 +3,7 @@
 // segment, so cuts land without a seek stall. Audio runs through Web Audio: a light voice clean-up, the song
 // set a measured gap under the voice, dipping under words and lifting in pauses, and a whoosh on picture entrances.
 
+import { loadFont } from "./webfont";
 import { buildScene, drawFrame, H, setFormat, W, type Scene } from "./compositor";
 import { LEVEL_GAP } from "./mix";
 import { clipTimeAt } from "./screenrec";
@@ -54,6 +55,7 @@ export class Player {
 
   async load() {
     await document.fonts.load(`900 100px Montserrat`).catch(() => undefined);
+    await loadFont(this.edit.captions.font);           // a look's or note's Google Font, on any device, before the first frame
     await document.fonts.load(`600 100px "${this.edit.captions.font}"`).catch(() => undefined);
     for (const a of this.project.library) {
       const url = this.urls.get(a.key);
@@ -359,6 +361,29 @@ export class Player {
       this.onTime = prevTime; this.onEnd = prevEnd;
     }
     return { blob: new Blob(chunks, { type: mime.split(";")[0] || "video/webm" }), ext: mime.includes("mp4") ? "mp4" : "webm" };
+  }
+
+  /** Small clean frames (no subtitles or pictures, as the cover is drawn) at these output times, as image URLs: the
+   *  cover picker's choices. The frame on screen is put back after. */
+  async frames(times: number[], width = 180): Promise<string[]> {
+    if (this.playing) this.pause();
+    const saved = this.scene, at = this.t;
+    const small = document.createElement("canvas");
+    small.width = width; small.height = Math.round(width * H / W);
+    const sg = small.getContext("2d")!;
+    const out: string[] = [];
+    try {
+      this.scene = { ...saved, cues: [], layers: [] };
+      for (const t of times) {
+        await this.drawAt(t);
+        sg.drawImage(this.canvas, 0, 0, small.width, small.height);
+        out.push(small.toDataURL("image/jpeg", 0.8));
+      }
+    } finally {
+      this.scene = saved;
+      await this.drawAt(at);
+    }
+    return out;
   }
 
   /** The cover: a frame at the chosen word with 1-3 big words on it. */
