@@ -138,7 +138,7 @@ export function Assistant({ settings, screen, project, onSettings }: { settings:
               {plan && " With your plan, each answer goes through the copy-and-paste window."}</p>}
             {chat.map((m, i) => (
               <div key={i} className={`coach-msg by-${m.who}`}>
-                <p>{m.text}</p>
+                <p>{m.who === "coach" ? rich(m.text) : m.text}</p>
                 {m.who === "coach" && i === chat.length - 1 && !!m.next?.length && (
                   <div className="chips">{m.next.map((n) => <button key={n} type="button" className="chip" onClick={() => void ask(n)}>{n}</button>)}</div>
                 )}
@@ -161,4 +161,11 @@ export function Assistant({ settings, screen, project, onSettings }: { settings:
       </aside>
     )}
   </>);
+}
+
+/** An answer's **bold** as bold, and "* " bullets as "• " (chats write a little Markdown); the rest as written. */
+function rich(text: string) {
+  const lines = text.replace(/^\s*[*-]\s+/gm, "• ");
+  return lines.split(/(\*\*[^*]+\*\*)/g).map((part, i) =>
+    /^\*\*[^*]+\*\*$/.test(part) ? <b key={i}>{part.slice(2, -2)}</b> : <span key={i}>{part.replace(/(^|\s)#{1,3}\s/g, "$1")}</span>);
 }
