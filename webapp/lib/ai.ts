@@ -17,6 +17,7 @@ export class AiError extends Error {
 
 type Json = Record<string, unknown>;
 import { askByRelay, fitAnswer, parseRelayAnswer } from "./relay";
+import { creatorRules } from "./assistant";
 import { keyOf, modelOf, PROVIDER_NAME, type KeyProvider } from "./keys";
 export type { KeyProvider } from "./keys";
 
@@ -241,7 +242,11 @@ export function clipLength(x: Asset): string {
 /** How a library item reads to the editor: screenshots and screen recordings are named as such (lib/framed.ts). */
 export const libKind = (x: Asset) => (x.screen ? (x.kind === "video" ? "screen recording" : "screenshot") : x.kind);
 
-const rulesText = (rules: StyleRule[]) => (rules.length ? rules.map((r) => `- ${r.text}`).join("\n") : "(none yet)");
+// your own rules, then the style for what you make (your creator profile, lib/assistant.ts)
+const rulesText = (rules: StyleRule[]) => {
+  const all = [...rules, ...creatorRules()];
+  return all.length ? all.map((r) => `- ${r.text}`).join("\n") : "(none yet)";
+};
 
 export async function firstEdit(s: Settings, p: Project, rules: StyleRule[], choice?: AiChoice, hint = ""): Promise<AiEdit> {
   const user = `${FIRST_EDIT}${hint ? ` ${hint}` : ""}\n\nVideo title: ${p.title}\n\n${transcriptText(p)}`;

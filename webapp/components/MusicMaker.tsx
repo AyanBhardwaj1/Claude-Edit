@@ -1,5 +1,6 @@
 "use client";
 // "Make music": compose an original, royalty-free bed fitted to the edit, preview it, and use it as the video's music.
+import { announce } from "@/lib/assistant";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { bedName, fitToVideo, KEY_NAMES, MOOD_IDS, MOODS, renderBed, suggestMood, type Bed, type Mood } from "@/lib/compose";
 import type { Asset, Project } from "@/lib/types";
@@ -59,7 +60,7 @@ export function MusicMaker({ project: p, length, wordsPerMinute, onUse, onClose 
     stop(); setErr(""); setBusy({ msg: "Writing the parts", pct: 1 });
     try {
       const bed = await renderBed({ length: fit.length, endChordAt: fit.endChordAt, mood, bpm, key },
-        (msg, pct) => setBusy({ msg, pct }));
+        (msg, pct) => { setBusy({ msg, pct }); announce(msg, pct); });
       const { channels, ...rest } = bed;
       setRes({ ...rest, url: URL.createObjectURL(bed.wav), peaks: peaksOf(channels) });
       setAt(0);

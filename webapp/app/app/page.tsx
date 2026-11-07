@@ -1,5 +1,7 @@
 "use client";
 import { Relay } from "@/components/Relay";
+import { Assistant } from "@/components/Assistant";
+import { announce } from "@/lib/assistant";
 import { aiReady } from "@/lib/ai";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Dashboard } from "@/components/Dashboard";
@@ -57,7 +59,7 @@ export default function App() {
     sampling.current = true;
     setLoading("Getting the sample video…");
     try {
-      const { project: p, summary: s } = await createSample((m) => setLoading(m === "Ready" ? "" : `${m}…`));
+      const { project: p, summary: s } = await createSample((m, pct) => { setLoading(m === "Ready" ? "" : `${m}…`); announce(m, pct ?? 0); });
       setProject(p); setSummary(s);
       history.replaceState(null, "", `#video/${encodeURIComponent(p.id)}`);
       setScreen("editor");
@@ -216,6 +218,7 @@ export default function App() {
               onClick={(e) => { e.preventDefault(); go(s); }}><Icon name={icon} />{label}</a>
           ))}
       </nav>
+      <Assistant settings={settings} screen={TITLES[screen]} project={screen === "editor" ? project : null} onSettings={() => go("settings")} />
       <Relay />
       <Command go={(h) => { location.hash = h; if (!h) void route(""); }} onTheme={pickTheme} onSample={sample}
         onEffort={(effort) => { const s = { ...settings, effort }; saveSettings(s); setSettings(s); }} />

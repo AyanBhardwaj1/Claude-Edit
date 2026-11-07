@@ -1,4 +1,6 @@
 "use client";
+import { announce } from "@/lib/assistant";
+import { Timeline } from "./Timeline";
 import type { Look } from "@/lib/look";
 import { aiReady } from "@/lib/ai";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -84,6 +86,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
   }, [note]);
   const [busy, setBusy] = useState("");
   const [drawer, setDrawer] = useState(false);
+  const [timeline, setTimeline] = useState(false);   // the timeline editor under the header (components/Timeline.tsx)
   const [exp, setExp] = useState<{ pct: number; video?: string; ext?: string; cover?: string; caption?: string; label?: string; srt?: string;
     lufs?: number; peak?: number } | null>(null);
   const [err, setErr] = useState("");
@@ -425,7 +428,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
         await mount(version.edit);
         const pl = player.current; if (!pl) break;
         setExp({ pct: 0, label: `${FORMATS[f].name} (${i + 1} of 4)` });
-        const { blob, ext } = await pl.record((pct) => setExp((x) => ({ ...x!, pct })));
+        const { blob, ext } = await pl.record((pct) => { setExp((x) => ({ ...x!, pct })); announce("Exporting", pct); });
         out.push({ f, url: URL.createObjectURL(blob), ext });
       }
     } catch (e) { setErr(String(e)); }
@@ -446,7 +449,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
         await mount(withHook(version.edit, text, buildTimeline(p.words, version.edit, p.sources.map((x) => x.duration))));
         const pl = player.current; if (!pl) break;
         setExp({ pct: 0, label: `Hook ${String.fromCharCode(66 + i)} (${i + 1} of ${texts.length})` });
-        const { blob, ext } = await pl.record((pct) => setExp((x) => ({ ...x!, pct })));
+        const { blob, ext } = await pl.record((pct) => { setExp((x) => ({ ...x!, pct })); announce("Exporting", pct); });
         out.push({ hook: text, url: URL.createObjectURL(blob), ext });
       }
     } catch (e) { setErr(String(e)); }
@@ -461,7 +464,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
     busyExport(true);
     setExp({ pct: 0 }); setPlaying(true);
     try {
-      const { blob, ext } = await pl.record((pct) => setExp((x) => ({ ...x!, pct })));
+      const { blob, ext } = await pl.record((pct) => { setExp((x) => ({ ...x!, pct })); announce("Exporting", pct); });
       lastBlob.current = blob;
       const cover = await pl.cover();
       setExp({ pct: 100, video: URL.createObjectURL(blob), ext, cover: URL.createObjectURL(cover),
@@ -556,12 +559,20 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
           } catch (e) { setErr((e as { userMessage?: string }).userMessage ?? String(e)); }
           setRecapBusy(false);
         }}>{recapBusy ? <><span className="spin" />Animating…</> : <><Icon name="wand" />Animated recap</>}</button>
+        <button className="btn" aria-pressed={timeline} disabled={!version || recording || cmp} onClick={() => setTimeline(!timeline)}><Icon name="film" />Timeline</button>
         <button className="btn" aria-pressed={drawer} onClick={() => setDrawer(!drawer)}><Icon name="scissors" />{drawer ? "Close the editor" : "Edit it myself"}</button>
         <button className="btn primary" onClick={exportVideo} disabled={recording || cmp} title={cmp ? "Go back to the current version to export it" : undefined}><Icon name="download" />Export</button>
       </div>
 
       {p.sample && <div className="alert info sample-note"><Icon name="spark" /><span>This is the sample: a drawn presenter and a computer voice, not a
         real person. Play it, open &ldquo;Edit it myself&rdquo;, change its shape and export it. Notes need an AI key in Settings.</span></div>}
+      {timeline && version && !recording && (
+        <Timeline project={p} edit={version.edit} t={t}
+          onSeek={(v) => { setT(v); void player.current?.seek(v); }}
+          onPreview={(draft) => { if (!exportingRef.current) void mount(draft ?? version.edit, { t: player.current?.t ?? t }); }}
+          onSave={async (edit, what) => { await saveManual(p, edit, what); setP({ ...p }); setMsgs((m) => [...m, { who: "ed", text: `Version ${p.current}: ${what}` }]); }}
+          onClose={() => setTimeline(false)} />
+      )}
       <div className={`ed-grid ${shape.w > shape.h ? "wide" : ""}`}>
         <div className="preview">
           <div className={`phone ${shape.w >= shape.h ? "flat" : ""} ${cmp ? "comparing" : ""}`}>{cmp && <span className="cmp-badge" role="status">Version {prevN}, before this change</span>}<div className="cv-wrap"><canvas ref={canvas} style={{ aspectRatio: `${shape.w} / ${shape.h}` }}
