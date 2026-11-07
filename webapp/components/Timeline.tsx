@@ -3,7 +3,7 @@
 // Split at the playhead, delete, reorder (drag or arrows), trim a clip's ends (drag its edges: they snap to whole
 // words), nudge pictures and zooms, undo / redo. Changes preview live in the player; "Save as a new version" keeps them.
 import { useEffect, useMemo, useRef, useState } from "react";
-import { addText, addZoom, clipsOf, deleteClip, deleteLayer, duplicateClip, moveClip, nudgeLayer, setText, splitAt, trimClip, trimToTime, type LayerKind } from "@/lib/cutline";
+import { addPicture, addText, addZoom, clipsOf, deleteClip, deleteLayer, duplicateClip, moveClip, nudgeLayer, setText, splitAt, trimClip, trimToTime, type LayerKind } from "@/lib/cutline";
 import { buildTimeline, spanOf } from "@/lib/timeline";
 import type { Edit, Project } from "@/lib/types";
 import { Icon } from "./Icons";
@@ -149,6 +149,13 @@ export function Timeline({ project: p, edit, t, onSeek, onPreview, onSave, onClo
         <button type="button" className="btn sm" onClick={() => move(1)} disabled={!sel} aria-label={sel?.kind === "clip" ? "Move the clip later" : "Nudge later"} title="Later (→)">→</button>
         {selClip && <button type="button" className="btn sm" onClick={() => { apply(duplicateClip(draft, selClip.k), "duplicate the clip"); setSel({ kind: "clip", k: selClip.k + 1 }); }} title="Play this clip twice">Duplicate</button>}
         <button type="button" className="btn sm" aria-expanded={typing !== null} onClick={() => setTyping(typing === null ? "" : null)} title="A text card at the playhead"><Icon name="pen" />Text</button>
+        {p.library.some((a) => a.kind !== "music") && (
+          <select className="tl-level" aria-label="Add a picture or clip at the playhead" value=""
+            onChange={(ev) => { if (ev.target.value) apply(addPicture(p, draft, tl, t, ev.target.value), "add a picture at the playhead"); }}>
+            <option value="">+ Picture…</option>
+            {p.library.filter((a) => a.kind !== "music").map((a) => <option key={a.key} value={a.key}>{a.name.slice(0, 40)}</option>)}
+          </select>
+        )}
         <button type="button" className="btn sm" onClick={() => apply(addZoom(p, draft, tl, t), "add a zoom at the playhead")} title="A punch-in zoom at the playhead">Zoom</button>
         <select className="tl-level" aria-label="Talking speed" value={String(draft.speed ?? 1)}
           onChange={(ev) => { const v = Number(ev.target.value); apply({ ...draft, speed: v === 1 ? undefined : v }, v === 1 ? "play it as filmed" : `speed it up to ${v}×`); }}>

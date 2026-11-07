@@ -89,3 +89,16 @@ test("a zoom at the playhead, on the word said there", async () => {
   assert.deepEqual(z.zooms[z.zooms.length - 1], { anchor: { from: "w2", to: "w4" }, scale: 1.15 });
   assert.equal(addZoom(P, e, tl, tl.duration + 1), null);
 });
+
+test("a picture from the library at the playhead, for about 2 seconds", async () => {
+  const { addPicture } = await import("../lib/cutline");
+  const Q = { ...P, library: [{ key: "pic1", name: "a.png", kind: "image" }, { key: "song", name: "s.m4a", kind: "music" }] } as unknown as Project;
+  const e = base();
+  const tl = tlOf(e);
+  const n = addPicture(Q, e, tl, tl.byId.get("w1")!.os + 0.05, "pic1")!;
+  const b = n.broll[n.broll.length - 1];
+  assert.equal(b.asset, "pic1"); assert.equal(b.treatment, "card-above-head");
+  assert.equal(b.anchor.from, "w1");
+  assert.ok(tl.byId.get(b.anchor.to)!.oe - tl.byId.get("w1")!.os >= 2.0);
+  assert.equal(addPicture(Q, e, tl, 0, "song"), null);                          // music isn't a picture
+});
