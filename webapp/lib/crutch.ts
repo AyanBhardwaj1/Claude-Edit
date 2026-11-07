@@ -4,14 +4,17 @@
 import { bare } from "./text";
 import { indexOf } from "./timeline";
 import { played, ranges } from "./takes";
-import type { Project, Range, Word } from "./types";
+import type { Edit, Project, Range, Word } from "./types";
 
 export type Crutch = { name: string; hits: string[][] };     // each hit: the word ids said
 
 const ALWAYS = ["basically", "literally", "honestly", "obviously"];
 const pauseAfter = (ws: Word[], i: number) => i + 1 < ws.length && ws[i + 1].src === ws[i].src && ws[i + 1].s - ws[i].e > 0.25;
 const comma = (w: Word) => /[,;—–-]$/.test(w.w.trim());
-const setOff = (ws: Word[], i: number) => comma(ws[i]) || pauseAfter(ws, i) || /[.!?]$/.test(ws[i].w.trim());
+// "you know" / "I mean" set off after: a comma or a pause; or ending a sentence when it starts a clause of its own
+// ("It's tough, you know."), not when it ends one ("And now you know.", "If you know, you know.")
+const setOff = (ws: Word[], i: number, on: Set<number>) => comma(ws[i]) || pauseAfter(ws, i) || (/[.!?]$/.test(ws[i].w.trim())
+  && (i < 2 || !on.has(i - 2) || (/[,;.!?—–]$/.test(ws[i - 2].w.trim()) && bare(ws[i - 2].w) !== "know")));
 
 export function crutches(p: Project, keep: Range[]): Crutch[] {
   const ws = p.words;
@@ -24,7 +27,7 @@ export function crutches(p: Project, keep: Range[]): Crutch[] {
     if (ALWAYS.includes(w)) add(w, [ws[i].id]);
     else if ((w === "actually" || w === "like") && (comma(ws[i]) && (i === 0 || comma(ws[i - 1]) || !on.has(i - 1) || /[.!?]$/.test(ws[i - 1].w.trim()))))
       add(w, [ws[i].id]);                                  // ", like," / "Actually, …": set off on both sides
-    else if (next >= 0 && ((w === "you" && bare(ws[next].w) === "know") || (w === "i" && bare(ws[next].w) === "mean")) && setOff(ws, next)
+    else if (next >= 0 && ((w === "you" && bare(ws[next].w) === "know") || (w === "i" && bare(ws[next].w) === "mean")) && setOff(ws, next, on)
       && !(i > 0 && on.has(i - 1) && /^(do|did|don't|if|what|as|would|could)$/.test(bare(ws[i - 1].w))))
       add(`${w === "i" ? "I" : "you"} ${bare(ws[next].w)}`, [ws[i].id, ws[next].id]);
   }
@@ -96,4 +99,32 @@ export function restoreWords(p: Project, keep: Range[], ids: string[]): Range[] 
     seq.splice(at, 0, ...r);
   }
   return ranges(p, seq);
+}
+
+/** After words are cut, what's anchored on them stays: a hook title, a picture, a zoom or a music change whose first or
+ *  last word went is pulled in to the words of its range that still play (as picking a take does). One whose words all
+ *  went goes with them. A chapter whose first word went starts on the next word that plays. */
+export function keepAnchors(p: Project, e: Edit): Edit {
+  const idx = indexOf(p.words);
+  const on = new Set(played(p, e.keep, idx));
+  const next = structuredClone(e);
+  const fix = (r: Range) => {
+    const a = idx.get(r.from), b = idx.get(r.to);
+    if (a == null || b == null || (on.has(a) && on.has(b))) return;
+    let x = a, y = b;
+    while (x <= b && !on.has(x)) x++;
+    while (y >= a && !on.has(y)) y--;
+    if (x <= y) { r.from = p.words[x].id; r.to = p.words[y].id; }
+  };
+  next.broll.forEach((b) => fix(b.anchor));
+  next.zooms.forEach((z) => fix(z.anchor));
+  next.music?.automation?.forEach((m) => fix(m.anchor));
+  next.chapters?.forEach((c) => {
+    const i = idx.get(c.from);
+    if (i == null || on.has(i)) return;
+    let j = i;
+    while (j < p.words.length && p.words[j].src === p.words[i].src && !on.has(j)) j++;
+    if (j < p.words.length && on.has(j)) c.from = p.words[j].id;
+  });
+  return next;
 }

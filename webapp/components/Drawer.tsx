@@ -13,7 +13,7 @@ import { addToLibrary } from "@/lib/workflow";
 import { LANGUAGES, translateSubtitles } from "@/lib/translate";
 import { formatTime, playedLength, waitSavings, WAIT_SPEED } from "@/lib/screenrec";
 import { pickTake, takeLines, type Take } from "@/lib/takes";
-import { crutches, cutWords, findWords, restoreWords } from "@/lib/crutch";
+import { crutches, cutWords, findWords, keepAnchors, restoreWords } from "@/lib/crutch";
 import { applyFit, FIT_TARGETS, planFit, repeats } from "@/lib/fit";
 import { unsureWords } from "@/lib/unsure";
 import { postFit } from "@/lib/postfit";
@@ -114,7 +114,9 @@ export function Drawer({ project: p, edit, onApply, settings, onMakeMusic, onWor
     return cutTl.duration > 5 && n > 10 ? Math.round(n / (cutTl.duration / 60)) : 0;
   }, [cutTl]);
   const twice = useMemo(() => repeats(p, e), [p, e]);
-  const fit = useMemo(() => (fitTo && fitTo < length ? planFit(p, e, fitTo) : null), [p, e, fitTo, length]);
+  // only the cut matters to these: not every keystroke in a font or a translated line (an hour-long video takes seconds)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const fit = useMemo(() => (fitTo && fitTo < length ? planFit(p, e, fitTo) : null), [p.words, p.sources, e.keep, e.gapCap, e.speed, fitTo, length]);
   const found = useMemo(() => findWords(p, find), [p, find]);
   const hit = useMemo(() => new Set(found.flat()), [found]);
   const foundKept = found.filter((h) => h.some((id) => kept.has(id))).length;
@@ -129,20 +131,10 @@ export function Drawer({ project: p, edit, onApply, settings, onMakeMusic, onWor
   const onToggleWord = useCallback((id: string) => toggleRef.current(id), []);
 
   function toggleWord(id: string) {
-    const next = new Set(kept);
-    // a word with a pasted script's text can hold the time of the empty words after it (lib/retext.ts): they go with it
-    const i0 = idx.get(id)!, group = [id];
-    for (let i = i0 + 1; i < p.words.length && !p.words[i].w.trim() && p.words[i].src === p.words[i0].src; i++) group.push(p.words[i].id);
-    const on = !next.has(id);
-    for (const g of group) if (on) next.add(g); else next.delete(g);
-    // rebuild ranges in source order (re-ordering is the editor's job: keep it simple here)
-    const keep: Range[] = [];
-    p.words.forEach((w, i) => {
-      if (!next.has(w.id)) return;
-      const last = keep[keep.length - 1];
-      if (last && idx.get(last.to) === i - 1 && p.words[i - 1].src === w.src) last.to = w.id; else keep.push({ from: w.id, to: w.id });
-    });
-    setE({ ...e, keep });      // translated lines follow their kept words when drawn (translatedCues)
+    // cut or bring back in the order the video plays (a cold open, a take picked out of filmed order stay where they
+    // are); a word with a pasted script's text takes the empty words after it along (lib/retext.ts, lib/crutch.ts)
+    const keep = kept.has(id) ? cutWords(p, e.keep, [id]) : restoreWords(p, e.keep, [id]);
+    setE(keepAnchors(p, { ...e, keep }));      // translated lines follow their kept words when drawn (translatedCues)
   }
 
   const music = p.library.filter((a) => a.kind === "music");
@@ -226,7 +218,7 @@ export function Drawer({ project: p, edit, onApply, settings, onMakeMusic, onWor
                 {twice.slice(0, 5).map((r) => (
                   <li key={r.again.ids[0]} className="row">
                     <span className="grow">“{r.again.text}” <span className="muted small num">at {formatTime(r.first.at)} and {formatTime(r.again.at)}</span></span>
-                    <button type="button" className="btn sm" onClick={() => setE({ ...e, keep: cutWords(p, e.keep, r.again.ids) })}>
+                    <button type="button" className="btn sm" onClick={() => setE(keepAnchors(p, { ...e, keep: cutWords(p, e.keep, r.again.ids) }))}>
                       Cut the one at {formatTime(r.again.at)}</button>
                   </li>
                 ))}
@@ -241,7 +233,7 @@ export function Drawer({ project: p, edit, onApply, settings, onMakeMusic, onWor
                 {habits.map((c) => (
                   <li key={c.name} className="row">
                     <span>“{c.name}” <span className="muted small">{c.hits.length === 1 ? "once" : `${c.hits.length} times`}</span></span>
-                    <button type="button" className="btn sm" onClick={() => setE({ ...e, keep: cutWords(p, e.keep, c.hits.flat()) })}>
+                    <button type="button" className="btn sm" onClick={() => setE(keepAnchors(p, { ...e, keep: cutWords(p, e.keep, c.hits.flat()) }))}>
                       Cut {c.hits.length === 1 ? "it" : `all ${c.hits.length}`}<span className="sr-only"> “{c.name}”</span></button>
                   </li>
                 ))}
@@ -254,7 +246,7 @@ export function Drawer({ project: p, edit, onApply, settings, onMakeMusic, onWor
               <input id="find-w" className="input grow" type="search" placeholder="A word or a few, e.g. subscribe" value={find}
                 onChange={(ev) => setFind(ev.target.value)}
                 onKeyDown={(ev) => { if (ev.key === "Enter") document.querySelector(".words .w.hit")?.scrollIntoView({ block: "center", behavior: "smooth" }); }} />
-              {found.length > 0 && foundKept > 0 && <button type="button" className="btn sm" onClick={() => setE({ ...e, keep: cutWords(p, e.keep, found.flat()) })}>
+              {found.length > 0 && foundKept > 0 && <button type="button" className="btn sm" onClick={() => setE(keepAnchors(p, { ...e, keep: cutWords(p, e.keep, found.flat()) }))}>
                 Cut {foundKept === 1 ? "it" : `all ${foundKept}`}</button>}
               {found.length > foundKept && <button type="button" className="btn sm" onClick={() => setE({ ...e, keep: restoreWords(p, e.keep, found.flat()) })}>
                 Bring back {found.length - foundKept === 1 ? "the cut one" : `${found.length - foundKept} cut`}</button>}
