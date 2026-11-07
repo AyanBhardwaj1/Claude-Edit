@@ -94,7 +94,10 @@ export const DEFAULT_SETTINGS: Settings = {
 export function loadSettings(): Settings {
   if (typeof window === "undefined") return DEFAULT_SETTINGS;
   try {
-    const s = { ...DEFAULT_SETTINGS, ...JSON.parse(read("ce.settings") || "{}") } as Settings;
+    // an account's own copy; else the copy kept from before accounts, shared by everyone here, minus any keys in it
+    const own = owner ? localStorage.getItem(k("ce.settings")) : null;
+    const stored = JSON.parse(own ?? read("ce.settings") ?? "{}") as Partial<Settings>;
+    const s = { ...DEFAULT_SETTINGS, ...(owner && own === null ? withoutKeys(stored) : stored) } as Settings;
     s.effort = effortOf(s);
     const session = JSON.parse(sessionStorage.getItem(k("ce.keys")) || "{}") as Partial<Settings>;
     for (const f of KEY_FIELDS) s[f] = s[f] || session[f] || "";
@@ -128,8 +131,10 @@ export async function deleteAccountData(id: string) {
 export function forgetKeys() {
   try {
     sessionStorage.removeItem(k("ce.keys"));
-    const raw = localStorage.getItem(k("ce.settings"));
-    if (raw) localStorage.setItem(k("ce.settings"), JSON.stringify(withoutKeys(JSON.parse(raw) as Settings)));
+    for (const name of new Set([k("ce.settings"), "ce.settings"])) {   // the account's copy and the shared pre-accounts one
+      const raw = localStorage.getItem(name);
+      if (raw) localStorage.setItem(name, JSON.stringify(withoutKeys(JSON.parse(raw) as Settings)));
+    }
   } catch { /* storage blocked: nothing kept */ }
 }
 

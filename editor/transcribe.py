@@ -347,4 +347,8 @@ def write_transcript(out_dir: str | Path, sources: list[dict], words: list[dict]
                 lines.append(f"  [{i}] {fmt_ts(p['start'])}-{fmt_ts(p['end'])}{spk} {p['text']}")
     (out_dir / "transcript.txt").write_text("\n".join(lines) + "\n")
     log(f"wrote {path} ({len(words)} words) and transcript.txt")
+    heard = {w["src"] for w in words if not w.get("event")}
+    quiet = [Path(src["path"]).name for i, src in enumerate(sources) if i not in heard]
+    if quiet and len(quiet) < len(sources):   # all of them: plan stops and says so
+        log(f"transcribe: no speech heard in {', '.join(quiet)}: a muted mic or b-roll? (`editor inventory` names silent clips)")
     return path

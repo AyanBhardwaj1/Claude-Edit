@@ -67,7 +67,9 @@ async function listOtherModels(provider: "openrouter" | "gemini", key: string): 
       `OpenRouter answered ${who.status}.`);                                                         // this checks the key
     const r = await fetch(`${OPENROUTER}/models`);
     if (!r.ok) throw new AiError(`models ${r.status}`, `OpenRouter answered ${r.status}.`);
-    models = ((await r.json()) as { data: { id: string }[] }).data.map((m) => m.id).sort();
+    // newest first (the API's "created"; else the id, reversed), so the suggested model is the latest of its family
+    models = ((await r.json()) as { data: { id: string; created?: number }[] }).data
+      .sort((a, b) => (b.created ?? 0) - (a.created ?? 0) || b.id.localeCompare(a.id)).map((m) => m.id);
   } else {
     const r = await fetch(`${GEMINI}/models?pageSize=200`, { headers: { "x-goog-api-key": key } });
     if (!r.ok) throw new AiError(`models ${r.status}`, r.status === 400 || r.status === 401 || r.status === 403

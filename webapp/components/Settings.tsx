@@ -33,7 +33,7 @@ export function Settings({ settings, user, theme, onTheme, onUser, onSignOut, on
   const [pwBusy, setPwBusy] = useState(false);
   const [where, setWhere] = useState<Mode>("local");
   useEffect(() => { void accountMode().then(setWhere); }, []);
-  const set = (k: Partial<S>) => { setS({ ...s, ...k }); setSaved(null); };
+  const set = (k: Partial<S>) => { setS((prev) => ({ ...prev, ...k })); setSaved(null); };   // on the latest: a key check finishing late keeps edits made meanwhile
   const dirty = JSON.stringify(s) !== JSON.stringify(settings);
   const b = brandOf(s.brand);
   const setB = (k: Partial<Brand>) => set({ brand: { ...b, ...k } });

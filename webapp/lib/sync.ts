@@ -22,7 +22,7 @@ export async function startSync(): Promise<boolean> {
       const unsent = readLocal(DIRTY) === "1";
       if (d.settings && Object.keys(d.settings).length && !unsent) {
         const local = loadSettings();
-        saveSettings({ ...local, ...withoutKeys(d.settings), ...onlyKeys(local) });   // keys never come from the server
+        saveSettings({ ...local, ...withoutKeys(d.settings), ...onlyKeys(local), rememberKeys: local.rememberKeys });   // keys, and whether this computer keeps them, never come from the server
       }
       if (d.style?.length) {
         const mine = loadRules();
@@ -55,7 +55,8 @@ function schedule() {
 }
 
 async function push(leaving = false) {
-  const settings = withoutKeys(loadSettings());       // never any provider's key (lib/keys.ts)
+  const { rememberKeys: _device, ...settings } = withoutKeys(loadSettings());   // never any provider's key (lib/keys.ts), nor
+  void _device;                                                                // "remember them on this computer": per device
   timer = undefined;
   const r = await fetch("/api/account/data", { method: "PUT", credentials: "same-origin", keepalive: leaving, headers: { "content-type": "application/json" },
     body: JSON.stringify({ settings, style: loadRules(), theme: getTheme() }) }).catch(() => null);

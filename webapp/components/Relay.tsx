@@ -3,7 +3,7 @@
 // chatgpt.com, any chat AI), and takes the answer pasted back. One request at a time; a second waits its turn.
 import { useEffect, useRef, useState } from "react";
 import { AiError } from "@/lib/ai";
-import { fitAnswer, missingParts, offShape, parseRelayAnswer, relayPrompt, relayReminder, setRelay, type RelayAsk } from "@/lib/relay";
+import { fitAnswer, isTheRequest, missingParts, offShape, parseRelayAnswer, relayPrompt, relayReminder, setRelay, type RelayAsk } from "@/lib/relay";
 import { Icon } from "./Icons";
 
 type Json = Record<string, unknown>;
@@ -59,6 +59,10 @@ export function Relay() {
   }
   function use() {
     if (!cur) return;
+    if (isTheRequest(answer, cur.text)) {
+      setErr("That's the request, not the chat's reply: paste the request into the chat, send it, then copy the chat's answer and paste that here.");
+      setMissing([]); return;
+    }
     const v = parseRelayAnswer(answer);
     if (!v) { setErr("I couldn't find the answer's JSON in that. Copy the whole reply (the chat's copy button under it works best) and paste it again."); setMissing([]); return; }
     const fit = fitAnswer(cur.ask.schema, v);
@@ -99,6 +103,10 @@ export function Relay() {
   async function pasteReply() {
     try {
       const t = await navigator.clipboard.readText();
+      if (cur && isTheRequest(t, cur.text)) {
+        setErr("The clipboard still holds the request, not the chat's reply: copy the chat's answer (its copy button under the reply), then paste again.");
+        return;
+      }
       if (t.trim()) { setAnswer(t); setErr(""); setMissing([]); return; }
     } catch { /* not allowed here */ }
     document.getElementById("relay-ans")?.focus();

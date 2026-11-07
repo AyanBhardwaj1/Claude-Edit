@@ -11,7 +11,7 @@ import re
 from difflib import SequenceMatcher
 from pathlib import Path
 
-from .util import fmt_ts, load_json, log, save_json
+from .util import EditorError, fmt_ts, load_json, log, save_json
 
 FILLERS = {"um", "umm", "uh", "uhh", "uhm", "erm", "er", "ah", "ahh", "hmm", "hm", "mm", "mhm"}
 AGGRESSIVE_FILLERS = FILLERS | {"like", "basically", "actually", "literally", "so", "yeah", "okay", "right"}
@@ -71,6 +71,11 @@ def plan(transcript_path: str | Path, out: str | Path, max_gap: float = 0.30, pa
          lookback: int = 3) -> Path:
     tr = load_json(transcript_path)
     words = sorted(tr["words"], key=lambda w: (w["src"], w["start"]))
+    if not any(not w.get("event") for w in words):   # nothing said: an empty cut, then a confusing failure at render
+        srcs = ", ".join(Path(s.get("path", "?")).name for s in tr.get("sources", [])) or "the takes"
+        raise EditorError(f"plan: no speech was heard in {srcs}. Check the takes have sound (a muted mic records a silent "
+                          f"track: `editor inventory <raw>` names silent clips). A video without talking (a montage, an "
+                          f"app demo) is made with `editor produce` instead")
     filler_set = {"none": set(), "standard": FILLERS, "aggressive": AGGRESSIVE_FILLERS}[fillers]
 
     drop: dict[int, str] = {}

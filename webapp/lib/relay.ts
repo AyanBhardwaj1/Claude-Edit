@@ -62,6 +62,17 @@ export function missingParts(schema: Json, v: Json): string[] {
   return req.filter((k) => v[k] === undefined || v[k] === null);
 }
 
+/** A JSON Schema rather than an answer: what the request itself holds under "How to answer". */
+function looksLikeSchema(v: Json): boolean {
+  return typeof v.type === "string" && !!v.properties && typeof v.properties === "object";
+}
+
+/** The request pasted back where the reply goes (the clipboard still held it). */
+export function isTheRequest(text: string, request: string): boolean {
+  const t = text.trim();
+  return !!t && (t === request.trim() || (t.includes("## How to answer") && t.includes("Reply with ONE JSON object")));
+}
+
 /** How many of the asked-for fields (the schema's top-level properties) an answer has. */
 export function knownParts(schema: Json, v: Json): number {
   const props = schema.properties && typeof schema.properties === "object" ? Object.keys(schema.properties) : [];
@@ -78,8 +89,10 @@ export function offShape(schema: Json, v: Json): boolean {
 /** Chats often wrap the answer: {"submit_edit": {…}} or {"answer": {…}}. When the answer itself lacks what was asked
  *  and exactly one object inside it has it (all the required parts, or else any asked-for field), that's the answer. */
 export function fitAnswer(schema: Json, v: Json): Json {
+  if (looksLikeSchema(v)) return v;           // the request's own answer shape pasted back: not an answer (offShape says so)
   if (!missingParts(schema, v).length) return v;
-  const inner = Object.values(v).filter((x): x is Json => !!x && typeof x === "object" && !Array.isArray(x));
+  const inner = Object.entries(v).filter(([k, x]) => k !== "properties" && !!x && typeof x === "object" && !Array.isArray(x)
+    && !looksLikeSchema(x as Json)).map(([, x]) => x as Json);
   const whole = inner.filter((x) => !missingParts(schema, x).length);
   if (whole.length === 1) return whole[0];
   if (offShape(schema, v)) {
