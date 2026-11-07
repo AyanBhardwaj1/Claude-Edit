@@ -21,6 +21,15 @@ export function Assistant({ settings, screen, project, onSettings }: { settings:
   const [now, setNow] = useState<Activity | null>(null);       // what's happening right now
   const [bubble, setBubble] = useState<Activity | null>(null); // the same, next to the button while the panel is closed
   const log = useRef<HTMLDivElement>(null);
+  const fab = useRef<HTMLButtonElement>(null);
+  const panel = useRef<HTMLElement>(null);
+  // the button hides while the panel is open: focus goes into the panel, and back to the button when it closes
+  const wasOpen = useRef(false);
+  useEffect(() => {
+    if (open) (["textarea", ".coach-profile .chip", "button"].map((q) => panel.current?.querySelector<HTMLElement>(q)).find(Boolean))?.focus();
+    else if (wasOpen.current) fab.current?.focus();
+    wasOpen.current = open;
+  }, [open]);
 
   useEffect(() => {
     const c = loadCreator(); setCreator(c); setChat(loadChat());
@@ -86,12 +95,12 @@ export function Assistant({ settings, screen, project, onSettings }: { settings:
         <span className="spark-dot" aria-hidden="true" />{bubble.friendly}
       </button>
     )}
-    <button type="button" className={`coach-fab${open ? " on" : ""}`} aria-expanded={open} aria-controls="coach"
+    <button type="button" ref={fab} className={`coach-fab${open ? " on" : ""}`} aria-expanded={open} aria-controls="coach"
       onClick={() => setOpen((o) => !o)}>
       <Icon name="spark" /><span>Assistant</span>{now && now.pct < 100 && <span className="spin" aria-hidden="true" />}
     </button>
     {open && (
-      <aside id="coach" className="coach" aria-labelledby="coach-h">
+      <aside id="coach" ref={panel} className="coach" aria-labelledby="coach-h">
         <div className="panel-head">
           <h2 id="coach-h">Your assistant</h2>
           <button type="button" className="btn ghost icon sm" aria-label="Close the assistant" onClick={() => setOpen(false)}>&times;</button>
