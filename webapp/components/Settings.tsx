@@ -155,7 +155,9 @@ export function Settings({ settings, user, theme, onTheme, onUser, onSignOut, on
             <div className="field"><span className="label">Who edits your videos</span>
               <div className="seg" role="group" aria-label="Who edits your videos">
                 {(["anthropic", "openai", "chat"] as const).map((p) => (
-                  <button key={p} aria-pressed={s.provider === p} onClick={() => set({ provider: p })}>
+                  <button key={p} aria-pressed={s.provider === p}
+                    // a plan has no key to listen with: without an OpenAI key, listening moves into the browser too
+                    onClick={() => set(p === "chat" && !s.openaiKey && s.transcriber === "openai" ? { provider: p, transcriber: "browser" } : { provider: p })}>
                     {p === "anthropic" ? "Anthropic key" : p === "openai" ? "OpenAI key" : "Your Claude or ChatGPT plan"}</button>))}
               </div>
             </div>
@@ -166,7 +168,8 @@ export function Settings({ settings, user, theme, onTheme, onUser, onSignOut, on
                 <a href="https://claude.ai/new" target="_blank" rel="noreferrer">claude.ai</a> or{" "}
                 <a href="https://chatgpt.com/" target="_blank" rel="noreferrer">chatgpt.com</a>, then paste the answer back. These plans don&apos;t offer
                 apps like this a way to sign in, so Cutmind never asks for your account or password. It&apos;s a few more clicks than a key, and
-                Cutmind sends nothing anywhere itself. Long videos make long requests: use a model with a big context.</span></div>
+                Cutmind sends nothing anywhere itself. Long videos make long requests: use a model with a big context.
+                {!s.openaiKey && " Without an OpenAI key, Cutmind listens to your videos in this browser (free, a little slower)."}</span></div>
             )}
             {keyField("anthropic")}
             {keyField("openai")}
