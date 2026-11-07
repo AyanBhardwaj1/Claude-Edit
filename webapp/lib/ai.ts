@@ -107,19 +107,41 @@ async function callOther(s: Settings, provider: "openrouter" | "gemini", system:
         body: JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents: [{ role: "user", parts: [{ text: prompt }] }],
           generationConfig: { responseMimeType: "application/json", maxOutputTokens: maxTokens } }),
       });
-    if (r.status === 429 || r.status >= 500) { await new Promise((ok) => setTimeout(ok, 2000 * (attempt + 1) ** 2)); continue; }
+    const wait = () => new Promise((ok) => setTimeout(ok, 2000 * (attempt + 1) ** 2));
+    if (r.status === 429 || r.status >= 500) { await wait(); continue; }
     if (!r.ok) {
       const body = await r.text();
+      // a model with a smaller answer limit than this effort's budget (or an account that can't cover all of it): once
+      // more at the usual budget, as the Anthropic path does
+      if ((r.status === 400 && /max_?(output_)?tokens|too large/i.test(body) || r.status === 402) && maxTokens > DEFAULT_MAX_TOKENS) {
+        maxTokens = DEFAULT_MAX_TOKENS; attempt--; continue;
+      }
       throw new AiError(`${r.status} ${body.slice(0, 300)}`, r.status === 401 || (provider === "gemini" && r.status === 403)
         ? "Your API key was not accepted. Check it in Settings." : r.status === 402 ? "Your OpenRouter account is out of credits." :
         r.status === 404 ? `The model "${model}" isn't available to your key. Pick another in Settings.` :
           `The AI couldn't finish (${r.status}). ${body.slice(0, 160)}`);
     }
-    const data = await r.json() as { choices?: { message?: { content?: string } }[]; candidates?: { content?: { parts?: { text?: string }[] } }[] };
+    type Reply = { error?: { code?: number; message?: string };
+      choices?: { message?: { content?: string }; finish_reason?: string }[];
+      candidates?: { content?: { parts?: { text?: string }[] }; finishReason?: string }[]; promptFeedback?: { blockReason?: string } };
+    const data = await r.json() as Reply;
+    if (data.error) {                                    // OpenRouter can answer 200 with the provider's error inside
+      const code = Number(data.error.code) || 0;
+      if (code === 429 || code >= 500) { await wait(); continue; }
+      throw new AiError(`error ${code} ${data.error.message ?? ""}`, `${PROVIDER_NAME[provider]} couldn't answer: ${data.error.message ?? "an error"}. Try another model in Settings.`);
+    }
+    const blocked = data.promptFeedback?.blockReason ?? (/^(SAFETY|PROHIBITED_CONTENT|RECITATION|BLOCKLIST|SPII)$/.test(data.candidates?.[0]?.finishReason ?? "")
+      ? data.candidates![0].finishReason : undefined);
+    if (blocked) throw new AiError(`blocked ${blocked}`, `Gemini declined to answer (${blocked}). Try again, or another model in Settings.`);
     const text = provider === "openrouter" ? data.choices?.[0]?.message?.content
       : data.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("");
     const v = text ? parseRelayAnswer(text) : null;
     if (v) return v;
+    const cut = provider === "openrouter" ? data.choices?.[0]?.finish_reason === "length" : data.candidates?.[0]?.finishReason === "MAX_TOKENS";
+    if (cut) {                                           // ran out of room mid-answer: once more with more room, then say so
+      if (maxTokens < 32000) { maxTokens = Math.max(DEFAULT_MAX_TOKENS, maxTokens * 2); continue; }
+      throw new AiError("max tokens", "The answer was too long for this model. Try a model with a bigger answer limit, or Fast effort.");
+    }
   }
   throw new AiError("no usable answer", "The AI is busy or didn't give a usable answer. Try again in a minute.");
 }

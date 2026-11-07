@@ -65,3 +65,43 @@ test("clear messages for a bad key and an empty OpenRouter account", async () =>
     } finally { m.done(); }
   }
 });
+
+test("a model with a smaller answer limit gets one more try at the usual budget", async () => {
+  const budgets: number[] = [];
+  const m = mockFetch((c) => {
+    const b = JSON.parse(String(c.init!.body)); budgets.push(b.max_tokens);
+    return b.max_tokens > 16000 ? json({ error: { message: "max_tokens is too large: 32000" } }, 400)
+      : json({ choices: [{ message: { content: '{"ok": true}' } }] });
+  });
+  try {
+    const r = await callJson({ ...base, openrouterKey: "k", openrouterModel: "openai/gpt-4o" } as Settings, "s", "u", {}, "n", { model: "", maxTokens: 32000, fallback: null });
+    assert.deepEqual(r, { ok: true });
+    assert.deepEqual(budgets, [32000, 16000]);
+  } finally { m.done(); }
+});
+
+test("an error inside a 200, a safety block and a cut-off answer each say what happened", async () => {
+  const cases: [unknown, RegExp, Settings][] = [
+    [{ error: { code: 400, message: "context length exceeded" } }, /context length exceeded/, { ...base, openrouterKey: "k", openrouterModel: "m" } as Settings],
+    [{ promptFeedback: { blockReason: "SAFETY" } }, /declined to answer \(SAFETY\)/, { ...base, provider: "gemini", geminiKey: "g", geminiModel: "m" } as Settings],
+  ];
+  for (const [reply, msg, s] of cases) {
+    let n = 0;
+    const m = mockFetch(() => { n++; return json(reply); });
+    try {
+      await assert.rejects(callJson(s, "s", "u", {}, "n"), (e: { userMessage?: string }) => msg.test(e.userMessage ?? ""));
+      assert.equal(n, 1);                                              // no point retrying these
+    } finally { m.done(); }
+  }
+  const budgets: number[] = [];
+  const m = mockFetch((c) => {
+    const b = JSON.parse(String(c.init!.body)).generationConfig.maxOutputTokens; budgets.push(b);
+    return json(b < 16000 ? { candidates: [{ finishReason: "MAX_TOKENS", content: { parts: [{ text: '{"half": ' }] } }] }
+      : { candidates: [{ content: { parts: [{ text: '{"whole": true}' }] } }] });
+  });
+  try {
+    const r = await callJson({ ...base, provider: "gemini", geminiKey: "g", geminiModel: "m" } as Settings, "s", "u", {}, "n", { model: "", maxTokens: 6000, fallback: null });
+    assert.deepEqual(r, { whole: true });
+    assert.deepEqual(budgets, [6000, 16000]);
+  } finally { m.done(); }
+});
