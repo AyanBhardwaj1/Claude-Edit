@@ -118,3 +118,34 @@ export function nudgeLayer(p: Project, e: Edit, kind: LayerKind, i: number, word
 export function deleteLayer(e: Edit, kind: LayerKind, i: number): Edit {
   return kind === "broll" ? { ...e, broll: e.broll.filter((_, j) => j !== i) } : { ...e, zooms: e.zooms.filter((_, j) => j !== i) };
 }
+
+/** A text card at the playhead, on the word being said there and the next few (a title, a label, a number). */
+export function addText(p: Project, e: Edit, tl: Timeline, t: number, text: string, words = 4): Edit | null {
+  const say = text.trim();
+  if (!say) return null;
+  const idx = indexOf(p.words);
+  const seq = played(p, e.keep, idx);
+  const w = tl.words.find((x) => x.w.trim() && x.oe > t) ?? tl.words[tl.words.length - 1];
+  if (!w) return null;
+  const a = seq.indexOf(idx.get(w.id)!);
+  if (a < 0) return null;
+  const b = Math.min(seq.length - 1, a + Math.max(0, words - 1));
+  const id = `text-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`;
+  return { ...e, broll: [...e.broll, { id, anchor: { from: p.words[seq[a]].id, to: p.words[seq[b]].id }, treatment: "text-pop", text: say.slice(0, 80), style: "label" }] };
+}
+
+/** Change a text card's words. */
+export function setText(e: Edit, i: number, text: string): Edit | null {
+  const b = e.broll[i];
+  if (!b || b.treatment !== "text-pop" || !text.trim() || text.trim() === b.text) return null;
+  const next = structuredClone(e);
+  next.broll[i].text = text.trim().slice(0, 80);
+  return next;
+}
+
+/** Play a clip twice: a copy right after it (a line said again for effect, or moved to the front as a cold open). */
+export function duplicateClip(e: Edit, k: number): Edit | null {
+  const r = e.keep[k];
+  if (!r) return null;
+  return { ...e, keep: [...e.keep.slice(0, k + 1), { ...r }, ...e.keep.slice(k + 1)] };
+}

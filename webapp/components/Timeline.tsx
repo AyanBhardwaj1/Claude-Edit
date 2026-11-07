@@ -3,7 +3,7 @@
 // Split at the playhead, delete, reorder (drag or arrows), trim a clip's ends (drag its edges: they snap to whole
 // words), nudge pictures and zooms, undo / redo. Changes preview live in the player; "Save as a new version" keeps them.
 import { useEffect, useMemo, useRef, useState } from "react";
-import { clipsOf, deleteClip, deleteLayer, moveClip, nudgeLayer, splitAt, trimClip, trimToTime, type LayerKind } from "@/lib/cutline";
+import { addText, clipsOf, deleteClip, deleteLayer, duplicateClip, moveClip, nudgeLayer, setText, splitAt, trimClip, trimToTime, type LayerKind } from "@/lib/cutline";
 import { buildTimeline, spanOf } from "@/lib/timeline";
 import type { Edit, Project } from "@/lib/types";
 import { Icon } from "./Icons";
@@ -20,6 +20,7 @@ export function Timeline({ project: p, edit, t, onSeek, onPreview, onSave, onClo
   const [sel, setSel] = useState<Sel>(null);
   const [pps, setPps] = useState(40);                 // pixels per second: the zoom
   const [say, setSay] = useState("");
+  const [typing, setTyping] = useState<string | null>(null);   // the "Add text" box, open with what's typed
   const [drag, setDrag] = useState<{ kind: "move" | "from" | "to"; k: number; x0: number; dx: number } | null>(null);
   const [base, setBase] = useState(edit);
   if (base !== edit) { setBase(edit); setDraft(structuredClone(edit)); setPast([]); setFuture([]); setSel(null); }   // a new version from outside
@@ -111,6 +112,9 @@ export function Timeline({ project: p, edit, t, onSeek, onPreview, onSave, onClo
         <button type="button" className="btn sm" onClick={remove} disabled={!sel} title="Delete what's selected (Delete)">Delete</button>
         <button type="button" className="btn sm" onClick={() => move(-1)} disabled={!sel} aria-label={sel?.kind === "clip" ? "Move the clip earlier" : "Nudge earlier"} title="Earlier (←)">←</button>
         <button type="button" className="btn sm" onClick={() => move(1)} disabled={!sel} aria-label={sel?.kind === "clip" ? "Move the clip later" : "Nudge later"} title="Later (→)">→</button>
+        {selClip && <button type="button" className="btn sm" onClick={() => { apply(duplicateClip(draft, selClip.k), "duplicate the clip"); setSel({ kind: "clip", k: selClip.k + 1 }); }} title="Play this clip twice">Duplicate</button>}
+        <button type="button" className="btn sm" aria-expanded={typing !== null} onClick={() => setTyping(typing === null ? "" : null)} title="A text card at the playhead"><Icon name="pen" />Text</button>
+        <button type="button" className="btn sm" aria-pressed={draft.captions.enabled} onClick={() => apply({ ...draft, captions: { ...draft.captions, enabled: !draft.captions.enabled } }, draft.captions.enabled ? "turn subtitles off" : "turn subtitles on")}>Subtitles</button>
         {selClip && (<span className="tl-trim" role="group" aria-label="Trim the selected clip">
           <span className="small muted">Start</span>
           <button type="button" className="btn ghost sm" onClick={() => trim("from", -1)} aria-label="Start one word earlier">−</button>
@@ -119,12 +123,34 @@ export function Timeline({ project: p, edit, t, onSeek, onPreview, onSave, onClo
           <button type="button" className="btn ghost sm" onClick={() => trim("to", -1)} aria-label="End one word earlier">−</button>
           <button type="button" className="btn ghost sm" onClick={() => trim("to", 1)} aria-label="End one word later">+</button>
         </span>)}
+        {music && (
+          <select className="tl-level" aria-label="Music level" value={draft.music.level}
+            onChange={(ev) => apply({ ...draft, music: { ...draft.music, level: ev.target.value as Edit["music"]["level"] } }, "change the music level")}>
+            <option value="under-voice">Music under the voice</option><option value="quiet">Music quiet</option><option value="loud-intro">Music: loud intro</option>
+          </select>
+        )}
         <span className="grow" />
         <button type="button" className="btn ghost sm" onClick={undo} disabled={!past.length} aria-label="Undo" title="Undo (Ctrl/⌘+Z)"><Icon name="undo" /></button>
         <button type="button" className="btn ghost sm" onClick={redo} disabled={!future.length} aria-label="Redo" title="Redo (Ctrl/⌘+Shift+Z)"><span className="flip"><Icon name="undo" /></span></button>
         <label className="tl-zoom small"><span className="sr-only">Zoom</span>
           <input type="range" min={10} max={160} step={5} value={pps} onChange={(e) => setPps(Number(e.target.value))} aria-label="Timeline zoom" /></label>
       </div>
+      {typing !== null && (
+        <form className="row tl-text" onSubmit={(ev) => { ev.preventDefault(); const n = addText(p, draft, tl, t, typing); apply(n, "add text at the playhead"); if (n) setTyping(null); }}>
+          <label htmlFor="tl-text-in" className="small">Text at {clock(t)}</label>
+          <input id="tl-text-in" className="input" autoFocus maxLength={80} value={typing} placeholder="e.g. 3 tips that doubled my views"
+            onChange={(ev) => setTyping(ev.target.value)} onKeyDown={(ev) => { if (ev.key === "Escape") setTyping(null); }} />
+          <button type="submit" className="btn primary sm" disabled={!typing.trim()}>Add</button>
+        </form>
+      )}
+      {sel && sel.kind === "broll" && draft.broll[sel.i]?.treatment === "text-pop" && (
+        <div className="row tl-text">
+          <label htmlFor="tl-text-edit" className="small">Selected text</label>
+          <input id="tl-text-edit" key={`${sel.i}-${draft.broll[sel.i].id}`} className="input" maxLength={80} defaultValue={draft.broll[sel.i].text ?? ""}
+            onKeyDown={(ev) => { if (ev.key === "Enter") { ev.preventDefault(); apply(setText(draft, sel.i, (ev.target as HTMLInputElement).value), "change the text"); } }}
+            onBlur={(ev) => { const n = setText(draft, sel.i, ev.target.value); if (n) apply(n, "change the text"); }} />
+        </div>
+      )}
       <div className="tl-scroll" ref={box} tabIndex={0} onKeyDown={onKey} aria-label="Timeline tracks: S splits, Delete deletes, arrows move the selection"
         onPointerMove={onMove} onPointerUp={endDrag} onPointerCancel={() => setDrag(null)}>
         <div className="tl-inner" style={{ width }}>

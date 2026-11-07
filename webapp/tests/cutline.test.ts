@@ -49,3 +49,19 @@ test("nudge a picture by whole played words", () => {
   assert.deepEqual(nudgeLayer(P, e, "zoom", 0, 10)!.zooms[0].anchor, { from: "w9", to: "w9" });   // clamped at the end
   assert.equal(nudgeLayer(P, e, "broll", 0, 0), null);
 });
+
+test("add text at the playhead, change its words; duplicate a clip", async () => {
+  const { addText, setText, duplicateClip } = await import("../lib/cutline");
+  const e = base();
+  const tl = tlOf(e);
+  const a = addText(P, e, tl, tl.byId.get("w3")!.os + 0.1, "  Big news ")!;
+  const card = a.broll[a.broll.length - 1];
+  assert.equal(card.treatment, "text-pop");
+  assert.equal(card.text, "Big news");
+  assert.deepEqual(card.anchor, { from: "w3", to: "w6" });
+  assert.equal(addText(P, e, tl, 1, "   "), null);
+  assert.equal(setText(a, a.broll.length - 1, "Bigger news")!.broll[a.broll.length - 1].text, "Bigger news");
+  assert.equal(setText(a, 0, "Hi"), null);                                     // unchanged
+  const d = duplicateClip({ ...e, keep: [{ from: "w0", to: "w1" }, { from: "w2", to: "w9" }] }, 0)!;
+  assert.equal(said(d).split(" ").slice(0, 4).join(" "), "one two one two");
+});

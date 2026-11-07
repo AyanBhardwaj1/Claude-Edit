@@ -945,3 +945,7 @@ label.btn:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; 
 .coach .linkish { padding: 0; border: 0; background: none; color: var(--accent-text); font: inherit; text-decoration: underline; cursor: pointer; }
 .coach-msg.by-coach .chip { background: var(--surface-3); }
 .coach-msg.by-coach .chip:hover { background: var(--line-strong); }
+.tl-text { gap: 8px; margin-bottom: 10px; align-items: center; }
+.tl-text .input { flex: 1; min-width: 160px; }
+.tl-level { height: 32px; padding: 0 6px; border: 1px solid var(--line-strong); border-radius: var(--r-sm);
+  background: var(--surface); color: var(--ink); font-size: 12px; }
