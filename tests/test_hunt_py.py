@@ -523,3 +523,12 @@ def test_plan_stops_clearly_when_nothing_was_said(tmp_path):
     with pytest.raises(EditorError, match="no speech was heard in take.mp4"):
         plan(tmp_path / "transcript.json", tmp_path / "edl.json")
     assert not (tmp_path / "edl.json").exists()
+
+
+def test_transcript_names_a_take_where_nothing_was_heard(tmp_path, capsys):
+    from editor.transcribe import write_transcript
+    sources = [{"path": "/x/a.mp4", "duration": 3.0}, {"path": "/x/b-roll.mp4", "duration": 2.0}]
+    words = [{"src": 0, "start": 0.1, "end": 0.4, "text": "hello"}]
+    write_transcript(tmp_path, sources, words)
+    err = capsys.readouterr()
+    assert "no speech heard in b-roll.mp4" in err.out + err.err and "a.mp4," not in err.out + err.err
