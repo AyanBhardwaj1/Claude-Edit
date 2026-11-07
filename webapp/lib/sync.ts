@@ -3,7 +3,7 @@
 
 import { accountMode } from "./auth";
 import { onlyKeys, withoutKeys } from "./keys";
-import { loadRules, loadSettings, saveRules, saveSettings } from "./store";
+import { loadRules, loadSettings, readLocal, saveRules, saveSettings, writeLocal } from "./store";
 import { getTheme, setTheme, THEMES, type ThemeId } from "./theme";
 import type { Settings, StyleRule } from "./types";
 
@@ -18,7 +18,9 @@ export async function startSync(): Promise<boolean> {
     if (r.ok) {
       const d = await r.json() as { settings?: Partial<Settings>; style?: StyleRule[]; theme?: ThemeId };
       live = false;                                         // applying the server copy must not echo straight back
-      if (d.settings && Object.keys(d.settings).length) {
+      // settings changed here that never reached the server (offline, a tab closed too soon) win over its older copy
+      const unsent = readLocal(DIRTY) === "1";
+      if (d.settings && Object.keys(d.settings).length && !unsent) {
         const local = loadSettings();
         saveSettings({ ...local, ...withoutKeys(d.settings), ...onlyKeys(local) });   // keys never come from the server
       }
@@ -36,16 +38,26 @@ export async function startSync(): Promise<boolean> {
   return true;
 }
 
-export function stopSync() { live = false; window.removeEventListener(PREFS_EVENT, schedule); clearTimeout(timer); }
+/** Stop syncing (signing out): a change still waiting to go up is sent now, not dropped. */
+export function stopSync() {
+  const pending = live && timer !== undefined;
+  live = false; window.removeEventListener(PREFS_EVENT, schedule); clearTimeout(timer); timer = undefined;
+  if (pending) void push(true);
+}
+
+const DIRTY = "ce.sync.unsent";
 
 function schedule() {
   if (!live) return;
+  writeLocal(DIRTY, "1");                              // until a push gets through
   clearTimeout(timer);
   timer = setTimeout(push, 800);
 }
 
-async function push() {
+async function push(leaving = false) {
   const settings = withoutKeys(loadSettings());       // never any provider's key (lib/keys.ts)
-  await fetch("/api/account/data", { method: "PUT", credentials: "same-origin", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ settings, style: loadRules(), theme: getTheme() }) }).catch(() => undefined);
+  timer = undefined;
+  const r = await fetch("/api/account/data", { method: "PUT", credentials: "same-origin", keepalive: leaving, headers: { "content-type": "application/json" },
+    body: JSON.stringify({ settings, style: loadRules(), theme: getTheme() }) }).catch(() => null);
+  if (r?.ok) writeLocal(DIRTY, "0");
 }

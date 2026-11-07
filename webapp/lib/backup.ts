@@ -1,7 +1,7 @@
 /** Back up and restore this account's videos: one .cutmind file (a plain ZIP) with the projects, their media,
  *  Motion Studio animations and the style rules. Everything lives in this browser, so clearing site data or
  *  switching browsers loses it: this file is the way to keep and move it. API keys are never in a backup. */
-import { currentOwner, getAnim, getMedia, listAnims, listProjects, loadProject, loadRules, mediaKeys, putAnimRaw, putMedia,
+import { currentOwner, delMedia, getAnim, getMedia, listAnims, listProjects, loadProject, loadRules, mediaKeys, putAnimRaw, putMedia,
   putProjectRaw, saveRules } from "./store";
 import type { Anim } from "./studio";
 import type { Project, StyleRule } from "./types";
@@ -36,11 +36,20 @@ export async function restoreBackup(file: Blob, onProgress?: (msg: string) => vo
   if (!mf) throw new Error("Not a Cutmind backup");
   const m = JSON.parse(await mf.text()) as Manifest;
   if (m.app !== "cutmind" || m.version !== 1) throw new Error("Not a Cutmind backup");
-  for (const [i, x] of m.media.entries()) {
-    const b = files.get(x.file);
-    if (!b) continue;
-    onProgress?.(`Restoring media ${i + 1} of ${m.media.length}`);
-    await putMedia(x.key, new Blob([b], { type: x.type }));
+  // if the browser runs out of room partway, the files this restore added go again: no orphans nothing points to
+  const before = new Set(await mediaKeys()), added: string[] = [];
+  try {
+    for (const [i, x] of m.media.entries()) {
+      const b = files.get(x.file);
+      if (!b) continue;
+      onProgress?.(`Restoring media ${i + 1} of ${m.media.length}`);
+      await putMedia(x.key, new Blob([b], { type: x.type }));
+      if (!before.has(x.key)) added.push(x.key);
+    }
+  } catch (e) {
+    await Promise.all(added.map((k) => delMedia(k).catch(() => undefined)));
+    throw new Error(`This browser ran out of room partway, so nothing was restored (${(e as Error).message || "storage full"}). ` +
+      "Free some space (Settings, Your videos) and try again.");
   }
   let projects = 0, anims = 0, skipped = 0;
   const me = currentOwner();

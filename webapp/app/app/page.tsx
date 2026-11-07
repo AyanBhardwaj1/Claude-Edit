@@ -17,7 +17,7 @@ import { Script, StyleRules } from "@/components/Small";
 import { getUser, initials, signOut, type User } from "@/lib/auth";
 import { createSample } from "@/lib/demo";
 import { startSync, stopSync } from "@/lib/sync";
-import { DEFAULT_SETTINGS, listProjects, loadProject, loadSettings, saveSettings, setOwner } from "@/lib/store";
+import { DEFAULT_SETTINGS, forgetKeys, listProjects, loadProject, loadSettings, saveSettings, setOwner } from "@/lib/store";
 import { applyTheme, getTheme, setTheme, THEMES, type ThemeId } from "@/lib/theme";
 import type { Project, Settings as S } from "@/lib/types";
 
@@ -126,7 +126,8 @@ export default function App() {
   const go = (s: Screen) => { location.hash = s === "home" ? "" : s; if (s === "home") void route(""); };
   const open = (p: Project, s?: string) => { setProject(p); setSummary(s); location.hash = `video/${encodeURIComponent(p.id)}`; };
   const pickTheme = (id: ThemeId) => { setTheme(id); setThemeState(id); };
-  const leave = async () => { stopSync(); await signOut(); location.href = "/"; };
+  // a waiting settings change goes up first; then this account's keys leave the browser (shared computers)
+  const leave = async () => { stopSync(); forgetKeys(); await signOut(); location.href = "/"; };
 
   if (!user) return (
     <div className="app" aria-busy="true" aria-label="Loading Cutmind">

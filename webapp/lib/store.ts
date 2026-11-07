@@ -25,6 +25,7 @@ export async function putMedia(key: string, blob: Blob) { await set(key, blob, m
 export async function getMedia(key: string): Promise<Blob | undefined> { return get(key, media()); }
 /** Every media key stored in this browser (backups pick the ones this account's videos use). */
 export async function mediaKeys(): Promise<string[]> { return (await keys(media())).map(String); }
+export async function delMedia(key: string) { await del(key, media()); }
 /** Restore: put a project / animation back exactly as backed up (its time kept), for the signed-in account. */
 /** The signed-in account's id (null before accounts, or signed out). */
 export function currentOwner(): string | null { return owner; }
@@ -72,9 +73,16 @@ export async function listAnims(): Promise<Anim[]> {
   const all = await Promise.all(ks.map((k) => get(k, anims()) as Promise<Anim>));
   return all.filter((a) => a && (!a.owner || !owner || a.owner === owner)).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
+const animMedia = (a: Anim) => [a.music, ...Object.values(a.voice?.keys ?? {}), ...a.scenes.map((x) => x.image)].filter(Boolean) as string[];
+
 export async function deleteAnim(a: Anim) {
   await del(a.id, anims());
-  await Promise.all([a.music, ...Object.values(a.voice?.keys ?? {}), ...a.scenes.map((x) => x.image)].filter(Boolean).map((k) => del(k!, media())));
+  // a restored copy keeps the original's files: only delete what no other animation or project (of any account) uses
+  const [ak, pk] = await Promise.all([keys(anims()), keys(projects())]);
+  const others = (await Promise.all(ak.map((k) => get(k, anims()) as Promise<Anim>))).filter(Boolean);
+  const ps = (await Promise.all(pk.map((k) => get(k, projects()) as Promise<Project>))).filter(Boolean);
+  const used = new Set([...others.flatMap(animMedia), ...ps.flatMap((q) => [...q.sources.map((s) => s.mediaKey), ...q.library.map((x) => x.key)])]);
+  await Promise.all(animMedia(a).filter((k) => !used.has(k)).map((k) => del(k, media())));
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -99,6 +107,16 @@ export function saveSettings(s: Settings) {
   localStorage.setItem(k("ce.settings"), JSON.stringify(s.rememberKeys ? s : withoutKeys(s)));
   sessionStorage.setItem(k("ce.keys"), JSON.stringify(onlyKeys(s)));
   changed();
+}
+
+/** Signing out on a shared computer: this account's API keys leave the browser (the tab's copy and a remembered one);
+ *  the rest of its settings stay for next time. */
+export function forgetKeys() {
+  try {
+    sessionStorage.removeItem(k("ce.keys"));
+    const raw = localStorage.getItem(k("ce.settings"));
+    if (raw) localStorage.setItem(k("ce.settings"), JSON.stringify(withoutKeys(JSON.parse(raw) as Settings)));
+  } catch { /* storage blocked: nothing kept */ }
 }
 
 export function loadRules(): StyleRule[] {

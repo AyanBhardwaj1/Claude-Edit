@@ -38,7 +38,12 @@ export class StudioPlayer {
     if (!this.playing) this.draw(this.t);
   }
 
-  setUrls(urls: Map<string, string>) { this.urls = urls; void this.loadImages(); }
+  /** New media URLs (a picture, the music or a voice changed): the old ones are freed. */
+  setUrls(urls: Map<string, string>) {
+    const old = this.urls;
+    this.urls = urls; void this.loadImages();
+    if (old !== urls) for (const [k, u] of old) if (urls.get(k) !== u) URL.revokeObjectURL(u);
+  }
 
   get duration() { return total(this.anim); }
 
@@ -153,6 +158,7 @@ export class StudioPlayer {
 
   dispose() {
     this.pause();
+    for (const u of this.urls.values()) URL.revokeObjectURL(u);
     const c = this.ctx; this.ctx = undefined;
     if (c && c.state !== "closed") void c.close().catch(() => undefined);
   }
