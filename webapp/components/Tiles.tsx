@@ -1,4 +1,5 @@
 "use client";
+import type { Said } from "@/lib/search";
 import { useEffect, useRef, useState } from "react";
 import { getMedia } from "@/lib/store";
 import type { Project } from "@/lib/types";
@@ -55,8 +56,8 @@ function Thumb({ p }: { p: Project }) {
   );
 }
 
-export function VideoTile({ p, onOpen, onDelete, onCopy }: { p: Project; onOpen: () => void; onDelete?: () => Promise<void>;
-  onCopy?: () => Promise<void> }) {
+export function VideoTile({ p, onOpen, onDelete, onCopy, said }: { p: Project; onOpen: () => void; onDelete?: () => Promise<void>;
+  onCopy?: () => Promise<void>; said?: Said | null }) {
   const [asking, setAsking] = useState(false);
   const [busy, setBusy] = useState(false);
   return (
@@ -66,6 +67,8 @@ export function VideoTile({ p, onOpen, onDelete, onCopy }: { p: Project; onOpen:
         <span>
           <span className="t trunc">{p.title}</span>
           <span className="m">{p.versions.length} version{p.versions.length === 1 ? "" : "s"} · {ago(p.updatedAt)}</span>
+          {said && <span className="m said">said &ldquo;{said.before && "…"}{said.before} <mark>{said.match}</mark> {said.after}…&rdquo; at {clock(said.at)} in the footage
+            {said.count > 1 ? ` (and ${said.count - 1} more)` : ""}</span>}
         </span>
       </button>
       {onDelete && <button className="btn icon sm more" aria-label={`Delete ${p.title}`} onClick={() => setAsking(true)}><Icon name="trash" /></button>}

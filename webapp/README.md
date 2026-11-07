@@ -164,10 +164,19 @@ vertical reel with a cover and a post caption, then change it by typing notes. E
     applies it. Claude Pro/Max and ChatGPT Plus/Pro don't offer third-party apps a sign-in, so Cutmind never asks for
     the account; it sends nothing anywhere itself (`lib/relay.ts`, `components/Relay.tsx`). Voice-overs, OpenAI
     transcription and AI pictures still need an OpenAI key.
+45. **Any AI account with a key**: besides Anthropic and OpenAI, an **OpenRouter** key (one key for Claude, GPT, Gemini,
+    Llama, DeepSeek and more; pick the model in Settings) or a **Google Gemini** key. Check key verifies it and picks a
+    good model; the answer's shape goes in the prompt and the reply is read the forgiving way, so any capable model works
+    (`lib/keys.ts`: every provider's key is stored, kept for the tab, and stripped from sync in one place).
+46. **Words I wasn't sure I heard**: Edit it myself → Subtitles lists the words the recogniser was least sure of in what
+    the cut plays (names and jargon, where subtitles go wrong), each with the words around it and its time. Type the
+    right word and Fix: it becomes a correction everywhere it's said; or Looks right (`lib/unsure.ts`).
+47. **Search what you said**: My videos' search finds a video by its title or by anything said in it ("the one where I
+    talked about Notion"), and the tile shows the words around the first place and how many more (`lib/search.ts`).
 
 ## Privacy and keys
 - Videos never leave the browser: they're processed on the user's computer and kept in IndexedDB.
-- API keys go **straight from the browser to Anthropic or OpenAI**. This app's server never receives them.
+- API keys go **straight from the browser to Anthropic, OpenAI, OpenRouter or Google**. This app's server never receives them.
   They're kept for the tab only, unless the user ticks "Remember my keys".
 - With "Your Claude or ChatGPT plan" there is no key and no AI call at all: the user copies each request into their own
   chat and pastes the reply back. Cutmind never asks for a Claude or ChatGPT login (those plans have no sign-in for

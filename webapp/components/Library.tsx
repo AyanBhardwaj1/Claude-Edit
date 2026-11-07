@@ -4,6 +4,7 @@ import { copyProject, deleteProject, listProjects } from "@/lib/store";
 import type { Project } from "@/lib/types";
 import { Icon } from "./Icons";
 import { VideoTile } from "./Tiles";
+import { saidIn } from "@/lib/search";
 
 type Filter = "all" | "ready" | "unfinished";
 
@@ -12,8 +13,10 @@ export function Library({ onOpen, onNew, onSample }: { onOpen: (p: Project) => v
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   useEffect(() => { void listProjects().then(setPs); }, []);
-  const shown = useMemo(() => (ps ?? []).filter((p) => (filter === "all" || (filter === "ready") === (p.status === "edited"))
-    && p.title.toLowerCase().includes(q.trim().toLowerCase())), [ps, q, filter]);
+  // a title match, or anything said in the video (its transcript)
+  const shown = useMemo(() => (ps ?? []).filter((p) => filter === "all" || (filter === "ready") === (p.status === "edited"))
+    .map((p) => ({ p, said: p.title.toLowerCase().includes(q.trim().toLowerCase()) ? null : saidIn(p, q) }))
+    .filter(({ p, said }) => !q.trim() || said || p.title.toLowerCase().includes(q.trim().toLowerCase())), [ps, q, filter]);
 
   return (
     <div className="page">
@@ -24,7 +27,7 @@ export function Library({ onOpen, onNew, onSample }: { onOpen: (p: Project) => v
       {ps && ps.length > 0 && (
         <div className="toolbar">
           <label className="sr-only" htmlFor="q">Search videos</label>
-          <input id="q" className="input" type="search" placeholder="Search by title…" value={q} autoComplete="off" onChange={(e) => setQ(e.target.value)} />
+          <input id="q" className="input" type="search" placeholder="Search titles and what you said…" value={q} autoComplete="off" onChange={(e) => setQ(e.target.value)} />
           <div className="seg" role="group" aria-label="Show">
             {(["all", "ready", "unfinished"] as Filter[]).map((f) => (
               <button key={f} aria-pressed={filter === f} onClick={() => setFilter(f)}>{f === "all" ? "All" : f === "ready" ? "Ready" : "Not finished"}</button>))}
@@ -43,7 +46,7 @@ export function Library({ onOpen, onNew, onSample }: { onOpen: (p: Project) => v
       )}
       {ps && ps.length > 0 && !shown.length && <p className="muted">Nothing matches &ldquo;{q}&rdquo;.</p>}
       <div className="tiles">
-        {shown.map((p) => <VideoTile key={p.id} p={p} onOpen={() => onOpen(p)}
+        {shown.map(({ p, said }) => <VideoTile key={p.id} p={p} said={said} onOpen={() => onOpen(p)}
           onDelete={async () => { await deleteProject(p); setPs(await listProjects()); }}
           onCopy={async () => { await copyProject(p); setPs(await listProjects()); }} />)}
       </div>

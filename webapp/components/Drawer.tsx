@@ -14,6 +14,7 @@ import { formatTime, playedLength, waitSavings, WAIT_SPEED } from "@/lib/screenr
 import { pickTake, takeLines, type Take } from "@/lib/takes";
 import { crutches, cutWords, findWords, restoreWords } from "@/lib/crutch";
 import { applyFit, FIT_TARGETS, planFit, repeats } from "@/lib/fit";
+import { unsureWords } from "@/lib/unsure";
 import type { Asset, Broll, BrollIn, CaptionAnim, CaptionPreset, Edit, Look, Motion, Project, Range, Settings, Transition } from "@/lib/types";
 
 const ANIM_NAME: Record<CaptionAnim, string> = { pop: "Pop", karaoke: "Karaoke", bounce: "Bounce", words: "Word by word", typewriter: "Typewriter",
@@ -95,6 +96,8 @@ export function Drawer({ project: p, edit, onApply, settings, onMakeMusic, onWor
   const [fitTo, setFitTo] = useState<number | null>(null);
   const cutTl = useMemo(() => buildTimeline(p.words, e, p.sources.map((x) => x.duration)), [p.words, p.sources, e]);
   const length = cutTl.duration;
+  const doubts = useMemo(() => unsureWords(cutTl, e.corrections), [cutTl, e.corrections]);
+  const [okWords, setOkWords] = useState<Set<string>>(new Set());          // "looks right": hidden for this session
   // words a minute as it plays (talking speed included), from the cut's spoken words over its length
   const wpm = useMemo(() => {
     const n = cutTl.words.filter((w) => w.w.trim()).length;
@@ -294,6 +297,27 @@ export function Drawer({ project: p, edit, onApply, settings, onMakeMusic, onWor
               onBlur={(ev) => loadFont(ev.target.value)} />
           </div>
           {onWords && <ScriptFix project={p} onChange={onWords} />}
+          {doubts.some((d) => !okWords.has(d.id)) && (
+            <div className="field"><span className="label" id="doubt-h">Words I wasn&apos;t sure I heard</span>
+              <span className="hint">Names and jargon are where subtitles go wrong. Type the right word to fix it everywhere it&apos;s said.</span>
+              <ul className="takes" aria-labelledby="doubt-h">
+                {doubts.filter((d) => !okWords.has(d.id)).map((d) => (
+                  <li key={d.id}>
+                    <form className="row" onSubmit={(ev) => {
+                      ev.preventDefault();
+                      const to = String(new FormData(ev.currentTarget).get("to") ?? "").trim();
+                      if (to && to !== d.word) setE({ ...e, corrections: [...e.corrections, { from: d.word.replace(/[.,!?;:]+$/, ""), to }] });
+                    }}>
+                      <span className="grow small"><span className="muted num">{formatTime(d.at)}</span> {d.before} <b className="doubt">{d.word}</b> {d.after}</span>
+                      <input name="to" className="input w-120" defaultValue={d.word.replace(/[.,!?;:]+$/, "")} aria-label={`Right word for “${d.word}” at ${formatTime(d.at)}`} autoComplete="off" />
+                      <button className="btn sm">Fix</button>
+                      <button type="button" className="btn ghost sm" onClick={() => setOkWords(new Set([...okWords, d.id]))}>Looks right</button>
+                    </form>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           <div className="field">
             <span className="label">Fix a word</span>
             {e.corrections.map((c, i) => (

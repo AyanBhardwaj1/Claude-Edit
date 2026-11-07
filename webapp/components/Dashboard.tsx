@@ -1,4 +1,5 @@
 "use client";
+import { isKeyProvider, PROVIDER_NAME } from "@/lib/keys";
 import { aiReady } from "@/lib/ai";
 import { useEffect, useRef, useState } from "react";
 import type { User } from "@/lib/auth";
@@ -200,7 +201,7 @@ export function Dashboard({ user, settings, theme, onNew, onOpen, onGo, onSample
             <ul className="setup">
               <li><span className="tick"><Icon name="key" /></span><span className="grow">
                 {settings.provider === "chat" ? <>Edits with your <b>Claude or ChatGPT plan</b> (copy and paste)</>
-                  : key ? <>Edits with your <b>{settings.provider === "anthropic" ? "Anthropic" : "OpenAI"}</b> key</> : "No key: simple cuts with subtitles"}</span></li>
+                  : key ? <>Edits with your <b>{isKeyProvider(settings.provider) ? PROVIDER_NAME[settings.provider] : ""}</b> key</> : "No key: simple cuts with subtitles"}</span></li>
               <li><span className="tick"><Icon name="ear" /></span><span className="grow">
                 {settings.transcriber === "openai" ? "Listens with OpenAI (fast)" : "Listens in your browser (free)"}</span></li>
               <li><span className="tick"><Icon name="palette" /></span><span className="grow">{themeName} look</span></li>

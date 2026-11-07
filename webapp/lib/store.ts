@@ -3,6 +3,7 @@
 // Each local account (lib/auth.ts) sees its own videos, settings and style; data made before accounts existed is
 // shared by everyone in this browser.
 
+import { KEY_FIELDS, onlyKeys, withoutKeys } from "./keys";
 import { createStore, del, get, keys, set } from "idb-keyval";
 import { effortOf } from "./effort";
 import type { Anim } from "./studio";
@@ -77,7 +78,8 @@ export async function deleteAnim(a: Anim) {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  provider: "anthropic", anthropicKey: "", openaiKey: "", anthropicModel: "claude-sonnet-5-5", openaiModel: "",
+  provider: "anthropic", anthropicKey: "", openaiKey: "", openrouterKey: "", geminiKey: "",
+  anthropicModel: "claude-sonnet-5-5", openaiModel: "", openrouterModel: "", geminiModel: "",
   transcriber: "openai", rememberKeys: false, effort: "balanced",
 };
 
@@ -86,15 +88,16 @@ export function loadSettings(): Settings {
   try {
     const s = { ...DEFAULT_SETTINGS, ...JSON.parse(read("ce.settings") || "{}") } as Settings;
     s.effort = effortOf(s);
-    const session = JSON.parse(sessionStorage.getItem(k("ce.keys")) || "{}");
-    return { ...s, anthropicKey: s.anthropicKey || session.anthropicKey || "", openaiKey: s.openaiKey || session.openaiKey || "" };
+    const session = JSON.parse(sessionStorage.getItem(k("ce.keys")) || "{}") as Partial<Settings>;
+    for (const f of KEY_FIELDS) s[f] = s[f] || session[f] || "";
+    return s;
   } catch { return DEFAULT_SETTINGS; }
 }
 
 export function saveSettings(s: Settings) {
-  const { anthropicKey, openaiKey, ...rest } = s;
-  localStorage.setItem(k("ce.settings"), JSON.stringify(s.rememberKeys ? s : rest));
-  sessionStorage.setItem(k("ce.keys"), JSON.stringify({ anthropicKey, openaiKey }));
+  // keys stay for this tab only, unless "Remember my keys" (KEY_FIELDS: every provider's key, lib/keys.ts)
+  localStorage.setItem(k("ce.settings"), JSON.stringify(s.rememberKeys ? s : withoutKeys(s)));
+  sessionStorage.setItem(k("ce.keys"), JSON.stringify(onlyKeys(s)));
   changed();
 }
 

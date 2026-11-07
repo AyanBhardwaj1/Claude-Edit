@@ -1,4 +1,4 @@
-// The AI editor. Calls go straight from the browser to Anthropic or OpenAI with the user's own key:
+// The AI editor. Calls go straight from the browser to Anthropic, OpenAI, OpenRouter or Google with the user's own key:
 // this app's server never sees the key, the transcript or the video.
 
 import { motionOf } from "./edit";
@@ -16,16 +16,20 @@ export class AiError extends Error {
 }
 
 type Json = Record<string, unknown>;
-import { askByRelay } from "./relay";
-export type KeyProvider = "anthropic" | "openai";
+import { askByRelay, parseRelayAnswer } from "./relay";
+import { keyOf, modelOf, PROVIDER_NAME, type KeyProvider } from "./keys";
+export type { KeyProvider } from "./keys";
 
-const PREFERRED = {
+const PREFERRED: Record<KeyProvider, RegExp[]> = {
+  openrouter: [/^anthropic\/claude-sonnet/, /^anthropic\/claude-opus/, /^openai\/gpt-[56](?!.*(mini|nano))/, /^google\/gemini-.*pro/, /claude/, /gpt/],
+  gemini: [/^gemini-[\d.]+-pro$/, /^gemini-.*pro(?!.*(vision|tts|image|audio))/, /^gemini-.*flash(?!.*(lite|tts|image|audio))/, /^gemini/],
   anthropic: [/^claude-sonnet-5/, /^claude-opus-5/, /^claude-sonnet-4/, /^claude-opus-4/, /sonnet/, /claude/],
   openai: [/^gpt-6(?!.*(mini|nano|audio|realtime|image|search|transcribe|tts))/, /^gpt-5(?!.*(nano|audio|realtime|image|search|transcribe|tts))/,
     /^gpt-4\.1/, /^gpt-4o(?!.*(audio|realtime|search|transcribe|tts))/, /^gpt-/],
 };
 
 export async function listModels(provider: KeyProvider, key: string): Promise<{ models: string[]; suggested: string | null }> {
+  if (provider === "openrouter" || provider === "gemini") return listOtherModels(provider, key);
   const r = provider === "anthropic"
     ? await fetch("https://api.anthropic.com/v1/models?limit=100", { headers: anthropicHeaders(key) })
     : await fetch("https://api.openai.com/v1/models", { headers: { Authorization: `Bearer ${key}` } });
@@ -48,11 +52,106 @@ function anthropicHeaders(key: string): Record<string, string> {
 /** An AI editor is connected: an API key for the chosen provider, or the copy-and-paste plan (always there). */
 export function aiReady(s: Settings | undefined | null): boolean {
   if (!s) return false;
-  return s.provider === "chat" || !!(s.provider === "anthropic" ? s.anthropicKey : s.openaiKey);
+  return s.provider === "chat" || !!keyOf(s);
+}
+
+// ---- OpenRouter (one key, many models: Claude, GPT, Gemini, Llama…) and Google Gemini ----------------------------
+const GEMINI = "https://generativelanguage.googleapis.com/v1beta";
+const OPENROUTER = "https://openrouter.ai/api/v1";
+
+async function listOtherModels(provider: "openrouter" | "gemini", key: string): Promise<{ models: string[]; suggested: string | null }> {
+  let models: string[];
+  if (provider === "openrouter") {
+    const who = await fetch(`${OPENROUTER}/key`, { headers: { Authorization: `Bearer ${key}` } });     // the model list is public:
+    if (!who.ok) throw new AiError(`key ${who.status}`, who.status === 401 ? "That key was not accepted. Check it and try again." :
+      `OpenRouter answered ${who.status}.`);                                                         // this checks the key
+    const r = await fetch(`${OPENROUTER}/models`);
+    if (!r.ok) throw new AiError(`models ${r.status}`, `OpenRouter answered ${r.status}.`);
+    models = ((await r.json()) as { data: { id: string }[] }).data.map((m) => m.id).sort();
+  } else {
+    const r = await fetch(`${GEMINI}/models?pageSize=200`, { headers: { "x-goog-api-key": key } });
+    if (!r.ok) throw new AiError(`models ${r.status}`, r.status === 400 || r.status === 401 || r.status === 403
+      ? "That key was not accepted. Check it and try again." : `The Gemini API answered ${r.status}.`);
+    const data = (await r.json()) as { models?: { name: string; supportedGenerationMethods?: string[] }[] };
+    models = (data.models ?? []).filter((m) => m.supportedGenerationMethods?.includes("generateContent"))
+      .map((m) => m.name.replace(/^models\//, "")).sort().reverse();
+  }
+  const suggested = PREFERRED[provider].map((re) => models.find((m) => re.test(m))).find(Boolean) ?? models[0] ?? null;
+  return { models, suggested };
+}
+
+/** The answer's shape goes in the prompt (models differ in which JSON-schema features they take), and the reply is read
+ *  the forgiving way the copy-and-paste window reads it. */
+function withShape(user: string, schema: Json, name: string): string {
+  return `${user}\n\n## How to answer\nReply with ONE JSON object and nothing else. It must match this JSON Schema ("${name}"):\n` +
+    "```json\n" + JSON.stringify(schema) + "\n```";
+}
+
+async function callOther(s: Settings, provider: "openrouter" | "gemini", system: string, user: string, schema: Json, name: string,
+  maxTokens: number): Promise<Json> {
+  const key = keyOf(s, provider);
+  let model = modelOf(s, provider);
+  if (!model) {                                                    // no model picked yet: the best one the key can use
+    model = (await listOtherModels(provider, key)).suggested ?? "";
+    if (!model) throw new AiError("no model", `Pick a ${PROVIDER_NAME[provider]} model in Settings first.`);
+  }
+  const prompt = withShape(user, schema, name);
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const r = provider === "openrouter"
+      ? await fetch(`${OPENROUTER}/chat/completions`, {
+        method: "POST", headers: { Authorization: `Bearer ${key}`, "content-type": "application/json", "X-Title": "Cutmind" },
+        body: JSON.stringify({ model, max_tokens: maxTokens, messages: [{ role: "system", content: system }, { role: "user", content: prompt }] }),
+      })
+      : await fetch(`${GEMINI}/models/${encodeURIComponent(model)}:generateContent`, {
+        method: "POST", headers: { "x-goog-api-key": key, "content-type": "application/json" },
+        body: JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents: [{ role: "user", parts: [{ text: prompt }] }],
+          generationConfig: { responseMimeType: "application/json", maxOutputTokens: maxTokens } }),
+      });
+    const wait = () => new Promise((ok) => setTimeout(ok, 2000 * (attempt + 1) ** 2));
+    if (r.status === 429 || r.status >= 500) { await wait(); continue; }
+    if (!r.ok) {
+      const body = await r.text();
+      // a model with a smaller answer limit than this effort's budget (or an account that can't cover all of it): once
+      // more at the usual budget, as the Anthropic path does
+      if ((r.status === 400 && /max_?(output_)?tokens|too large/i.test(body) || r.status === 402) && maxTokens > DEFAULT_MAX_TOKENS) {
+        maxTokens = DEFAULT_MAX_TOKENS; attempt--; continue;
+      }
+      throw new AiError(`${r.status} ${body.slice(0, 300)}`, r.status === 401 || (provider === "gemini" && r.status === 403)
+        ? "Your API key was not accepted. Check it in Settings." : r.status === 402 ? "Your OpenRouter account is out of credits." :
+        r.status === 404 ? `The model "${model}" isn't available to your key. Pick another in Settings.` :
+          `The AI couldn't finish (${r.status}). ${body.slice(0, 160)}`);
+    }
+    type Reply = { error?: { code?: number; message?: string };
+      choices?: { message?: { content?: string }; finish_reason?: string }[];
+      candidates?: { content?: { parts?: { text?: string }[] }; finishReason?: string }[]; promptFeedback?: { blockReason?: string } };
+    const data = await r.json() as Reply;
+    if (data.error) {                                    // OpenRouter can answer 200 with the provider's error inside
+      const code = Number(data.error.code) || 0;
+      if (code === 429 || code >= 500) { await wait(); continue; }
+      throw new AiError(`error ${code} ${data.error.message ?? ""}`, `${PROVIDER_NAME[provider]} couldn't answer: ${data.error.message ?? "an error"}. Try another model in Settings.`);
+    }
+    const blocked = data.promptFeedback?.blockReason ?? (/^(SAFETY|PROHIBITED_CONTENT|RECITATION|BLOCKLIST|SPII)$/.test(data.candidates?.[0]?.finishReason ?? "")
+      ? data.candidates![0].finishReason : undefined);
+    if (blocked) throw new AiError(`blocked ${blocked}`, `Gemini declined to answer (${blocked}). Try again, or another model in Settings.`);
+    const text = provider === "openrouter" ? data.choices?.[0]?.message?.content
+      : data.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("");
+    const v = text ? parseRelayAnswer(text) : null;
+    if (v) return v;
+    const cut = provider === "openrouter" ? data.choices?.[0]?.finish_reason === "length" : data.candidates?.[0]?.finishReason === "MAX_TOKENS";
+    if (cut) {                                           // ran out of room mid-answer: once more with more room, then say so
+      if (maxTokens < 32000) { maxTokens = Math.max(DEFAULT_MAX_TOKENS, maxTokens * 2); continue; }
+      throw new AiError("max tokens", "The answer was too long for this model. Try a model with a bigger answer limit, or Fast effort.");
+    }
+  }
+  throw new AiError("no usable answer", "The AI is busy or didn't give a usable answer. Try again in a minute.");
 }
 
 export async function callJson(s: Settings, system: string, user: string, schema: Json, name: string, choice?: AiChoice): Promise<Json> {
   if (s.provider === "chat") return askByRelay({ name, system, user, schema });   // your plan, by copy and paste
+  if (s.provider === "openrouter" || s.provider === "gemini") {
+    if (!keyOf(s)) throw new AiError("no key", `Add your ${PROVIDER_NAME[s.provider]} API key in Settings first.`);
+    return callOther(s, s.provider, system, user, schema, name, choice?.maxTokens ?? DEFAULT_MAX_TOKENS);
+  }
   const anthropic = s.provider === "anthropic";
   const key = anthropic ? s.anthropicKey : s.openaiKey;
   if (!key) throw new AiError("no key", `Add your ${anthropic ? "Anthropic" : "OpenAI"} API key in Settings first.`);

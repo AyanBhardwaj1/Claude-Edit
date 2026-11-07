@@ -309,6 +309,26 @@ def _said_twice(words: list[dict]) -> str | None:
     return "; ".join(out[:3]) + (f" (+{len(out) - 3} more)" if len(out) > 3 else "") + ": cut the later one?"
 
 
+def _unsure(words: list[dict], edl: dict, below: float = 0.6) -> str | None:
+    """Words the recogniser wasn't sure it heard, in what the cut plays (names and jargon: where captions go wrong), once
+    each and not already corrected in the EDL's captions. The same check as Cutmind's lib/unsure.ts."""
+    from .plan import FILLERS, norm
+    look = edl.get("captions") if isinstance(edl.get("captions"), dict) else {}
+    fixed = {norm(t) for c in (look.get("corrections") or []) for t in str(c.get("from", "")).split()}
+    seen, out = set(), []
+    for w in words:
+        b = norm(str(w.get("text", "")))
+        if not b or b in FILLERS or b in fixed or b in seen or float(w.get("prob", 1.0)) >= below:
+            continue
+        seen.add(b)
+        out.append((float(w.get("prob", 1.0)), f'"{str(w["text"]).strip()}" at {float(w["start"]):.1f}s'))
+    if not out:
+        return None
+    out.sort()
+    return ", ".join(x for _, x in out[:6]) + (f" (+{len(out) - 6} more)" if len(out) > 6 else "") + \
+        ": check the captions (editor words <work> --unsure); fix with EDL captions.corrections"
+
+
 def _habits(words: list[dict]) -> str | None:
     """Words said out of habit in the cut (two or more): "basically" x3, "you know" x1. Cutting them is the user's
     call (editor habits)."""
@@ -468,5 +488,5 @@ def pacing(edl: dict, words: list[dict], duration: float, cuts: list[float] | No
             "visuals_under_1_2s": too_short, "named_not_shown": names[:20],
             "broll_moments": None if len(broll) >= want else f"{len(broll)} (hand edits carry about {round(duration / 6)})",
             "first_word_after_0_6s": late, "no_hook_title": None if has_title else "nothing to read in the first second",
-            "strong_language": _strong(words, edl), "habit_words": _habits(words), "said_twice": _said_twice(words),
+            "strong_language": _strong(words, edl), "habit_words": _habits(words), "unsure_words": _unsure(words, edl), "said_twice": _said_twice(words),
             "opens_with_warm_up": warm, "stronger_line_for_a_cold_open": stronger_opening(words), "hook_too_quick_to_read": quick, "loop_seam": loop}
