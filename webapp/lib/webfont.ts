@@ -9,12 +9,17 @@ export function loadFont(name: string): Promise<void> {
   if (have) return have;
   const p = new Promise<void>((ok) => {
     if (document.querySelector(`link[data-font="${CSS.escape(name)}"]`)) return ok();
-    const l = document.createElement("link");
-    l.rel = "stylesheet"; l.dataset.font = name;
-    l.href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(name)}:wght@500;600;700;800;900&display=swap`;
-    l.onload = () => ok(); l.onerror = () => ok();
+    const add = (weights: boolean) => {
+      const l = document.createElement("link");
+      l.rel = "stylesheet"; l.dataset.font = name;
+      l.href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(name)}${weights ? ":wght@500;600;700;800;900" : ""}&display=swap`;
+      l.onload = () => ok();
+      // a display face with one weight (Bangers, Anton, Bebas Neue) is refused when asked for 500-900: ask for it plain
+      l.onerror = () => { l.remove(); if (weights) add(false); else ok(); };
+      document.head.appendChild(l);
+    };
     setTimeout(ok, 4000);
-    document.head.appendChild(l);
+    add(true);
   });
   loading.set(name, p);
   return p;
