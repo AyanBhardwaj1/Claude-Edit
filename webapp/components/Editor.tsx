@@ -1,4 +1,6 @@
 "use client";
+import { announce } from "@/lib/assistant";
+import { Timeline } from "./Timeline";
 import type { Look } from "@/lib/look";
 import { aiReady } from "@/lib/ai";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -84,6 +86,8 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
   }, [note]);
   const [busy, setBusy] = useState("");
   const [drawer, setDrawer] = useState(false);
+  const [timeline, setTimeline] = useState(false);   // the timeline editor under the header (components/Timeline.tsx)
+  const tlDraft = useRef<Edit | null>(null);           // its unsaved changes, previewed in the player
   const [exp, setExp] = useState<{ pct: number; video?: string; ext?: string; cover?: string; caption?: string; label?: string; srt?: string;
     lufs?: number; peak?: number } | null>(null);
   const [err, setErr] = useState("");
@@ -143,9 +147,12 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
   // true for a whole export, Export all's version reloads between formats included: nothing may start playback then
   const [exporting, setExporting] = useState(false);
   const exportingRef = useRef(false);
+  const expPct = useRef(0);                            // how far the export got (the assistant says done or stopped)
   // a change that reloads the preview (a finished wait scan) waits for the export: reloading mid-export would stop it
   const afterExport = useRef(false);
   const busyExport = (on: boolean) => {
+    if (!on && exportingRef.current) announce(expPct.current >= 99 ? "Exported" : "Stopped", 100);   // the assistant's status ends too
+    if (on) expPct.current = 0;
     exportingRef.current = on; setExporting(on);
     if (!on && afterExport.current) { afterExport.current = false; setP({ ...latest.current }); }
   };
@@ -262,9 +269,14 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
     const w = pl.tl.words.find((x) => x.os <= pl.t && pl.t <= x.oe + 0.3) ?? pl.tl.words.find((x) => x.os >= pl.t);
     return { word: w?.id, t: pl.t }; };
   const keepAt = useRef<{ word?: string; t: number } | undefined>(undefined);
-  const flipCompare = () => { if (prevN === null) return; keepAt.current = here(); setCmp((c) => !c); };
+  const flipCompare = () => {
+    if (prevN === null) return;
+    if (tlDraft.current) { setToast("Save or discard your timeline changes first"); return; }
+    keepAt.current = here(); setCmp((c) => !c);
+  };
   useEffect(() => { setCmp(false); }, [version?.n]);
-  useEffect(() => { if (shown) { const k = keepAt.current; keepAt.current = undefined; void mount(shown.edit, k); }
+  useEffect(() => { if (shown) { const k = keepAt.current; keepAt.current = undefined;
+    void mount(!cmp && tlDraft.current ? tlDraft.current : shown.edit, k ?? (tlDraft.current ? { t: player.current?.t ?? 0 } : undefined)); }   // the timeline's draft stays in view
     return () => player.current?.dispose(); }, [shown, mount]);
   useEffect(() => { chat.current?.scrollTo({ top: chat.current.scrollHeight, behavior: "smooth" }); }, [msgs, busy]);
   useEffect(() => { if (!toast) return; const id = setTimeout(() => setToast(""), 2200); return () => clearTimeout(id); }, [toast]);
@@ -281,6 +293,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
       const el = ev.target as HTMLElement;
       if (el.closest("input, textarea, select, [contenteditable]") || (!!exp && exp.pct < 100) || exportingRef.current) return;
       if (keys || el.closest("dialog") || document.querySelector("dialog[open]")) return;   // a dialog is in front
+      if (el.closest(".tl-panel")) return;                  // the timeline has its own keys (S, Delete, arrows, undo)
       if ((ev.key === " " || ev.key === "Enter") && el.closest("button, a, [role=button], summary")) return;   // pressing a button
       const pl = player.current; if (!pl) return;
       const mod = ev.metaKey || ev.ctrlKey;
@@ -415,6 +428,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
   async function exportAll() {
     if (!version) return;
     endRun(player.current, false);              // a scroll or loop test still running would stop the recording
+    if (tlDraft.current) { setToast("Save or discard your timeline changes first: the export would have them"); return; }
     busyExport(true);
     const keep = p.format ?? "9:16";
     const out: { f: Format; url: string; ext: string }[] = [];
@@ -425,7 +439,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
         await mount(version.edit);
         const pl = player.current; if (!pl) break;
         setExp({ pct: 0, label: `${FORMATS[f].name} (${i + 1} of 4)` });
-        const { blob, ext } = await pl.record((pct) => setExp((x) => ({ ...x!, pct })));
+        const { blob, ext } = await pl.record((pct) => { setExp((x) => ({ ...x!, pct })); expPct.current = pct; announce("Exporting", pct); });
         out.push({ f, url: URL.createObjectURL(blob), ext });
       }
     } catch (e) { setErr(String(e)); }
@@ -438,6 +452,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
   async function exportVariants(texts: string[]) {
     if (!version) return;
     endRun(player.current, false);
+    if (tlDraft.current) { setToast("Save or discard your timeline changes first: the export would have them"); return; }
     busyExport(true);
     const out: { hook: string; url: string; ext: string }[] = [];
     setAll(null); setVariants(null); setPlaying(true);
@@ -446,7 +461,7 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
         await mount(withHook(version.edit, text, buildTimeline(p.words, version.edit, p.sources.map((x) => x.duration))));
         const pl = player.current; if (!pl) break;
         setExp({ pct: 0, label: `Hook ${String.fromCharCode(66 + i)} (${i + 1} of ${texts.length})` });
-        const { blob, ext } = await pl.record((pct) => setExp((x) => ({ ...x!, pct })));
+        const { blob, ext } = await pl.record((pct) => { setExp((x) => ({ ...x!, pct })); expPct.current = pct; announce("Exporting", pct); });
         out.push({ hook: text, url: URL.createObjectURL(blob), ext });
       }
     } catch (e) { setErr(String(e)); }
@@ -458,10 +473,11 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
     const pl = player.current;
     if (!pl) return;
     endRun(pl, false);                          // a scroll or loop test still running would stop the recording
+    if (tlDraft.current) { setToast("Save or discard your timeline changes first: the export would have them"); return; }
     busyExport(true);
     setExp({ pct: 0 }); setPlaying(true);
     try {
-      const { blob, ext } = await pl.record((pct) => setExp((x) => ({ ...x!, pct })));
+      const { blob, ext } = await pl.record((pct) => { setExp((x) => ({ ...x!, pct })); expPct.current = pct; announce("Exporting", pct); });
       lastBlob.current = blob;
       const cover = await pl.cover();
       setExp({ pct: 100, video: URL.createObjectURL(blob), ext, cover: URL.createObjectURL(cover),
@@ -556,12 +572,20 @@ export function Editor({ project, settings, firstSummary, onBack, onOpenProject,
           } catch (e) { setErr((e as { userMessage?: string }).userMessage ?? String(e)); }
           setRecapBusy(false);
         }}>{recapBusy ? <><span className="spin" />Animating…</> : <><Icon name="wand" />Animated recap</>}</button>
+        <button className="btn" aria-pressed={timeline} disabled={!version || recording || cmp} onClick={() => setTimeline(!timeline)}><Icon name="film" />Timeline</button>
         <button className="btn" aria-pressed={drawer} onClick={() => setDrawer(!drawer)}><Icon name="scissors" />{drawer ? "Close the editor" : "Edit it myself"}</button>
         <button className="btn primary" onClick={exportVideo} disabled={recording || cmp} title={cmp ? "Go back to the current version to export it" : undefined}><Icon name="download" />Export</button>
       </div>
 
       {p.sample && <div className="alert info sample-note"><Icon name="spark" /><span>This is the sample: a drawn presenter and a computer voice, not a
         real person. Play it, open &ldquo;Edit it myself&rdquo;, change its shape and export it. Notes need an AI key in Settings.</span></div>}
+      {timeline && version && !recording && (
+        <Timeline project={p} edit={version.edit} t={t}
+          onSeek={(v) => { setT(v); void player.current?.seek(v); }}
+          onPreview={(draft) => { tlDraft.current = draft; if (!exportingRef.current) void mount(draft ?? version.edit, { t: player.current?.t ?? t }); }}
+          onSave={async (edit, what) => { await saveManual(p, edit, what); setP({ ...p }); setMsgs((m) => [...m, { who: "ed", text: `Version ${p.current}: ${what}` }]); }}
+          onClose={() => { tlDraft.current = null; setTimeline(false); }} />
+      )}
       <div className={`ed-grid ${shape.w > shape.h ? "wide" : ""}`}>
         <div className="preview">
           <div className={`phone ${shape.w >= shape.h ? "flat" : ""} ${cmp ? "comparing" : ""}`}>{cmp && <span className="cmp-badge" role="status">Version {prevN}, before this change</span>}<div className="cv-wrap"><canvas ref={canvas} style={{ aspectRatio: `${shape.w} / ${shape.h}` }}

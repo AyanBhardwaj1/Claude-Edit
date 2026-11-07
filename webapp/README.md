@@ -190,6 +190,20 @@ vertical reel with a cover and a post caption, then change it by typing notes. E
     (`lib/look.ts`).
 52. **Pick a cover by sight**: Edit it myself → Cover → Show frames to pick from draws six clean frames across the cut
     (no subtitles or pictures, as the cover is made); click one to use it (`Player.frames`).
+53. **Your assistant**: the Assistant button (bottom right, on every screen) opens a coach for video editing and
+    content creation. It asks once what you make (Reels / TikToks / Shorts, YouTube, explainers and infographic videos,
+    product demos, podcast clips, tutorials), what it's about and your goal, then tailors its advice: ideas for your
+    next video, hooks, better edits, demo plans. What you make also steers the AI editor's style in every edit, and a
+    YouTube-only creator's new videos start in 16:9. It answers with your own AI (a key, or your plan by copy and
+    paste). While a video, a note, music or an export is being made it says what's happening in plain words ("Composing
+    new music for the background…"), in a bubble even when it's closed, and when a video is ready it adds a quick tip
+    for what you make (`lib/assistant.ts`, `components/Assistant.tsx`).
+54. **Timeline**: the Timeline button in the editor shows the edit as tracks (video clips, pictures and text, zooms,
+    music) with a playhead. Split at the playhead (S), delete (Delete), duplicate, reorder clips by dragging or with
+    ← →, trim a clip's ends by dragging its edges or one word at a time, add a text card at the playhead (and edit
+    its words), nudge pictures and zooms, subtitles on/off, the music level, undo / redo (Ctrl/⌘+Z,
+    Ctrl/⌘+Shift+Z), zoom the timeline. Everything snaps to whole words, so subtitles and pictures stay on their words;
+    changes preview live and "Save as a new version" keeps them (`lib/cutline.ts`, `components/Timeline.tsx`).
 
 ## Privacy and keys
 - Videos never leave the browser: they're processed on the user's computer and kept in IndexedDB.

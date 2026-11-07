@@ -1,6 +1,7 @@
 // The whole workflow: takes in -> transcript and analysis -> first edit (AI or deterministic) -> notes -> versions.
 
 import { aiReady, applyNote, firstEdit, listModels, reviewEdit } from "./ai";
+import { announce, creatorFormat } from "./assistant";
 import { analyze } from "./analyze";
 import { defaultEdit, describe, fromAi, type AiEdit } from "./edit";
 import { aiChoice, effortOf, EFFORT, type AiChoice } from "./effort";
@@ -255,8 +256,18 @@ export async function makeFirstEdit(p: Project, s: Settings, rules: StyleRule[],
 export async function makeReel(takes: File[], extras: File[], script: string, s: Settings, rules: StyleRule[], onProgress: Progress,
   steps = { createProject, listen, makeFirstEdit }, again?: { made: Project | null; onMade: (p: Project) => void }):
   Promise<{ project: Project; summary: string }> {
+  const told = onProgress;
+  onProgress = (m, pct) => { told(m, pct); announce(m, pct ?? 0); };     // the assistant says what's happening, in plain words
+  try { return await makeReelSteps(takes, extras, script, s, rules, onProgress, steps, again); }
+  catch (e) { announce("Stopped", 100); throw e; }
+}
+
+async function makeReelSteps(takes: File[], extras: File[], script: string, s: Settings, rules: StyleRule[], onProgress: Progress,
+  steps: { createProject: typeof createProject; listen: typeof listen; makeFirstEdit: typeof makeFirstEdit },
+  again?: { made: Project | null; onMade: (p: Project) => void }): Promise<{ project: Project; summary: string }> {
   // "Try again" carries on with the video already made (its takes are copied in), instead of copying them again
   const p = again?.made ?? await steps.createProject(takes, extras, onProgress, script);
+  if (!again?.made && !p.format && creatorFormat()) p.format = creatorFormat()!;   // a YouTube creator starts in 16:9
   again?.onMade(p);
   const fixed = await steps.listen(p, s, onProgress, script);
   const summary = await steps.makeFirstEdit(p, s, rules, onProgress);
@@ -270,6 +281,13 @@ export const REVIEWING = "Reviewing the edit like a senior editor";
 
 /** Notes are one pass at every effort, with the effort's model and answer budget (the saved default effort). */
 export async function applyUserNote(p: Project, s: Settings, rules: StyleRule[], note: string, onProgress: Progress, where?: string):
+  Promise<{ summary: string; styleRule: string | null }> {
+  announce("Working on your note", 30);
+  try { const r = await applyUserNoteSteps(p, s, rules, note, onProgress, where); announce("Note done", 100); return r; }
+  catch (e) { announce("Stopped", 100); throw e; }
+}
+
+async function applyUserNoteSteps(p: Project, s: Settings, rules: StyleRule[], note: string, onProgress: Progress, where?: string):
   Promise<{ summary: string; styleRule: string | null }> {
   const cur = p.versions.find((v) => v.n === p.current) ?? p.versions[p.versions.length - 1];
   onProgress("Working on your note", 30);

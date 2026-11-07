@@ -773,7 +773,7 @@ button.attach { background: none; border: 0; font: inherit; font-size: 13px; tex
 .film-confirm { display: grid; gap: 12px; width: min(420px, 100%); padding: 22px; border-radius: var(--r-lg); background: var(--surface); box-shadow: var(--pop); }
 .film-confirm h3 { font-size: 1.1rem; }
 [data-theme="terminal"] .film-recbtn, [data-theme="terminal"] .film-paused { border-radius: 0; }
-@media (max-width: 860px) {
+@media (max-width: 900px) {
   /* phones: full screen, portrait. The camera fills most of the screen; the script, teleprompter settings and takes scroll below */
   .film-body { display: block; overflow-y: auto; }
   .film-stage { height: calc(100dvh - 128px); min-height: 420px; }
@@ -877,3 +877,83 @@ label.btn:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; 
 .insights .spark polyline { fill: none; stroke: var(--accent); stroke-width: 2.5; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
 .insights .big-n { font-size: 26px; line-height: 1; }
 .insights .ins-top { margin: 12px 0 0; }
+
+/* ---- the assistant on the side (components/Assistant.tsx) ---- */
+.coach-fab { position: fixed; right: 20px; bottom: 20px; z-index: 40; display: inline-flex; align-items: center; gap: 8px; min-height: 44px;
+  padding: 0 16px; border: 0; border-radius: 999px; background: var(--accent); color: var(--accent-ink); font-weight: 600; cursor: pointer; box-shadow: var(--pop); }
+.coach-fab:hover { background: var(--accent-hover); }
+.coach-fab:focus-visible { outline: none; box-shadow: var(--focus); }
+.coach-fab.on { right: min(400px, calc(100vw - 150px)); }
+.coach-bubble { position: fixed; right: 20px; bottom: 74px; z-index: 40; max-width: min(340px, calc(100vw - 40px)); display: flex; gap: 8px; align-items: flex-start;
+  padding: 10px 14px; border: 0; border-radius: var(--r-md); background: var(--surface); color: var(--ink); font-size: 13px; line-height: 1.4; text-align: left;
+  cursor: pointer; box-shadow: var(--pop); animation: coach-in .25s ease-out; }
+.spark-dot { flex: none; width: 8px; height: 8px; margin-top: 5px; border-radius: 50%; background: var(--accent); }
+@keyframes coach-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .coach-bubble { animation: none; } }
+.coach { position: fixed; top: 0; right: 0; bottom: 0; z-index: 39; width: min(390px, 100vw); display: flex; flex-direction: column; gap: 12px;
+  padding: 16px; background: var(--surface); border-left: 1px solid var(--line); box-shadow: var(--pop); overflow-y: auto; }
+.coach h2 { font-size: 17px; }
+.coach-now { display: grid; grid-template-columns: auto 1fr; gap: 6px 8px; align-items: start; padding: 10px 12px; border-radius: var(--r-md);
+  background: var(--accent-soft); color: var(--ink); font-size: 13px; line-height: 1.4; }
+.coach-bar { grid-column: 1 / -1; height: 4px; border-radius: 4px; background: var(--surface-3); overflow: hidden; }
+.coach-bar i { display: block; height: 100%; background: var(--accent); transition: width .4s ease; }
+.coach-profile { display: flex; flex-direction: column; gap: 12px; }
+.coach-profile .field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.coach .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.coach .chip { min-height: 32px; text-align: left; }
+.coach-log { flex: 1; min-height: 120px; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; }
+.coach-msg { max-width: 92%; padding: 10px 12px; border-radius: var(--r-md); font-size: 14px; line-height: 1.5; white-space: pre-wrap; }
+.coach-msg.by-me { align-self: flex-end; background: var(--accent); color: var(--accent-ink); }
+.coach-msg.by-coach { align-self: flex-start; background: var(--surface-2); color: var(--ink); }
+.coach-msg .chips { margin-top: 8px; }
+.coach-ask { display: flex; gap: 8px; align-items: flex-end; }
+.coach-ask .textarea { flex: 1; resize: none; }
+@media (max-width: 640px) { .coach-fab.on { display: none; } .coach-bubble { right: 16px; bottom: 68px; } }
+
+/* ---- the timeline editor (components/Timeline.tsx) ---- */
+.tl-panel { margin-bottom: 16px; }
+.tl-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 10px; }
+.tl-trim { display: inline-flex; align-items: center; gap: 4px; padding: 0 8px; border-left: 1px solid var(--line); }
+.tl-zoom input { width: 110px; accent-color: var(--accent); }
+.flip { display: inline-flex; transform: scaleX(-1); }
+.tl-scroll { position: relative; overflow-x: auto; border-radius: var(--r-md); background: var(--surface-2); padding-bottom: 6px; }
+.tl-scroll:focus-visible { outline: none; box-shadow: var(--focus); }
+.tl-inner { position: relative; min-height: 100%; }
+.tl-ruler { position: relative; height: 24px; border-bottom: 1px solid var(--line); cursor: pointer; }
+.tl-ruler span { position: absolute; top: 4px; font-size: 11px; color: var(--ink-3); transform: translateX(-50%); font-variant-numeric: tabular-nums; }
+.tl-track { position: relative; height: 46px; border-bottom: 1px solid var(--line); }
+.tl-track.broll, .tl-track.zoom, .tl-track.music { height: 32px; }
+.tl-name { position: sticky; left: 0; z-index: 2; pointer-events: none; width: 68px; display: inline-block; padding: 2px 6px; font-size: 10px; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--ink-3); background: var(--surface-2); border-radius: 0 0 var(--r-sm) 0; }
+.tl-clip { position: absolute; top: 14px; height: 30px; display: flex; align-items: center; border-radius: var(--r-sm); background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px var(--accent); color: var(--ink); font-size: 12px; cursor: grab; touch-action: none; user-select: none; overflow: hidden; }
+.tl-clip span { flex: 1; padding: 0 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
+.tl-clip.on { background: var(--accent); color: var(--accent-ink); }
+.tl-clip.drag { opacity: .85; cursor: grabbing; z-index: 3; }
+.tl-edge { flex: none; width: 8px; align-self: stretch; cursor: ew-resize; background: var(--accent); opacity: .55; }
+.tl-edge:hover, .tl-clip.on .tl-edge { opacity: 1; }
+.tl-item { position: absolute; top: 4px; height: 24px; padding: 0 8px; border: 0; border-radius: var(--r-sm); background: var(--surface-3); color: var(--ink);
+  font-size: 11px; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+.tl-item.on { background: var(--ink); color: var(--bg); }
+.tl-item.static { cursor: default; background: var(--accent-soft); }
+.tl-item:focus-visible { outline: none; box-shadow: var(--focus); }
+.tl-head { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--accent); pointer-events: none; z-index: 4; }
+.tl-foot { margin-top: 10px; gap: 8px; }
+@media (prefers-reduced-motion: reduce) { .coach-bar i { transition: none; } }
+.coach > * { flex-shrink: 0; }
+.coach > .coach-log { flex: 1 1 auto; }
+.coach .linkish { padding: 0; border: 0; background: none; color: var(--accent-text); font: inherit; text-decoration: underline; cursor: pointer; }
+.coach-msg.by-coach .chip { background: var(--surface-3); }
+.coach-msg.by-coach .chip:hover { background: var(--line-strong); }
+.tl-text { gap: 8px; margin-bottom: 10px; align-items: center; }
+.tl-text .input { flex: 1; min-width: 160px; }
+.tl-level { height: 32px; padding: 0 6px; border: 1px solid var(--line-strong); border-radius: var(--r-sm);
+  background: var(--surface); color: var(--ink); font-size: 12px; }
+
+/* with the app's bottom tab bar (narrow screens): the assistant sits just above it, as a round button */
+@media (max-width: 900px) {
+  .coach-fab { right: 14px; bottom: calc(74px + env(safe-area-inset-bottom)); width: 48px; padding: 0; justify-content: center; }
+  .coach-fab > span:not(.spin) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .coach-bubble { right: 14px; bottom: calc(130px + env(safe-area-inset-bottom)); }
+  .coach-fab.on { display: none; }
+}

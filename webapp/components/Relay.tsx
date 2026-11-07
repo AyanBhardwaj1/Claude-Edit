@@ -12,7 +12,7 @@ type Pending = { ask: RelayAsk; text: string; done: (v: Json) => void; fail: (e:
 
 const WHAT: Record<string, string> = { submit_edit: "the edit", submit_script: "your script", submit_hooks: "hook ideas",
   submit_titles: "chapter titles", submit_clips: "the best clips", submit_animation: "the animation's scenes",
-  submit_lines: "the translation" };
+  submit_lines: "the translation", submit_coach: "advice" };
 
 export function Relay() {
   const ref = useRef<HTMLDialogElement>(null);
