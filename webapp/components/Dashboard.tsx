@@ -28,7 +28,7 @@ export function Dashboard({ user, settings, theme, onNew, onOpen, onGo, onSample
   const [welcome, setWelcome] = useState(false);
   useEffect(() => { try { setWelcome(!localStorage.getItem(`cutmind.welcomed.${user.id}`)); } catch { /* storage blocked */ } }, [user.id]);
   const dismiss = () => { setWelcome(false); try { localStorage.setItem(`cutmind.welcomed.${user.id}`, "1"); } catch { /* storage blocked */ } };
-  const NEWS = `cutmind.news.2026-11g.${user.id}`;      // a new key: the panel shows again for what's new
+  const NEWS = `cutmind.news.2026-11h.${user.id}`;      // a new key: the panel shows again for what's new
   const [news, setNews] = useState(false);
   useEffect(() => { try { setNews(!localStorage.getItem(NEWS)); } catch { /* storage blocked */ } }, [NEWS]);
   const hideNews = () => { setNews(false); try { localStorage.setItem(NEWS, "1"); } catch { /* storage blocked */ } };
@@ -163,6 +163,11 @@ export function Dashboard({ user, settings, theme, onNew, onOpen, onGo, onSample
               <div className="panel-head"><h2 id="news-h">New in Cutmind</h2>
                 <button className="btn ghost icon sm" aria-label="Hide what's new" onClick={hideNews}>&times;</button></div>
               <ul className="setup news-list">
+                <li><span className="what grow"><b>Your assistant</b> (bottom right): tell it what you make and it coaches you, with ideas for your
+                  next video, hooks and better edits, and tells you what&apos;s happening while a video is made. The AI editor&apos;s style follows what you make.</span></li>
+                <li><span className="what grow"><b>Timeline</b> in the editor: split, trim, reorder and duplicate clips, add text, nudge pictures,
+                  undo and redo, like a desktop editor.</span>
+                  <button className="btn sm" onClick={() => onGo("videos")}>My videos</button></li>
                 <li><span className="what grow"><b>Any AI account</b>: an Anthropic, OpenAI, <b>OpenRouter</b> (one key for Claude, GPT, Gemini, Llama…)
                   or <b>Gemini</b> key, or <b>your Claude or ChatGPT plan</b> by copy and paste, no key at all.</span>
                   <button className="btn sm" onClick={() => onGo("settings")}>Settings</button></li>
