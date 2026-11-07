@@ -153,13 +153,17 @@ def test_inventory_lists_media_without_transcribing(tmp_path):
                     "-i", "sine=duration=2", "-shortest", "-pix_fmt", "yuv420p", str(raw / "a.mp4")], check=True)
     subprocess.run(["ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i", "sine=duration=1", str(raw / "b.wav")],
                    check=True)
+    subprocess.run(["ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i", "anullsrc=r=48000:cl=mono", "-t", "1",
+                    str(raw / "c.wav")], check=True)        # a track with nothing on it
     (raw / "notes.txt").write_text("ignored")
     res = inventory.inventory(raw, tmp_path / "inv", transcribe=False)
     kinds = {i["file"]: i["kind"] for i in res["items"]}
-    assert kinds == {"a.mp4": "video", "b.wav": "audio"}
+    assert kinds == {"a.mp4": "video", "b.wav": "audio", "c.wav": "audio"}
     a = next(i for i in res["items"] if i["file"] == "a.mp4")
-    assert a["width"] == 320 and a["has_audio"] and Path(a["sheet"]).exists()
-    assert "| a.mp4 | video |" in (tmp_path / "inv" / "inventory.md").read_text()
+    assert a["width"] == 320 and a["has_audio"] and Path(a["sheet"]).exists() and not a.get("silent")
+    assert next(i for i in res["items"] if i["file"] == "c.wav")["silent"]
+    md = (tmp_path / "inv" / "inventory.md").read_text()
+    assert "| a.mp4 | video |" in md and "| silent |" in md and "Silent (" in md and "c.wav" in md
 
 
 @pytest.mark.slow
