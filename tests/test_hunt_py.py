@@ -427,3 +427,11 @@ def test_cut_refuses_a_backwards_segment_even_next_to_a_touching_one(tmp_path):
     (tmp_path / "edl.json").write_text(json.dumps(edl))
     with _pt.raises(EditorError, match="segment 1"):
         cut(tmp_path / "edl.json", tmp_path)
+
+
+def test_pacing_lists_words_the_recogniser_was_unsure_of():
+    from editor.review import _unsure
+    words = [{"id": f"w{i}", "text": t, "start": i * 0.4, "end": i * 0.4 + 0.3, "prob": p}
+             for i, (t, p) in enumerate([("I", 0.99), ("use", 0.98), ("Clawed", 0.31), ("um", 0.2), ("Clawed", 0.4), ("daily.", 0.95)])]
+    assert _unsure(words, {}) == '"Clawed" at 0.8s: check the captions (editor words <work> --unsure); fix with EDL captions.corrections'
+    assert _unsure(words, {"captions": {"corrections": [{"from": "Clawed", "to": "Claude"}]}}) is None
