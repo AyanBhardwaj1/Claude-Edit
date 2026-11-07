@@ -14,8 +14,10 @@ export function noteTimes(note: string): number[] {
     if (m[5] !== undefined) {                 // "10 seconds" is a length, not a moment, in "10 seconds shorter", "by 10 seconds"
       const before = note.slice(0, m.index).trim().split(/\s+/).pop()?.toLowerCase() ?? "";
       const after = note.slice((m.index ?? 0) + m[0].length).trim().split(/\s+/)[0]?.toLowerCase() ?? "";
-      if (/^(by|than|under|over|about|for|around|last|first|another|extra|only|just)$/.test(before) ||
-          /^(shorter|longer|faster|slower|long|less|more|earlier|later|of|each|apart|max|tops)\b/.test(after)) continue;
+      // ...and in "the 2s pause", "a 3 second gap", "this 5 second bit"; "the 12 second mark" is still a moment
+      if (!/^(mark|point|spot|timestamp)\b/.test(after) &&
+          (/^(by|than|under|over|about|for|around|last|first|another|extra|only|just|the|a|an|this|that|these|those|each|every|per)$/.test(before) ||
+           /^(shorter|longer|faster|slower|long|less|more|earlier|later|of|each|apart|max|tops|pause|pauses|gap|gaps|silence|delay|break|wait|part|bit|clip|clips|shot|shots|zoom|zooms|intro|outro|hold|freeze|fade|transition|segment|loop|video|reel|version|cut|stretch)\b/.test(after))) continue;
     }
     const t = m[1] !== undefined ? Number(m[1]) * 60 + Number(m[2]) : m[3] !== undefined ? Number(m[3]) * 60 + Number(m[4]) : Number(m[5]);
     if (Number.isFinite(t) && !out.some((x) => Math.abs(x - t) < 0.05)) out.push(t);
